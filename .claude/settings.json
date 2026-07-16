@@ -1,0 +1,20 @@
+{
+  "//": "Lives in the repo root at .claude/settings.json so it travels with the code. Two layers: (1) a PreToolUse hook that blocks destructive shell commands, (2) deny rules that keep Claude out of secrets. Deny beats ask beats allow.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/guard-destructive.sh", "timeout": 30 }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ]
+  }
+}
