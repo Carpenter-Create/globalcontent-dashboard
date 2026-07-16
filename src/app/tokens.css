@@ -1,0 +1,89 @@
+/* ============================================================================
+   House design tokens — the shared structural layer (see design-system SKILL.md)
+   ----------------------------------------------------------------------------
+   Copied verbatim from the house canon. The register (type scale, spacing,
+   radius, neutral ramp, hairlines) is shared and does NOT change per product.
+   Per product you set ONE thing: --accent.
+
+   Global Content: greenfield brand, new logo pending → stays on the neutral
+   placeholder accent until the brand accent is chosen (FOUNDER CHECKPOINT).
+
+   Base mode: LIGHT is the default (:root); DARK is secondary (.dark class),
+   toggled by the theme switch. Values CONFIRMED 2026-07-09.
+   ============================================================================ */
+
+:root {
+  /* --- Typeface (Geist — house default) --- */
+  --font-sans: "Geist", ui-sans-serif, -apple-system, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* --- Accent: THE one per-product variable. ---
+     NEUTRAL PLACEHOLDER — a grey drawn from the ramp, NOT a brand color. The
+     real Global Content accent is a founder checkpoint pending the logo; do not
+     pick a brand color here. Replace this single value once the brand is set. */
+  --accent: #6b7280;            /* PLACEHOLDER — neutral grey */
+  --accent-contrast: #ffffff;   /* text/icon color on top of --accent */
+
+  /* --- Neutral ramp — LIGHT (default base) ---
+     House greyscale canon: airy, neutral near-white. Colour comes only from the
+     sparing accent. */
+  --bg:            #fafafb;         /* airy neutral near-white */
+  --surface:       #ffffff;         /* elevated white */
+  --surface-muted: #f4f4f6;         /* panel fill */
+  --border:        #ecedf0;         /* hairline */
+  --text:          #14171a;         /* near-black ink */
+  --text-secondary:#5e646e;
+  --text-tertiary: #9aa0a9;
+  --body:          #2b2f36;         /* long-form prose */
+  --elevation: 0 1px 2px rgb(16 18 26 / 0.06);
+
+  /* The dramatic dark band (portal / insights) — near-black charcoal, part of
+     the greyscale ramp (not a colour). The accent stays reserved. */
+  --band:          #1b1f23;
+  --band-ink:      #fafafb;
+
+  /* --- NO status colors by default (greyscale + one accent). --- */
+
+  /* --- Type scale (tight; rem) --- */
+  --text-xs:   0.75rem;
+  --text-sm:   0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg:   1.0625rem;
+  --text-title:1.5rem;
+  --text-hero: 3rem;
+  --tracking-tight: -0.02em;
+
+  /* --- Spacing (4px base) --- */
+  --space-1: 0.25rem; --space-2: 0.5rem;  --space-3: 0.75rem; --space-4: 1rem;
+  --space-6: 1.5rem;  --space-8: 2rem;    --space-10: 2.5rem; --space-16: 4rem;
+
+  /* --- Radius + hairline elevation --- */
+  --radius-sm: 6px; --radius: 10px; --radius-lg: 14px;
+  --border-width: 1px;
+
+  /* --- Layout --- */
+  --content-max: 90rem;
+  --page-column: 980px;
+}
+
+/* --- Neutral ramp — DARK (secondary; add class="dark") --- */
+.dark {
+  --bg:            #0f1114;
+  --surface:       #1e2126;
+  --surface-muted: #25292f;
+  --border:        #2a2f34;
+  --text:          #f1f3f6;
+  --text-secondary:#a7adb4;
+  --text-tertiary: #6b7278;
+  --body:          #c4c9d0;
+  --elevation: 0 1px 2px rgb(0 0 0 / 0.4);
+
+  /* On the dark page the band lifts (rather than going darker) so it still
+     reads as a distinct full-bleed section. */
+  --band:          #191d22;
+  --band-ink:      #f1f3f6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

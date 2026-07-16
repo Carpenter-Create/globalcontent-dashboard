@@ -1,0 +1,9 @@
+# Single-package repo — this file holds pnpm settings (pnpm 11 moved them here
+# out of package.json).
+#
+# Trusted native deps allowed to run install scripts:
+# sharp = image processing (Next.js image optimization),
+# unrs-resolver = eslint import resolver.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
