@@ -59,6 +59,19 @@ decision**, deferred.
 **Trigger:** first surface where greyscale error affordance proves insufficient in testing, or the
 brand accent/logo checkpoint is resolved.
 
+## Payments
+
+### PAY1 — Hosted Stripe Checkout rejected; embedded Payment Element on our domain
+Decision: users never leave our domain for payment. Use the **Payment Element backed by the Checkout
+Sessions API via `ui_mode: 'custom'`** (Stripe's recommended custom flow — payments.md; not hosted
+redirect, not raw PaymentIntents), styled with the **Appearance API mapped to `tokens.css`** (no
+hardcoded hex). Card fields stay in Stripe's iframe (keeps us PCI SAQ-A) — never build our own.
+Accept the immovables: the Link legal line can't be removed; redirect-based methods return to **our**
+confirmation page. **DB is unaffected** — it's still a Checkout Session, so `checkout.session.completed`
+fires and `finalize_paid_signup` is unchanged. Rationale: the payment experience is part of the brand;
+the dashboard is operating infrastructure, not a redirect to someone else's page.
+**Trigger:** revisit only if Stripe deprecates `ui_mode: 'custom'`.
+
 ## Auth
 
 ### A1 — RESOLVED: Turnstile mount was an origin mismatch, not a code bug

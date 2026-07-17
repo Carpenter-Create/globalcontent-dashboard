@@ -420,11 +420,11 @@ export type Database = {
       accept_terms: {
         Args: {
           p_content_hash: string
-          p_ip: unknown
+          p_ip?: unknown
           p_rendered_text: string
           p_terms_version: string
           p_tier: Database["public"]["Enums"]["tier_enum"]
-          p_user_agent: string
+          p_user_agent?: string
         }
         Returns: Json
       }
