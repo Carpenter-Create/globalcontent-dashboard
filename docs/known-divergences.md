@@ -29,6 +29,28 @@ Founder directive: keep the **composition**, drop the **brand**.
 - Recolor ≠ port. Swapping the hex behind a Watershed var leaves its naming/geometry/weights intact.
 **Trigger:** the dashboard-shell / data-table port task.
 
+**Shell increment status (done):** ported the composition — fixed sidebar (210px), sticky header
+(56px), content frame (max 1080px, inset 48px), nav row rhythm — into GC layout tokens in
+`tokens.css`; built `chrome/{app-shell,side-nav,organization-switcher,user-menu}` rewired onto
+`organizations`/`memberships` + active-org cookie; reconciled primitives (one Card composite, new
+`ui/page-header`, themed `ui/dropdown-menu` on Radix). Correction: watershedportal is Next.js App
+Router (not Vite/React-Router — the inventory's "Next 15.5" was right), so the chrome was a lift.
+**Deferred (no consumer yet):** `platform-ui` StatCard/ListCard/Panel/SearchInput/Section,
+GlobalSearchDialog, AccordionNav (GC nav is flat), sidebar collapse, and re-pointing the Dashboard
+"attention" block at the real findings model (§19) — it's an honest placeholder until findings exist.
+**Trigger:** each lands with the slice that needs it. (Mobile-responsive nav is NOT in this list —
+it's committed scope, see D4.)
+
+### D4 — Mobile-responsive shell/nav is committed scope, not a deferral
+Self-serve signup is now the core strategy, and filmmakers sign up from phones — so the shell must
+work on mobile (collapsible/drawer nav, responsive header, touch targets). This is **required scope**,
+scheduled but not built in the shell chunk (which is desktop-first: a fixed 210px sidebar with no
+mobile breakpoint yet). **Distinct from the spec's §23 "no mobile"**, which means no *native* app —
+mobile *web responsiveness* is in scope and now central. Reconcile that §23 wording (native vs
+responsive) in the upcoming spec work so the two don't read as contradictory.
+**Trigger:** before self-serve signup ships to real users; earliest sensible slice for the responsive
+pass.
+
 ### D3 — No status/danger color token (errors render on-system)
 GC's `tokens.css` is "greyscale + one accent, no status colors by default." Form errors therefore
 render as a restrained hairline notice differing by **ink weight**, not red (`InlineNotice`). A

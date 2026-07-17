@@ -64,6 +64,16 @@
   /* --- Layout --- */
   --content-max: 90rem;
   --page-column: 980px;
+
+  /* --- Dashboard shell proportions ---
+     Ported from watershedportal's shell (proportions kept, vocabulary dropped —
+     see docs/known-divergences.md D2). GC had no equivalents, so these fill the gap. */
+  --header-height: 56px;
+  --sidebar-width: 210px;
+  --sidebar-width-collapsed: 64px;
+  --content-inset: 48px;
+  --content-inset-tablet: 32px;
+  --page-max-width: 67.5rem;   /* 1080px — the single centered page cap */
 }
 
 /* --- Neutral ramp — DARK (secondary; add class="dark") --- */
