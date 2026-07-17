@@ -117,8 +117,18 @@ which role, the org carries the consequence. Same logic that removed the stakeho
 
 ### Tiers
 
-Three tiers: **FREE**, **MID**, **PRO**. Each defines three things with **three different
-lifetimes** — do not store them in one place:
+Three tiers: **Access** (free) · **Pro** (mid) · **Premium** (top).
+
+```sql
+create type tier_enum as enum ('access', 'pro', 'premium');
+```
+
+> **Naming — note the collision.** These renamed **FREE → Access**, **MID → Pro**, **PRO → Premium**.
+> The old spec's "PRO" meant the **top** tier; the new **Pro** is the **mid** tier — same word,
+> inverted meaning. Term follows the tier, not the name (see below). `tier_enum` has not shipped, so
+> `access | pro | premium` is authoritative from here.
+
+Each tier defines three things with **three different lifetimes** — do not store them in one place:
 
 | Attribute | Lives in | Effective-dated? | Why |
 |---|---|---|---|
@@ -126,9 +136,15 @@ lifetimes** — do not store them in one place:
 | `features` | current tier, read live | No | Nobody asks what features they had last February. |
 | `annual_price` | subscription record (snapshotted at purchase) | No, but frozen | Repricing a tier must not change existing subs. |
 
-Term increments: **FREE = 1 year · MID = 1 year · PRO = 2 years.** Annual price: FREE = $0.
-MID / PRO = TBD (§21). Rate direction: FREE gives GC the **highest** share; PRO the lowest.
-(75/25 was illustrative only.)
+Term increments follow the tier, not the name: **Access = 1 year · Pro = 1 year · Premium = 2 years.**
+Annual price: **Access = $0 · Pro = $497/yr · Premium = $997/yr** (prices end in 7 — §7). Rate
+direction: Access gives GC the **highest** share; Premium the lowest. (75/25 was illustrative only.)
+
+> **Premium is billed ANNUALLY inside a 2-year term (decided — §21.16, option B).** $997 is per
+> **year**, not for the whole term: $997 covering 24 months would be ~$498.50/yr — i.e. Pro with a
+> lock, which is not the product. So Premium has **two dates**: an annual charge at month 12 and term
+> expiry at month 24. `term_length_months = 24`, `annual_price` literally annual. This is the
+> exception to §6's "one date" — see §6.
 
 ### contract_terms
 
@@ -156,7 +172,7 @@ create table contract_terms (
 - **The accept action writes client-initiated terms** (signup / upgrade / downgrade);
   **webhooks/cron write system-initiated terms** (lapse / renewal). **The revenue math reads terms
   only** — Stripe never enters the calculation path.
-- **FREE tier has terms but no Stripe subscription.** `contract_terms` must not depend on a
+- **Access tier has terms but no Stripe subscription.** `contract_terms` must not depend on a
   subscription existing.
 - **Terms are immutable once written.** A change is a new row + closing `effective_to`.
 - **Boundary convention: the effective date belongs to the new term.** Stated once, here.
@@ -203,20 +219,29 @@ the system.
 | Event | Charge | Effect |
 |---|---|---|
 | **Upgrade** | New tier's annual price − amount already paid this billing year. No time pro-ration. | New term at payment date. Length = new tier's increment. |
-| **Voluntary downgrade** | **$197**, charged first — the payment gates the change. | New term at payment date. Unused prepaid value → **account credit** (never a cash refund). |
-| **Involuntary downgrade (lapse)** | **No fee** (§8). | New FREE term at `lapsed_at + 30 days`. |
+| **Voluntary downgrade** | **No fee** (removed). A new clickwrap gates the change. | Term **resets to the signing date**; rate becomes the new tier's rate. Unused prepaid value → **account credit** (never a cash refund). |
+| **Involuntary downgrade (lapse)** | **No fee** (§8). | New Access term at `lapsed_at + 30 days`. |
 
 - **Term = the tier's increment, reset on any move.** Renewal cadence, **not a commitment lock.**
   Do not put commitment language in the contract — it won't be enforced.
-- **Billing anniversary resets with the term.** One date to reason about, not two.
-- **Credit applies against future annual charges**, drawn down before new charges.
-- Asymmetry is deliberate: upgrades frictionless, downgrades cost money.
+- **Billing anniversary vs. term boundary.** For **Access and Pro** (1-year term, annual billing)
+  they coincide — one date. For **Premium** they do **not**: it's billed annually inside a 2-year
+  term (§5, §21.16), so there are **two dates** — the annual charge at month 12 and term expiry at
+  month 24. Model both; don't assume the anniversary equals the term boundary.
+- **Credit applies against future annual charges**, drawn down before new charges. **Open (§21.19):**
+  on a downgrade to **Access** (no annual charge) the credit has nothing to draw against — decide what
+  happens to it.
+- **The old asymmetry is gone.** The downgrade fee was removed, so upgrade and downgrade are both
+  just a new clickwrap, no charge. The only remaining paid exit is an **early takedown** ($197, §7/§9).
+  > **⚠ Consequence (flagged, not resolved):** a downgrade **resets the term to the signing date**,
+  > which also **resets the "early" window** — the client gets a fresh term during which takedowns cost
+  > $197 again. Side effect of the reset rule meeting the early-takedown framing; probably unintended.
 
 ### Feature enforcement — the non-obvious rule
 
 > **A tier change gates future actions. It never retroactively destroys existing state.**
 
-MID allows 100 titles, FREE allows 10, client has 50 live → all 50 **stay live and keep earning**
+Pro allows 100 titles, Access allows 10, client has 50 live → all 50 **stay live and keep earning**
 at the new rate. They cannot submit #51 until they upgrade. Enforce **at the point of action**,
 never as a sweep. Voluntary and involuntary alike.
 
@@ -240,21 +265,21 @@ vague notice here is what generates the angry ticket. Sender is **GC Support** (
 
 ## 7. Fee schedule
 
-**Fees are a table, not constants.** Four SKUs, repriceable, and **snapshotted onto the charge**
-the same way rates are snapshotted onto terms.
+**Fees are a table, not constants.** Repriceable, and **snapshotted onto the charge** the same way
+rates are snapshotted onto terms.
 
 | SKU | Price | Notes |
 |---|---|---|
-| `downgrade` | **$197** | Voluntary only. Gates the change. |
-| `takedown` | **$197** | Per title (§11). |
+| `early_takedown` | **$197** | Per title, **before term expiry**; free offload at/after expiry — **all tiers** (§10). A **priced option**, not a penalty (§9/§21.18). |
 | `rights_change` | **$97** | Rights/territory change after submission (§9). |
 | `upgrade_differential` | computed | New tier price − paid this billing year. |
 
 **Pricing convention: prices end in 7, never 9.** $197, $97 — not $199, $99. Write it down or
 someone invents a $199 next year.
 
-`downgrade` and `takedown` are **different SKUs at the same price.** Never collapse them into a
-generic "service fee" — they'll diverge the first time one is repriced.
+**No downgrade fee** — removed (§6): a downgrade is a new clickwrap, no charge. The remaining SKUs
+stay distinct; never collapse them into a generic "service fee" — they'll diverge the first time
+one is repriced.
 
 ---
 
@@ -268,7 +293,7 @@ shape: no money moves, so it isn't a purchase. It is a **time-driven term change
 | `invoice.payment_failed` webhook | org `status = payment_lapsed`, stamp `lapsed_at` from the **event timestamp** |
 | Days 0–30 | Dunning emails via **Resend**, GC's schedule, GC's voice — not Stripe's templates |
 | `invoice.payment_succeeded` before day 30 | Clear status + `lapsed_at`. **No term written. Nothing happened.** |
-| **Daily scheduled edge function** | `status = 'payment_lapsed' AND lapsed_at < now() - interval '30 days'` → write FREE term → cancel the Stripe subscription → notify |
+| **Daily scheduled edge function** | `status = 'payment_lapsed' AND lapsed_at < now() - interval '30 days'` → write Access term → cancel the Stripe subscription → notify |
 
 ### The `effective_from` exception
 
@@ -289,8 +314,8 @@ large client. **Default is automatic**; the hold is the exception.
 - **Distribution never stops.** The licensing agreement governs distribution; the subscription
   governs the tier. A failed card does not void a signed agreement. Titles stay live and keep
   earning — the rate changes, and the feature set changes (gating future actions only, §6).
-- **No $197 fee on an involuntary downgrade.** Suppress the fee rule for `trigger = 'lapse'`.
-  You cannot charge a downgrade fee to a card that just failed.
+- **No downgrade fee at all** — voluntary or lapse (removed, §6/§7). Lapse just writes an Access term
+  with no charge; there is no downgrade fee rule left to suppress.
 - Paying after day 30 → reinstatement (§21 open).
 
 ---
@@ -328,7 +353,9 @@ shortcut. Otherwise you cannot answer "can we deliver to Poland?" without re-int
 - GC does **not** always take worldwide.
 - Clients **can carve out rights types** (e.g. "AVOD yes, I'm keeping SVOD").
 - **Windows / holdbacks exist** (e.g. nothing on AVOD until 6 months post-theatrical).
-- **Term is account-level.** Early takedown is charged **per title** ($197, §11).
+- **Term is account-level. Early takedown** — withdrawing a title *before* term expiry — costs
+  **$197 per title** (§7); at/after expiry the client offloads **free** (§10). Framed as a **priced
+  option**, not a penalty (decided — §21.18). Applies uniformly to all tiers.
 - **Rights can expand mid-term** — $97 (§7).
 
 ### The rule that inverts §6
@@ -362,10 +389,16 @@ scope and window.** Enforce in the database, not the UI.
 - **GC controls the reminder schedule in settings** — when expiry emails auto-send. Not hardcoded.
 - **No action by expiry → the card is charged and the term auto-renews.** New `contract_terms`
   row, `trigger = 'renewal'`.
-- **Client notifies GC before expiry → offload** per the offloading terms in the agreement.
+- **Client notifies GC before expiry → offload, free** (all tiers; decided — §21.18): the term ran
+  its course, so winding-down is priced into the annual fee. An **early** takedown (before expiry) is
+  the only paid exit ($197/title, §7/§9).
+  > **⚠ Consequence (flagged, not resolved):** free offload at expiry = **unpaid manual vendor-pull
+  > work, per title, for every non-renewing client** — §13's manual-delivery constraint reappearing on
+  > *offboarding*. Acute on **Access** (unbounded free titles → unbounded pulls); see §21.10, where a
+  > title cap now has a second reason.
 
 > **§21 open — the renewal rate.** Does a renewing client keep the rate they signed at, or get
-> the tier's current price? If PRO is repriced next year, which applies? Both defensible.
+> the tier's current price? If Premium is repriced next year, which applies? Both defensible.
 > Undecided, it gets invented. This is the snapshot trap one level up.
 
 ---
@@ -400,7 +433,9 @@ reached delivery or revenue — see the asset-purge rule (§21).
 
 **Takedown = archive, never delete:**
 
-- **$197 per title** (§7). Real work: pulling from every vendor and confirming.
+- **Early takedown: $197 per title** (§7) — a **priced option** to withdraw *before* term expiry,
+  **not** cost recovery. The vendor-pull work is identical at expiry, where it's **free** via offload
+  (§10) — so "it's real work" can't be the justification. Uniform across tiers. Decided — §21.18.
 - **`status` change only. The row never leaves the table.** No `titles_archive` table — that
   breaks every FK and severs the provenance chain.
 - **Revenue keeps straggling in for months** and must still appear on statements. Nothing about
@@ -783,7 +818,7 @@ from brand canon, not a shared package.)
 rejections, deadlines → precision leads. GC Support delivers the bad news, but the client's next
 move is to ask Globee "what does this mean?" — so the topic follows him across the channel.
 
-**Globee cannot advocate against GC.** "Should I downgrade?" earns GC $197 and a better rate.
+**Globee cannot advocate against GC.** "Should I downgrade?" moves the client to a higher-GC-share tier — good for GC, not necessarily for them.
 "Is 25% fair?" is asking your friend to negotiate against his employer. Give the facts, name the
 tradeoff honestly, hand off. Being plain about the limit *is* the trustworthy move.
 
@@ -817,10 +852,13 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
 1. **The canonical metadata field list.** Built from real vendor requirements. **Critical path** —
    three features depend on it (§12), and it cannot be compressed or invented. Start in parallel.
 2. **Renewal rate (§10).** Signed rate or current tier price on auto-renewal?
-3. **Reinstatement (§8).** Lapsed → FREE → pays two months later. Upgrade differential, or old
+3. **Reinstatement (§8).** Lapsed → Access → pays two months later. Upgrade differential, or old
    tier resumes?
 4. **Does takedown end the licence (§11)?** Can a client re-submit later without signing again?
-5. **Tier prices and the three revenue-share rates (§5).**
+5. **Revenue-share rates (§5) — prices SET, rates still OPEN.** Prices: **Access $0 · Pro $497/yr ·
+   Premium $997/yr** (test + live catalogs are separate; test uses these real numbers to surface
+   integer-cents rounding). **Still open:** the three revenue-share rates (Access highest GC share →
+   Premium lowest).
 6. **~~E-sign vendor~~ — CLOSED.** Clickwrap replaces e-sign; there is no vendor (§5). (Number kept,
    not renumbered, to preserve the §21.9 / §21.10 cross-references.)
 7. **Globee escalation reply path (§20)** — dashboard or email?
@@ -834,6 +872,12 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     **The row stays** (nothing is ever deleted — golden rule 2); only the S3 object is purged, and
     the asset record is marked purged. **Only titles that pass the gate cost storage forever.**
     **Open: N (the purge window)** — a founder decision (also listed at 15).
+    > **Second cost dimension (added — from §10/§21.18).** Beyond *storage*, free offload at expiry
+    > (all tiers, §21.18) is **unbounded unpaid manual vendor-pull work** on Access: a free client with
+    > 50 titles × 20 vendors = ~1,000 pulls at expiry, uncharged. A per-title takedown fee doesn't fix
+    > an aggregate problem (and can't apply at expiry, where offload is free). **A title cap on Access
+    > bounds it directly** (e.g. 10 titles → ≤10 pulls). So the cap option now has a **second reason**
+    > (storage *and* offboarding labor). Not resolved here — just recorded.
 11. **Does the free tier eventually need self-serve delivery? (§13)** §3 has manual contract review
     and §13 has manual, staff-driven delivery to each vendor. That is correct at hundreds of
     clients and impossible at tens of thousands. Whether the free tier stays manual or becomes
@@ -857,6 +901,34 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     pre-agreed-consent question that clickwrap makes load-bearing.
 15. **Purge window `N` (§21.10 / §11).** How many days a title may sit rejected/abandoned at
     `in_review` before its S3 asset is purged. Founder decision.
+16. **Premium: 2-year term vs. annual charge (§5/§6) — DECIDED: option B.** Premium is billed
+    **annually** ($997/yr) inside a **2-year term** — two dates (annual charge at month 12, term
+    expiry at month 24). §6's "one date" is a documented exception for Premium (reworded in §6).
+    Stripe Premium Price = annual-recurring; `term_length_months = 24`.
+17. **Downgrade credit basis for Premium (§6) — propose, not picked.** Voluntary downgrade credits
+    "unused prepaid value." For Premium (annual $997 charge inside a 2-year term), what's the base?
+    - **(a) Unused of the current ANNUAL charge** — pro-rate the most recent $997 by remaining days
+      in that 12-month billing period. Credits only what was actually prepaid; consistent with annual
+      billing.
+    - **(b) Unused of the full 2-year TERM** — treats the 24-month term as the prepaid unit. But under
+      annual billing only one year is paid at a time, so this either over-credits (year 2 isn't paid
+      yet) or, if "prepaid" means "already charged," collapses back to (a).
+    Founder decision. **Does not block this slice** — downgrade/credit is a later flow (§6 fees); the
+    clickwrap+Stripe slice only needs the *accept → term-write* path.
+18. **Takedown fee framing (§9/§10/§11) — DECIDED: (b) early-exit fee, uniform across tiers.**
+    $197 per title to withdraw a title **before** term expiry; **free offload at/after expiry** on
+    **all tiers** (§10) — winding-down is priced into the annual fee, so "early" is meaningful. No
+    per-tier carve-out (a per-title fee doesn't fix the *aggregate* free-tier exposure — that's a
+    title-cap question, §21.10).
+    **Footing (Q2 — priced option, not penalty):** frame it in the agreement as *"Client may withdraw
+    a title before term expiry on payment of the then-current takedown fee."* An option with a price
+    is **enforceable** and removes the liquidated-damages objection to (b); a breach penalty would be
+    arguable as liquidated damages and must approximate actual loss. Counsel confirms; that's the
+    drafting target. Stripe product name: **"Early Takedown Fee."** §9/§10/§11 reconciled to this.
+19. **Downgrade-to-Access credit target (§6) — open.** A voluntary downgrade credits unused prepaid
+    value against future annual charges. Downgrading **to Access** (no annual charge) leaves the
+    credit with nothing to draw against. Does it sit until a future upgrade, expire after some window,
+    or convert somehow? Founder decision. (Related: §21.17, the credit *basis* for Premium.)
 
 ---
 

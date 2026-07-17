@@ -68,7 +68,7 @@ No mobile. **Its own Supabase project** — never share `globalcontent-web`'s.
     you're auto-taking-down live titles (spec §6).
 12. **Rights are the exception to rule 11 — grants expand, never contract.** Shrinking scope would
     leave GC distributing where it has no rights: infringement, not inconvenience. Less scope =
-    takedown ($197/title) + resubmit. **No delivery may exist outside an active grant's scope and
+    early takedown ($197/title) + resubmit. **No delivery may exist outside an active grant's scope and
     window — enforce in the database, not the UI.** Territories are **resolved ISO codes, never
     labels**: store `mode` (world|include|exclude) + explicit alpha-2 list. "Europe" shifts.
 13. **GC never holds banking or tax identifiers.** Client enters them into **Trolley's widget**.
@@ -94,11 +94,14 @@ loudly** — it's a service-role backdoor wearing a nice hat.
 ## Money
 - **Stripe money in** (tier subscriptions + fees). **Trolley money out** (payouts, W-9/W-8BEN,
   1099/1042-S). No overlap.
-- **Fees are a table, not constants**, and snapshot onto the charge: `downgrade` $197 ·
-  `takedown` $197/title · `rights_change` $97 · `upgrade_differential` (computed).
+- **Fees are a table, not constants**, and snapshot onto the charge: `early_takedown` $197/title
+  (before term expiry; free offload at/after expiry, all tiers) · `rights_change` $97 ·
+  `upgrade_differential` (computed). **No downgrade fee** (removed).
 - **Pricing convention: prices end in 7, never 9.** $197, $97 — not $199, $99.
-- `downgrade` and `takedown` are **different SKUs at the same price** — never collapse them.
-- **No fee on an involuntary downgrade** (lapse). Don't apply the fee rule uniformly.
+- **Early takedown is a priced OPTION, not a penalty** — "withdraw before expiry on payment of the
+  fee" (enforceable; a breach penalty would be arguable liquidated damages).
+- **Downgrades are free** — new clickwrap, term resets to the signing date, rate = new tier; unused
+  prepaid → account credit. Lapse likewise writes an Access term with no fee.
 
 ## Delivery is manual — there are no platform APIs
 GC staff deliver by hand: either exporting metadata in a vendor's required format and uploading to
