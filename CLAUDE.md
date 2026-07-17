@@ -56,7 +56,7 @@ No mobile. **Its own Supabase project** — never share `globalcontent-web`'s.
 6. **Terms are records, not columns.** So are rights grants and fees. `contract_terms` is
    effective-dated and immutable; the rate is **snapshotted**, never a FK to `tiers.rate`.
 7. **Money is integer cents.** Never floats. Derive the counterparty share by subtraction.
-8. **Webhooks write terms; the math reads terms only.** Stripe never enters the calculation path.
+8. **The clickwrap accept writes client-initiated terms (signup/upgrade/downgrade); webhooks/cron write system-initiated terms (lapse/renewal). The math reads terms only.** Stripe never enters the calculation path.
    `effective_from` from the event timestamp, **never `now()`**. Exception — lapse has no event:
    use `lapsed_at + 30 days`. The lapse job must be idempotent.
 9. **Transaction date wins; pro-rate only when it's absent.** Pro-rating a source that *had* dates
@@ -178,12 +178,14 @@ email until it completes, or you're mailing links that 404.
 
 ## Build order (first vertical slice — in this order)
 ```
-auth → org + membership + ROLES + RLS → contract_review gate (e-sign webhook)
-     → contract_terms on signing → Trolley recipient setup
+auth → org + membership + ROLES + RLS
+     → clickwrap accept (assent record + rendered terms as source doc) → contract_terms on accept
+     → Stripe tier purchase (paid tiers) → org: active
      → title stub → rights grant → asset upload (multipart to S3)
-     → metadata intake (guided form only) → vendor records
-     → delivery status (manual, GC-updated, grant-gated)
+     → metadata intake (guided form only) → in_review chain-of-title gate (narrow)
+     → vendor records → delivery status (manual, GC-updated, grant-gated)
      → findings (validator only) + attention queue → notifications (email + in-app)
+     [Trolley recipient setup → first payout, not signup (§16)]
 ```
 `audit_log` + source layer in the **first** migration. Prove multi-tenant, role-aware RLS
 end-to-end before widening.

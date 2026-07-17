@@ -46,21 +46,37 @@ designed, or marketed as a SaaS product.
 The client is an **organization**. Users belong to an org with a **role**. All business data is
 org-owned and RLS-scoped by membership. A user leaving never cascades org data.
 
+**Signup is self-serve end to end.** A filmmaker signs up, reviews and accepts the agreement
+(clickwrap, §5), pays, and enters the dashboard — no human between them and the product. **The
+human gate moves off the account and onto the TITLE** (`in_review`, §11): it checks chain of title,
+nothing else.
+
 ```
-registered → contract_review → signed → onboarding → active
-                                                       ├→ payment_lapsed (transient, 30d)
-                                                       └→ closed  (revenue tail continues — §17)
+registered → (clickwrap accepted + paid) → active
+                                            ├→ payment_lapsed (transient, 30d)
+                                            └→ closed  (revenue tail continues — §17)
 ```
 
-- **registered** — signed up, selected a tier, no contract yet.
-- **contract_review** — contract under **manual GC review**. Human + GC-side queue. Gates all
-  dashboard access.
-- **signed** — agreement executed. `contract_terms` written at this transition (§5).
-- **onboarding** — Trolley recipient setup (§16), assets, metadata.
-- **active** — normal operation.
+- **registered** — signed up, tier selected; agreement not yet accepted/paid. Transient
+  (an abandoned mid-signup rests here).
+- **active** — clickwrap agreement accepted **and** paid. Full operation. `contract_terms` written
+  at this transition by the accept action (§5).
 - **payment_lapsed** — annual charge failed. Distribution continues. See §8.
 - **closed** — no new submissions. **Statements, payouts, and dashboard access continue** while
   revenue still arrives (§17).
+
+`contract_review`, `signed`, and `onboarding` are **removed** — clickwrap collapses them into the
+`registered → active` transition (Trolley setup moves to first payout, §16). Proposed enum:
+
+```sql
+create type org_status as enum ('registered','active','payment_lapsed','closed');
+```
+
+> **Migration note:** `org_status` already shipped in the first migration with the old values. Postgres
+> can't drop enum values in place, so removing `contract_review`/`signed`/`onboarding` needs a
+> migration against the **applied** schema (recreate the type + swap the column, since no rows use the
+> dropped values yet). This is a destructive schema op — **show the exact SQL for approval at build
+> time** (per the destructive-ops rule), not now.
 
 This state machine gates routing, RLS, and which emails fire. It is not a UI concern.
 
@@ -134,28 +150,51 @@ create table contract_terms (
 **Hard rules:**
 
 - **Copy the rate into the term. Never FK to `tiers.rate`.**
-- **`effective_from` comes from the Stripe event's own timestamp**, not `now()`.
-  **Exception — lapse (§8): there is no Stripe event.** Use `lapsed_at + 30 days`.
-- **Webhooks write terms. The revenue math reads terms only.** Stripe never enters the
-  calculation path.
+- **`effective_from` comes from the triggering event's own timestamp**, not `now()`: the clickwrap
+  **accept/payment** for client-initiated terms; the Stripe event for auto-renewal.
+  **Exception — lapse (§8): there is no event.** Use `lapsed_at + 30 days`.
+- **The accept action writes client-initiated terms** (signup / upgrade / downgrade);
+  **webhooks/cron write system-initiated terms** (lapse / renewal). **The revenue math reads terms
+  only** — Stripe never enters the calculation path.
 - **FREE tier has terms but no Stripe subscription.** `contract_terms` must not depend on a
   subscription existing.
 - **Terms are immutable once written.** A change is a new row + closing `effective_to`.
 - **Boundary convention: the effective date belongs to the new term.** Stated once, here.
   Feb 14 change → old term Feb 1–13, new term Feb 14–28.
 
-### Contract execution
+### Contract execution — clickwrap, not e-sign
 
-E-sign via **Dropbox Sign / PandaDoc / DocuSign — vendor TBD (§21)**. Do not let that block:
-the shape is identical either way. **Abstract behind one interface.**
+Self-serve signup means **clickwrap**: the client accepts the agreement on the page, in-session.
+No e-sign vendor, no human, no waiting.
 
 ```
-send for signature → webhook fires → executed PDF stored as a source document (§18)
-                   → org: contract_review → signed → contract_terms written
+render terms conspicuously → user checks/clicks to accept → payment → accept action writes
+  contract_terms + assent record + the rendered text as a source document (§18) → org: active
 ```
 
-The executed agreement is the document governing every number downstream. It is the most
-important source document in the system.
+- **Conspicuous and scrollable.** The full terms are rendered on the page, scrollable — an
+  **unchecked** checkbox or a button **labelled with the agreement** ("I agree to the …"). **Never
+  browsewrap** (no "by continuing you agree" buried in a footer).
+- **Assent record** (immutable): `user_id`, `org_id`, `terms_version`, `agreed_at`, `ip`,
+  `user_agent`, `content_hash`.
+- **The exact rendered text the user saw is stored as a source document (§18)** — immutable, hashed,
+  dated. **Not a pointer to a mutable URL.** The `content_hash` covers the *rendered* text (see the
+  parameterized-vs-per-tier open decision, §21).
+- **Emailed** to the client on acceptance and **downloadable from the account forever**.
+- **The accept action writes `contract_terms`** — it is the trigger (replacing the e-sign webhook).
+- **One agreement per commercial event.** Client-initiated (signup, upgrade, downgrade) → a **new
+  clickwrap** every time, because the agreement states the rate and must never disagree with
+  `contract_terms`. System-initiated (lapse, auto-renewal) → **nobody is present to click**, so the
+  consequence must be **pre-agreed in the current agreement**.
+  > **Note for counsel:** non-payment (§8) and auto-renewal (§10) clauses are now **load-bearing**,
+  > not boilerplate — they are the only consent covering a term change no one clicks.
+- **Agreements history is visible in the client's account** — the "show your work" rule (§20 voice)
+  applied to contracts.
+
+The accepted agreement governs every number downstream. It is the most important source document in
+the system.
+
+> **Do not author the agreement text here** — that's a founder/counsel task running in parallel.
 
 ---
 
@@ -343,6 +382,21 @@ rights live in the account.
 ```
 draft → submitted → in_review → in_delivery → live → takedown_requested → taken_down
 ```
+
+### `in_review` is THE human gate — and it is narrow (chain of title only)
+
+With the account gate gone (clickwrap, §3), `in_review` is the one place a human intervenes. It
+checks **one thing: chain of title** — does this person actually own/control this film? That is the
+question no automation can answer and the one that carries real liability if wrong.
+
+**Everything else is already automated — do not re-check it here:**
+- **Metadata completeness** → validator findings (§19), deterministic.
+- **Technical QC** → tooling (§21.9).
+- **Rights/territory sanity** → grant constraints enforced in the DB (§9), not human judgment.
+
+**Scope it to minutes, not weeks.** Filmhub's 1–2 week review is the anti-pattern; a narrow
+chain-of-title check should clear in minutes. A title rejected or abandoned at `in_review` never
+reached delivery or revenue — see the asset-purge rule (§21).
 
 **Takedown = archive, never delete:**
 
@@ -595,8 +649,10 @@ payout_display        text   -- masked, e.g. '••••4321'
 The known fraud vector — compromise a login, change the payout bank, next statement pays the
 attacker — is Trolley's verification surface, not one GC must build.
 
-**Trolley recipient setup happens at onboarding**, not at first payout. Collect the forms on day
-one or you're chasing signatures in January.
+**Trolley recipient setup happens before FIRST PAYOUT**, not at signup. Banking and tax details
+aren't needed to accept the agreement or upload a title — only before money moves. **Nothing about
+Trolley may block the self-serve signup path** (§3). Prompt for it when a payout is first pending
+(and remind ahead of the first statement, so you're not chasing signatures the day money is due).
 
 ---
 
@@ -765,18 +821,19 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
    tier resumes?
 4. **Does takedown end the licence (§11)?** Can a client re-submit later without signing again?
 5. **Tier prices and the three revenue-share rates (§5).**
-6. **E-sign vendor (§5)** — Dropbox Sign / PandaDoc / DocuSign. Abstract behind one interface;
-   don't let it block.
+6. **~~E-sign vendor~~ — CLOSED.** Clickwrap replaces e-sign; there is no vendor (§5). (Number kept,
+   not renumbered, to preserve the §21.9 / §21.10 cross-references.)
 7. **Globee escalation reply path (§20)** — dashboard or email?
 8. **Dunning schedule (§8)** — retry cadence and email count inside the 30 days.
 9. **Automated QC tooling (§12)** — which product, and when.
-10. **Free-tier storage bound (§6).** Storage cost is per-title, permanent, and certain; revenue
-    is per-title and uncertain. On paid tiers those are coupled. On the free tier they are
-    decoupled by construction: a user can upload a 200GB master that never sells, and GC pays to
-    store it forever for a 0% share of $0. At scale this is a growing liability with no offsetting
-    revenue. §6 has feature limits by tier but no storage dimension, and there is no policy for a
-    title that earns nothing over time. Options: title cap, storage cap, curation gate at intake,
-    or an inactivity policy. Needs a founder decision.
+10. **Free-tier storage bound — NOW BLOCKING (was theoretical).** The manual account gate was the
+    only thing bounding free-tier storage; clickwrap (§3) removes it, so a user can self-serve a
+    200GB master that never sells and GC pays to store it forever for a 0% share of $0.
+    **Answer: purge the S3 asset for titles rejected or abandoned at `in_review` (§11) after N
+    days.** Such a title has no revenue, no deliveries, nothing money-linked — so the bytes can go.
+    **The row stays** (nothing is ever deleted — golden rule 2); only the S3 object is purged, and
+    the asset record is marked purged. **Only titles that pass the gate cost storage forever.**
+    **Open: N (the purge window)** — a founder decision (also listed at 15).
 11. **Does the free tier eventually need self-serve delivery? (§13)** §3 has manual contract review
     and §13 has manual, staff-driven delivery to each vendor. That is correct at hundreds of
     clients and impossible at tens of thousands. Whether the free tier stays manual or becomes
@@ -792,6 +849,14 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     must be audit-logged loudly** — it's an attack vector, not routine support. **Build when the
     revenue surfaces exist**; Supabase supports TOTP natively, so it's config + an enrollment flow,
     **no schema change**. Not built in the first slice (magic-link only for now).
+13. **Agreement text shape (§5).** Parameterized (one document, tier rate injected — then the
+    `content_hash` must cover the **rendered** text, not the template) vs. three fixed versions, one
+    per tier. Different builds; pick before the clickwrap slice.
+14. **Terms-version on auto-renewal (§5/§10).** Client accepted v1.2; terms are now v1.4; nobody
+    clicks on renewal. Which version governs the renewed term? **Counsel's call** — it's the
+    pre-agreed-consent question that clickwrap makes load-bearing.
+15. **Purge window `N` (§21.10 / §11).** How many days a title may sit rejected/abandoned at
+    `in_review` before its S3 asset is purged. Founder decision.
 
 ---
 
@@ -828,31 +893,36 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
 **Build, in this order — prove the spine end-to-end before widening:**
 
 ```
-auth → org + membership + ROLES + RLS → contract_review gate (e-sign webhook)
-     → contract_terms on signing → Trolley recipient setup
+auth → org + membership + ROLES + RLS
+     → clickwrap accept (assent record + rendered terms as source doc) → contract_terms on accept
+     → Stripe tier purchase (paid tiers) → org: active
      → title stub → rights grant → asset upload (multipart to S3)
-     → metadata intake (guided form only) → vendor records
-     → delivery status (manual, GC-updated, grant-gated)
+     → metadata intake (guided form only) → in_review chain-of-title gate (narrow)
+     → vendor records → delivery status (manual, GC-updated, grant-gated)
      → findings (validator only) + attention queue
      → notifications (email + in-app)
 ```
 
 With `audit_log` and the source layer in the **first** migration.
 
-**In v1:** org lifecycle · **five roles + role-aware RLS** · manual contract review queue ·
-e-sign integration · Stripe tier purchase + term writing · fee schedule table · lapse job ·
-**rights grants + territory** · title intake · asset pipeline · metadata path 1 · vendor
+**In v1:** org lifecycle (self-serve, §3) · **five roles + role-aware RLS** · **clickwrap accept +
+assent record + agreements history** · Stripe tier purchase + term writing · fee schedule table ·
+lapse job · **rights grants + territory** · title intake · **`in_review` chain-of-title gate** ·
+asset pipeline · **abandoned/rejected-asset purge job (§21.10)** · metadata path 1 · vendor
 administration + templated email · manual delivery status · **validator findings + attention
-queue** · notifications (Resend + in-app) · Trolley recipient onboarding · GC master queue ·
-**Cloudflare Turnstile on signup.**
+queue** · notifications (Resend + in-app) · GC master queue · **Cloudflare Turnstile on signup.**
 
 > **In-app notifications are a v1 dependency**, not a nice-to-have — delivery status and term
 > changes both need them: table, read/unread state, UI surface.
 
-> **Cloudflare Turnstile on signup is queue hygiene, not the security boundary.** Free-tier signup
-> is open and uncarded, so junk orgs would otherwise land in the manual `contract_review` queue.
-> Turnstile keeps that queue clean — it does **not** gate access. §3's manual contract review is
-> what actually gates access.
+> **Cloudflare Turnstile on signup is abuse prevention, not the authorization boundary.** Signup is
+> now fully self-serve with no human gate (§3), so a bot/junk signup would otherwise reach `active`
+> and consume resources unattended. Turnstile is the front-door filter. The real boundaries are
+> RLS (data) and the title `in_review` chain-of-title gate (delivery) — not the captcha.
+
+> **Out of v1 (moved):** manual contract-review queue and e-sign integration are **gone** (clickwrap
+> replaces them). **Trolley recipient onboarding** moves out of the signup path to **first payout**
+> (§16) — it rides with the deferred payouts module, not v1 signup.
 
 **Deferred — design the seam, don't build:**
 
