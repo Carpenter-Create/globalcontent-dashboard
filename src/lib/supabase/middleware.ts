@@ -33,7 +33,12 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/auth");
+  const isPublic =
+    path.startsWith("/login") ||
+    path.startsWith("/auth") ||
+    // Stripe webhook authenticates by signature, not a user session — must not be
+    // redirected to /login (it has no cookies).
+    path === "/api/stripe/webhook";
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

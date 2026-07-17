@@ -26,6 +26,7 @@ export default async function AgreementPage({
   if (!owned?.organizations) redirect("/"); // no org yet → onboarding lives at /
   const org = owned.organizations;
   if (org.status === "active") redirect("/"); // already accepted
+  if (org.status === "awaiting_payment") redirect("/agreement/pay"); // accepted → resume payment
 
   const sp = await searchParams;
   const tier = (TIERS as string[]).includes(sp.tier ?? "") ? (sp.tier as Tier) : undefined;
