@@ -1,0 +1,75 @@
+# Known divergences & deferred obligations
+
+Per-installation ledger of where this codebase departs from the house skills / target state,
+each with the concrete **trigger** that should force the fix. A tracked gap is a decision; an
+untracked one is a latent bug. (Referenced by the rls-data-layer, supabase-conventions,
+frontend-conventions, and testing-conventions skills.)
+
+## Design / UI
+
+### D1 — UI primitives are net-new, authored from GC tokens
+`globalcontent-web` has **no** reusable primitives (not shadcn; no Button/Input/Card/Label — only
+marketing components + 5 layout helpers). Its portable asset is `tokens.css` (already ported).
+So `src/components/ui/{button,input,label,card,inline-notice}.tsx` were authored fresh, wired to GC
+tokens (`--radius*`, accent/ink/hairline utilities, `.t-*` type, the global accent focus ring) —
+deliberately **not** copying `globalcontent-web`'s hardcoded geometry (`rounded-full`, `px-[18px]`,
+hand-copied `rgba` shadows). These are now *the* canonical dashboard primitives.
+**Trigger to revisit:** when watershedportal's shell/data-table land (see D2), they conform to these.
+
+### D2 — Porting watershedportal's shell/data-table: take proportions, replace vocabulary
+Founder directive: keep the **composition**, drop the **brand**.
+- **KEEP (the proportions/layout):** sidebar width, header height, content max-width, spacing/
+  density scale, table row rhythm, page air, general sense of proportion.
+- **REPLACE (the vocabulary), re-expressed in GC tokens:** `--watershed-*` token names, the type
+  scale, `@font-face 'Watershed Display'`, focus blue `#0071E3`, elevation, and any `watershed.*` /
+  `brand` Tailwind color utilities. Also hardcoded radii/px geometry → GC `--radius*` / `--space-*`.
+- **If a watershedportal spacing/proportion value is genuinely good and GC's token scale has no
+  equivalent:** surface it as a **gap in GC's tokens to fill** — add the token to `tokens.css` (a
+  founder-visible design change) — do **not** keep a Watershed variable to preserve it.
+- Recolor ≠ port. Swapping the hex behind a Watershed var leaves its naming/geometry/weights intact.
+**Trigger:** the dashboard-shell / data-table port task.
+
+### D3 — No status/danger color token (errors render on-system)
+GC's `tokens.css` is "greyscale + one accent, no status colors by default." Form errors therefore
+render as a restrained hairline notice differing by **ink weight**, not red (`InlineNotice`). A
+dedicated `--danger`/status token (and whether errors may use red at all) is a **founder design
+decision**, deferred.
+**Trigger:** first surface where greyscale error affordance proves insufficient in testing, or the
+brand accent/logo checkpoint is resolved.
+
+## Auth
+
+### A1 — RESOLVED: Turnstile mount was an origin mismatch, not a code bug
+Root cause: Next 16 serves its dev origin as `localhost:3000` and blocks cross-origin dev resources;
+I was testing via `127.0.0.1:3000`, so client hydration was blocked and the client-only Turnstile
+widget never mounted (`⚠ Blocked cross-origin request to Next.js dev resource … from "127.0.0.1"`
+in the dev log). Via `localhost:3000` the widget mounts, the dev test key auto-passes, and the full
+sign-up → magic-link → session → onboarding → RLS role-view flow completes (verified in-browser).
+Fix: `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts` so both origins work in dev.
+**Dev note:** local `otp_expiry` bumped to 86400s in `config.toml` so a magic link doesn't expire
+during a gap. Supabase `site_url` stays `127.0.0.1:3000`; `emailRedirectTo` uses the live origin, so
+signing in via `localhost` redirects correctly (both origins are in `additional_redirect_urls`).
+
+## Backend typing
+
+### B1 — (target already met) typed Database bindings
+`src/lib/supabase/database.types.ts` is generated and the server/browser/middleware clients are
+typed `<Database>`. Regenerate after every migration (`supabase gen types typescript --local`).
+
+## Process / build order
+
+### P1 — dashboard shell ported before contract_review (deliberate build-order deviation)
+CLAUDE.md's build order runs auth → contract_review → …; the shell isn't listed as a discrete step.
+It's being ported **before** contract_review because every later slice builds pages, and pages
+without a shell each invent their own layout — the same "accidental second implementation" trap as
+the UI primitives (D1), one level up. Scope of the deviation: shell + nav + the existing org-scoped
+landing placed inside it. **No page content is built ahead of its slice.**
+**Trigger:** revert to spec order once the shell exists; contract_review is the next feature slice.
+
+## Framework
+
+### F1 — middleware.ts → proxy.ts (Next 16 deprecation), deferred
+`next build` warns the `middleware` file convention is deprecated in favor of `proxy`. Current
+`src/middleware.ts` works; renaming to `src/proxy.ts` (+ `proxy` export) is a mechanical follow-up,
+deferred so it doesn't ride into an unrelated commit unverified.
+**Trigger:** before the Next 16 minor that removes `middleware` support, or the next middleware edit.

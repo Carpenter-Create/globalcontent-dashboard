@@ -782,6 +782,16 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     clients and impossible at tens of thousands. Whether the free tier stays manual or becomes
     self-serve at some threshold reshapes §13 and is the real constraint on scale — not the
     database. Needs a founder decision.
+12. **Two-step verification (TOTP on top of magic-link) — DECIDED, build later (not open).**
+    Required **by role**, not blanket:
+    - **`gc_*` staff — REQUIRED.** They see every org (§22) — the highest-value credential in the
+      system, and internal, so there's no client friction cost.
+    - **`account_owner`, `accountant` — REQUIRED.** Revenue views and the Trolley widget (§16).
+    - **`delivery_ops`, `legal`, `viewer` — optional.**
+    Recovery codes mandatory at enrollment. **Admin MFA-reset is an out-of-band identity check and
+    must be audit-logged loudly** — it's an attack vector, not routine support. **Build when the
+    revenue surfaces exist**; Supabase supports TOTP natively, so it's config + an enrollment flow,
+    **no schema change**. Not built in the first slice (magic-link only for now).
 
 ---
 

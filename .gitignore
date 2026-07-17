@@ -3,6 +3,9 @@ node_modules/
 .env
 .env.*
 
+# Playwright MCP session artifacts
+.playwright-mcp/
+
 # Next.js / TypeScript build artifacts
 .next/
 out/
