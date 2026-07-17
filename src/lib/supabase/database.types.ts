@@ -70,6 +70,117 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_assents: {
+        Row: {
+          agreed_at: string
+          content_hash: string
+          created_at: string
+          id: string
+          ip: unknown
+          org_id: string
+          source_document_id: string
+          terms_version: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          agreed_at?: string
+          content_hash: string
+          created_at?: string
+          id?: string
+          ip?: unknown
+          org_id: string
+          source_document_id: string
+          terms_version: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          agreed_at?: string
+          content_hash?: string
+          created_at?: string
+          id?: string
+          ip?: unknown
+          org_id?: string
+          source_document_id?: string
+          terms_version?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_assents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_assents_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_terms: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          expires_at: string
+          id: string
+          org_id: string
+          revenue_share_rate_bp: number
+          source_document_id: string | null
+          term_length_months: number
+          tier: Database["public"]["Enums"]["tier_enum"]
+          trigger: Database["public"]["Enums"]["term_trigger_enum"]
+        }
+        Insert: {
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          expires_at: string
+          id?: string
+          org_id: string
+          revenue_share_rate_bp: number
+          source_document_id?: string | null
+          term_length_months: number
+          tier: Database["public"]["Enums"]["tier_enum"]
+          trigger: Database["public"]["Enums"]["term_trigger_enum"]
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          expires_at?: string
+          id?: string
+          org_id?: string
+          revenue_share_rate_bp?: number
+          source_document_id?: string | null
+          term_length_months?: number
+          tier?: Database["public"]["Enums"]["tier_enum"]
+          trigger?: Database["public"]["Enums"]["term_trigger_enum"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_terms_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_terms_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gc_staff: {
         Row: {
           created_at: string
@@ -254,12 +365,82 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          annual_price_cents: number
+          created_at: string
+          current_period_end: string | null
+          id: string
+          org_id: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier: Database["public"]["Enums"]["tier_enum"]
+          updated_at: string
+        }
+        Insert: {
+          annual_price_cents: number
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          org_id: string
+          status: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier: Database["public"]["Enums"]["tier_enum"]
+          updated_at?: string
+        }
+        Update: {
+          annual_price_cents?: number
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          org_id?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["tier_enum"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      accept_terms: {
+        Args: {
+          p_content_hash: string
+          p_ip: unknown
+          p_rendered_text: string
+          p_terms_version: string
+          p_tier: Database["public"]["Enums"]["tier_enum"]
+          p_user_agent: string
+        }
+        Returns: Json
+      }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
+      finalize_paid_signup: {
+        Args: {
+          p_effective_from: string
+          p_org: string
+          p_price_cents: number
+          p_source_document_id: string
+          p_stripe_customer: string
+          p_stripe_subscription: string
+          p_tier: Database["public"]["Enums"]["tier_enum"]
+        }
+        Returns: undefined
+      }
       is_gc_staff: { Args: { p_uid: string }; Returns: boolean }
       member_can: {
         Args: { p_capability: string; p_org: string; p_uid: string }
@@ -282,12 +463,18 @@ export type Database = {
         | "viewer"
       org_status:
         | "registered"
-        | "contract_review"
-        | "signed"
-        | "onboarding"
+        | "awaiting_payment"
         | "active"
         | "payment_lapsed"
         | "closed"
+      term_trigger_enum:
+        | "signup"
+        | "upgrade"
+        | "downgrade"
+        | "lapse"
+        | "renewal"
+        | "reinstate"
+      tier_enum: "access" | "pro" | "premium"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -435,13 +622,20 @@ export const Constants = {
       ],
       org_status: [
         "registered",
-        "contract_review",
-        "signed",
-        "onboarding",
+        "awaiting_payment",
         "active",
         "payment_lapsed",
         "closed",
       ],
+      term_trigger_enum: [
+        "signup",
+        "upgrade",
+        "downgrade",
+        "lapse",
+        "renewal",
+        "reinstate",
+      ],
+      tier_enum: ["access", "pro", "premium"],
     },
   },
 } as const

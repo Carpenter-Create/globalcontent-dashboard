@@ -233,9 +233,13 @@ the system.
   happens to it.
 - **The old asymmetry is gone.** The downgrade fee was removed, so upgrade and downgrade are both
   just a new clickwrap, no charge. The only remaining paid exit is an **early takedown** ($197, §7/§9).
-  > **⚠ Consequence (flagged, not resolved):** a downgrade **resets the term to the signing date**,
-  > which also **resets the "early" window** — the client gets a fresh term during which takedowns cost
-  > $197 again. Side effect of the reset rule meeting the early-takedown framing; probably unintended.
+  > **⚠ Client trap (flagged, not resolved).** "Probably unintended" undersells it — this is a trap,
+  > not a loophole. Downgrade is free and reads as harmless, but resetting the term to the signing
+  > date **resets the early-takedown window**. A client at month 11 of 12 — one month from *free*
+  > offload — who downgrades to spend less **silently loses free-takedown eligibility for another full
+  > year**. That's an **undisclosed penalty on an action we present as free**, firing exactly when
+  > someone is trying to save money. Must be surfaced (warn at downgrade) or the reset rule changed —
+  > not resolved here.
 
 ### Feature enforcement — the non-obvious rule
 
@@ -926,9 +930,12 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     arguable as liquidated damages and must approximate actual loss. Counsel confirms; that's the
     drafting target. Stripe product name: **"Early Takedown Fee."** §9/§10/§11 reconciled to this.
 19. **Downgrade-to-Access credit target (§6) — open.** A voluntary downgrade credits unused prepaid
-    value against future annual charges. Downgrading **to Access** (no annual charge) leaves the
-    credit with nothing to draw against. Does it sit until a future upgrade, expire after some window,
-    or convert somehow? Founder decision. (Related: §21.17, the credit *basis* for Premium.)
+    value against future annual charges. A **Pro→Access** downgrade leaves the credit with **nothing
+    to draw against** (Access has no annual charge), so it **sits indefinitely** — until a future
+    upgrade, if one ever comes. **Indefinitely-held customer credit can trigger unclaimed-property /
+    escheatment obligations depending on jurisdiction** — counsel's call. Options: hold until upgrade,
+    expire after a window, or refund/escheat per rule. Founder + counsel decision. (Related: §21.17,
+    the credit *basis* for Premium.)
 
 ---
 
