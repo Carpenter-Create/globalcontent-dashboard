@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { FileText, LogOut } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -21,6 +22,12 @@ export function UserMenu({ email }: { email: string }) {
       <DropdownMenuContent>
         <div className="truncate px-2.5 py-1.5 t-body-sm text-ink-2">{email}</div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/account/agreements">
+            <FileText className="h-4 w-4" strokeWidth={1.5} />
+            Agreements
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => signOut()}>
           <LogOut className="h-4 w-4" strokeWidth={1.5} />
           Sign out
