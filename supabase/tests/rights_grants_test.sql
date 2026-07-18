@@ -4,7 +4,7 @@
 -- can_deliver gate matrix (rule 12).
 
 begin;
-select plan(14);
+select plan(16);
 
 select set_config('t.org_a',  gen_random_uuid()::text, false);
 select set_config('t.org_b',  gen_random_uuid()::text, false);
@@ -107,6 +107,18 @@ select lives_ok($$ select public.add_rights_grant(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
   array['fast']::public.rights_type[], 'world', '{}', null, null, now()) $$,
   'account_owner: add_rights_grant succeeds');
+
+-- dedupe: duplicate rights types insert one row (returns one id)
+select is(array_length(public.add_rights_grant(
+  current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
+  array['bvod','bvod']::public.rights_type[], 'world', '{}', null, null, now()), 1),
+  1, 'add_rights_grant dedupes duplicate rights types');
+
+-- territory format validation: a non-alpha-2 code raises at the DB layer
+select throws_ok($$ select public.add_rights_grant(
+  current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
+  array['tvod']::public.rights_type[], 'include', array['USA'], null, null, now()) $$,
+  'P0001', null, 'add_rights_grant rejects non-alpha-2 territory code');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role', 'authenticated')::text, true);

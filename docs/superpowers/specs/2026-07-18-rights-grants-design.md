@@ -104,8 +104,8 @@ add to it — so:
 UI offers **world / continent / country**; **resolve to explicit ISO alpha-2 at grant time**
 (§9: "Europe" shifts, store codes). The resolver holds a fixed continent→ISO map and the
 ISO country list. `mode` + list expresses "worldwide except UK" (`exclude`, `['GB']`).
-Resolution happens server-side in the RPC input path (zod-validated alpha-2), never trusting
-client-sent country sets blindly.
+Resolution happens server-side in the action, and the RPC re-normalizes + format-validates the
+codes (divergence R1), so the DB never trusts client-sent sets blindly.
 
 ## The delivery gate (`can_deliver`) — rule 12, enforced in the DB
 
@@ -124,8 +124,10 @@ is proven before deliveries exist.
 Because expand = insert (union grows) and contract is inexpressible, there is **one write**:
 
 - `add_rights_grant(p_org, p_title, p_rights_types[], p_mode, p_territories[], p_window_start, p_window_end, p_effective_from)`
-  → validates capability (`member_can(..., 'operate')`) + title belongs to org + resolved ISO
-  codes (zod at the edge, re-checked in the RPC); inserts **one row per rights_type**; returns
+  → validates capability (`member_can(..., 'operate')`) + title belongs to org + territories
+  (resolved to ISO at the edge; **normalized, deduped, and format-checked `^[A-Z]{2}$` in the
+  RPC** — full ISO-membership validation deferred to the deliveries slice, divergence R1);
+  inserts **one row per rights_type**; returns
   the created ids. Both the initial grant (at title submit) and a later expansion use this same
   call — "create" vs "expand" is a **billing distinction derived later** (any grant added
   after the initial submit is the `$97` rights-change event), not a separate write path.

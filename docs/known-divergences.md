@@ -101,6 +101,20 @@ the UI primitives (D1), one level up. Scope of the deviation: shell + nav + the 
 landing placed inside it. **No page content is built ahead of its slice.**
 **Trigger:** revert to spec order once the shell exists; contract_review is the next feature slice.
 
+## Rights & territory
+
+### R1 — RPC territory validation is format-level, not ISO-membership
+`add_rights_grant` (migration `…000400`) normalizes, dedupes, and **format-validates**
+territories against `^[A-Z]{2}$` at the DB layer, so a direct RPC caller can't persist
+malformed codes. It does **not** yet validate membership in the real ISO 3166-1 set — a
+valid-format-but-nonexistent code (e.g. `ZZ`) into the caller's *own* catalog is accepted.
+Bounded and fails-closed: `can_deliver` exact-matches, so a bogus code never widens delivery
+(`include ['ZZ']` delivers nowhere; `exclude ['ZZ']` excludes only itself). The full ISO
+enumeration lives in `src/lib/territories.ts` and gates the server-action path today.
+**Trigger to close:** the deliveries slice (bad territory data would surface as vendor-export
+errors there) — add a `country_codes` reference table seeded from the ISO set + a membership
+check in the RPC.
+
 ## Framework
 
 ### F1 — middleware.ts → proxy.ts (Next 16 deprecation), deferred

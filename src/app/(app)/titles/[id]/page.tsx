@@ -26,7 +26,6 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
   const activeRow = rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0] ?? null;
   if (!activeRow) redirect("/");
-  const canOperate = activeRow.role === "account_owner" || activeRow.role === "delivery_ops";
 
   const { data: title } = await supabase
     .from("titles")
@@ -34,6 +33,11 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .eq("id", id)
     .maybeSingle();
   if (!title) notFound(); // RLS returns null for another org's title → 404
+
+  // Capability is the user's role in THE TITLE'S org — not the active org, which
+  // may differ when the user belongs to more than one org (§4).
+  const titleRole = rows.find((m) => m.organizations!.id === title.org_id)?.role;
+  const canOperate = titleRole === "account_owner" || titleRole === "delivery_ops";
 
   const { data: grants } = await supabase
     .from("rights_grants")
