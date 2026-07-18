@@ -279,6 +279,69 @@ export type Database = {
         }
         Relationships: []
       }
+      rights_grants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          rights_type: Database["public"]["Enums"]["rights_type"]
+          territories: string[]
+          territory_mode: Database["public"]["Enums"]["territory_mode"]
+          title_id: string
+          updated_at: string
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          rights_type: Database["public"]["Enums"]["rights_type"]
+          territories?: string[]
+          territory_mode: Database["public"]["Enums"]["territory_mode"]
+          title_id: string
+          updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          rights_type?: Database["public"]["Enums"]["rights_type"]
+          territories?: string[]
+          territory_mode?: Database["public"]["Enums"]["territory_mode"]
+          title_id?: string
+          updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rights_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rights_grants_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_documents: {
         Row: {
           content_hash: string
@@ -466,6 +529,28 @@ export type Database = {
         }
         Returns: Json
       }
+      add_rights_grant: {
+        Args: {
+          p_effective_from: string
+          p_mode: Database["public"]["Enums"]["territory_mode"]
+          p_org_id: string
+          p_rights_types: Database["public"]["Enums"]["rights_type"][]
+          p_territories: string[]
+          p_title_id: string
+          p_window_end: string
+          p_window_start: string
+        }
+        Returns: string[]
+      }
+      can_deliver: {
+        Args: {
+          p_at: string
+          p_rights_type: Database["public"]["Enums"]["rights_type"]
+          p_territory: string
+          p_title_id: string
+        }
+        Returns: boolean
+      }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
       create_title: {
         Args: { p_org_id: string; p_title: string }
@@ -509,6 +594,28 @@ export type Database = {
         | "active"
         | "payment_lapsed"
         | "closed"
+      rights_type:
+        | "theatrical"
+        | "fta"
+        | "basic_cable"
+        | "pay_tv"
+        | "dth_satellite"
+        | "ppv"
+        | "pvod"
+        | "svod"
+        | "hvod"
+        | "tvod"
+        | "est"
+        | "avod"
+        | "fast"
+        | "fvod"
+        | "bvod"
+        | "non_theatrical"
+        | "hospitality"
+        | "edu"
+        | "ppl"
+        | "home_video"
+        | "mod"
       term_trigger_enum:
         | "signup"
         | "upgrade"
@@ -516,6 +623,7 @@ export type Database = {
         | "lapse"
         | "renewal"
         | "reinstate"
+      territory_mode: "world" | "include" | "exclude"
       tier_enum: "access" | "pro" | "premium"
       title_status:
         | "draft"
@@ -677,6 +785,29 @@ export const Constants = {
         "payment_lapsed",
         "closed",
       ],
+      rights_type: [
+        "theatrical",
+        "fta",
+        "basic_cable",
+        "pay_tv",
+        "dth_satellite",
+        "ppv",
+        "pvod",
+        "svod",
+        "hvod",
+        "tvod",
+        "est",
+        "avod",
+        "fast",
+        "fvod",
+        "bvod",
+        "non_theatrical",
+        "hospitality",
+        "edu",
+        "ppl",
+        "home_video",
+        "mod",
+      ],
       term_trigger_enum: [
         "signup",
         "upgrade",
@@ -685,6 +816,7 @@ export const Constants = {
         "renewal",
         "reinstate",
       ],
+      territory_mode: ["world", "include", "exclude"],
       tier_enum: ["access", "pro", "premium"],
       title_status: [
         "draft",
