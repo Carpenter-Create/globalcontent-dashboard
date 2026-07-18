@@ -37,7 +37,13 @@ export default function LoginPage() {
           />
         </div>
 
-        <Turnstile siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!} />
+        {/* Invisible/managed: the widget only surfaces if a challenge is actually
+            required. Set the sitekey's widget mode to "Invisible" (or "Managed")
+            in the Cloudflare dashboard to match. */}
+        <Turnstile
+          siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+          options={{ appearance: "interaction-only" }}
+        />
 
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Sending…" : "Send sign-in link"}
