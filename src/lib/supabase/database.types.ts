@@ -531,14 +531,14 @@ export type Database = {
       }
       add_rights_grant: {
         Args: {
-          p_effective_from: string
+          p_effective_from?: string
           p_mode: Database["public"]["Enums"]["territory_mode"]
           p_org_id: string
           p_rights_types: Database["public"]["Enums"]["rights_type"][]
           p_territories: string[]
           p_title_id: string
-          p_window_end: string
-          p_window_start: string
+          p_window_end?: string
+          p_window_start?: string
         }
         Returns: string[]
       }
