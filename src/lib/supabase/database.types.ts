@@ -412,6 +412,44 @@ export type Database = {
           },
         ]
       }
+      titles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          status: Database["public"]["Enums"]["title_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id: string
+          status?: Database["public"]["Enums"]["title_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          status?: Database["public"]["Enums"]["title_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "titles_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -429,6 +467,10 @@ export type Database = {
         Returns: Json
       }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
+      create_title: {
+        Args: { p_org_id: string; p_title: string }
+        Returns: string
+      }
       finalize_paid_signup: {
         Args: {
           p_effective_from: string
@@ -475,6 +517,14 @@ export type Database = {
         | "renewal"
         | "reinstate"
       tier_enum: "access" | "pro" | "premium"
+      title_status:
+        | "draft"
+        | "submitted"
+        | "in_review"
+        | "in_delivery"
+        | "live"
+        | "takedown_requested"
+        | "taken_down"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -636,6 +686,15 @@ export const Constants = {
         "reinstate",
       ],
       tier_enum: ["access", "pro", "premium"],
+      title_status: [
+        "draft",
+        "submitted",
+        "in_review",
+        "in_delivery",
+        "live",
+        "takedown_requested",
+        "taken_down",
+      ],
     },
   },
 } as const
