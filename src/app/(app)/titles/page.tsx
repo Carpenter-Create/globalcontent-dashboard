@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
@@ -74,19 +75,21 @@ export default async function TitlesPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {list.map((t) => (
-            <Card key={t.id}>
-              <CardBody className="flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="t-body font-medium text-ink">{t.title}</span>
-                  <span className="t-body-sm text-ink-3">
-                    Added {fmt.format(new Date(t.created_at))}
+            <Link key={t.id} href={`/titles/${t.id}`} className="block">
+              <Card className="transition-colors hover:bg-surface-muted">
+                <CardBody className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="t-body font-medium text-ink">{t.title}</span>
+                    <span className="t-body-sm text-ink-3">
+                      Added {fmt.format(new Date(t.created_at))}
+                    </span>
+                  </div>
+                  <span className="shrink-0 t-body-sm text-ink-2">
+                    {STATUS_LABELS[t.status]}
                   </span>
-                </div>
-                <span className="shrink-0 t-body-sm text-ink-2">
-                  {STATUS_LABELS[t.status]}
-                </span>
-              </CardBody>
-            </Card>
+                </CardBody>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
