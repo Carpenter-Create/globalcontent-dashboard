@@ -8,8 +8,20 @@ import { Card, CardBody } from "@/components/ui/card";
 import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { requiredComplete } from "@/lib/metadata";
+import { InlineNotice } from "@/components/ui/inline-notice";
 import { AddRightsForm } from "./add-rights-form";
 import { AssetUpload } from "./asset-upload";
+import { SubmitButton } from "./submit-button";
+
+const TITLE_STATUS_LABELS: Record<string, string> = {
+  draft: "Draft",
+  submitted: "Submitted",
+  in_review: "In review",
+  in_delivery: "In delivery",
+  live: "Live",
+  takedown_requested: "Takedown requested",
+  taken_down: "Taken down",
+};
 
 const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork", string> = {
   master: "Master",
@@ -84,6 +96,16 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .maybeSingle();
   const complete = requiredComplete((metaRow?.data as Record<string, unknown>) ?? {});
 
+  const { data: latestReview } = await supabase
+    .from("title_reviews")
+    .select("decision, reason, created_at")
+    .eq("title_id", id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const showRejection =
+    title.status === "draft" && latestReview?.decision === "reject" && !!latestReview.reason;
+
   return (
     <>
       <PageHeader
@@ -91,6 +113,18 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
         subtitle="Rights & territories"
         backLink={{ href: "/titles", label: "Titles" }}
       />
+
+      <div className="mb-6 flex flex-col gap-3">
+        <p className="t-body-sm text-ink-2">
+          Status: <span className="font-medium text-ink">{TITLE_STATUS_LABELS[title.status]}</span>
+        </p>
+        {showRejection ? (
+          <InlineNotice tone="error">Returned for revision: {latestReview!.reason}</InlineNotice>
+        ) : null}
+        {canOperate && title.status === "draft" ? (
+          <SubmitButton orgId={title.org_id} titleId={title.id} />
+        ) : null}
+      </div>
 
       {canOperate ? (
         <div className="mb-6 max-w-xl">

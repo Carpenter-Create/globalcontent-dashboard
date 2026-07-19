@@ -47,3 +47,22 @@ export async function addRights(input: {
   revalidatePath(`/titles/${input.titleId}`);
   return {};
 }
+
+// Submit a draft title for chain-of-title review (§11): draft → in_review, via
+// the submit_title RPC (operate-gated in the DB).
+export async function submitTitle(
+  orgId: string,
+  titleId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("submit_title", { p_org_id: orgId, p_title_id: titleId });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/titles/${titleId}`);
+  return {};
+}
