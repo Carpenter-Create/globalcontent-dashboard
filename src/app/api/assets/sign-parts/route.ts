@@ -9,10 +9,7 @@ const Body = z.object({
   titleId: z.string().uuid(),
   key: z.string().min(1),
   uploadId: z.string().min(1),
-  parts: z
-    .array(z.object({ partNumber: z.number().int().min(1).max(10000), checksumSHA256: z.string().min(1) }))
-    .min(1)
-    .max(1000),
+  parts: z.array(z.object({ partNumber: z.number().int().min(1).max(10000) })).min(1).max(1000),
 });
 
 export async function POST(req: Request) {
@@ -35,7 +32,7 @@ export async function POST(req: Request) {
   const urls = await Promise.all(
     parts.map(async (p) => ({
       partNumber: p.partNumber,
-      url: await signUploadPart(key, uploadId, p.partNumber, p.checksumSHA256),
+      url: await signUploadPart(key, uploadId, p.partNumber),
     })),
   );
   return NextResponse.json({ urls });

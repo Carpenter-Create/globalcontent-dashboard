@@ -10,9 +10,7 @@ const Body = z.object({
   kind: z.enum(["master", "caption", "artwork"]),
   key: z.string().min(1),
   uploadId: z.string().min(1),
-  parts: z
-    .array(z.object({ partNumber: z.number().int().min(1), etag: z.string().min(1), checksumSHA256: z.string().min(1) }))
-    .min(1),
+  parts: z.array(z.object({ partNumber: z.number().int().min(1), etag: z.string().min(1) })).min(1),
   bytes: z.number().int().nonnegative(),
   filename: z.string().max(255).optional(),
   contentType: z.string().max(255).optional(),
@@ -37,7 +35,7 @@ export async function POST(req: Request) {
   const contentHash = await completeMultipart(
     b.key,
     b.uploadId,
-    b.parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag, ChecksumSHA256: p.checksumSHA256 })),
+    b.parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })),
   );
 
   const { data: assetId, error } = await supabase.rpc("create_asset", {

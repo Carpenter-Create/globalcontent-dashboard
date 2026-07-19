@@ -17,42 +17,32 @@ const PRESIGN_TTL = 900; // 15 minutes
 
 export async function createMultipart(key: string, contentType?: string): Promise<string> {
   const out = await s3.send(
-    new CreateMultipartUploadCommand({
-      Bucket: S3_BUCKET,
-      Key: key,
-      ContentType: contentType,
-      ChecksumAlgorithm: "SHA256",
-    }),
+    new CreateMultipartUploadCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType }),
   );
   if (!out.UploadId) throw new Error("S3 did not return an UploadId");
   return out.UploadId;
 }
 
-// Presign one UploadPart with its SHA-256 (base64) so S3 verifies integrity and
-// the client sends the matching x-amz-checksum-sha256 header.
+// Presign a plain UploadPart (SignedHeaders=host). The browser PUTs the raw part
+// bytes to this URL; S3 returns the part ETag. (Per-part SHA-256 checksums are a
+// noted follow-up — the presigned-checksum flow is unreliable from the browser.)
 export async function signUploadPart(
   key: string,
   uploadId: string,
   partNumber: number,
-  checksumSHA256: string,
 ): Promise<string> {
   return getSignedUrl(
     s3,
-    new UploadPartCommand({
-      Bucket: S3_BUCKET,
-      Key: key,
-      UploadId: uploadId,
-      PartNumber: partNumber,
-      ChecksumSHA256: checksumSHA256,
-    }),
+    new UploadPartCommand({ Bucket: S3_BUCKET, Key: key, UploadId: uploadId, PartNumber: partNumber }),
     { expiresIn: PRESIGN_TTL },
   );
 }
 
+// Assemble the parts and return the object ETag (S3-verified) for content_hash.
 export async function completeMultipart(
   key: string,
   uploadId: string,
-  parts: { PartNumber: number; ETag: string; ChecksumSHA256: string }[],
+  parts: { PartNumber: number; ETag: string }[],
 ): Promise<string> {
   const out = await s3.send(
     new CompleteMultipartUploadCommand({
@@ -63,10 +53,10 @@ export async function completeMultipart(
         Parts: parts
           .slice()
           .sort((a, b) => a.PartNumber - b.PartNumber)
-          .map((p) => ({ PartNumber: p.PartNumber, ETag: p.ETag, ChecksumSHA256: p.ChecksumSHA256 })),
+          .map((p) => ({ PartNumber: p.PartNumber, ETag: p.ETag })),
       },
     }),
   );
-  if (!out.ChecksumSHA256) throw new Error("S3 did not return an object checksum");
-  return out.ChecksumSHA256; // composite, e.g. "base64hash-<partCount>"
+  if (!out.ETag) throw new Error("S3 did not return an ETag");
+  return out.ETag.replace(/"/g, ""); // strip the quotes S3 wraps ETags in
 }

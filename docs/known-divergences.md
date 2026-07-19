@@ -101,6 +101,22 @@ the UI primitives (D1), one level up. Scope of the deviation: shell + nav + the 
 landing placed inside it. **No page content is built ahead of its slice.**
 **Trigger:** revert to spec order once the shell exists; contract_review is the next feature slice.
 
+## Assets
+
+### AS1 — asset `content_hash` is the S3 ETag, not SHA-256
+The asset-upload design specified per-part SHA-256 checksums (presigned with
+`ChecksumSHA256`) verified by S3, stored as `content_hash`. In practice the
+presigned-checksum flow is unreliable from the browser: S3 puts the checksum in
+the URL query with `SignedHeaders=host` and rejects the part PUT (403 when the
+client also sends the header; 400 with the query-only checksum + `UNSIGNED-PAYLOAD`).
+Verified live against the real GC bucket. So the flow now uses **plain presigned
+`UploadPart` (no checksum) and stores the S3 object ETag** (composite MD5, e.g.
+`…-1`) as `content_hash` — S3-verified transfer integrity, but MD5-based and not a
+clean whole-file hash. **Trigger to revisit:** when a true content hash matters
+(dedupe, tamper-evidence, cross-system verification) — add a server-side or
+post-upload SHA-256 (e.g. an S3 object-checksum on complete, or a worker), and
+keep the ETag as the transfer check.
+
 ## Rights & territory
 
 ### R1 — RPC territory validation is format-level, not ISO-membership
