@@ -66,7 +66,12 @@ export async function saveVendor(raw: unknown): Promise<{ error?: string }> {
   const { error } = v.id
     ? await supabase.from("vendors").update(row).eq("id", v.id)
     : await supabase.from("vendors").insert(row);
-  if (error) return { error: error.message };
+  if (error) {
+    // 23505 = unique_violation on vendors_name_unique (case-insensitive). Return a
+    // clean message rather than leaking the Postgres constraint text into the UI.
+    if (error.code === "23505") return { error: "A vendor with this name already exists." };
+    return { error: error.message };
+  }
 
   revalidatePath("/gc/vendors");
   return {};
