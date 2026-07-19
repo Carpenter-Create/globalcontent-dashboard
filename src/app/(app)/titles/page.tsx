@@ -34,6 +34,7 @@ export default async function TitlesPage() {
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name)")
+    .eq("user_id", user.id)
     .eq("status", "active");
   const rows = (memberships ?? []).filter((m) => m.organizations);
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;

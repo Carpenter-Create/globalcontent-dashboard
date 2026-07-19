@@ -14,6 +14,7 @@ export default async function PayPage() {
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, status)")
+    .eq("user_id", user.id)
     .eq("status", "active");
   const org = (memberships ?? []).find((m) => m.role === "account_owner" && m.organizations)
     ?.organizations;
