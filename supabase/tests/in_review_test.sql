@@ -3,7 +3,7 @@
 -- title_reviews immutability, and tenant isolation.
 
 begin;
-select plan(15);
+select plan(17);
 
 select set_config('t.org_a',  gen_random_uuid()::text, false);
 select set_config('t.org_b',  gen_random_uuid()::text, false);
@@ -25,6 +25,9 @@ insert into public.gc_staff (user_id, role) values
 insert into public.titles (id, org_id, title, status) values
   (current_setting('t.ta')::uuid, current_setting('t.org_a')::uuid, 'Title A', 'draft'),
   (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, 'Title B', 'draft');
+-- a seed review on org B, to prove GC reads across orgs (setup bypasses RLS)
+insert into public.title_reviews (title_id, org_id, decision, reason) values
+  (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, 'reject', 'seed');
 
 set local role authenticated;
 
@@ -75,6 +78,12 @@ select is((select status from public.titles where id = current_setting('t.ta')::
 -- ===== title_reviews immutability + isolation =====
 select throws_ok($$ update public.title_reviews set reason = 'x' $$,
   '42501', null, 'title_reviews UPDATE blocked (immutable)');
+select throws_ok($$ delete from public.title_reviews $$,
+  '42501', null, 'title_reviews DELETE blocked (immutable)');
+-- GC (still the jwt) reads reviews across all orgs (org B seed visible)
+select is((select count(*) from public.title_reviews where org_id = current_setting('t.org_b')::uuid)::int,
+  1, 'gc_staff reads org B reviews (all orgs)');
+
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
 select is((select count(*) from public.title_reviews where org_id = current_setting('t.org_b')::uuid)::int,

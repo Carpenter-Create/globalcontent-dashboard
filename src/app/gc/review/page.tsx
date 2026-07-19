@@ -36,7 +36,7 @@ export default async function GcReviewPage() {
                   <div className="flex flex-col gap-0.5">
                     <span className="t-body font-medium text-ink">{t.title}</span>
                     <span className="t-body-sm text-ink-3">
-                      {t.organizations?.name ?? "—"} · submitted {fmt.format(new Date(t.created_at))}
+                      {t.organizations?.name ?? "—"} · added {fmt.format(new Date(t.created_at))}
                     </span>
                   </div>
                 </div>
