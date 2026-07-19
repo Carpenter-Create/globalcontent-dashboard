@@ -8,22 +8,12 @@ import { InlineNotice } from "@/components/ui/inline-notice";
 
 type Kind = "master" | "caption" | "artwork";
 
-async function sha256Base64(buf: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", buf);
-  let bin = "";
-  const bytes = new Uint8Array(digest);
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-
-async function putWithRetry(url: string, body: Blob, checksum: string, tries = 3): Promise<string> {
+// Plain presigned part PUT (SignedHeaders=host) — no checksum header; S3 returns
+// the part ETag, collected for CompleteMultipartUpload.
+async function putWithRetry(url: string, body: Blob, tries = 3): Promise<string> {
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await fetch(url, {
-        method: "PUT",
-        body,
-        headers: { "x-amz-checksum-sha256": checksum },
-      });
+      const res = await fetch(url, { method: "PUT", body });
       if (!res.ok) throw new Error(`part upload failed (${res.status})`);
       const etag = res.headers.get("ETag");
       if (!etag) throw new Error("no ETag returned");
@@ -34,7 +24,7 @@ async function putWithRetry(url: string, body: Blob, checksum: string, tries = 3
   }
 }
 
-// Multipart upload direct to S3: initiate → per part (hash → sign → PUT) → complete.
+// Multipart upload direct to S3: initiate → per part (sign → PUT) → complete.
 export function AssetUpload({ titleId }: { titleId: string }) {
   const router = useRouter();
   const [kind, setKind] = useState<Kind>("master");
@@ -66,20 +56,19 @@ export function AssetUpload({ titleId }: { titleId: string }) {
       const { uploadId, key, partSize } = await init.json();
 
       const partCount = Math.max(1, Math.ceil(file.size / partSize));
-      const done: { partNumber: number; etag: string; checksumSHA256: string }[] = [];
+      const done: { partNumber: number; etag: string }[] = [];
       for (let i = 0; i < partCount; i++) {
         const partNumber = i + 1;
         const blob = file.slice(i * partSize, Math.min((i + 1) * partSize, file.size));
-        const checksum = await sha256Base64(await blob.arrayBuffer());
         const sign = await fetch("/api/assets/sign-parts", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ titleId, key, uploadId, parts: [{ partNumber, checksumSHA256: checksum }] }),
+          body: JSON.stringify({ titleId, key, uploadId, parts: [{ partNumber }] }),
         });
         if (!sign.ok) throw new Error((await sign.json()).error ?? "sign failed");
         const { urls } = await sign.json();
-        const etag = await putWithRetry(urls[0].url, blob, checksum);
-        done.push({ partNumber, etag, checksumSHA256: checksum });
+        const etag = await putWithRetry(urls[0].url, blob);
+        done.push({ partNumber, etag });
         setPct(Math.round((partNumber / partCount) * 100));
       }
 
