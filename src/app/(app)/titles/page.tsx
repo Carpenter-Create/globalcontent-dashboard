@@ -47,7 +47,7 @@ export default async function TitlesPage() {
   // RLS-scoped to the org by policy; the eq is belt-and-suspenders + index use.
   const { data: titles } = await supabase
     .from("titles")
-    .select("id, title, status, created_at")
+    .select("id, title, status, created_at, catalog_id")
     .eq("org_id", activeOrg.id)
     .order("created_at", { ascending: false });
 
@@ -82,7 +82,7 @@ export default async function TitlesPage() {
                   <div className="flex flex-col gap-0.5">
                     <span className="t-body font-medium text-ink">{t.title}</span>
                     <span className="t-body-sm text-ink-3">
-                      Added {fmt.format(new Date(t.created_at))}
+                      {t.catalog_id} · Added {fmt.format(new Date(t.created_at))}
                     </span>
                   </div>
                   <span className="shrink-0 t-body-sm text-ink-2">

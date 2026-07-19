@@ -63,7 +63,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const { data: title } = await supabase
     .from("titles")
-    .select("id, title, status, org_id")
+    .select("id, title, status, org_id, catalog_id")
     .eq("id", id)
     .maybeSingle();
   if (!title) notFound(); // RLS returns null for another org's title → 404
@@ -115,6 +115,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
       />
 
       <div className="mb-6 flex flex-col gap-3">
+        <p className="t-body-sm text-ink-3">{title.catalog_id}</p>
         <p className="t-body-sm text-ink-2">
           Status: <span className="font-medium text-ink">{TITLE_STATUS_LABELS[title.status]}</span>
         </p>
