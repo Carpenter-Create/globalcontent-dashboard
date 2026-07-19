@@ -345,6 +345,7 @@ export type Database = {
           created_by: string | null
           effective_from: string
           effective_to: string | null
+          exclusive: boolean
           id: string
           org_id: string
           rights_type: Database["public"]["Enums"]["rights_type"]
@@ -360,6 +361,7 @@ export type Database = {
           created_by?: string | null
           effective_from: string
           effective_to?: string | null
+          exclusive?: boolean
           id?: string
           org_id: string
           rights_type: Database["public"]["Enums"]["rights_type"]
@@ -375,6 +377,7 @@ export type Database = {
           created_by?: string | null
           effective_from?: string
           effective_to?: string | null
+          exclusive?: boolean
           id?: string
           org_id?: string
           rights_type?: Database["public"]["Enums"]["rights_type"]
@@ -676,6 +679,7 @@ export type Database = {
       add_rights_grant: {
         Args: {
           p_effective_from?: string
+          p_exclusive: boolean
           p_mode: Database["public"]["Enums"]["territory_mode"]
           p_org_id: string
           p_rights_types: Database["public"]["Enums"]["rights_type"][]
