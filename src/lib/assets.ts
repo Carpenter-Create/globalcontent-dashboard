@@ -19,9 +19,16 @@ export function assetKey(
 // AND the caller has 'operate' in that title's org. Returns the org id or null.
 // (create_asset re-checks at the DB layer; this pre-check avoids presigning for
 // someone who can't operate.)
+//
+// MUST scope memberships to userId: the memberships RLS policy returns ALL
+// co-members' rows in the caller's orgs, so an unscoped .maybeSingle() would
+// return null (multi-row) in any 2+ member org and 403 everyone. GC staff have
+// no membership row and are not a client upload actor in v1 (view-as-client,
+// §22, is a later seam) — the create_asset RPC remains their DB-level path.
 export async function resolveOperableTitle(
   supabase: SupabaseClient<Database>,
   titleId: string,
+  userId: string,
 ): Promise<{ orgId: string } | null> {
   const { data: title } = await supabase
     .from("titles")
@@ -34,6 +41,7 @@ export async function resolveOperableTitle(
     .from("memberships")
     .select("role")
     .eq("org_id", title.org_id)
+    .eq("user_id", userId)
     .eq("status", "active")
     .maybeSingle();
   const canOperate = m?.role === "account_owner" || m?.role === "delivery_ops";

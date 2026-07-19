@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const op = await resolveOperableTitle(supabase, titleId);
+  const op = await resolveOperableTitle(supabase, titleId, user.id);
   if (!op) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   // Bind the key to the caller's org — never sign a key outside their namespace.
   if (!key.startsWith(`orgs/${op.orgId}/titles/${titleId}/`))

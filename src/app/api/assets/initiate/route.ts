@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const op = await resolveOperableTitle(supabase, titleId);
+  const op = await resolveOperableTitle(supabase, titleId, user.id);
   if (!op) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const key = assetKey(op.orgId, titleId, kind, filename);
