@@ -657,6 +657,48 @@ export type Database = {
           },
         ]
       }
+      vendors: {
+        Row: {
+          active: boolean
+          company_info: Json | null
+          created_at: string
+          delivery_mode: Database["public"]["Enums"]["vendor_mode"]
+          email_cc: string[]
+          email_template: string | null
+          email_to: string[]
+          export_format_spec: Json | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          company_info?: Json | null
+          created_at?: string
+          delivery_mode: Database["public"]["Enums"]["vendor_mode"]
+          email_cc?: string[]
+          email_template?: string | null
+          email_to?: string[]
+          export_format_spec?: Json | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          company_info?: Json | null
+          created_at?: string
+          delivery_mode?: Database["public"]["Enums"]["vendor_mode"]
+          email_cc?: string[]
+          email_template?: string | null
+          email_to?: string[]
+          export_format_spec?: Json | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -808,6 +850,7 @@ export type Database = {
         | "live"
         | "takedown_requested"
         | "taken_down"
+      vendor_mode: "portal_upload" | "email"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1004,6 +1047,7 @@ export const Constants = {
         "takedown_requested",
         "taken_down",
       ],
+      vendor_mode: ["portal_upload", "email"],
     },
   },
 } as const
