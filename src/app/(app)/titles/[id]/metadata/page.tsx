@@ -51,7 +51,11 @@ export default async function TitleMetadataPage({ params }: { params: Promise<{ 
         <dl className="flex max-w-xl flex-col gap-2">
           {METADATA_FIELDS.map((f) => {
             const v = data[f.key];
-            const shown = Array.isArray(v) ? v.join(", ") : v == null ? "—" : String(v);
+            let shown: string;
+            if (Array.isArray(v)) shown = v.length ? v.join(", ") : "—";
+            else if (v == null || v === "") shown = "—";
+            else if (f.type === "select") shown = f.vocab?.find((o) => o.value === v)?.label ?? String(v);
+            else shown = String(v);
             return (
               <div key={f.key} className="flex justify-between gap-4 border-b border-hairline py-1.5">
                 <dt className="t-body-sm text-ink-3">{f.label}</dt>
