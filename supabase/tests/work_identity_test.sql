@@ -48,9 +48,11 @@ select lives_ok(
   format($$ select public.link_title_to_work_of(%L, %L) $$, current_setting('t.ta'), current_setting('t.tb')),
   'gc: link succeeds');
 select is(
-  (select count(distinct work_id)::int from public.titles
-    where id in (current_setting('t.ta')::uuid, current_setting('t.tb')::uuid) and work_id is not null),
-  1, 'both titles now share one work');
+  (select count(*)::int from public.titles
+   where id in (current_setting('t.ta')::uuid, current_setting('t.tb')::uuid)
+     and work_id is not null
+     and work_id = (select work_id from public.titles where id = current_setting('t.tb')::uuid)),
+  2, 'both titles share the same (non-null) work');
 
 -- ===== same_work_conflicts (as GC) =====
 -- rights_grants has no direct INSERT policy (writes only via the add_rights_grant
