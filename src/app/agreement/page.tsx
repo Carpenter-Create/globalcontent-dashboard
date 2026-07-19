@@ -21,6 +21,7 @@ export default async function AgreementPage({
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, status)")
+    .eq("user_id", user.id)
     .eq("status", "active");
   const owned = (memberships ?? []).find((m) => m.role === "account_owner" && m.organizations);
   if (!owned?.organizations) redirect("/"); // no org yet → onboarding lives at /

@@ -14,6 +14,7 @@ export async function GET() {
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(status)")
+    .eq("user_id", user.id)
     .eq("status", "active");
   const org = (memberships ?? []).find((m) => m.role === "account_owner" && m.organizations)
     ?.organizations;

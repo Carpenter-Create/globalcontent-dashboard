@@ -34,6 +34,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      assets: {
+        Row: {
+          bytes: number
+          content_hash: string
+          content_type: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["asset_kind"]
+          org_id: string
+          original_filename: string | null
+          provided_by: string | null
+          received_at: string
+          storage_key: string
+          title_id: string
+        }
+        Insert: {
+          bytes: number
+          content_hash: string
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["asset_kind"]
+          org_id: string
+          original_filename?: string | null
+          provided_by?: string | null
+          received_at?: string
+          storage_key: string
+          title_id: string
+        }
+        Update: {
+          bytes?: number
+          content_hash?: string
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["asset_kind"]
+          org_id?: string
+          original_filename?: string | null
+          provided_by?: string | null
+          received_at?: string
+          storage_key?: string
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -551,6 +611,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_asset: {
+        Args: {
+          p_bytes: number
+          p_content_hash: string
+          p_content_type?: string
+          p_kind: Database["public"]["Enums"]["asset_kind"]
+          p_org_id: string
+          p_original_filename?: string
+          p_storage_key: string
+          p_title_id: string
+        }
+        Returns: string
+      }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
       create_title: {
         Args: { p_org_id: string; p_title: string }
@@ -575,6 +648,7 @@ export type Database = {
       }
     }
     Enums: {
+      asset_kind: "master" | "caption" | "artwork"
       gc_role:
         | "gc_account_owner"
         | "gc_accountant"
@@ -763,6 +837,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      asset_kind: ["master", "caption", "artwork"],
       gc_role: [
         "gc_account_owner",
         "gc_accountant",

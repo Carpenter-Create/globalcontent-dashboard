@@ -16,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, status)")
+    .eq("user_id", user.id)
     .eq("status", "active");
 
   const rows = (memberships ?? []).filter((m) => m.organizations !== null);

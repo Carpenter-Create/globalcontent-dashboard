@@ -7,6 +7,25 @@ import { Card, CardBody } from "@/components/ui/card";
 import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { AddRightsForm } from "./add-rights-form";
+import { AssetUpload } from "./asset-upload";
+
+const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork", string> = {
+  master: "Master",
+  caption: "Caption",
+  artwork: "Artwork",
+};
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024,
+    i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(1)} ${units[i]}`;
+}
 
 // Title detail — hosts the rights grants (§9). RLS-scoped; only operate-capable
 // roles (account_owner, delivery_ops — §4) see the add form.
@@ -21,6 +40,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name)")
+    .eq("user_id", user.id)
     .eq("status", "active");
   const rows = (memberships ?? []).filter((m) => m.organizations);
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
@@ -47,6 +67,13 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .order("created_at", { ascending: false });
 
   const list = grants ?? [];
+
+  const { data: assets } = await supabase
+    .from("assets")
+    .select("id, kind, original_filename, bytes, received_at")
+    .eq("title_id", id)
+    .order("received_at", { ascending: false });
+  const assetList = assets ?? [];
 
   return (
     <>
@@ -82,6 +109,39 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           ))}
         </div>
       )}
+
+      <div className="mt-10">
+        <h2 className="t-body font-medium text-ink pb-3">Assets</h2>
+        {canOperate ? (
+          <div className="mb-4 max-w-xl">
+            <AssetUpload titleId={title.id} />
+          </div>
+        ) : null}
+        {assetList.length === 0 ? (
+          <Card>
+            <CardBody>
+              <p className="t-body-sm text-ink-3">No assets uploaded yet.</p>
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {assetList.map((a) => (
+              <Card key={a.id}>
+                <CardBody className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="t-body font-medium text-ink">
+                      {a.original_filename ?? ASSET_KIND_LABELS[a.kind]}
+                    </span>
+                    <span className="t-body-sm text-ink-3">
+                      {ASSET_KIND_LABELS[a.kind]} · {formatBytes(a.bytes)}
+                    </span>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </>
   );
 }

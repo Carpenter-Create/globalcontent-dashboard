@@ -27,9 +27,13 @@ const STATUS_LABELS: Record<string, string> = {
 // active org summary + an honest placeholder until findings land).
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, status)")
+    .eq("user_id", user?.id ?? "")
     .eq("status", "active");
 
   const rows = (memberships ?? []).filter((m) => m.organizations);

@@ -209,4 +209,9 @@ mobile · **transcoding** (clients deliver platform-ready; GC never transcodes).
 Append lessons learned in THIS repo that aren't already in the spec. Real lessons only —
 restatements crowd out the section's purpose.
 
-- _(none yet)_
+- **Supabase `gen types` marks every RPC arg without a `DEFAULT` as required non-null.** So an
+  optional param (one you want to pass `undefined`/omit from a `.rpc()` call) MUST be declared
+  `… text default null` in the SQL, or TS rejects the call. Bake `DEFAULT null` into the param the
+  first time — don't ship required-arg RPCs and patch with a follow-up migration. (Bit us on
+  `accept_terms` → `20260717000200`, `add_rights_grant` → `20260718000300`, `create_asset` →
+  `20260718000600`.)
