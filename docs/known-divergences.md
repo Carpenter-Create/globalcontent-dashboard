@@ -131,6 +131,16 @@ enumeration lives in `src/lib/territories.ts` and gates the server-action path t
 errors there) — add a `country_codes` reference table seeded from the ISO set + a membership
 check in the RPC.
 
+## Vendors / GC-admin
+
+### V1 — vendor writes are RLS-gated direct writes, not mutation-RPCs
+`vendors` is GC-global (no `org_id`) and gated entirely on `is_gc_staff`. Its create/edit path is a
+**direct table write inside a server action** (`supabase.from("vendors").insert/update`, RLS-enforced),
+not a SECURITY DEFINER RPC. Deliberate: GC-admin reference data with no tenant-isolation surface — an
+RPC would only re-wrap `is_gc_staff` + insert with no security gain (the one cross-field rule is a
+CHECK constraint). The mutations-as-RPC rule stays in force for all client/tenant writes.
+**Trigger to revisit:** if a vendor write ever needs a cross-table invariant or server-derived state.
+
 ## Framework
 
 ### F1 — middleware.ts → proxy.ts (Next 16 deprecation), deferred
