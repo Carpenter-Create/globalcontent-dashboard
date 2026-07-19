@@ -574,6 +574,51 @@ export type Database = {
           },
         ]
       }
+      title_reviews: {
+        Row: {
+          created_at: string
+          decision: Database["public"]["Enums"]["review_decision"]
+          id: string
+          org_id: string
+          reason: string | null
+          reviewer: string | null
+          title_id: string
+        }
+        Insert: {
+          created_at?: string
+          decision: Database["public"]["Enums"]["review_decision"]
+          id?: string
+          org_id: string
+          reason?: string | null
+          reviewer?: string | null
+          title_id: string
+        }
+        Update: {
+          created_at?: string
+          decision?: Database["public"]["Enums"]["review_decision"]
+          id?: string
+          org_id?: string
+          reason?: string | null
+          reviewer?: string | null
+          title_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_reviews_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_reviews_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       titles: {
         Row: {
           created_at: string
@@ -685,8 +730,20 @@ export type Database = {
         Args: { p_capability: string; p_org: string; p_uid: string }
         Returns: boolean
       }
+      review_title: {
+        Args: {
+          p_decision: Database["public"]["Enums"]["review_decision"]
+          p_reason: string
+          p_title_id: string
+        }
+        Returns: undefined
+      }
       set_title_metadata: {
         Args: { p_data: Json; p_org_id: string; p_title_id: string }
+        Returns: undefined
+      }
+      submit_title: {
+        Args: { p_org_id: string; p_title_id: string }
         Returns: undefined
       }
     }
@@ -711,6 +768,7 @@ export type Database = {
         | "active"
         | "payment_lapsed"
         | "closed"
+      review_decision: "approve" | "reject"
       rights_type:
         | "theatrical"
         | "fta"
@@ -903,6 +961,7 @@ export const Constants = {
         "payment_lapsed",
         "closed",
       ],
+      review_decision: ["approve", "reject"],
       rights_type: [
         "theatrical",
         "fta",
