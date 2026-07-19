@@ -31,3 +31,25 @@ export async function reviewTitle(
   revalidatePath("/gc/review");
   return {};
 }
+
+// GC links a title to the same work as another title. Gated at the DB by
+// link_title_to_work_of (is_gc_staff); the (gc) layout also blocks non-GC users.
+export async function linkTitleToWork(
+  titleId: string,
+  targetTitleId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("link_title_to_work_of", {
+    p_title_id: titleId,
+    p_target_title_id: targetTitleId,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/gc/review");
+  return {};
+}

@@ -633,6 +633,7 @@ export type Database = {
           status: Database["public"]["Enums"]["title_status"]
           title: string
           updated_at: string
+          work_id: string | null
         }
         Insert: {
           catalog_id?: string | null
@@ -644,6 +645,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["title_status"]
           title: string
           updated_at?: string
+          work_id?: string | null
         }
         Update: {
           catalog_id?: string | null
@@ -655,6 +657,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["title_status"]
           title?: string
           updated_at?: string
+          work_id?: string | null
         }
         Relationships: [
           {
@@ -662,6 +665,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "titles_work_id_fkey"
+            columns: ["work_id"]
+            isOneToOne: false
+            referencedRelation: "works"
             referencedColumns: ["id"]
           },
         ]
@@ -704,6 +714,30 @@ export type Database = {
           export_format_spec?: Json | null
           id?: string
           name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      works: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -779,6 +813,10 @@ export type Database = {
       }
       gc_check_digit: { Args: { p_n: number }; Returns: number }
       is_gc_staff: { Args: { p_uid: string }; Returns: boolean }
+      link_title_to_work_of: {
+        Args: { p_target_title_id: string; p_title_id: string }
+        Returns: string
+      }
       member_can: {
         Args: { p_capability: string; p_org: string; p_uid: string }
         Returns: boolean
@@ -791,6 +829,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      same_work_conflicts: {
+        Args: { p_title_id: string }
+        Returns: {
+          other_org_name: string
+          other_title: string
+          other_title_id: string
+          rights_type: Database["public"]["Enums"]["rights_type"]
+        }[]
+      }
       set_title_metadata: {
         Args: { p_data: Json; p_org_id: string; p_title_id: string }
         Returns: undefined
@@ -798,6 +845,24 @@ export type Database = {
       submit_title: {
         Args: { p_org_id: string; p_title_id: string }
         Returns: undefined
+      }
+      suggest_same_work: {
+        Args: { p_title_id: string }
+        Returns: {
+          org_name: string
+          release_year: string
+          title: string
+          title_id: string
+        }[]
+      }
+      territories_overlap: {
+        Args: {
+          p_mode_a: Database["public"]["Enums"]["territory_mode"]
+          p_mode_b: Database["public"]["Enums"]["territory_mode"]
+          p_terr_a: string[]
+          p_terr_b: string[]
+        }
+        Returns: boolean
       }
     }
     Enums: {
