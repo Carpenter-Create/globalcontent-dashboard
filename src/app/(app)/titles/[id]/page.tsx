@@ -75,7 +75,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const { data: grants } = await supabase
     .from("rights_grants")
-    .select("id, rights_type, territory_mode, territories, window_start, window_end")
+    .select("id, rights_type, territory_mode, territories, exclusive, window_start, window_end")
     .eq("title_id", id)
     .is("effective_to", null)
     .order("created_at", { ascending: false });
@@ -143,7 +143,10 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           {list.map((g) => (
             <Card key={g.id}>
               <CardBody className="flex items-start justify-between gap-4">
-                <span className="t-body font-medium text-ink">{RIGHTS_META[g.rights_type].label}</span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="t-body font-medium text-ink">{RIGHTS_META[g.rights_type].label}</span>
+                  <span className="t-body-sm text-ink-3">{g.exclusive ? "Exclusive" : "Non-exclusive"}</span>
+                </div>
                 <span className="shrink-0 t-body-sm text-ink-2">
                   {describeTerritory(g.territory_mode, g.territories)}
                 </span>

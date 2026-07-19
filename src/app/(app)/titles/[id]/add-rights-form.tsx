@@ -10,12 +10,15 @@ import type { TerritoryMode } from "@/lib/territories";
 import { addRights } from "./actions";
 
 // Minimal, functional grants form (not designer-grade): multi-select rights
-// types grouped by category, a territory mode, and a comma-separated ISO code
-// field for include/exclude. Greyscale errors (D3). Operate-capable only.
+// types grouped by category, a territory mode, a comma-separated ISO code field
+// for include/exclude, and a REQUIRED exclusivity choice (no default — the
+// client must actively choose; §9 conflict-prevention foundation). Greyscale
+// errors (D3). Operate-capable only.
 export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: string }) {
   const [types, setTypes] = useState<Set<RightsType>>(new Set());
   const [mode, setMode] = useState<TerritoryMode>("world");
   const [codes, setCodes] = useState("");
+  const [exclusive, setExclusive] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,6 +37,10 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
       setError("Select at least one rights type.");
       return;
     }
+    if (exclusive === null) {
+      setError("Choose exclusive or non-exclusive.");
+      return;
+    }
     setSaving(true);
     setError("");
     const countryCodes =
@@ -44,6 +51,7 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
       rightsTypes: [...types],
       mode,
       countryCodes,
+      exclusive,
       windowStart: null,
       windowEnd: null,
     });
@@ -55,8 +63,14 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
     setTypes(new Set());
     setCodes("");
     setMode("world");
+    setExclusive(null);
     setSaving(false);
   }
+
+  const seg =
+    "rounded-[var(--radius-sm)] border px-3 py-1.5 t-body-sm transition-colors";
+  const segOn = "border-ink bg-ink text-surface";
+  const segOff = "border-hairline bg-surface text-ink-2 hover:text-ink";
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -100,7 +114,32 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
         />
       ) : null}
 
-      <Button type="submit" disabled={saving || types.size === 0} className="self-start">
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="t-body-sm font-medium text-ink-2">Exclusivity</legend>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            aria-pressed={exclusive === true}
+            onClick={() => setExclusive(true)}
+            className={`${seg} ${exclusive === true ? segOn : segOff}`}
+          >
+            Exclusive
+          </button>
+          <button
+            type="button"
+            aria-pressed={exclusive === false}
+            onClick={() => setExclusive(false)}
+            className={`${seg} ${exclusive === false ? segOn : segOff}`}
+          >
+            Non-exclusive
+          </button>
+        </div>
+        <p className="t-body-sm text-ink-3">
+          Exclusive: only you may distribute this right in these territories. Non-exclusive: others may too.
+        </p>
+      </fieldset>
+
+      <Button type="submit" disabled={saving || types.size === 0 || exclusive === null} className="self-start">
         {saving ? "Adding…" : "Add rights"}
       </Button>
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
