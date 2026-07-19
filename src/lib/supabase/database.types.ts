@@ -535,6 +535,45 @@ export type Database = {
           },
         ]
       }
+      title_metadata: {
+        Row: {
+          created_at: string
+          data: Json
+          org_id: string
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          org_id: string
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          org_id?: string
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "title_metadata_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "title_metadata_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: true
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       titles: {
         Row: {
           created_at: string
@@ -645,6 +684,10 @@ export type Database = {
       member_can: {
         Args: { p_capability: string; p_org: string; p_uid: string }
         Returns: boolean
+      }
+      set_title_metadata: {
+        Args: { p_data: Json; p_org_id: string; p_title_id: string }
+        Returns: undefined
       }
     }
     Enums: {

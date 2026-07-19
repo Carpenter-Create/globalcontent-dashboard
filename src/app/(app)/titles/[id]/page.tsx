@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { cookies } from "next/headers";
 
@@ -6,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
+import { requiredComplete } from "@/lib/metadata";
 import { AddRightsForm } from "./add-rights-form";
 import { AssetUpload } from "./asset-upload";
 
@@ -75,6 +77,13 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .order("received_at", { ascending: false });
   const assetList = assets ?? [];
 
+  const { data: metaRow } = await supabase
+    .from("title_metadata")
+    .select("data")
+    .eq("title_id", id)
+    .maybeSingle();
+  const complete = requiredComplete((metaRow?.data as Record<string, unknown>) ?? {});
+
   return (
     <>
       <PageHeader
@@ -141,6 +150,18 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
             ))}
           </div>
         )}
+      </div>
+
+      <div className="mt-10">
+        <div className="flex items-center justify-between gap-4 pb-3">
+          <h2 className="t-body font-medium text-ink">Metadata</h2>
+          <Link href={`/titles/${id}/metadata`} className="t-body-sm text-accent">
+            {canOperate ? "Edit metadata" : "View metadata"}
+          </Link>
+        </div>
+        <p className="t-body-sm text-ink-3">
+          {complete.filled} of {complete.total} required fields complete
+        </p>
       </div>
     </>
   );
