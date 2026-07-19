@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +22,13 @@ export default async function GcLayout({ children }: { children: React.ReactNode
   return (
     <div className="mx-auto max-w-[1080px] px-12 py-10">
       <div className="mb-8 flex items-baseline justify-between">
-        <span className="t-subhead text-ink">Global Content — Review</span>
+        <div className="flex items-baseline gap-6">
+          <span className="t-subhead text-ink">Global Content</span>
+          <nav className="flex gap-4">
+            <Link href="/gc/review" className="t-body-sm text-ink-2 hover:text-ink">Review</Link>
+            <Link href="/gc/vendors" className="t-body-sm text-ink-2 hover:text-ink">Vendors</Link>
+          </nav>
+        </div>
         <span className="t-body-sm text-ink-3">GC {staff.role.replace("gc_", "").replace("_", " ")}</span>
       </div>
       {children}
