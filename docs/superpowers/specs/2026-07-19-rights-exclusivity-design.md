@@ -49,15 +49,24 @@ Dependency-ordered build: **B-rights (this) → B-work (work identity + soft war
 - **Exclusivity grain = the grant** (`rights_type` + territory set). No new grain; it rides on the
   existing row. Mixed exclusivity across territories for one `rights_type` (exclusive US, non-exclusive
   CA) is already **separate grants** — the granular model handles it.
-- **One exclusivity per add-action**, applied to all `rights_types` selected in that add. Mixed
-  exclusivity across `rights_types` in the *same* territory (SVOD exclusive + AVOD non-exclusive) is
-  **two adds**. Rationale: the current form multi-selects types against a single territory; a single
-  exclusivity choice keeps the UX honest and the RPC a single flag, and the client can still express
-  anything via multiple adds. *(Founder sign-off point — per-type exclusivity in one add is possible
-  but clunky; deferred unless requested.)*
-- **Existing rows default to `false` (non-exclusive).** Safe: a backfilled non-exclusive grant never
-  triggers a false future conflict block. New declarations must state exclusivity explicitly (the RPC
-  param is required, so the column default only ever applies to pre-existing rows).
+- **One exclusivity per add-action** (decided), applied to all `rights_types` selected in that add.
+  Mixed exclusivity across `rights_types` in the *same* territory (SVOD exclusive + AVOD non-exclusive)
+  is **two adds**. Rationale: the current form multi-selects types against a single territory; one
+  exclusivity choice keeps the UX honest, minimizes the number of decisions a user can get wrong, and
+  the client can still express the rare mixed case via multiple adds. (Per-type exclusivity in one add
+  is possible but multiplies error surface for a case that almost never occurs — not built.)
+- **Exclusivity is a required, un-defaulted choice — the mis-declaration guard.** *Neither* default is
+  safe: silently non-exclusive under-protects a true exclusive holder (a second client could deliver
+  the same right); silently exclusive falsely blocks legitimate non-exclusive holders and over-asserts
+  a claim. So the intake control has **no pre-selection** — the client must actively choose, and the
+  form refuses to submit until they do. The layered protection against a wrong choice is:
+  **(1)** forced explicit choice with a one-line plain-language explainer; **(2)** the value shown
+  plainly in the rights list **and** the submit-for-review summary; **(3)** GC verifies it against
+  chain-of-title at the existing `in_review` gate *before anything can be delivered* — which is exactly
+  why the hard conflict block lives at delivery (post-review), not at declaration; **(4)** it's
+  correctable afterward (audit-logged), not a one-way door.
+- **The DB column default (`false`) only ever applies to pre-existing/backfilled rows** — never to a
+  new declaration, because the RPC param is required. The UI never defaults it.
 - **Capture only, no enforcement.** This slice deliberately does not gate anything on `exclusive`.
   That keeps it small and independently shippable; the value is consumed by B-work and B-del.
 
@@ -97,13 +106,22 @@ add_rights_grant(
 
 ## Surfaces
 
-- **`add-rights-form.tsx`** — add an exclusivity control (e.g. a two-option toggle "Exclusive /
-  Non-exclusive", no default pre-selected so the client must choose, matching "we have to ask"), and
-  pass it through `addRights` → `add_rights_grant`. Greyscale affordances (D3).
+- **`add-rights-form.tsx`** — add a two-option exclusivity control ("Exclusive / Non-exclusive")
+  with **no default pre-selection**; the submit stays disabled until the client chooses (same pattern
+  as the existing "select at least one rights type" guard). Include a one-line plain-language
+  explainer (e.g. *"Exclusive: only you may distribute this right in these territories. Non-exclusive:
+  others may too."*). Pass `exclusive` through `addRights` → `add_rights_grant`. Greyscale
+  affordances (D3).
 - **`src/app/(app)/titles/[id]/actions.ts`** (`addRights`) — thread `exclusive` through the zod
   input (`src/lib/rights.ts` helper) and the RPC call.
 - **Title-detail rights list** — display exclusive / non-exclusive on each grant so the carve-out is
-  legible.
+  legible; include it in the **submit-for-review summary** so the client sees each claim before
+  handing off, and wherever GC sees the title's rights at the `in_review` gate so exclusivity can be
+  **verified against chain-of-title**. *(Where the review surface doesn't already list grants, showing
+  them there is a light display add; deeper same-work overlap surfacing is B-work.)*
+- **Correctability (noted, not built here):** correcting a mis-declared exclusivity uses the grant
+  correction/edit path (audit-logged, immutable-corrections style). This slice does not add an edit
+  RPC; the concrete mechanism is defined when the grant-edit/correction path is built.
 
 ## Verification
 
