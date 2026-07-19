@@ -615,10 +615,10 @@ export type Database = {
         Args: {
           p_bytes: number
           p_content_hash: string
-          p_content_type: string
+          p_content_type?: string
           p_kind: Database["public"]["Enums"]["asset_kind"]
           p_org_id: string
-          p_original_filename: string
+          p_original_filename?: string
           p_storage_key: string
           p_title_id: string
         }
