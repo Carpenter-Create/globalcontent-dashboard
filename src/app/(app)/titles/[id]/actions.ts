@@ -15,6 +15,7 @@ export async function addRights(input: {
   rightsTypes: RightsType[];
   mode: TerritoryMode;
   countryCodes: string[];
+  exclusive: boolean;
   windowStart: string | null;
   windowEnd: string | null;
 }): Promise<{ error?: string }> {
@@ -38,6 +39,7 @@ export async function addRights(input: {
     p_rights_types: input.rightsTypes,
     p_mode: input.mode,
     p_territories: territories,
+    p_exclusive: input.exclusive,
     p_window_start: input.windowStart ?? undefined,
     p_window_end: input.windowEnd ?? undefined,
     p_effective_from: new Date().toISOString(),

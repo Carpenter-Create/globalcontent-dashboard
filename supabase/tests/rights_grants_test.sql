@@ -4,7 +4,7 @@
 -- can_deliver gate matrix (rule 12).
 
 begin;
-select plan(16);
+select plan(19);
 
 select set_config('t.org_a',  gen_random_uuid()::text, false);
 select set_config('t.org_b',  gen_random_uuid()::text, false);
@@ -105,26 +105,62 @@ select throws_ok($$ delete from public.rights_grants $$,
 -- add_rights_grant capability
 select lives_ok($$ select public.add_rights_grant(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
-  array['fast']::public.rights_type[], 'world', '{}', null, null, now()) $$,
+  array['fast']::public.rights_type[], 'world', '{}', false, null, null, now()) $$,
   'account_owner: add_rights_grant succeeds');
 
 -- dedupe: duplicate rights types insert one row (returns one id)
 select is(array_length(public.add_rights_grant(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
-  array['bvod','bvod']::public.rights_type[], 'world', '{}', null, null, now()), 1),
+  array['bvod','bvod']::public.rights_type[], 'world', '{}', false, null, null, now()), 1),
   1, 'add_rights_grant dedupes duplicate rights types');
 
 -- territory format validation: a non-alpha-2 code raises at the DB layer
 select throws_ok($$ select public.add_rights_grant(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
-  array['tvod']::public.rights_type[], 'include', array['USA'], null, null, now()) $$,
+  array['tvod']::public.rights_type[], 'include', array['USA'], false, null, null, now()) $$,
   'P0001', null, 'add_rights_grant rejects non-alpha-2 territory code');
+
+-- exclusivity persists (true)
+-- NOTE: add_rights_grant() is VOLATILE and INSERTs. A single statement that
+-- both calls it and reads rights_grants can't see its own insert (the read
+-- uses the snapshot taken at statement start — same-statement
+-- self-visibility). So: call + stash the id(s) in one statement, assert in
+-- the next (fresh snapshot, same transaction).
+select set_config('t.excl_true_id',
+  (public.add_rights_grant(
+     current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
+     array['pay_tv']::public.rights_type[], 'world', '{}', true, null, null, now()))[1]::text,
+  false);
+select is(
+  (select exclusive from public.rights_grants where id = current_setting('t.excl_true_id')::uuid),
+  true, 'add_rights_grant persists exclusive = true');
+
+-- exclusivity persists (false)
+select set_config('t.excl_false_id',
+  (public.add_rights_grant(
+     current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
+     array['ppv']::public.rights_type[], 'world', '{}', false, null, null, now()))[1]::text,
+  false);
+select is(
+  (select exclusive from public.rights_grants where id = current_setting('t.excl_false_id')::uuid),
+  false, 'add_rights_grant persists exclusive = false');
+
+-- one exclusivity applies to every rights_type created in the call
+select set_config('t.excl_shared_ids',
+  array_to_string(public.add_rights_grant(
+    current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
+    array['fvod','mod']::public.rights_type[], 'world', '{}', true, null, null, now()), ','),
+  false);
+select is(
+  (select count(distinct exclusive)::int from public.rights_grants
+   where id = any(string_to_array(current_setting('t.excl_shared_ids'), ',')::uuid[])),
+  1, 'all rights_types in one add share the exclusivity flag');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role', 'authenticated')::text, true);
 select throws_ok($$ select public.add_rights_grant(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
-  array['fast']::public.rights_type[], 'world', '{}', null, null, now()) $$,
+  array['fast']::public.rights_type[], 'world', '{}', false, null, null, now()) $$,
   'P0001', null, 'viewer: add_rights_grant raises (not operate-capable)');
 
 reset role;
