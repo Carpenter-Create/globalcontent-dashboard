@@ -624,6 +624,8 @@ export type Database = {
       }
       titles: {
         Row: {
+          catalog_id: string | null
+          catalog_no: number
           created_at: string
           created_by: string | null
           id: string
@@ -633,6 +635,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          catalog_id?: string | null
+          catalog_no?: number
           created_at?: string
           created_by?: string | null
           id?: string
@@ -642,6 +646,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          catalog_id?: string | null
+          catalog_no?: number
           created_at?: string
           created_by?: string | null
           id?: string
@@ -771,6 +777,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      gc_check_digit: { Args: { p_n: number }; Returns: number }
       is_gc_staff: { Args: { p_uid: string }; Returns: boolean }
       member_can: {
         Args: { p_capability: string; p_org: string; p_uid: string }
