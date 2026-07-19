@@ -86,9 +86,10 @@ create table title_metadata (
 
 - `title_id` PK = one metadata row per title (upsert). `org_id` denormalized for the RLS predicate
   (kept honest: `set_title_metadata` derives it from the title, never the client).
-- RLS SELECT via `member_can(view)`; **UPDATE/INSERT only through the RPC** (no direct client
-  write policy); `revoke all … from anon`. Audit + updated_at triggers (reuse generics). Not
-  immutable — it's editable draft data — so UPDATE is *not* revoked (the RPC is the only writer).
+- RLS SELECT via `member_can(view)`; **writes only through the RPC**. Direct client
+  INSERT/UPDATE/DELETE are revoked (hard `42501`) — the RPC is `SECURITY DEFINER` so its upsert is
+  unaffected (owner keeps privileges), matching the assets/rights convention. `revoke all … from
+  anon`. Audit + updated_at triggers (reuse generics). Mutable *via the RPC* (editable draft data).
 
 ## Canonical registry + validation (`lib/metadata.ts`)
 
