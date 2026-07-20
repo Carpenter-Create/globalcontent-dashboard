@@ -50,4 +50,5 @@ export const PORTAL_COPY = {
   errorBadCode: "That code is incorrect or has expired. Request a new one.",
   errorTooMany: "Too many attempts. Request a new code.",
   errorPreparing: "This file is being retrieved from cold storage and isn't ready yet. Try again shortly.",
+  unknownFilename: "the file",
 } as const;
