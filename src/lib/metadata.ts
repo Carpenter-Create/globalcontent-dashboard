@@ -77,10 +77,44 @@ export function parseMetadata(
 // delivery gate. A field counts as filled if present and non-empty.
 export function requiredComplete(data: Record<string, unknown>): { filled: number; total: number } {
   const req = METADATA_FIELDS.filter((f) => f.tier === "required");
-  const filled = req.filter((f) => {
-    const v = data?.[f.key];
-    if (Array.isArray(v)) return v.length > 0;
-    return v !== undefined && v !== null && v !== "";
-  }).length;
+  const filled = req.filter((f) => !isEmpty(data?.[f.key])).length;
   return { filled, total: req.length };
+}
+
+// A field counts as filled if present and non-empty (arrays: at least one entry).
+function isEmpty(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length === 0;
+  return v === undefined || v === null || v === "";
+}
+
+// Bumped whenever the field registry / tiers change — every finding is stamped with it
+// (rule 4), so "why was this flagged" stays explainable under the rules of the day (§19).
+export const METADATA_LOGIC_VERSION = "metadata-v1";
+
+export type FindingDescriptor = {
+  code: string; // 'metadata.missing.<field>'
+  severity: "high" | "low";
+  message: string;
+  field: string;
+  tier: "required" | "recommended";
+};
+
+// THE validator (§19): metadata-completeness findings from the canonical registry.
+// Required-tier gaps are high severity (requirements); recommended-tier gaps low.
+// Optional fields never produce a finding. Deterministic + pure — the reconcile RPC
+// persists the result and auto-resolves anything no longer present (precision over recall).
+export function computeMetadataFindings(data: Record<string, unknown>): FindingDescriptor[] {
+  const out: FindingDescriptor[] = [];
+  for (const f of METADATA_FIELDS) {
+    if (f.tier === "optional") continue;
+    if (!isEmpty(data?.[f.key])) continue;
+    out.push({
+      code: `metadata.missing.${f.key}`,
+      severity: f.tier === "required" ? "high" : "low",
+      message: f.tier === "required" ? `${f.label} is required.` : `${f.label} is recommended.`,
+      field: f.key,
+      tier: f.tier,
+    });
+  }
+  return out;
 }
