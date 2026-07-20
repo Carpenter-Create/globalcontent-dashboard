@@ -14,10 +14,11 @@ import { AssetUpload } from "./asset-upload";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, type TitleStatus } from "@/lib/titles";
 
-const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork", string> = {
+const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "screener", string> = {
   master: "Master",
   caption: "Caption",
   artwork: "Artwork",
+  screener: "Screener",
 };
 
 function formatBytes(n: number): string {

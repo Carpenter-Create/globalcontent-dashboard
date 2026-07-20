@@ -501,33 +501,39 @@ export type Database = {
       }
       portal_links: {
         Row: {
-          asset_id: string
+          asset_id: string | null
           created_at: string
           created_by: string | null
-          delivery_id: string
+          delivery_id: string | null
           expires_at: string
           id: string
+          purpose: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at: string | null
+          title_id: string | null
           token_hash: string
         }
         Insert: {
-          asset_id: string
+          asset_id?: string | null
           created_at?: string
           created_by?: string | null
-          delivery_id: string
+          delivery_id?: string | null
           expires_at: string
           id?: string
+          purpose?: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at?: string | null
+          title_id?: string | null
           token_hash: string
         }
         Update: {
-          asset_id?: string
+          asset_id?: string | null
           created_at?: string
           created_by?: string | null
-          delivery_id?: string
+          delivery_id?: string | null
           expires_at?: string
           id?: string
+          purpose?: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at?: string | null
+          title_id?: string | null
           token_hash?: string
         }
         Relationships: [
@@ -543,6 +549,13 @@ export type Database = {
             columns: ["delivery_id"]
             isOneToOne: false
             referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_links_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
             referencedColumns: ["id"]
           },
         ]
@@ -694,6 +707,51 @@ export type Database = {
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      screener_view_events: {
+        Row: {
+          event_type: Database["public"]["Enums"]["screener_event"]
+          id: string
+          link_id: string
+          occurred_at: string
+          position_seconds: number
+          runtime_seconds: number | null
+          session_id: string
+        }
+        Insert: {
+          event_type: Database["public"]["Enums"]["screener_event"]
+          id?: string
+          link_id: string
+          occurred_at?: string
+          position_seconds?: number
+          runtime_seconds?: number | null
+          session_id: string
+        }
+        Update: {
+          event_type?: Database["public"]["Enums"]["screener_event"]
+          id?: string
+          link_id?: string
+          occurred_at?: string
+          position_seconds?: number
+          runtime_seconds?: number | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "screener_view_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "portal_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "screener_view_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "portal_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -923,6 +981,7 @@ export type Database = {
           created_by: string | null
           id: string
           org_id: string
+          screener_source: Database["public"]["Enums"]["screener_source"]
           status: Database["public"]["Enums"]["title_status"]
           title: string
           updated_at: string
@@ -935,6 +994,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           org_id: string
+          screener_source?: Database["public"]["Enums"]["screener_source"]
           status?: Database["public"]["Enums"]["title_status"]
           title: string
           updated_at?: string
@@ -947,6 +1007,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           org_id?: string
+          screener_source?: Database["public"]["Enums"]["screener_source"]
           status?: Database["public"]["Enums"]["title_status"]
           title?: string
           updated_at?: string
@@ -1106,6 +1167,14 @@ export type Database = {
         }
         Returns: string
       }
+      create_screener_link: {
+        Args: {
+          p_expires_at?: string
+          p_title_id: string
+          p_token_hash: string
+        }
+        Returns: string
+      }
       create_title: {
         Args: { p_org_id: string; p_title: string }
         Returns: string
@@ -1152,6 +1221,15 @@ export type Database = {
           storage_key: string
         }[]
       }
+      portal_resolve_screener: {
+        Args: { p_session_token_hash: string }
+        Returns: {
+          link_id: string
+          session_id: string
+          storage_key: string
+          title_id: string
+        }[]
+      }
       record_export: {
         Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
         Returns: string
@@ -1172,6 +1250,19 @@ export type Database = {
           other_title: string
           other_title_id: string
           rights_type: Database["public"]["Enums"]["rights_type"]
+        }[]
+      }
+      screener_engagement: {
+        Args: { p_link_id: string }
+        Returns: {
+          company: string
+          completed: boolean
+          email: string
+          last_viewed: string
+          name: string
+          replays: number
+          session_id: string
+          watched_pct: number
         }[]
       }
       set_delivery_status: {
@@ -1210,7 +1301,7 @@ export type Database = {
       }
     }
     Enums: {
-      asset_kind: "master" | "caption" | "artwork"
+      asset_kind: "master" | "caption" | "artwork" | "screener"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1237,6 +1328,7 @@ export type Database = {
         | "payment_lapsed"
         | "closed"
       portal_event: "room_viewed" | "otp_sent" | "otp_verified" | "download"
+      portal_link_purpose: "master_download" | "screener_view"
       review_decision: "approve" | "reject"
       rights_type:
         | "theatrical"
@@ -1260,6 +1352,8 @@ export type Database = {
         | "ppl"
         | "home_video"
         | "mod"
+      screener_event: "play" | "pause" | "seek" | "progress" | "ended"
+      screener_source: "master" | "dedicated"
       term_trigger_enum:
         | "signup"
         | "upgrade"
@@ -1408,7 +1502,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      asset_kind: ["master", "caption", "artwork"],
+      asset_kind: ["master", "caption", "artwork", "screener"],
       delivery_status: [
         "pending",
         "delivered",
@@ -1439,6 +1533,7 @@ export const Constants = {
         "closed",
       ],
       portal_event: ["room_viewed", "otp_sent", "otp_verified", "download"],
+      portal_link_purpose: ["master_download", "screener_view"],
       review_decision: ["approve", "reject"],
       rights_type: [
         "theatrical",
@@ -1463,6 +1558,8 @@ export const Constants = {
         "home_video",
         "mod",
       ],
+      screener_event: ["play", "pause", "seek", "progress", "ended"],
+      screener_source: ["master", "dedicated"],
       term_trigger_enum: [
         "signup",
         "upgrade",
