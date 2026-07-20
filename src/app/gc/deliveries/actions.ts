@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
 
 type DeliveryStatus = Database["public"]["Enums"]["delivery_status"];
 
@@ -41,6 +41,28 @@ export async function setDeliveryStatus(
     p_note: note && note.trim() ? note.trim() : undefined,
   });
   if (error) return { error: error.message };
+
+  // §13/§20 push: notify the client on delivery transitions (says what changed).
+  // Best-effort — the status change already committed.
+  try {
+    const { data: d } = await supabase
+      .from("deliveries")
+      .select("org_id, title_id, titles(title), vendors(name)")
+      .eq("id", deliveryId)
+      .maybeSingle();
+    if (d) {
+      await supabase.rpc("create_notification", {
+        p_org_id: d.org_id,
+        p_kind: "delivery_update",
+        p_title: "Delivery update",
+        p_body: `"${d.titles?.title ?? "Your title"}" is now ${status} on ${d.vendors?.name ?? "a platform"}`,
+        p_source_refs: { delivery_id: deliveryId, title_id: d.title_id, status } as Json,
+      });
+    }
+  } catch (e) {
+    console.error("[notifications] delivery_update create failed", e);
+  }
+
   revalidatePath("/gc/deliveries");
   return {};
 }
