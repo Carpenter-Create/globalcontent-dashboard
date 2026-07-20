@@ -30,6 +30,22 @@ describe("renderOffer", () => {
     expect(renderOffer([])).toBe("");
   });
 
+  it("keeps same rights type but different windows as separate lines, never merging territories across windows", () => {
+    const offer: OfferLine[] = [
+      { rightsType: "svod", territory: "US", windowEnd: "2027-01-01T00:00:00Z" },
+      { rightsType: "svod", territory: "CA", windowEnd: "2030-01-01T00:00:00Z" },
+    ];
+    expect(renderOffer(offer)).toBe("SVOD: US (through 2027-01-01) · SVOD: CA (through 2030-01-01)");
+  });
+
+  it("still merges territories onto one line when rights type and window both match", () => {
+    const offer: OfferLine[] = [
+      { rightsType: "svod", territory: "US", windowEnd: "2027-01-01T00:00:00Z" },
+      { rightsType: "svod", territory: "CA", windowEnd: "2027-01-01T00:00:00Z" },
+    ];
+    expect(renderOffer(offer)).toBe("SVOD: CA, US (through 2027-01-01)");
+  });
+
   it("orders rights-type groups deterministically regardless of input order", () => {
     const avodFirst: OfferLine[] = [
       { rightsType: "avod", territory: "WW", windowEnd: null },

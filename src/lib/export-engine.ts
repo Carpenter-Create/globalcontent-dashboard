@@ -10,18 +10,20 @@ export type TitleExportInput = {
 
 // "SVOD: US, CA (through 2027) · AVOD: Worldwide" — grouped by rights type.
 export function renderOffer(offer: OfferLine[]): string {
-  const byRight = new Map<string, { terrs: Set<string>; window: string | null }>();
+  // Group by (rights type, window) so different windows never collapse onto one line.
+  const byGroup = new Map<string, { rt: string; win: string | null; terrs: Set<string> }>();
   for (const o of offer) {
-    const g = byRight.get(o.rightsType) ?? { terrs: new Set(), window: o.windowEnd };
+    const key = `${o.rightsType}|${o.windowEnd ?? ""}`;
+    const g = byGroup.get(key) ?? { rt: o.rightsType, win: o.windowEnd, terrs: new Set<string>() };
     g.terrs.add(o.territory);
-    byRight.set(o.rightsType, g);
+    byGroup.set(key, g);
   }
-  return [...byRight.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([rt, g]) => {
+  return [...byGroup.values()]
+    .sort((a, b) => a.rt.localeCompare(b.rt) || (a.win ?? "").localeCompare(b.win ?? ""))
+    .map((g) => {
       const terrs = [...g.terrs].sort().join(", ");
-      const win = g.window ? ` (through ${g.window.slice(0, 10)})` : "";
-      return `${rt.toUpperCase()}: ${terrs}${win}`;
+      const win = g.win ? ` (through ${g.win.slice(0, 10)})` : "";
+      return `${g.rt.toUpperCase()}: ${terrs}${win}`;
     })
     .join(" · ");
 }
@@ -34,7 +36,6 @@ function applyTransform(value: unknown, col: ExportColumn): { text: string; warn
   else out = String(value);
 
   if (t?.type === "enum_map") out = t.map[out] ?? out;
-  if (t?.type === "number_format" && out !== "") out = out; // v1: pass-through numeric text
   // date_format v1: pass-through ISO (real patterning added when a vendor needs it)
 
   let warning: string | undefined;
