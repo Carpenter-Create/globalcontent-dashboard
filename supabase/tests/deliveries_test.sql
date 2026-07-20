@@ -96,6 +96,19 @@ select is((select status::text from public.deliveries where id = current_setting
   'live', 'status advanced to live');
 
 -- ===== client: reads own deliveries; set_delivery_status denied; my_deliveries scoped =====
+-- Adversarial org-B delivery: the client (org A) must NOT see it — makes the
+-- isolation + my_deliveries assertions genuine (3 rows exist; client sees 2).
+reset role;
+insert into public.deliveries (org_id, title_id, vendor_id, grant_id, territory)
+values (
+  current_setting('t.org_b')::uuid,
+  current_setting('t.tb')::uuid,
+  current_setting('t.vendor')::uuid,
+  (select id from public.rights_grants where org_id = current_setting('t.org_b')::uuid limit 1),
+  'GB'
+);
+set local role authenticated;
+
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role', 'authenticated')::text, true);
 select is((select count(*) from public.deliveries)::int, 2,
