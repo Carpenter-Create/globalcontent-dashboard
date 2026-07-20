@@ -30,14 +30,19 @@ export async function saveMetadata(
   if (error) return { error: error.message };
 
   // §19: metadata changed → refresh this title's validator findings. Best-effort — the
-  // save already committed, so a reconcile failure must not fail the save.
-  const findings = computeMetadataFindings(parsed.data as Record<string, unknown>);
-  await supabase.rpc("reconcile_title_findings", {
-    p_org_id: orgId,
-    p_title_id: titleId,
-    p_findings: findings as unknown as Json,
-    p_logic_version: METADATA_LOGIC_VERSION,
-  });
+  // save already committed, so a reconcile failure (incl. a transport rejection) must not
+  // fail the save.
+  try {
+    const findings = computeMetadataFindings(parsed.data as Record<string, unknown>);
+    await supabase.rpc("reconcile_title_findings", {
+      p_org_id: orgId,
+      p_title_id: titleId,
+      p_findings: findings as unknown as Json,
+      p_logic_version: METADATA_LOGIC_VERSION,
+    });
+  } catch (e) {
+    console.error("[findings] reconcile after metadata save failed", e);
+  }
 
   revalidatePath(`/titles/${titleId}`);
   revalidatePath(`/titles/${titleId}/metadata`);
