@@ -12,16 +12,7 @@ import { InlineNotice } from "@/components/ui/inline-notice";
 import { AddRightsForm } from "./add-rights-form";
 import { AssetUpload } from "./asset-upload";
 import { SubmitButton } from "./submit-button";
-
-const TITLE_STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  submitted: "Submitted",
-  in_review: "In review",
-  in_delivery: "In delivery",
-  live: "Live",
-  takedown_requested: "Takedown requested",
-  taken_down: "Taken down",
-};
+import { titleDisplayStatus, type TitleStatus } from "@/lib/titles";
 
 const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork", string> = {
   master: "Master",
@@ -106,6 +97,13 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const showRejection =
     title.status === "draft" && latestReview?.decision === "reject" && !!latestReview.reason;
 
+  const { data: titleDlv } = await supabase
+    .from("deliveries")
+    .select("status")
+    .eq("title_id", id);
+  const liveCount = (titleDlv ?? []).filter((d) => d.status === "live").length;
+  const totalCount = (titleDlv ?? []).length;
+
   return (
     <>
       <PageHeader
@@ -117,7 +115,9 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
       <div className="mb-6 flex flex-col gap-3">
         <p className="t-body-sm text-ink-3">{title.catalog_id}</p>
         <p className="t-body-sm text-ink-2">
-          Status: <span className="font-medium text-ink">{TITLE_STATUS_LABELS[title.status]}</span>
+          Status: <span className="font-medium text-ink">
+            {titleDisplayStatus(title.status as TitleStatus, liveCount, totalCount)}
+          </span>
         </p>
         {showRejection ? (
           <InlineNotice tone="error">Returned for revision: {latestReview!.reason}</InlineNotice>
