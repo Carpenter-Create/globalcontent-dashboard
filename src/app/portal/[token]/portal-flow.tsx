@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { useRef, useState } from "react";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ export function PortalFlow({
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -50,9 +51,16 @@ export function PortalFlow({
       body: JSON.stringify({ token, name, company, email, turnstileToken }),
     });
     setBusy(false);
-    if (r.status === 403) return setError(PORTAL_COPY.errorChallenge);
-    if (r.status === 429) return setError(PORTAL_COPY.errorTooManyRequests);
-    if (!r.ok) return setError(PORTAL_COPY.errorExpired);
+    if (!r.ok) {
+      // A Turnstile token is single-use (spent once verifyTurnstile redeems it). Any failure —
+      // including a 429 that never reached Cloudflare — must force a fresh challenge, or the
+      // retry reuses the dead token and misleadingly reports "verification failed".
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+      if (r.status === 403) return setError(PORTAL_COPY.errorChallenge);
+      if (r.status === 429) return setError(PORTAL_COPY.errorTooManyRequests);
+      return setError(PORTAL_COPY.errorExpired);
+    }
     setStage("code");
   }
 
@@ -133,6 +141,7 @@ export function PortalFlow({
               />
             </div>
             <Turnstile
+              ref={turnstileRef}
               siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
               onSuccess={setTurnstileToken}
               onExpire={() => setTurnstileToken("")}

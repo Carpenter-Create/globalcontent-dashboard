@@ -258,8 +258,10 @@ self-supplied address. App-layer defenses (in code): **Cloudflare Turnstile** on
 portal identity form + server-side verify (reuses the `/login` keys — no new provisioning);
 a per-`(link,email)` cap (5/hr) and a per-`link` cap (20/hr) counted from `portal_otps`.
 
-**Recommended infra layer (network, not app code):** add **Vercel Firewall / WAF
-rate-limit rules** on `/api/portal/*` (per-IP + global) — app code can't see the network
-edge, so per-IP throttling belongs here. Configure in the Vercel project's Firewall tab
-(e.g. a rate-limit rule on `/api/portal/request-otp`). This complements, not replaces, the
-Turnstile + issuance caps.
+**Required pre-go-live infra layer (network, not app code):** add **Vercel Firewall / WAF
+rate-limit rules** on `/api/portal/*` (per-IP + global) — app code can't reliably see the
+network edge (`x-forwarded-for` is spoofable; no shared state), so per-IP throttling belongs
+here. Configure in the Vercel project's Firewall tab (e.g. a rate-limit rule on
+`/api/portal/request-otp`). This complements, not replaces, the Turnstile + issuance caps.
+**Treat this as a go-live checklist item**, not optional: the endpoint is public,
+unauthenticated, and sends real email from GC's verified sender.
