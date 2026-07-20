@@ -12,7 +12,9 @@ export async function POST() {
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   let url: string;
-  try { url = signAssetUrl(row.storage_key); }
+  // Long TTL: range-based <video> playback re-validates the signed URL on every byte-range
+  // request across the whole runtime, so a short (download-style) TTL would 403 mid-film.
+  try { url = signAssetUrl(row.storage_key, PORTAL.screenerStreamTtlSeconds); }
   catch { return NextResponse.json({ error: "File is being prepared" }, { status: 409 }); }
   return NextResponse.json({ type: "progressive", url });
 }
