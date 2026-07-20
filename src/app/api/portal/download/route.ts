@@ -25,12 +25,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
   }
 
-  await admin.from("portal_access_events").insert({
+  // The download event is THE provenance record for "who downloaded the master" (rule 5).
+  // If we can't record it, fail closed rather than serve an unauditable master — the client
+  // never receives the (as-yet-unused) signed URL, so no untraceable download can occur.
+  const { error: logErr } = await admin.from("portal_access_events").insert({
     link_id: row.link_id,
     session_id: row.session_id,
     event_type: "download",
     user_agent: req.headers.get("user-agent") ?? null,
   });
+  if (logErr) return NextResponse.json({ error: "Could not record access" }, { status: 500 });
 
   return NextResponse.json({ type: "progressive", url });
 }
