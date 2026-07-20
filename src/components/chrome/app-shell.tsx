@@ -12,11 +12,13 @@ export function AppShell({
   email,
   orgs,
   activeOrgId,
+  messagesUnread = 0,
   children,
 }: {
   email: string;
   orgs: Org[];
   activeOrgId: string | null;
+  messagesUnread?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -29,7 +31,7 @@ export function AppShell({
           <span className="t-label text-ink-2">Global Content</span>
         </div>
         <div className="flex-1 overflow-y-auto pt-2">
-          <SideNav />
+          <SideNav messagesUnread={messagesUnread} />
         </div>
       </aside>
 
