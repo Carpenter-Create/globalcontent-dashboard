@@ -1273,6 +1273,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_screener_source: {
+        Args: {
+          p_source: Database["public"]["Enums"]["screener_source"]
+          p_title_id: string
+        }
+        Returns: undefined
+      }
       set_title_metadata: {
         Args: { p_data: Json; p_org_id: string; p_title_id: string }
         Returns: undefined

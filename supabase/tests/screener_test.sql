@@ -6,7 +6,7 @@
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
 
 begin;
-select plan(30);
+select plan(33);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -249,6 +249,22 @@ select throws_ok(
 select throws_ok(
   $$ delete from public.screener_view_events $$,
   '42501', null, 'service_role cannot DELETE screener_view_events (append-only)');
+
+-- ---- set_screener_source: member_can('operate')-gated ---------------------
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', gen_random_uuid()::text, 'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.set_screener_source(%L, 'dedicated') $$, current_setting('t.title_m')),
+  'P0001', 'Not authorized to edit this title', 'non-member cannot set screener_source');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.set_screener_source(%L, 'dedicated') $$, current_setting('t.title_m')),
+  'owner sets screener_source');
+select is((select screener_source::text from public.titles where id = current_setting('t.title_m')::uuid),
+  'dedicated', 'screener_source updated to dedicated');
 
 reset role;
 select * from finish();
