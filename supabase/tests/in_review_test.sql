@@ -28,6 +28,10 @@ insert into public.titles (id, org_id, title, status) values
 -- a seed review on org B, to prove GC reads across orgs (setup bypasses RLS)
 insert into public.title_reviews (title_id, org_id, decision, reason) values
   (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, 'reject', 'seed');
+-- required-metadata gate: title A needs all six canonical fields present to submit
+insert into public.title_metadata (title_id, org_id, data) values
+  (current_setting('t.ta')::uuid, current_setting('t.org_a')::uuid,
+   '{"synopsis":"s","runtime_minutes":100,"release_year":2024,"genre":"drama","primary_language":"en","country_of_origin":"US"}'::jsonb);
 
 set local role authenticated;
 
