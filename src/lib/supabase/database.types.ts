@@ -445,6 +445,193 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_access_events: {
+        Row: {
+          company: string | null
+          email: string | null
+          event_type: Database["public"]["Enums"]["portal_event"]
+          id: string
+          ip: unknown
+          link_id: string
+          name: string | null
+          occurred_at: string
+          session_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          company?: string | null
+          email?: string | null
+          event_type: Database["public"]["Enums"]["portal_event"]
+          id?: string
+          ip?: unknown
+          link_id: string
+          name?: string | null
+          occurred_at?: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          company?: string | null
+          email?: string | null
+          event_type?: Database["public"]["Enums"]["portal_event"]
+          id?: string
+          ip?: unknown
+          link_id?: string
+          name?: string | null
+          occurred_at?: string
+          session_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_access_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "portal_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_access_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "portal_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_links: {
+        Row: {
+          asset_id: string
+          created_at: string
+          created_by: string | null
+          delivery_id: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          created_by?: string | null
+          delivery_id: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          created_by?: string | null
+          delivery_id?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_links_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_links_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          link_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          link_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          link_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_otps_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "portal_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_sessions: {
+        Row: {
+          company: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          link_id: string
+          name: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          company: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          link_id: string
+          name: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          company?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          link_id?: string
+          name?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_sessions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "portal_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rights_grants: {
         Row: {
           created_at: string
@@ -910,6 +1097,15 @@ export type Database = {
         Returns: string
       }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
+      create_portal_link: {
+        Args: {
+          p_asset_id: string
+          p_delivery_id: string
+          p_expires_at?: string
+          p_token_hash: string
+        }
+        Returns: string
+      }
       create_title: {
         Args: { p_org_id: string; p_title: string }
         Returns: string
@@ -948,6 +1144,14 @@ export type Database = {
           vendor_name: string
         }[]
       }
+      portal_resolve_download: {
+        Args: { p_session_token_hash: string }
+        Returns: {
+          link_id: string
+          session_id: string
+          storage_key: string
+        }[]
+      }
       record_export: {
         Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
         Returns: string
@@ -960,6 +1164,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      revoke_portal_link: { Args: { p_link_id: string }; Returns: undefined }
       same_work_conflicts: {
         Args: { p_title_id: string }
         Returns: {
@@ -1031,6 +1236,7 @@ export type Database = {
         | "active"
         | "payment_lapsed"
         | "closed"
+      portal_event: "room_viewed" | "otp_sent" | "otp_verified" | "download"
       review_decision: "approve" | "reject"
       rights_type:
         | "theatrical"
@@ -1232,6 +1438,7 @@ export const Constants = {
         "payment_lapsed",
         "closed",
       ],
+      portal_event: ["room_viewed", "otp_sent", "otp_verified", "download"],
       review_decision: ["approve", "reject"],
       rights_type: [
         "theatrical",
