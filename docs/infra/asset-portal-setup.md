@@ -170,3 +170,45 @@ Negatives:
 Record the result of this checklist in `docs/known-divergences.md` (or the sign-off
 thread) once run — it is the one step in this slice that automated tests cannot
 cover, since it depends on real CloudFront signing and a real Resend send.
+
+---
+
+## Screener room (Portal-2)
+
+The screener room reuses **the same infrastructure as the master download** — no
+new AWS or Resend provisioning. The screener streams from S3 via the same
+CloudFront distribution + signing key pair, and the OTP email uses the same Resend
+sender. Differences from the master-download path:
+
+- **Screeners stay on S3 Standard — never Glaciered.** Only masters have the 90-day
+  Glacier lifecycle. A dedicated screener is always immediately streamable. (If a
+  title's `screener_source = master` and that master is already in Glacier, the
+  player shows the same "preparing" state as the download; the restore itself is
+  Portal-3.)
+- **View, not download.** The player streams the signed URL inline (range requests);
+  `controlsList="nodownload"`. View-only is best-effort — there is **no DRM**
+  (leak-proofing is a separate, deferred vendor decision), so the signed URL is, in
+  principle, capturable. Acceptable for pitch-stage screeners.
+- **No rights/grant gate on the pitch view** (Rule 12 governs distribution, not
+  pitching) — the only gate is OTP identity.
+
+Env vars: **unchanged** (the six from the table above). `PORTAL_BASE_URL` is reused
+to build screener-link URLs on `/gc/review`.
+
+### Manual end-to-end test (run after the Portal-1 provisioning is in place)
+
+1. As a client, on a title's detail page set **Screener source** to *dedicated* and
+   upload a **Screener** asset (or leave it *master* to screen the master).
+2. As GC, on `/gc/review` for that title, click **Generate screener link** → copy
+   the `$PORTAL_BASE_URL/portal/<token>` URL.
+3. In a logged-out browser, open the URL → enter name/company/email → receive the
+   code via Resend → verify → the **screener plays** (streamed inline via a signed
+   `$CLOUDFRONT_DOMAIN` URL — it should not download).
+4. Scrub, pause, and finish the video. Back on `/gc/review`, confirm the per-viewer
+   summary shows that viewer's **% watched**, **completed**, **replays**, and
+   **last-viewed**.
+5. Click **Revoke** on the screener link → reopening the URL shows the expired-link
+   card; `POST /api/portal/screener` for that session returns `403`.
+
+Record the result alongside the Portal-1 checklist — this depends on real CloudFront
+signing and a real Resend send, which automated tests cannot cover.
