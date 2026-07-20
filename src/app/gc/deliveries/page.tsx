@@ -2,14 +2,27 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody } from "@/components/ui/card";
 import { DeliveryControls } from "./delivery-controls";
 import { NewDeliveryForm } from "./new-delivery-form";
+import { ExportPanel } from "./export-panel";
 
 export default async function GcDeliveriesPage() {
   const supabase = await createClient();
   const { data: deliveries } = await supabase
     .from("deliveries")
-    .select("id, territory, status, titles(title, catalog_id), vendors(name), organizations(name)")
+    .select("id, territory, status, vendor_id, title_id, titles(title, catalog_id), vendors(name), organizations(name)")
     .order("created_at", { ascending: false });
   const list = deliveries ?? [];
+
+  // group deliveries → export options (endpoint → its titles)
+  const byVendor = new Map<string, { id: string; name: string; titles: Map<string, string> }>();
+  for (const d of list) {
+    if (!d.vendors || !d.titles) continue;
+    const v = byVendor.get(d.vendor_id) ?? { id: d.vendor_id, name: d.vendors.name, titles: new Map() };
+    v.titles.set(d.title_id, `${d.titles.catalog_id ?? ""} · ${d.titles.title}`);
+    byVendor.set(d.vendor_id, v);
+  }
+  const exportVendors = [...byVendor.values()].map((v) => ({
+    id: v.id, name: v.name, titles: [...v.titles].map(([id, label]) => ({ id, label })),
+  }));
 
   const { data: titleRows } = await supabase
     .from("titles").select("id, title, catalog_id").order("title");
@@ -34,6 +47,10 @@ export default async function GcDeliveriesPage() {
 
       <div className="mb-8 max-w-xl">
         <NewDeliveryForm titles={titleOpts} vendors={vendorOpts} grantsByTitle={grantsByTitle} />
+      </div>
+
+      <div className="mb-8 max-w-xl">
+        <ExportPanel vendors={exportVendors} />
       </div>
 
       {list.length === 0 ? (
