@@ -25,14 +25,23 @@ export async function POST(req: Request) {
   const parsed = vendor.export_format_spec ? parseExportSpec(vendor.export_format_spec) : null;
   const spec = parsed && parsed.ok ? parsed.spec : STANDARD_EXPORT_TEMPLATE;
 
-  const { data: titleRows } = await supabase
+  const { data: titleRows, error: titlesErr } = await supabase
     .from("titles").select("id, catalog_id").in("id", titleIds);
-  const { data: metaRows } = await supabase
+  const { data: metaRows, error: metaErr } = await supabase
     .from("title_metadata").select("title_id, data").in("title_id", titleIds);
-  const { data: dlvRows } = await supabase
+  const { data: dlvRows, error: dlvErr } = await supabase
     .from("deliveries")
     .select("title_id, territory, rights_grants(rights_type, window_end)")
     .eq("vendor_id", vendorId).in("title_id", titleIds);
+
+  if (titlesErr || metaErr || dlvErr) {
+    return NextResponse.json({ error: "failed to gather export data" }, { status: 500 });
+  }
+
+  const resolvedIds = (titleRows ?? []).map((t) => t.id);
+  if (resolvedIds.length === 0) {
+    return NextResponse.json({ error: "no matching titles" }, { status: 400 });
+  }
 
   const metaByTitle = new Map((metaRows ?? []).map((m) => [m.title_id, (m.data as Record<string, unknown>) ?? {}]));
   const offerByTitle = new Map<string, TitleExportInput["offer"]>();
@@ -52,7 +61,14 @@ export async function POST(req: Request) {
 
   const { headers, rows } = buildExportRows(spec, inputs);
   const payload = rows.map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i]])));
-  await supabase.rpc("record_export", { p_vendor_id: vendorId, p_title_ids: titleIds, p_payload: payload });
+  const { error: recErr } = await supabase.rpc("record_export", {
+    p_vendor_id: vendorId,
+    p_title_ids: resolvedIds,
+    p_payload: payload,
+  });
+  if (recErr) {
+    return NextResponse.json({ error: "failed to record export" }, { status: 500 });
+  }
 
   const buf = await toXlsx(headers, rows, spec.sheet_name ?? "Titles");
   const safeVendor = vendor.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
