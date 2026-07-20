@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
+import { parseExportSpec } from "@/lib/export-spec";
 
 const Input = z.object({
   id: z.string().uuid().optional(),
@@ -45,6 +46,10 @@ export async function saveVendor(raw: unknown): Promise<{ error?: string }> {
   const spec = parseJsonOrNull(v.exportSpecJson);
   if (!company.ok) return { error: "Company info is not valid JSON." };
   if (!spec.ok) return { error: "Export format spec is not valid JSON." };
+  if (spec.value !== null) {
+    const shape = parseExportSpec(spec.value);
+    if (!shape.ok) return { error: `Export format spec invalid: ${shape.error}` };
+  }
 
   const supabase = await createClient();
   const {

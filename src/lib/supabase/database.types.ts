@@ -312,6 +312,41 @@ export type Database = {
           },
         ]
       }
+      export_records: {
+        Row: {
+          exported_at: string
+          exported_by: string | null
+          id: string
+          payload: Json
+          title_ids: string[]
+          vendor_id: string
+        }
+        Insert: {
+          exported_at?: string
+          exported_by?: string | null
+          id?: string
+          payload: Json
+          title_ids: string[]
+          vendor_id: string
+        }
+        Update: {
+          exported_at?: string
+          exported_by?: string | null
+          id?: string
+          payload?: Json
+          title_ids?: string[]
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_records_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gc_staff: {
         Row: {
           created_at: string
@@ -912,6 +947,10 @@ export type Database = {
           updated_at: string
           vendor_name: string
         }[]
+      }
+      record_export: {
+        Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
+        Returns: string
       }
       review_title: {
         Args: {
