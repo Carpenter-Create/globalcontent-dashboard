@@ -53,7 +53,7 @@ export const PORTAL_COPY = {
   errorExpired: "This link has expired or been withdrawn. Contact your Global Content representative.",
   errorBadCode: "That code is incorrect or has expired. Request a new one.",
   errorTooMany: "Too many attempts. Request a new code.",
-  errorPreparing: "This file is being retrieved from cold storage and isn't ready yet. Try again shortly.",
+  errorPreparing: "We're retrieving this file from cold storage — this usually takes about 3 to 5 hours. Return to this link and it will be ready.",
   unknownFilename: "the file",
   screenerHeading: "Screener room",
   screenerIntro: "Confirm your details to view this title.",

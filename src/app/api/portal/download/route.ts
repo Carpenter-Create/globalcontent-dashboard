@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken, PORTAL } from "@/lib/portal";
 import { signAssetUrl } from "@/lib/cloudfront";
+import { resolveOrRestore } from "@/lib/s3";
 
 export async function POST(req: Request) {
   const cookieStore = await cookies();
@@ -17,11 +18,28 @@ export async function POST(req: Request) {
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
+  // Glacier gate: a master tiered to cold storage must be restored before it can be served.
+  // resolveOrRestore HEADs the object (source of truth) and auto-initiates a Standard restore
+  // on first hit. "restoring" → 409 "preparing"; the recipient returns to the same link.
+  const restore = await resolveOrRestore(row.storage_key);
+  if (restore.status === "restoring") {
+    if (restore.justInitiated) {
+      // best-effort provenance — a log failure must NOT turn "preparing" into an error
+      await admin.from("portal_access_events").insert({
+        link_id: row.link_id,
+        session_id: row.session_id,
+        event_type: "restore_requested",
+        user_agent: req.headers.get("user-agent") ?? null,
+      });
+    }
+    return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
+  }
+
   let url: string;
   try {
     url = signAssetUrl(row.storage_key);
   } catch {
-    // Object not retrievable (e.g. Glacier) or signing misconfig — graceful (Slice-3 seam).
+    // Signing misconfig (env) — graceful; the Glacier case is handled above.
     return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
   }
 
