@@ -19,12 +19,18 @@ export async function POST(req: Request) {
   const restore = await resolveOrRestore(row.storage_key);
   if (restore.status === "restoring") {
     if (restore.justInitiated) {
-      await admin.from("portal_access_events").insert({
-        link_id: row.link_id,
-        session_id: row.session_id,
-        event_type: "restore_requested",
-        user_agent: req.headers.get("user-agent") ?? null,
-      });
+      // best-effort provenance — a log failure (error OR thrown) must NOT turn "preparing"
+      // into an error; the restore has already been initiated.
+      try {
+        await admin.from("portal_access_events").insert({
+          link_id: row.link_id,
+          session_id: row.session_id,
+          event_type: "restore_requested",
+          user_agent: req.headers.get("user-agent") ?? null,
+        });
+      } catch {
+        /* swallow — provenance is best-effort here */
+      }
     }
     return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
   }
