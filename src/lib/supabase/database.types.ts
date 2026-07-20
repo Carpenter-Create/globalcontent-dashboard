@@ -347,6 +347,68 @@ export type Database = {
           },
         ]
       }
+      findings: {
+        Row: {
+          code: string
+          created_at: string
+          derived_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          logic_version: string
+          message: string
+          org_id: string
+          resolved_at: string | null
+          sender: Database["public"]["Enums"]["finding_sender"]
+          severity: Database["public"]["Enums"]["finding_severity"]
+          source: Database["public"]["Enums"]["finding_source"]
+          source_refs: Json
+          status: Database["public"]["Enums"]["finding_status"]
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          derived_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          logic_version: string
+          message: string
+          org_id: string
+          resolved_at?: string | null
+          sender?: Database["public"]["Enums"]["finding_sender"]
+          severity: Database["public"]["Enums"]["finding_severity"]
+          source: Database["public"]["Enums"]["finding_source"]
+          source_refs: Json
+          status?: Database["public"]["Enums"]["finding_status"]
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          derived_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          logic_version?: string
+          message?: string
+          org_id?: string
+          resolved_at?: string | null
+          sender?: Database["public"]["Enums"]["finding_sender"]
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          source?: Database["public"]["Enums"]["finding_source"]
+          source_refs?: Json
+          status?: Database["public"]["Enums"]["finding_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "findings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gc_staff: {
         Row: {
           created_at: string
@@ -948,6 +1010,41 @@ export type Database = {
           vendor_name: string
         }[]
       }
+      my_findings: {
+        Args: never
+        Returns: {
+          code: string
+          created_at: string
+          derived_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          logic_version: string
+          message: string
+          org_id: string
+          resolved_at: string | null
+          sender: Database["public"]["Enums"]["finding_sender"]
+          severity: Database["public"]["Enums"]["finding_severity"]
+          source: Database["public"]["Enums"]["finding_source"]
+          source_refs: Json
+          status: Database["public"]["Enums"]["finding_status"]
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "findings"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reconcile_title_findings: {
+        Args: {
+          p_findings: Json
+          p_logic_version: string
+          p_org_id: string
+          p_title_id: string
+        }
+        Returns: undefined
+      }
       record_export: {
         Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
         Returns: string
@@ -1012,6 +1109,10 @@ export type Database = {
         | "live"
         | "rejected"
         | "taken_down"
+      finding_sender: "gc_support" | "globee"
+      finding_severity: "high" | "low"
+      finding_source: "validator" | "ai"
+      finding_status: "open" | "resolved"
       gc_role:
         | "gc_account_owner"
         | "gc_accountant"
@@ -1210,6 +1311,10 @@ export const Constants = {
         "rejected",
         "taken_down",
       ],
+      finding_sender: ["gc_support", "globee"],
+      finding_severity: ["high", "low"],
+      finding_source: ["validator", "ai"],
+      finding_status: ["open", "resolved"],
       gc_role: [
         "gc_account_owner",
         "gc_accountant",
