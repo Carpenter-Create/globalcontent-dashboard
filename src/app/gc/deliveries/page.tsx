@@ -3,6 +3,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { DeliveryControls } from "./delivery-controls";
 import { NewDeliveryForm } from "./new-delivery-form";
 import { ExportPanel } from "./export-panel";
+import { PortalLinks, type Master, type PortalLink, type PortalAccessEvent } from "./portal-links";
 
 export default async function GcDeliveriesPage() {
   const supabase = await createClient();
@@ -40,6 +41,40 @@ export default async function GcDeliveriesPage() {
     });
   }
 
+  // Portal-link management (Task 10): master assets to link, this delivery's
+  // links, and the access-event log for those links. GC RLS (is_gc_staff) permits
+  // these SELECTs across all orgs — see 20260720000100_portal_gate.sql.
+  const { data: masterRows } = await supabase
+    .from("assets")
+    .select("id, title_id, original_filename, bytes")
+    .eq("kind", "master");
+  const mastersByTitle: Record<string, Master[]> = {};
+  for (const a of masterRows ?? []) {
+    (mastersByTitle[a.title_id] ??= []).push({
+      id: a.id, original_filename: a.original_filename, bytes: a.bytes,
+    });
+  }
+
+  const { data: linkRows } = await supabase
+    .from("portal_links")
+    .select("id, delivery_id, asset_id, expires_at, revoked_at, created_at")
+    .order("created_at", { ascending: false });
+  const linksByDelivery: Record<string, PortalLink[]> = {};
+  for (const l of linkRows ?? []) {
+    (linksByDelivery[l.delivery_id] ??= []).push({
+      id: l.id, asset_id: l.asset_id, expires_at: l.expires_at, revoked_at: l.revoked_at,
+    });
+  }
+
+  const { data: eventRows } = await supabase
+    .from("portal_access_events")
+    .select("link_id, event_type, email, company, occurred_at")
+    .order("occurred_at", { ascending: false });
+  const eventsByLink: Record<string, PortalAccessEvent[]> = {};
+  for (const e of eventRows ?? []) {
+    (eventsByLink[e.link_id] ??= []).push(e);
+  }
+
   return (
     <>
       <h1 className="t-subhead text-ink pb-1">Deliveries</h1>
@@ -57,19 +92,31 @@ export default async function GcDeliveriesPage() {
         <Card><CardBody><p className="t-body-sm text-ink-3">No deliveries yet.</p></CardBody></Card>
       ) : (
         <div className="flex flex-col gap-2">
-          {list.map((d) => (
-            <Card key={d.id}>
-              <CardBody className="flex items-center justify-between gap-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="t-body font-medium text-ink">{d.titles?.title ?? "—"}</span>
-                  <span className="t-body-sm text-ink-3">
-                    {d.titles?.catalog_id} · {d.vendors?.name} · {d.territory} · {d.organizations?.name}
-                  </span>
-                </div>
-                <DeliveryControls deliveryId={d.id} status={d.status} />
-              </CardBody>
-            </Card>
-          ))}
+          {list.map((d) => {
+            const links = linksByDelivery[d.id] ?? [];
+            const events = links.flatMap((l) => eventsByLink[l.id] ?? []);
+            return (
+              <Card key={d.id}>
+                <CardBody className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="t-body font-medium text-ink">{d.titles?.title ?? "—"}</span>
+                      <span className="t-body-sm text-ink-3">
+                        {d.titles?.catalog_id} · {d.vendors?.name} · {d.territory} · {d.organizations?.name}
+                      </span>
+                    </div>
+                    <DeliveryControls deliveryId={d.id} status={d.status} />
+                  </div>
+                  <PortalLinks
+                    deliveryId={d.id}
+                    masters={mastersByTitle[d.title_id] ?? []}
+                    links={links}
+                    events={events}
+                  />
+                </CardBody>
+              </Card>
+            );
+          })}
         </div>
       )}
     </>
