@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
+    "@aws-sdk/cloudfront-signer": "^3.1088.0",
     "@aws-sdk/s3-request-presigner": "^3.1090.0",
     "@marsidev/react-turnstile": "^1.5.3",
     "@radix-ui/react-dropdown-menu": "^2.1.20",
@@ -27,6 +28,7 @@
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "stripe": "^22.3.2",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
