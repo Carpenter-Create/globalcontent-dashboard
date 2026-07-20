@@ -241,6 +241,77 @@ export type Database = {
           },
         ]
       }
+      deliveries: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          grant_id: string
+          id: string
+          org_id: string
+          status: Database["public"]["Enums"]["delivery_status"]
+          status_note: string | null
+          territory: string
+          title_id: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          grant_id: string
+          id?: string
+          org_id: string
+          status?: Database["public"]["Enums"]["delivery_status"]
+          status_note?: string | null
+          territory: string
+          title_id: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          grant_id?: string
+          id?: string
+          org_id?: string
+          status?: Database["public"]["Enums"]["delivery_status"]
+          status_note?: string | null
+          territory?: string
+          title_id?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "rights_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveries_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gc_staff: {
         Row: {
           created_at: string
@@ -794,6 +865,15 @@ export type Database = {
         }
         Returns: string
       }
+      create_delivery: {
+        Args: {
+          p_grant_id: string
+          p_territory: string
+          p_title_id: string
+          p_vendor_id: string
+        }
+        Returns: string
+      }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
       create_title: {
         Args: { p_org_id: string; p_title: string }
@@ -821,6 +901,18 @@ export type Database = {
         Args: { p_capability: string; p_org: string; p_uid: string }
         Returns: boolean
       }
+      my_deliveries: {
+        Args: never
+        Returns: {
+          delivery_id: string
+          status: Database["public"]["Enums"]["delivery_status"]
+          territory: string
+          title: string
+          title_id: string
+          updated_at: string
+          vendor_name: string
+        }[]
+      }
       review_title: {
         Args: {
           p_decision: Database["public"]["Enums"]["review_decision"]
@@ -837,6 +929,14 @@ export type Database = {
           other_title_id: string
           rights_type: Database["public"]["Enums"]["rights_type"]
         }[]
+      }
+      set_delivery_status: {
+        Args: {
+          p_delivery_id: string
+          p_note?: string
+          p_status: Database["public"]["Enums"]["delivery_status"]
+        }
+        Returns: undefined
       }
       set_title_metadata: {
         Args: { p_data: Json; p_org_id: string; p_title_id: string }
@@ -867,6 +967,12 @@ export type Database = {
     }
     Enums: {
       asset_kind: "master" | "caption" | "artwork"
+      delivery_status:
+        | "pending"
+        | "delivered"
+        | "live"
+        | "rejected"
+        | "taken_down"
       gc_role:
         | "gc_account_owner"
         | "gc_accountant"
@@ -1058,6 +1164,13 @@ export const Constants = {
   public: {
     Enums: {
       asset_kind: ["master", "caption", "artwork"],
+      delivery_status: [
+        "pending",
+        "delivered",
+        "live",
+        "rejected",
+        "taken_down",
+      ],
       gc_role: [
         "gc_account_owner",
         "gc_accountant",
