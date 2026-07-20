@@ -56,6 +56,14 @@ consumer of B-work's `territories_overlap` + same-work conflict logic and of `ca
   `live`; auto-clears if the last live platform is taken down (no sweep, no stale badge — same
   derive-don't-duplicate principle as the conflict warning). The client sees "Live" the moment the film
   is live *somewhere*, with a per-platform breakdown.
+- **Title status labels (client-facing vocabulary — founder-decided).** The *title* lifecycle is
+  relabeled: `in_review` → **"In review"** (client turned it in; GC reviewing for approval),
+  `in_delivery` → **"Submitted"** (GC approved it — in the distribution process), with the derived
+  **"Live"** rollup shown on top once a platform goes live. This is a **label change only** — the
+  internal enum is unchanged (approval already lands on `in_delivery`). B-del folds it in and
+  **centralizes the title-status label map** (today duplicated in the titles pages) so title detail,
+  the titles list, and `/gc/review` all read the same. The **delivery** statuses are unchanged
+  (`pending`/`delivered`/`live`/`rejected`/`taken_down`).
 - **Enforcement is in-RPC, not a trigger.** The repo has no constraint-trigger precedent; every
   invariant is a `raise exception` inside the SECURITY DEFINER RPC, with direct table writes revoked —
   which *is* database-level enforcement (rule 12) because the RPC is the only write path.
@@ -129,7 +137,8 @@ the title detail (client sees their own). `title.status` is **not** mutated.
 - **`/deliveries`** (client, fills the placeholder): read-only, grouped per vendor/endpoint, showing
   only the client's deliveries (status + territory) via `my_deliveries`. Clean statuses only.
 - **Title detail** (client): the derived "Live · N of M" rollup + per-platform status list for that
-  title.
+  title; the title's own status shown with the corrected labels (**In review / Submitted / Live**), from
+  the centralized label map.
 
 ## Verification
 
