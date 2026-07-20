@@ -51,4 +51,9 @@ export const PORTAL_COPY = {
   errorTooMany: "Too many attempts. Request a new code.",
   errorPreparing: "This file is being retrieved from cold storage and isn't ready yet. Try again shortly.",
   unknownFilename: "the file",
+  screenerHeading: "Screener room",
+  screenerIntro: "Confirm your details to view this title.",
+  screenerLoading: "Preparing your screener.",
+  screenerNotice: "This screening is for evaluation only.",
+  unknownTitle: "this title",
 } as const;

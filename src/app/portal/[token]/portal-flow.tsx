@@ -8,21 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { PORTAL_COPY } from "@/lib/portal";
+import { ScreenerRoom } from "./screener-room";
 
 type Stage = "identity" | "code" | "ready";
 
-// Three-stage account-less flow: capture identity → verify emailed OTP → download.
-// No client-side Supabase call — the three /api/portal/* routes (Tasks 6-8) own
-// every check (link validity, OTP, session) against the service-role admin client.
-// This component only drives stage transitions and surfaces the real error text.
+// What renders once identity + code are verified. Both portal link `purpose`s share the
+// same identity→code gate below; only the post-verification stage differs — this is the
+// seam Task 5 branches on rather than duplicating the gate in a second component.
+export type ReadyView =
+  | { mode: "download"; filename: string; bytes: number }
+  | { mode: "screener"; title: string; synopsis: string | null; runtimeMinutes: number | null };
+
+// Three-stage account-less flow: capture identity → verify emailed OTP → ready (download or
+// screener, per `ready.mode`). No client-side Supabase call — the /api/portal/* routes own
+// every check (link validity, OTP, session) against the service-role admin client. This
+// component only drives stage transitions and surfaces the real error text.
 export function PortalFlow({
   token,
-  filename,
-  bytes,
+  ready,
 }: {
   token: string;
-  filename: string;
-  bytes: number;
+  ready: ReadyView;
 }) {
   const [stage, setStage] = useState<Stage>("identity");
   const [name, setName] = useState("");
@@ -77,7 +83,9 @@ export function PortalFlow({
   return (
     <Card>
       <CardBody>
-        <h1 className="t-subhead text-ink mb-1">{PORTAL_COPY.roomTitle}</h1>
+        <h1 className="t-subhead text-ink mb-1">
+          {ready.mode === "screener" ? PORTAL_COPY.screenerHeading : PORTAL_COPY.roomTitle}
+        </h1>
         {error && (
           <InlineNotice tone="error" className="mt-3">
             {error}
@@ -86,7 +94,9 @@ export function PortalFlow({
 
         {stage === "identity" && (
           <form onSubmit={requestOtp} className="flex flex-col gap-3 mt-3">
-            <p className="t-body-sm text-ink-2">{PORTAL_COPY.roomIntro}</p>
+            <p className="t-body-sm text-ink-2">
+              {ready.mode === "screener" ? PORTAL_COPY.screenerIntro : PORTAL_COPY.roomIntro}
+            </p>
             <div className="flex flex-col gap-2">
               <Label htmlFor="portal-name">Name</Label>
               <Input
@@ -146,15 +156,25 @@ export function PortalFlow({
           </form>
         )}
 
-        {stage === "ready" && (
+        {stage === "ready" && ready.mode === "download" && (
           <div className="flex flex-col gap-3 mt-3">
             <p className="t-body-sm text-ink-2">{PORTAL_COPY.downloadPrompt}</p>
             <p className="t-body-sm text-ink-3">
-              {filename} · {(bytes / 1e9).toFixed(2)} GB
+              {ready.filename} · {(ready.bytes / 1e9).toFixed(2)} GB
             </p>
             <Button onClick={download} disabled={busy} className="w-full">
               {PORTAL_COPY.downloadButton}
             </Button>
+          </div>
+        )}
+
+        {stage === "ready" && ready.mode === "screener" && (
+          <div className="mt-3">
+            <ScreenerRoom
+              title={ready.title}
+              synopsis={ready.synopsis}
+              runtimeMinutes={ready.runtimeMinutes}
+            />
           </div>
         )}
       </CardBody>
