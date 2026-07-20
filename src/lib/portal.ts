@@ -11,6 +11,9 @@ export const PORTAL = {
   // not just playback start. Kept well under the 24h session for leak hygiene (view-only, no DRM).
   screenerStreamTtlSeconds: 6 * 3600,
   sessionCookie: "portal_session",
+  // OTP-request abuse caps (rolling 1h window, counted from portal_otps):
+  otpPerEmailPerHour: 5, // same (link,email) — bounds resends + the attempts-reset hole
+  otpPerLinkPerHour: 20, // one link across all emails — bounds many-address spam
 } as const;
 
 export function generateToken(): string {
@@ -53,6 +56,8 @@ export const PORTAL_COPY = {
   errorExpired: "This link has expired or been withdrawn. Contact your Global Content representative.",
   errorBadCode: "That code is incorrect or has expired. Request a new one.",
   errorTooMany: "Too many attempts. Request a new code.",
+  errorChallenge: "Verification failed. Please complete the challenge and try again.",
+  errorTooManyRequests: "Too many requests. Please try again later.",
   errorPreparing: "We're retrieving this file from cold storage — this usually takes about 3 to 5 hours. Return to this link and it will be ready.",
   unknownFilename: "the file",
   screenerHeading: "Screener room",

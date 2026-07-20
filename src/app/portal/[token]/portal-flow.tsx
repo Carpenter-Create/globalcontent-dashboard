@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 import { Card, CardBody } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function PortalFlow({
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,9 +47,11 @@ export function PortalFlow({
     const r = await fetch("/api/portal/request-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token, name, company, email }),
+      body: JSON.stringify({ token, name, company, email, turnstileToken }),
     });
     setBusy(false);
+    if (r.status === 403) return setError(PORTAL_COPY.errorChallenge);
+    if (r.status === 429) return setError(PORTAL_COPY.errorTooManyRequests);
     if (!r.ok) return setError(PORTAL_COPY.errorExpired);
     setStage("code");
   }
@@ -128,7 +132,13 @@ export function PortalFlow({
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            <Button type="submit" disabled={busy} className="w-full">
+            <Turnstile
+              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => setTurnstileToken("")}
+            />
+            <Button type="submit" disabled={busy || !turnstileToken} className="w-full">
               {PORTAL_COPY.identitySubmit}
             </Button>
           </form>
