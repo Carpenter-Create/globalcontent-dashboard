@@ -17,6 +17,7 @@ export function renderOffer(offer: OfferLine[]): string {
     byRight.set(o.rightsType, g);
   }
   return [...byRight.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([rt, g]) => {
       const terrs = [...g.terrs].sort().join(", ");
       const win = g.window ? ` (through ${g.window.slice(0, 10)})` : "";
@@ -62,7 +63,10 @@ export function buildExportRows(spec: ExportFormatSpec, titles: TitleExportInput
         case "field": raw = t.metadata[col.source.key]; break;
       }
       const { text, warning } = applyTransform(raw, col);
-      if (col.source.kind === "field" && (raw === null || raw === undefined || raw === "")) {
+      if (
+        col.source.kind === "field" &&
+        (raw === null || raw === undefined || raw === "" || (Array.isArray(raw) && raw.length === 0))
+      ) {
         warnings.push(`${t.catalogId}: "${col.header}" is blank`);
       }
       if (warning) warnings.push(`${t.catalogId}: ${warning}`);

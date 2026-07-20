@@ -18,16 +18,30 @@ describe("renderOffer", () => {
     expect(renderOffer(offer)).toBe("SVOD: US (through 2027-01-01)");
   });
 
-  it("joins multiple rights types with the middle dot separator", () => {
+  it("joins multiple rights types with the middle dot separator, sorted by rights type", () => {
     const offer: OfferLine[] = [
       { rightsType: "svod", territory: "US", windowEnd: null },
       { rightsType: "avod", territory: "WW", windowEnd: null },
     ];
-    expect(renderOffer(offer)).toBe("SVOD: US · AVOD: WW");
+    expect(renderOffer(offer)).toBe("AVOD: WW · SVOD: US");
   });
 
   it("returns empty string for no offer lines", () => {
     expect(renderOffer([])).toBe("");
+  });
+
+  it("orders rights-type groups deterministically regardless of input order", () => {
+    const avodFirst: OfferLine[] = [
+      { rightsType: "avod", territory: "WW", windowEnd: null },
+      { rightsType: "svod", territory: "US", windowEnd: null },
+    ];
+    const svodFirst: OfferLine[] = [
+      { rightsType: "svod", territory: "US", windowEnd: null },
+      { rightsType: "avod", territory: "WW", windowEnd: null },
+    ];
+    expect(renderOffer(avodFirst)).toBe("AVOD: WW · SVOD: US");
+    expect(renderOffer(svodFirst)).toBe("AVOD: WW · SVOD: US");
+    expect(renderOffer(avodFirst)).toBe(renderOffer(svodFirst));
   });
 });
 
@@ -155,6 +169,18 @@ describe("buildExportRows", () => {
     const { rows, warnings } = buildExportRows(spec, [title({ catalogId: "GC-0000001", metadata: {} })]);
     expect(rows).toEqual([[""]]);
     expect(warnings).toEqual([`GC-0000001: "Director" is blank`]);
+  });
+
+  it("emits a blank warning for an empty-array field value and leaves the cell empty", () => {
+    const spec: ExportFormatSpec = {
+      format: "xlsx",
+      columns: [{ header: "Cast", source: { kind: "field", key: "cast" } }],
+    };
+    const { rows, warnings } = buildExportRows(spec, [
+      title({ catalogId: "GC-0000001", metadata: { cast: [] } }),
+    ]);
+    expect(rows).toEqual([[""]]);
+    expect(warnings).toEqual([`GC-0000001: "Cast" is blank`]);
   });
 
   it("does not emit a blank warning for non-field sources even when empty", () => {
