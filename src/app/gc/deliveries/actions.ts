@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/lib/supabase/database.types";
+import { DELIVERY_STATUS_LABELS } from "@/lib/notifications";
 
 type DeliveryStatus = Database["public"]["Enums"]["delivery_status"];
 
@@ -55,7 +56,7 @@ export async function setDeliveryStatus(
         p_org_id: d.org_id,
         p_kind: "delivery_update",
         p_title: "Delivery update",
-        p_body: `"${d.titles?.title ?? "Your title"}" is now ${status} on ${d.vendors?.name ?? "a platform"}`,
+        p_body: `"${d.titles?.title ?? "Your title"}" is now ${DELIVERY_STATUS_LABELS[status]} on ${d.vendors?.name ?? "a platform"}`,
         p_source_refs: { delivery_id: deliveryId, title_id: d.title_id, status } as Json,
       });
     }

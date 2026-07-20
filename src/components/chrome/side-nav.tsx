@@ -30,7 +30,7 @@ export function SideNav({ messagesUnread = 0 }: { messagesUnread?: number }) {
             <Icon className="h-4 w-4" strokeWidth={1.5} />
             <span className="flex-1">{item.label}</span>
             {unread > 0 ? (
-              <span className="min-w-4 rounded-full bg-accent px-1.5 text-center t-label text-[var(--band-ink)]">
+              <span className="min-w-4 rounded-full bg-accent px-1.5 text-center t-label text-[var(--accent-contrast)]">
                 {unread > 9 ? "9+" : unread}
               </span>
             ) : null}
