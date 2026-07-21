@@ -9,32 +9,24 @@ import { RIGHTS_CATEGORIES, type RightsType } from "@/lib/rights";
 import type { TerritoryMode } from "@/lib/territories";
 import { addRights } from "./actions";
 
-// Minimal, functional grants form (not designer-grade): multi-select rights
-// types grouped by category, a territory mode, a comma-separated ISO code field
-// for include/exclude, and a REQUIRED exclusivity choice (no default — the
-// client must actively choose; §9 conflict-prevention foundation). Greyscale
-// errors (D3). Operate-capable only.
+// One grant per submit: pick a SINGLE rights type, then its own territory and
+// exclusivity. Each right carries its own scope — a client may hold SVOD
+// worldwide-exclusive AND AVOD US-only-non-exclusive — so rights are added one
+// at a time and each appears as its own row in the grants list. Adding the same
+// type again with a different territory/exclusivity is allowed (a distinct grant).
+// REQUIRED exclusivity choice (no default — §9 conflict-prevention). Operate-capable only.
 export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: string }) {
-  const [types, setTypes] = useState<Set<RightsType>>(new Set());
+  const [type, setType] = useState<RightsType | "">("");
   const [mode, setMode] = useState<TerritoryMode>("world");
   const [codes, setCodes] = useState("");
   const [exclusive, setExclusive] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  function toggle(code: RightsType) {
-    setTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (types.size === 0) {
-      setError("Select at least one rights type.");
+    if (!type) {
+      setError("Select a rights type.");
       return;
     }
     if (exclusive === null) {
@@ -48,7 +40,7 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
     const res = await addRights({
       orgId,
       titleId,
-      rightsTypes: [...types],
+      rightsTypes: [type],
       mode,
       countryCodes,
       exclusive,
@@ -60,7 +52,7 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
       setSaving(false);
       return;
     }
-    setTypes(new Set());
+    setType("");
     setCodes("");
     setMode("world");
     setExclusive(null);
@@ -71,23 +63,36 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
     "rounded-[var(--radius-sm)] border px-3 py-1.5 t-body-sm transition-colors";
   const segOn = "border-ink bg-ink text-surface";
   const segOff = "border-hairline bg-surface text-ink-2 hover:text-ink";
+  const selectCls =
+    "rounded-[var(--radius-sm)] border border-hairline bg-surface px-2 py-1 t-body-sm text-ink";
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        {RIGHTS_CATEGORIES.map((cat) => (
-          <fieldset key={cat.category} className="flex flex-col gap-1.5">
-            <legend className="t-body-sm font-medium text-ink-2">{cat.category}</legend>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+      <p className="t-body-sm text-ink-3">
+        Add one right at a time — each carries its own territory and exclusivity.
+      </p>
+
+      <div className="flex items-center gap-2">
+        <label htmlFor="rights-type" className="t-body-sm text-ink-2">
+          Rights type
+        </label>
+        <select
+          id="rights-type"
+          value={type}
+          onChange={(e) => setType(e.target.value as RightsType | "")}
+          className={selectCls}
+        >
+          <option value="">Select a right…</option>
+          {RIGHTS_CATEGORIES.map((cat) => (
+            <optgroup key={cat.category} label={cat.category}>
               {cat.types.map((t) => (
-                <label key={t.code} className="flex items-center gap-1.5 t-body-sm text-ink-2">
-                  <input type="checkbox" checked={types.has(t.code)} onChange={() => toggle(t.code)} />
+                <option key={t.code} value={t.code}>
                   {t.label}
-                </label>
+                </option>
               ))}
-            </div>
-          </fieldset>
-        ))}
+            </optgroup>
+          ))}
+        </select>
       </div>
 
       <div className="flex items-center gap-2">
@@ -98,7 +103,7 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
           id="territory-mode"
           value={mode}
           onChange={(e) => setMode(e.target.value as TerritoryMode)}
-          className="rounded-[var(--radius-sm)] border border-hairline bg-surface px-2 py-1 t-body-sm text-ink"
+          className={selectCls}
         >
           <option value="world">Worldwide</option>
           <option value="include">Only these countries</option>
@@ -139,8 +144,8 @@ export function AddRightsForm({ orgId, titleId }: { orgId: string; titleId: stri
         </p>
       </fieldset>
 
-      <Button type="submit" disabled={saving || types.size === 0 || exclusive === null} className="self-start">
-        {saving ? "Adding…" : "Add rights"}
+      <Button type="submit" disabled={saving || !type || exclusive === null} className="self-start">
+        {saving ? "Adding…" : "Add right"}
       </Button>
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
     </form>
