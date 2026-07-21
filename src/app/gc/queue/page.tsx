@@ -43,20 +43,22 @@ function QueueRow({
 
 export default async function GcQueuePage() {
   const supabase = await createClient();
+  // The Queue is active work only — titles needing GC action (review, then delivery).
+  // Draft (not turned in) and live/done titles don't belong here.
   const { data: titles } = await supabase
     .from("titles")
     .select("id, title, catalog_id, status, created_at, organizations(name)")
-    .neq("status", "draft")
+    .in("status", ["in_review", "in_delivery"])
     .order("created_at", { ascending: false });
 
   const list = titles ?? [];
   const needsReview = list.filter((t) => t.status === "in_review");
-  const others = list.filter((t) => t.status !== "in_review");
+  const readyToDeliver = list.filter((t) => t.status === "in_delivery");
 
   return (
     <>
       <h1 className="t-subhead text-ink pb-1">Queue</h1>
-      <p className="t-body-sm text-ink-3 pb-6">Every title turned in, across all clients.</p>
+      <p className="t-body-sm text-ink-3 pb-6">Titles that need your attention, across all clients.</p>
 
       <div className="flex flex-col gap-2 pb-8">
         <span className="t-label text-ink-3">Needs review</span>
@@ -82,15 +84,15 @@ export default async function GcQueuePage() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="t-label text-ink-3">All titles</span>
-        {others.length === 0 ? (
+        <span className="t-label text-ink-3">Ready to deliver</span>
+        {readyToDeliver.length === 0 ? (
           <Card>
             <CardBody>
-              <p className="t-body-sm text-ink-3">No other titles yet.</p>
+              <p className="t-body-sm text-ink-3">Nothing ready to deliver.</p>
             </CardBody>
           </Card>
         ) : (
-          others.map((t) => (
+          readyToDeliver.map((t) => (
             <QueueRow
               key={t.id}
               title={t.title}
