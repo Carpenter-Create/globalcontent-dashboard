@@ -19,6 +19,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .eq("user_id", user.id)
     .eq("status", "active");
 
+  // GC staff get full cross-org access + a link into the GC operator area, and are never
+  // treated as clients (a pure GC operator with no client org goes to /gc, not onboarding).
+  const { data: gcStaff } = await supabase
+    .from("gc_staff")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isGcStaff = !!gcStaff;
+
   const rows = (memberships ?? []).filter((m) => m.organizations !== null);
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
   const activeRow =
@@ -27,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Everyone finishes onboarding before the dashboard: no org, or an org that hasn't
   // completed agreement/payment (registered / awaiting_payment), goes to the wizard
   // (full-screen, outside this shell). The wizard resumes at the right step from status.
-  if (rows.length === 0) redirect("/onboarding");
+  if (rows.length === 0) redirect(isGcStaff ? "/gc" : "/onboarding");
   if (activeRow && activeRow.organizations!.status !== "active") {
     redirect("/onboarding");
   }
@@ -44,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       orgs={orgs}
       activeOrgId={activeOrgId}
       messagesUnread={unread ?? 0}
+      isGcStaff={isGcStaff}
     >
       {children}
     </AppShell>
