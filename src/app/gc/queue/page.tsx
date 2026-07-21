@@ -15,6 +15,7 @@ function QueueRow({
   orgName,
   createdAt,
   status,
+  findings,
   href,
 }: {
   title: string;
@@ -22,6 +23,7 @@ function QueueRow({
   orgName: string;
   createdAt: string;
   status: TitleStatus;
+  findings: number;
   href: string;
 }) {
   return (
@@ -34,7 +36,12 @@ function QueueRow({
               {catalogId ?? "—"} · {orgName} · added {fmt.format(new Date(createdAt))}
             </span>
           </div>
-          <span className="shrink-0 t-label text-ink-2">{gcTitleStatusLabel(status)}</span>
+          <div className="flex shrink-0 items-center gap-3">
+            {findings > 0 ? (
+              <span className="t-label text-ink-3">⚑ {findings}</span>
+            ) : null}
+            <span className="t-label text-ink-2">{gcTitleStatusLabel(status)}</span>
+          </div>
         </CardBody>
       </Card>
     </Link>
@@ -54,6 +61,22 @@ export default async function GcQueuePage() {
   const list = titles ?? [];
   const needsReview = list.filter((t) => t.status === "in_review");
   const readyToDeliver = list.filter((t) => t.status === "in_delivery");
+
+  // Findings folded into the Queue: a per-title open-findings count shown as a flag on
+  // each row (the title detail lists the findings themselves). Cross-org via is_gc_staff.
+  const titleIds = list.map((t) => t.id);
+  const { data: findingRows } = titleIds.length
+    ? await supabase
+        .from("findings")
+        .select("entity_id")
+        .eq("entity_type", "title")
+        .eq("status", "open")
+        .in("entity_id", titleIds)
+    : { data: [] as { entity_id: string }[] };
+  const findingsByTitle: Record<string, number> = {};
+  for (const f of findingRows ?? []) {
+    findingsByTitle[f.entity_id] = (findingsByTitle[f.entity_id] ?? 0) + 1;
+  }
 
   return (
     <>
@@ -77,6 +100,7 @@ export default async function GcQueuePage() {
               orgName={t.organizations?.name ?? "—"}
               createdAt={t.created_at}
               status={t.status as TitleStatus}
+              findings={findingsByTitle[t.id] ?? 0}
               href={`/gc/titles/${t.id}`}
             />
           ))
@@ -100,6 +124,7 @@ export default async function GcQueuePage() {
               orgName={t.organizations?.name ?? "—"}
               createdAt={t.created_at}
               status={t.status as TitleStatus}
+              findings={findingsByTitle[t.id] ?? 0}
               href={`/gc/titles/${t.id}`}
             />
           ))

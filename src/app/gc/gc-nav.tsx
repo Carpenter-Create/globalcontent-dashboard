@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, Flag, Store, Send, type LucideIcon } from "lucide-react";
+import { Inbox, Store, Send, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
@@ -10,7 +10,6 @@ import { cn } from "@/lib/cn";
 // Queue is the landing; it's `exact` so it isn't marked active on every /gc/* route.
 const GC_NAV: { label: string; href: string; icon: LucideIcon; exact?: boolean }[] = [
   { label: "Queue", href: "/gc/queue", icon: Inbox },
-  { label: "Findings", href: "/gc/findings", icon: Flag },
   { label: "Vendors", href: "/gc/vendors", icon: Store },
   { label: "Deliveries", href: "/gc/deliveries", icon: Send },
 ];
