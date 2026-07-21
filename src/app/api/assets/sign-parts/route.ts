@@ -29,11 +29,17 @@ export async function POST(req: Request) {
   if (!key.startsWith(`orgs/${op.orgId}/titles/${titleId}/`))
     return NextResponse.json({ error: "Invalid key" }, { status: 400 });
 
-  const urls = await Promise.all(
-    parts.map(async (p) => ({
-      partNumber: p.partNumber,
-      url: await signUploadPart(key, uploadId, p.partNumber),
-    })),
-  );
+  let urls: { partNumber: number; url: string }[];
+  try {
+    urls = await Promise.all(
+      parts.map(async (p) => ({
+        partNumber: p.partNumber,
+        url: await signUploadPart(key, uploadId, p.partNumber),
+      })),
+    );
+  } catch (e) {
+    console.error(`[assets:sign-parts] ${e instanceof Error ? e.message : e}`);
+    return NextResponse.json({ error: "Could not sign upload parts. Please try again." }, { status: 502 });
+  }
   return NextResponse.json({ urls });
 }

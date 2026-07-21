@@ -32,11 +32,17 @@ export async function POST(req: Request) {
   if (!b.key.startsWith(`orgs/${op.orgId}/titles/${b.titleId}/`))
     return NextResponse.json({ error: "Invalid key" }, { status: 400 });
 
-  const contentHash = await completeMultipart(
-    b.key,
-    b.uploadId,
-    b.parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })),
-  );
+  let contentHash: string;
+  try {
+    contentHash = await completeMultipart(
+      b.key,
+      b.uploadId,
+      b.parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })),
+    );
+  } catch (e) {
+    console.error(`[assets:complete] ${e instanceof Error ? e.message : e}`);
+    return NextResponse.json({ error: "Could not finalize upload. Please try again." }, { status: 502 });
+  }
 
   const { data: assetId, error } = await supabase.rpc("create_asset", {
     p_org_id: op.orgId,

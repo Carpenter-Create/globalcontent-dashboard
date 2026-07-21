@@ -28,6 +28,12 @@ export async function POST(req: Request) {
   if (!op) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   const key = assetKey(op.orgId, titleId, kind, filename);
-  const uploadId = await createMultipart(key, contentType);
+  let uploadId: string;
+  try {
+    uploadId = await createMultipart(key, contentType);
+  } catch (e) {
+    console.error(`[assets:initiate] ${e instanceof Error ? e.message : e}`);
+    return NextResponse.json({ error: "Could not start upload. Please try again." }, { status: 502 });
+  }
   return NextResponse.json({ uploadId, key, partSize: PART_SIZE });
 }
