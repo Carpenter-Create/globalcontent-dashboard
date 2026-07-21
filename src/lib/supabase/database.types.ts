@@ -1334,7 +1334,12 @@ export type Database = {
         | "active"
         | "payment_lapsed"
         | "closed"
-      portal_event: "room_viewed" | "otp_sent" | "otp_verified" | "download"
+      portal_event:
+        | "room_viewed"
+        | "otp_sent"
+        | "otp_verified"
+        | "download"
+        | "restore_requested"
       portal_link_purpose: "master_download" | "screener_view"
       review_decision: "approve" | "reject"
       rights_type:
@@ -1539,7 +1544,13 @@ export const Constants = {
         "payment_lapsed",
         "closed",
       ],
-      portal_event: ["room_viewed", "otp_sent", "otp_verified", "download"],
+      portal_event: [
+        "room_viewed",
+        "otp_sent",
+        "otp_verified",
+        "download",
+        "restore_requested",
+      ],
       portal_link_purpose: ["master_download", "screener_view"],
       review_decision: ["approve", "reject"],
       rights_type: [

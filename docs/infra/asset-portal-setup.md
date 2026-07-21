@@ -212,3 +212,39 @@ to build screener-link URLs on `/gc/review`.
 
 Record the result alongside the Portal-1 checklist — this depends on real CloudFront
 signing and a real Resend send, which automated tests cannot cover.
+
+---
+
+## Glacier restore (Portal-3)
+
+Masters transition to **Glacier Flexible Retrieval at 90 days** via an **S3 lifecycle
+policy** — this is **founder infra, not code**. Configure it on the assets bucket
+(scope: `master/` keys only — never artwork/captions/screeners). Portal-3 assumes it
+exists and handles the *restore* side.
+
+**IAM addition (required):** the app's IAM policy currently allows Get/Put but not
+restore. Add:
+
+```json
+{ "Effect": "Allow", "Action": ["s3:RestoreObject"], "Resource": "arn:aws:s3:::<bucket>/*" }
+```
+
+(HEAD uses the existing `s3:GetObject`. Still **no** `s3:DeleteObject`.)
+
+**Behavior:** on a portal access to an archived master, the route auto-initiates a
+**Standard** retrieval (`Days=7` temp copy) and returns "preparing (~3–5h)"; the
+recipient returns to the same link until it serves. Restores are **idempotent** — a
+second access during the window launches no new retrieval. **Cost:** each restore is a
+Standard retrieval charge + 7 days of temp Standard storage for the object.
+
+**Deferred:** GC pre-warm ("Restore now"), notify-when-ready (email on completion),
+Expedited tier — all build on the same `s3.ts` helpers.
+
+### Manual end-to-end test (needs a truly Glaciered master + `s3:RestoreObject`)
+
+1. Force a master to Glacier (S3 console, or wait out the 90-day lifecycle).
+2. Open its portal link (download or a master-source screener) → first access returns
+   the "preparing (~3–5h)" state, a `restore_requested` event lands in
+   `portal_access_events`, and S3 shows a restore in progress.
+3. Access again during the window → **no** new retrieval is launched (idempotent).
+4. After ~3–5h, the same link serves the master (download) / plays it (screener).

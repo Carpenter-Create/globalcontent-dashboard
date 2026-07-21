@@ -14,6 +14,7 @@ const EVENT_LABELS: Record<PortalEvent, string> = {
   otp_sent: "Code sent",
   otp_verified: "Verified",
   download: "Downloaded",
+  restore_requested: "Restore started",
 };
 
 export type Master = { id: string; original_filename: string | null; bytes: number };
