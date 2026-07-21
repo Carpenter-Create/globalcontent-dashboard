@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -22,16 +21,6 @@ export default async function GcLayout({ children }: { children: React.ReactNode
     .maybeSingle();
   if (!staff) redirect("/");
 
-  // Dual-role operators (also a client owner) get a link back to their client dashboard,
-  // so the GC area is never a dead-end.
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .limit(1);
-  const hasClientOrg = (memberships ?? []).length > 0;
-
   const roleLabel = staff.role.replace("gc_", "").replace(/_/g, " ");
 
   return (
@@ -44,16 +33,6 @@ export default async function GcLayout({ children }: { children: React.ReactNode
           <span className="t-label text-ink-2">Global Content</span>
         </div>
         <div className="flex-1 overflow-y-auto pt-2">
-          {hasClientOrg ? (
-            <nav className="flex flex-col gap-px px-2 pb-2">
-              <Link
-                href="/"
-                className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
-              >
-                ← Dashboard
-              </Link>
-            </nav>
-          ) : null}
           <GcNav />
         </div>
       </aside>

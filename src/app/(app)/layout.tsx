@@ -28,6 +28,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .maybeSingle();
   const isGcStaff = !!gcStaff;
 
+  // GC accounts are GC-only — they never use the client shell. To act/view as a client
+  // they impersonate (view-as-client), never own a client org. (Impersonation will bypass
+  // this redirect for an explicit "viewing as X" session.)
+  if (isGcStaff) redirect("/gc/queue");
+
   const rows = (memberships ?? []).filter((m) => m.organizations !== null);
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
   const activeRow =
