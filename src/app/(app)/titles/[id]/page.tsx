@@ -9,6 +9,7 @@ import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { requiredComplete } from "@/lib/metadata";
 import { InlineNotice } from "@/components/ui/inline-notice";
+import { FindingsCard } from "@/components/findings/findings-card";
 import { AddRightsForm } from "./add-rights-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
@@ -106,6 +107,15 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const liveCount = (titleDlv ?? []).filter((d) => d.status === "live").length;
   const totalCount = (titleDlv ?? []).length;
 
+  // Open findings, in-context (same store the Catalog Health overview reads). Required first.
+  const { data: findings } = await supabase
+    .from("findings")
+    .select("id, message, severity")
+    .eq("entity_type", "title")
+    .eq("entity_id", id)
+    .eq("status", "open")
+    .order("severity", { ascending: true });
+
   return (
     <>
       <PageHeader
@@ -128,6 +138,12 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           <SubmitButton orgId={title.org_id} titleId={title.id} />
         ) : null}
       </div>
+
+      {(findings ?? []).length > 0 ? (
+        <div className="mb-6">
+          <FindingsCard findings={findings ?? []} />
+        </div>
+      ) : null}
 
       {canOperate ? (
         <div className="mb-6 max-w-xl">

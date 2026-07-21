@@ -7,7 +7,7 @@ import { InlineNotice } from "@/components/ui/inline-notice";
 import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { METADATA_FIELDS } from "@/lib/metadata";
-import { FINDING_SEVERITY_LABEL } from "@/lib/findings";
+import { FindingsCard } from "@/components/findings/findings-card";
 import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
 import { ReviewControls } from "@/app/gc/review/review-controls";
 import { LinkControls, type Suggestion } from "@/app/gc/review/link-controls";
@@ -97,21 +97,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
 
       <div className="flex flex-col gap-4">
         {/* Findings first — what needs attention on this title. */}
-        {(findings ?? []).length > 0 ? (
-          <Card>
-            <CardBody className="flex flex-col gap-1.5">
-              <span className="t-label text-ink-3">Findings</span>
-              {(findings ?? []).map((f) => (
-                <div key={f.id} className="flex items-center justify-between gap-3 t-body-sm">
-                  <span className="text-ink-2">{f.message}</span>
-                  <span className="shrink-0 t-label text-ink-3">
-                    {FINDING_SEVERITY_LABEL[f.severity as "high" | "low"]}
-                  </span>
-                </div>
-              ))}
-            </CardBody>
-          </Card>
-        ) : null}
+        <FindingsCard findings={findings ?? []} />
 
         {/* Rights & territories */}
         <Card>
