@@ -1,10 +1,12 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { GcNav } from "./gc-nav";
 
-// First GC-only surface. Gate on gc_staff membership (RLS returns the caller's
-// own row only if they are GC). Non-GC users are redirected to the client app.
+// GC-only shell. Gate on gc_staff membership (RLS returns the caller's own row only if
+// they are GC). Non-GC users are redirected to the client app. Left sidebar mirrors the
+// client AppShell (Queue is the landing).
 export default async function GcLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
@@ -19,21 +21,43 @@ export default async function GcLayout({ children }: { children: React.ReactNode
     .maybeSingle();
   if (!staff) redirect("/");
 
+  const roleLabel = staff.role.replace("gc_", "").replace(/_/g, " ");
+
   return (
-    <div className="mx-auto max-w-[1080px] px-12 py-10">
-      <div className="mb-8 flex items-baseline justify-between">
-        <div className="flex items-baseline gap-6">
-          <span className="t-subhead text-ink">Global Content</span>
-          <nav className="flex gap-4">
-            <Link href="/gc/review" className="t-body-sm text-ink-2 hover:text-ink">Review</Link>
-            <Link href="/gc/findings" className="t-body-sm text-ink-2 hover:text-ink">Findings</Link>
-            <Link href="/gc/vendors" className="t-body-sm text-ink-2 hover:text-ink">Vendors</Link>
-            <Link href="/gc/deliveries" className="t-body-sm text-ink-2 hover:text-ink">Deliveries</Link>
-          </nav>
+    <div className="min-h-dvh">
+      <aside
+        className="fixed left-0 top-0 z-30 flex h-dvh flex-col border-r border-hairline bg-surface-muted"
+        style={{ width: "var(--sidebar-width)" }}
+      >
+        <div className="flex items-center px-4" style={{ height: "var(--header-height)" }}>
+          <span className="t-label text-ink-2">Global Content</span>
         </div>
-        <span className="t-body-sm text-ink-3">GC {staff.role.replace("gc_", "").replace("_", " ")}</span>
-      </div>
-      {children}
+        <div className="flex-1 overflow-y-auto pt-2">
+          <GcNav />
+        </div>
+      </aside>
+
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b border-hairline bg-canvas/80 px-6 backdrop-blur"
+        style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
+      >
+        <span className="t-body-sm text-ink-3">GC operator</span>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <span className="t-body-sm text-ink-3">GC {roleLabel}</span>
+        </div>
+      </header>
+
+      <main
+        style={{
+          marginLeft: "var(--sidebar-width)",
+          minHeight: "calc(100dvh - var(--header-height))",
+        }}
+      >
+        <div className="mx-auto w-full px-6 pb-24 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
