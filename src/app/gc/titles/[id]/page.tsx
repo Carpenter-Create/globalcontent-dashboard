@@ -12,6 +12,7 @@ import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
 import { ReviewControls } from "@/app/gc/review/review-controls";
 import { LinkControls, type Suggestion } from "@/app/gc/review/link-controls";
 import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/gc/review/screener-panel";
+import { GcAssets, type GcAsset } from "./gc-assets";
 
 // The GC per-title detail = the internal review page (folds in /gc/review). Review actions
 // (approve/reject, same-work linking) show only while in_review; screener panel + metadata +
@@ -38,7 +39,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
     .maybeSingle();
   if (!t) notFound();
 
-  const [{ data: grants }, { data: suggestions }, { data: conflicts }, { data: screenerLinks }, { data: metaRow }, { data: findings }] =
+  const [{ data: grants }, { data: suggestions }, { data: conflicts }, { data: screenerLinks }, { data: metaRow }, { data: findings }, { data: assets }] =
     await Promise.all([
       supabase
         .from("rights_grants")
@@ -61,6 +62,11 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         .eq("entity_type", "title")
         .eq("entity_id", id)
         .eq("status", "open"),
+      supabase
+        .from("assets")
+        .select("id, kind, original_filename, bytes")
+        .eq("title_id", id)
+        .order("kind"),
     ]);
 
   const links = (screenerLinks ?? []) as ScreenerLink[];
