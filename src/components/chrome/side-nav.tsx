@@ -50,7 +50,7 @@ export function SideNav({
           <div className="mx-1 my-2 border-t border-hairline" />
           <span className="px-3 pb-1 t-label text-ink-3">Global Content</span>
           <Link
-            href="/gc"
+            href="/gc/queue"
             className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
           >
             <Inbox className="h-4 w-4" strokeWidth={1.5} />

@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Everyone finishes onboarding before the dashboard: no org, or an org that hasn't
   // completed agreement/payment (registered / awaiting_payment), goes to the wizard
   // (full-screen, outside this shell). The wizard resumes at the right step from status.
-  if (rows.length === 0) redirect(isGcStaff ? "/gc" : "/onboarding");
+  if (rows.length === 0) redirect(isGcStaff ? "/gc/queue" : "/onboarding");
   if (activeRow && activeRow.organizations!.status !== "active") {
     redirect("/onboarding");
   }

@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 // GC operator side nav — mirrors the client SideNav rhythm (px-3 py-2, icon h-4).
 // Queue is the landing; it's `exact` so it isn't marked active on every /gc/* route.
 const GC_NAV: { label: string; href: string; icon: LucideIcon; exact?: boolean }[] = [
-  { label: "Queue", href: "/gc", icon: Inbox, exact: true },
+  { label: "Queue", href: "/gc/queue", icon: Inbox },
   { label: "Review", href: "/gc/review", icon: ClipboardCheck },
   { label: "Findings", href: "/gc/findings", icon: Flag },
   { label: "Vendors", href: "/gc/vendors", icon: Store },
