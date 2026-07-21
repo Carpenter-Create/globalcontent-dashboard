@@ -58,9 +58,11 @@ export default async function GcDeliveriesPage() {
   const { data: linkRows } = await supabase
     .from("portal_links")
     .select("id, delivery_id, asset_id, expires_at, revoked_at, created_at")
+    .eq("purpose", "master_download") // deliveries queue shows only delivery-scoped master links
     .order("created_at", { ascending: false });
   const linksByDelivery: Record<string, PortalLink[]> = {};
   for (const l of linkRows ?? []) {
+    if (!l.delivery_id || !l.asset_id) continue; // master_download rows always set both
     (linksByDelivery[l.delivery_id] ??= []).push({
       id: l.id, asset_id: l.asset_id, expires_at: l.expires_at, revoked_at: l.revoked_at,
     });

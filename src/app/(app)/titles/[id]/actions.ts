@@ -50,6 +50,29 @@ export async function addRights(input: {
   return {};
 }
 
+// Set a title's screener source (master = the master doubles as the screener;
+// dedicated = a separately-uploaded screener asset). Written via the
+// set_screener_source RPC (operate-gated in the DB; titles is RPC-only-write).
+export async function setScreenerSource(input: {
+  titleId: string;
+  source: "master" | "dedicated";
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("set_screener_source", {
+    p_title_id: input.titleId,
+    p_source: input.source,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/titles/${input.titleId}`);
+  return {};
+}
+
 // Submit a draft title for chain-of-title review (§11): draft → in_review, via
 // the submit_title RPC (operate-gated in the DB).
 export async function submitTitle(

@@ -12,7 +12,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   const admin = createAdminClient();
   const { data: link } = await admin
     .from("portal_links")
-    .select("id, expires_at, revoked_at, assets(original_filename, bytes)")
+    .select("id, expires_at, revoked_at, purpose, title_id, assets(original_filename, bytes)")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
 
@@ -28,12 +28,36 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
     );
   }
 
+  if (link.purpose === "screener_view" && link.title_id) {
+    // Curated title info for display only — not authz. The actual stream is re-resolved
+    // session-side by portal_resolve_screener (service-role, no rule-12 gate: pitch view).
+    const [{ data: titleRow }, { data: metaRow }] = await Promise.all([
+      admin.from("titles").select("title").eq("id", link.title_id).maybeSingle(),
+      admin.from("title_metadata").select("data").eq("title_id", link.title_id).maybeSingle(),
+    ]);
+    const meta = (metaRow?.data ?? {}) as { synopsis?: string; runtime_minutes?: number };
+    return (
+      <PortalFlow
+        token={token}
+        ready={{
+          mode: "screener",
+          title: titleRow?.title ?? PORTAL_COPY.unknownTitle,
+          synopsis: meta.synopsis ?? null,
+          runtimeMinutes: meta.runtime_minutes ?? null,
+        }}
+      />
+    );
+  }
+
   const asset = Array.isArray(link.assets) ? link.assets[0] : link.assets;
   return (
     <PortalFlow
       token={token}
-      filename={asset?.original_filename ?? PORTAL_COPY.unknownFilename}
-      bytes={asset?.bytes ?? 0}
+      ready={{
+        mode: "download",
+        filename: asset?.original_filename ?? PORTAL_COPY.unknownFilename,
+        bytes: asset?.bytes ?? 0,
+      }}
     />
   );
 }

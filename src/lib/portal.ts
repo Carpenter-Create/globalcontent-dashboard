@@ -5,7 +5,11 @@ export const PORTAL = {
   otpTtlMinutes: 10,
   otpMaxAttempts: 5,
   sessionTtlHours: 24,
-  signedUrlTtlSeconds: 300,
+  signedUrlTtlSeconds: 300, // master DOWNLOAD: a single GET only needs to start within the TTL
+  // Screener STREAM: a <video> issues byte-range GETs across the whole runtime and CloudFront
+  // re-validates the signed URL on every request, so this must cover a full film + pauses,
+  // not just playback start. Kept well under the 24h session for leak hygiene (view-only, no DRM).
+  screenerStreamTtlSeconds: 6 * 3600,
   sessionCookie: "portal_session",
 } as const;
 
@@ -51,4 +55,9 @@ export const PORTAL_COPY = {
   errorTooMany: "Too many attempts. Request a new code.",
   errorPreparing: "This file is being retrieved from cold storage and isn't ready yet. Try again shortly.",
   unknownFilename: "the file",
+  screenerHeading: "Screener room",
+  screenerIntro: "Confirm your details to view this title.",
+  screenerLoading: "Preparing your screener.",
+  screenerNotice: "This screening is for evaluation only.",
+  unknownTitle: "this title",
 } as const;

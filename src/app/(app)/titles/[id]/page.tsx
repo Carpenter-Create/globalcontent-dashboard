@@ -11,13 +11,15 @@ import { requiredComplete } from "@/lib/metadata";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { AddRightsForm } from "./add-rights-form";
 import { AssetUpload } from "./asset-upload";
+import { ScreenerSourceControl } from "./screener-source-control";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, type TitleStatus } from "@/lib/titles";
 
-const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork", string> = {
+const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "screener", string> = {
   master: "Master",
   caption: "Caption",
   artwork: "Artwork",
+  screener: "Screener",
 };
 
 function formatBytes(n: number): string {
@@ -54,7 +56,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const { data: title } = await supabase
     .from("titles")
-    .select("id, title, status, org_id, catalog_id")
+    .select("id, title, status, org_id, catalog_id, screener_source")
     .eq("id", id)
     .maybeSingle();
   if (!title) notFound(); // RLS returns null for another org's title → 404
@@ -160,8 +162,12 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
       <div className="mt-10">
         <h2 className="t-body font-medium text-ink pb-3">Assets</h2>
         {canOperate ? (
-          <div className="mb-4 max-w-xl">
+          <div className="mb-4 max-w-xl space-y-4">
             <AssetUpload titleId={title.id} />
+            <ScreenerSourceControl
+              titleId={title.id}
+              current={(title.screener_source ?? "master") as "master" | "dedicated"}
+            />
           </div>
         ) : null}
         {assetList.length === 0 ? (

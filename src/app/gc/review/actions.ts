@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { generateToken, hashToken } from "@/lib/portal";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Decision = Database["public"]["Enums"]["review_decision"];
@@ -48,6 +49,42 @@ export async function linkTitleToWork(
     p_title_id: titleId,
     p_target_title_id: targetTitleId,
   });
+  if (error) return { error: error.message };
+
+  revalidatePath("/gc/review");
+  return {};
+}
+
+// The raw token is shown to GC exactly once, in this return value — only the hash is
+// ever persisted (create_screener_link stores p_token_hash). GC gate is the RPC itself
+// (is_gc_staff + screenable-asset check), not this action.
+export async function createScreenerLink(input: { titleId: string }): Promise<{ error?: string; url?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const token = generateToken();
+  const { error } = await supabase.rpc("create_screener_link", {
+    p_title_id: input.titleId,
+    p_token_hash: hashToken(token),
+  });
+  if (error) return { error: error.message };
+
+  const base = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
+  revalidatePath("/gc/review");
+  return { url: `${base}/portal/${token}` };
+}
+
+export async function revokeScreenerLink(input: { linkId: string }): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("revoke_portal_link", { p_link_id: input.linkId });
   if (error) return { error: error.message };
 
   revalidatePath("/gc/review");
