@@ -25,8 +25,10 @@ export default async function GcDeliveriesPage() {
     id: v.id, name: v.name, titles: [...v.titles].map(([id, label]) => ({ id, label })),
   }));
 
+  // Only APPROVED titles are deliverable (assembly line: review → approved → deliver).
+  // A title reaches in_delivery only after GC approves it; live = already on ≥1 platform.
   const { data: titleRows } = await supabase
-    .from("titles").select("id, title, catalog_id").order("title");
+    .from("titles").select("id, title, catalog_id").in("status", ["in_delivery", "live"]).order("title");
   const { data: vendorRows } = await supabase
     .from("vendors").select("id, name").eq("active", true).order("name");
   const { data: grantRows } = await supabase

@@ -9,6 +9,17 @@ import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 // read via RLS's is_gc_staff bypass. (Internal asset viewing is a follow-on, #60.)
 const fmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
+// GC-facing status wording — clients see TITLE_STATUS_LABELS; GC's assembly-line view is
+// clearer (an approved title reads "Approved · ready to deliver", not the client's "Submitted").
+const GC_STATUS_LABEL: Partial<Record<TitleStatus, string>> = {
+  in_review: "Needs review",
+  in_delivery: "Approved · ready to deliver",
+  live: "Live",
+  takedown_requested: "Takedown requested",
+  taken_down: "Taken down",
+};
+const gcStatusLabel = (s: TitleStatus) => GC_STATUS_LABEL[s] ?? TITLE_STATUS_LABELS[s];
+
 function QueueRow({
   title,
   catalogId,
@@ -34,7 +45,7 @@ function QueueRow({
               {catalogId ?? "—"} · {orgName} · added {fmt.format(new Date(createdAt))}
             </span>
           </div>
-          <span className="shrink-0 t-label text-ink-2">{TITLE_STATUS_LABELS[status]}</span>
+          <span className="shrink-0 t-label text-ink-2">{gcStatusLabel(status)}</span>
         </CardBody>
       </Card>
     </Link>
