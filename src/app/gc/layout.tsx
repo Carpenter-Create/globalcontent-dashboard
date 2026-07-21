@@ -26,6 +26,7 @@ export default async function GcLayout({ children }: { children: React.ReactNode
           <span className="t-subhead text-ink">Global Content</span>
           <nav className="flex gap-4">
             <Link href="/gc/review" className="t-body-sm text-ink-2 hover:text-ink">Review</Link>
+            <Link href="/gc/findings" className="t-body-sm text-ink-2 hover:text-ink">Findings</Link>
             <Link href="/gc/vendors" className="t-body-sm text-ink-2 hover:text-ink">Vendors</Link>
             <Link href="/gc/deliveries" className="t-body-sm text-ink-2 hover:text-ink">Deliveries</Link>
           </nav>

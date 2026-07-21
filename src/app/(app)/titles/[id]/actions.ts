@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveTerritories, type TerritoryMode } from "@/lib/territories";
 import type { RightsType } from "@/lib/rights";
+import { computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
+import type { Json } from "@/lib/supabase/database.types";
 
 // Add a rights grant (expand = insert) for a title in the active org. Territories
 // resolve to ISO codes server-side; the write goes through the add_rights_grant
@@ -87,6 +89,25 @@ export async function submitTitle(
 
   const { error } = await supabase.rpc("submit_title", { p_org_id: orgId, p_title_id: titleId });
   if (error) return { error: error.message };
+
+  // §19: submit is a findings trigger too — refresh from current metadata (best-effort;
+  // a reconcile failure must not fail the submit, which already committed).
+  try {
+    const { data: metaRow } = await supabase
+      .from("title_metadata")
+      .select("data")
+      .eq("title_id", titleId)
+      .maybeSingle();
+    const findings = computeMetadataFindings((metaRow?.data as Record<string, unknown>) ?? {});
+    await supabase.rpc("reconcile_title_findings", {
+      p_org_id: orgId,
+      p_title_id: titleId,
+      p_findings: findings as unknown as Json,
+      p_logic_version: METADATA_LOGIC_VERSION,
+    });
+  } catch (e) {
+    console.error("[findings] reconcile after submit failed", e);
+  }
 
   revalidatePath(`/titles/${titleId}`);
   return {};
