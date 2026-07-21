@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { generateToken, hashToken } from "@/lib/portal";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Decision = Database["public"]["Enums"]["review_decision"];
 
@@ -28,6 +28,29 @@ export async function reviewTitle(
     p_reason: reason.trim(), // RPC nullif('' , '') stores null; approve ignores it
   });
   if (error) return { error: error.message };
+
+  // §20 push: a rejection is bad news the client must know about — notify (says why).
+  // Best-effort — the review already committed, so a notify failure must not fail it.
+  if (decision === "reject") {
+    try {
+      const { data: t } = await supabase
+        .from("titles")
+        .select("title, org_id")
+        .eq("id", titleId)
+        .maybeSingle();
+      if (t) {
+        await supabase.rpc("create_notification", {
+          p_org_id: t.org_id,
+          p_kind: "title_rejected",
+          p_title: "Title returned for revision",
+          p_body: `"${t.title}" was returned for revision: ${reason.trim()}`,
+          p_source_refs: { title_id: titleId, reason: reason.trim() } as Json,
+        });
+      }
+    } catch (e) {
+      console.error("[notifications] title_rejected create failed", e);
+    }
+  }
 
   revalidatePath("/gc/review");
   return {};

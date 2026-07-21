@@ -347,68 +347,6 @@ export type Database = {
           },
         ]
       }
-      findings: {
-        Row: {
-          code: string
-          created_at: string
-          derived_at: string
-          entity_id: string
-          entity_type: string
-          id: string
-          logic_version: string
-          message: string
-          org_id: string
-          resolved_at: string | null
-          sender: Database["public"]["Enums"]["finding_sender"]
-          severity: Database["public"]["Enums"]["finding_severity"]
-          source: Database["public"]["Enums"]["finding_source"]
-          source_refs: Json
-          status: Database["public"]["Enums"]["finding_status"]
-        }
-        Insert: {
-          code: string
-          created_at?: string
-          derived_at?: string
-          entity_id: string
-          entity_type: string
-          id?: string
-          logic_version: string
-          message: string
-          org_id: string
-          resolved_at?: string | null
-          sender?: Database["public"]["Enums"]["finding_sender"]
-          severity: Database["public"]["Enums"]["finding_severity"]
-          source: Database["public"]["Enums"]["finding_source"]
-          source_refs: Json
-          status?: Database["public"]["Enums"]["finding_status"]
-        }
-        Update: {
-          code?: string
-          created_at?: string
-          derived_at?: string
-          entity_id?: string
-          entity_type?: string
-          id?: string
-          logic_version?: string
-          message?: string
-          org_id?: string
-          resolved_at?: string | null
-          sender?: Database["public"]["Enums"]["finding_sender"]
-          severity?: Database["public"]["Enums"]["finding_severity"]
-          source?: Database["public"]["Enums"]["finding_source"]
-          source_refs?: Json
-          status?: Database["public"]["Enums"]["finding_status"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "findings_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       gc_staff: {
         Row: {
           created_at: string
@@ -461,6 +399,76 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "memberships_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_reads: {
+        Row: {
+          notification_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          notification_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          notification_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          org_id: string
+          sender: Database["public"]["Enums"]["notification_sender"]
+          source_refs: Json
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          org_id: string
+          sender?: Database["public"]["Enums"]["notification_sender"]
+          source_refs: Json
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          org_id?: string
+          sender?: Database["public"]["Enums"]["notification_sender"]
+          source_refs?: Json
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -971,6 +979,16 @@ export type Database = {
         }
         Returns: string
       }
+      create_notification: {
+        Args: {
+          p_body: string
+          p_kind: Database["public"]["Enums"]["notification_kind"]
+          p_org_id: string
+          p_source_refs: Json
+          p_title: string
+        }
+        Returns: string
+      }
       create_org_and_membership: { Args: { p_name: string }; Returns: string }
       create_title: {
         Args: { p_org_id: string; p_title: string }
@@ -994,6 +1012,7 @@ export type Database = {
         Args: { p_target_title_id: string; p_title_id: string }
         Returns: string
       }
+      mark_notifications_read: { Args: { p_ids: string[] }; Returns: undefined }
       member_can: {
         Args: { p_capability: string; p_org: string; p_uid: string }
         Returns: boolean
@@ -1010,41 +1029,20 @@ export type Database = {
           vendor_name: string
         }[]
       }
-      my_findings: {
+      my_notifications: {
         Args: never
         Returns: {
-          code: string
+          body: string
           created_at: string
-          derived_at: string
-          entity_id: string
-          entity_type: string
           id: string
-          logic_version: string
-          message: string
+          kind: Database["public"]["Enums"]["notification_kind"]
           org_id: string
-          resolved_at: string | null
-          sender: Database["public"]["Enums"]["finding_sender"]
-          severity: Database["public"]["Enums"]["finding_severity"]
-          source: Database["public"]["Enums"]["finding_source"]
           source_refs: Json
-          status: Database["public"]["Enums"]["finding_status"]
+          title: string
+          unread: boolean
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "findings"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
-      reconcile_title_findings: {
-        Args: {
-          p_findings: Json
-          p_logic_version: string
-          p_org_id: string
-          p_title_id: string
-        }
-        Returns: undefined
-      }
+      my_unread_count: { Args: never; Returns: number }
       record_export: {
         Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
         Returns: string
@@ -1109,10 +1107,6 @@ export type Database = {
         | "live"
         | "rejected"
         | "taken_down"
-      finding_sender: "gc_support" | "globee"
-      finding_severity: "high" | "low"
-      finding_source: "validator" | "ai"
-      finding_status: "open" | "resolved"
       gc_role:
         | "gc_account_owner"
         | "gc_accountant"
@@ -1120,6 +1114,8 @@ export type Database = {
         | "gc_delivery_ops"
         | "gc_viewer"
       membership_status: "invited" | "active" | "removed"
+      notification_kind: "title_rejected" | "delivery_update"
+      notification_sender: "gc_support" | "globee"
       org_role:
         | "account_owner"
         | "accountant"
@@ -1311,10 +1307,6 @@ export const Constants = {
         "rejected",
         "taken_down",
       ],
-      finding_sender: ["gc_support", "globee"],
-      finding_severity: ["high", "low"],
-      finding_source: ["validator", "ai"],
-      finding_status: ["open", "resolved"],
       gc_role: [
         "gc_account_owner",
         "gc_accountant",
@@ -1323,6 +1315,8 @@ export const Constants = {
         "gc_viewer",
       ],
       membership_status: ["invited", "active", "removed"],
+      notification_kind: ["title_rejected", "delivery_update"],
+      notification_sender: ["gc_support", "globee"],
       org_role: [
         "account_owner",
         "accountant",

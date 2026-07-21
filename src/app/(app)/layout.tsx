@@ -34,8 +34,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const orgs = rows.map((m) => ({ id: m.organizations!.id, name: m.organizations!.name }));
   const activeOrgId = activeRow?.organizations!.id ?? null;
 
+  // Unread notification count for the nav badge (§20 in-app push).
+  const { data: unread } = await supabase.rpc("my_unread_count");
+
   return (
-    <AppShell email={user.email ?? ""} orgs={orgs} activeOrgId={activeOrgId}>
+    <AppShell
+      email={user.email ?? ""}
+      orgs={orgs}
+      activeOrgId={activeOrgId}
+      messagesUnread={unread ?? 0}
+    >
       {children}
     </AppShell>
   );
