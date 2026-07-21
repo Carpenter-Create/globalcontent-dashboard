@@ -4,9 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { InlineNotice } from "@/components/ui/inline-notice";
+import { ISO_COUNTRIES } from "@/lib/territories";
 import { createDelivery } from "./actions";
+
+// A delivery targets one country (create_delivery requires an ISO alpha-2 code the
+// grant covers) — so pick from a list, never type a code. The DB still validates the
+// grant covers it. (Enhancement: constrain the list to the selected grant's territories.)
+const COUNTRY_OPTS = Object.entries(ISO_COUNTRIES)
+  .map(([value, label]) => ({ value, label }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 export type GrantOpt = { id: string; label: string };
 export function NewDeliveryForm({
@@ -56,7 +63,14 @@ export function NewDeliveryForm({
         <option value="">Select grant…</option>
         {grants.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
       </select>
-      <Input value={territory} onChange={(e) => setTerritory(e.target.value)} placeholder="Territory ISO code (e.g. US)" />
+      <select value={territory} onChange={(e) => setTerritory(e.target.value)} className={sel}>
+        <option value="">Select territory…</option>
+        {COUNTRY_OPTS.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
       <Button type="submit" disabled={busy} className="self-start">{busy ? "Creating…" : "Create delivery"}</Button>
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
     </form>
