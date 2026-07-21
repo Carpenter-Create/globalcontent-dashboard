@@ -37,5 +37,5 @@ export async function acceptAgreement(formData: FormData) {
   if (error) throw new Error(error.message);
 
   const result = data as { org_id: string; source_document_id: string; needs_payment: boolean };
-  redirect(result.needs_payment ? "/agreement/pay" : "/?welcome=1");
+  redirect(result.needs_payment ? "/onboarding/payment" : "/?welcome=1");
 }

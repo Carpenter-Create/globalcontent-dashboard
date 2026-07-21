@@ -24,11 +24,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const activeRow =
     rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0] ?? null;
 
-  // An org that hasn't completed the agreement (registered / awaiting_payment) can't use
-  // the dashboard yet — send it to the clickwrap surface (outside this shell). No org at
-  // all → fall through so `/` can render onboarding.
+  // Everyone finishes onboarding before the dashboard: no org, or an org that hasn't
+  // completed agreement/payment (registered / awaiting_payment), goes to the wizard
+  // (full-screen, outside this shell). The wizard resumes at the right step from status.
+  if (rows.length === 0) redirect("/onboarding");
   if (activeRow && activeRow.organizations!.status !== "active") {
-    redirect("/agreement");
+    redirect("/onboarding");
   }
 
   const orgs = rows.map((m) => ({ id: m.organizations!.id, name: m.organizations!.name }));

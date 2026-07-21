@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { OnboardingForm } from "@/components/onboarding-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { FINDING_SEVERITY_LABEL, ATTENTION_EMPTY, ATTENTION_SUBTITLE } from "@/lib/findings";
@@ -40,19 +40,8 @@ export default async function DashboardPage() {
 
   const rows = (memberships ?? []).filter((m) => m.organizations);
 
-  if (rows.length === 0) {
-    return (
-      <>
-        <PageHeader
-          title="Welcome to Global Content"
-          subtitle="Set up your organization to begin."
-        />
-        <div className="max-w-md">
-          <OnboardingForm />
-        </div>
-      </>
-    );
-  }
+  // No org yet → onboarding wizard (the (app) layout also guards this).
+  if (rows.length === 0) redirect("/onboarding");
 
   const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
   const activeRow = rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0];

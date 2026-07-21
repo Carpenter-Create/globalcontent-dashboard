@@ -18,7 +18,7 @@ export async function createOrg(name: string): Promise<{ error?: string }> {
   if (error) return { error: error.message };
 
   revalidatePath("/");
-  redirect("/");
+  redirect("/onboarding/plan"); // onboarding wizard: org created → choose plan
 }
 
 export async function signOut() {

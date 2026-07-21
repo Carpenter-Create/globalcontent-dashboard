@@ -77,7 +77,7 @@ function PayForm() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const r = await checkout.confirm(); // session's return_url → /agreement/complete
+    const r = await checkout.confirm(); // session's return_url → /onboarding/complete
     if (r.type === "error") {
       setError(r.error.message);
       setSubmitting(false);

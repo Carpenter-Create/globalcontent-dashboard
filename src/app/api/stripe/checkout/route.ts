@@ -60,7 +60,7 @@ export async function POST() {
       ],
       metadata: { org_id: org.id, tier, source_document_id: doc.id },
       subscription_data: { metadata: { org_id: org.id, tier, source_document_id: doc.id } },
-      return_url: `${origin}/agreement/complete?session_id={CHECKOUT_SESSION_ID}`,
+      return_url: `${origin}/onboarding/complete?session_id={CHECKOUT_SESSION_ID}`,
     });
     return NextResponse.json({ clientSecret: session.client_secret });
   } catch (e) {

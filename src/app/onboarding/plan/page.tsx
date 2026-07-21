@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { renderAgreement, TIER_META, TIERS, type Tier } from "@/lib/agreements";
 import { Card } from "@/components/ui/card";
-import { AcceptForm } from "./accept-form";
+import { AcceptForm } from "@/app/agreement/accept-form";
+import { WizardFrame } from "../wizard-frame";
 
-// The clickwrap surface — top-level (no dashboard shell) until the org is active.
-// Pick a tier, read the conspicuous scrollable terms, accept.
-export default async function AgreementPage({
+// Step 3 — Choose plan + accept agreement. Tier cards, then the conspicuous scrollable
+// terms + clickwrap (AcceptForm → accept_terms: free→active, paid→awaiting_payment).
+export default async function PlanStep({
   searchParams,
 }: {
   searchParams: Promise<{ tier?: string }>;
@@ -24,27 +25,28 @@ export default async function AgreementPage({
     .eq("user_id", user.id)
     .eq("status", "active");
   const owned = (memberships ?? []).find((m) => m.role === "account_owner" && m.organizations);
-  if (!owned?.organizations) redirect("/"); // no org yet → onboarding lives at /
+  if (!owned?.organizations) redirect("/onboarding/organization");
   const org = owned.organizations;
-  if (org.status === "active") redirect("/"); // already accepted
-  if (org.status === "awaiting_payment") redirect("/agreement/pay"); // accepted → resume payment
+  if (org.status === "active") redirect("/");
+  if (org.status === "awaiting_payment") redirect("/onboarding/payment");
 
   const sp = await searchParams;
   const tier = (TIERS as string[]).includes(sp.tier ?? "") ? (sp.tier as Tier) : undefined;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-16">
-      <div className="flex flex-col gap-2">
-        <span className="t-label text-ink-3">Global Content · {org.name}</span>
-        <h1 className="t-subhead text-ink">Choose your plan &amp; accept the agreement</h1>
-      </div>
-
+    <WizardFrame
+      step={3}
+      eyebrow={`Global Content · ${org.name}`}
+      title="Choose your plan"
+      subtitle={tier ? undefined : "You can change tier later; a downgrade is free."}
+      back={tier ? "/onboarding/plan" : "/onboarding/organization"}
+    >
       {!tier ? (
         <div className="grid gap-3 sm:grid-cols-3">
           {TIERS.map((t) => {
             const m = TIER_META[t];
             return (
-              <a key={t} href={`/agreement?tier=${t}`} className="block">
+              <a key={t} href={`/onboarding/plan?tier=${t}`} className="block">
                 <Card className="flex h-full flex-col gap-1 p-4 transition-colors hover:border-accent">
                   <span className="t-body font-medium text-ink">{m.label}</span>
                   <span className="t-data text-ink">{m.priceLabel}</span>
@@ -56,11 +58,11 @@ export default async function AgreementPage({
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <span className="t-body font-medium text-ink">
-              {TIER_META[tier].label} — {TIER_META[tier].priceLabel}
+              {TIER_META[tier].label} — {TIER_META[tier].priceLabel} · {TIER_META[tier].termMonths}-month term
             </span>
-            <a href="/agreement" className="t-body-sm text-ink-3 hover:text-ink-2">
+            <a href="/onboarding/plan" className="t-body-sm text-ink-3 hover:text-ink-2">
               Change plan
             </a>
           </div>
@@ -70,6 +72,6 @@ export default async function AgreementPage({
           <AcceptForm tier={tier} needsPayment={tier !== "access"} />
         </div>
       )}
-    </main>
+    </WizardFrame>
   );
 }
