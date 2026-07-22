@@ -7,7 +7,8 @@ import { Inbox, Store, Send, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 // GC operator side nav — mirrors the client SideNav rhythm (px-3 py-2, icon h-4).
-// Queue is the landing; it's `exact` so it isn't marked active on every /gc/* route.
+// Flat sibling tabs; each is active on its own /gc/<section> prefix (title detail lives
+// under /gc/titles, so no tab is highlighted there — it's reached from the Queue list).
 const GC_NAV: { label: string; href: string; icon: LucideIcon; exact?: boolean }[] = [
   { label: "Queue", href: "/gc/queue", icon: Inbox },
   { label: "Vendors", href: "/gc/vendors", icon: Store },

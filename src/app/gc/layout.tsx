@@ -6,8 +6,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { GcNav } from "./gc-nav";
 
 // GC-only shell. Gate on gc_staff membership (RLS returns the caller's own row only if
-// they are GC). Non-GC users are redirected to the client app. Left sidebar mirrors the
-// client AppShell (Queue is the landing).
+// they are GC). Non-GC users are redirected to the client app. Left sidebar is a flat set
+// of GC tabs; dual-role operators get a subtle "Client view" link pinned to the footer.
 export default async function GcLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const {
@@ -44,18 +44,20 @@ export default async function GcLayout({ children }: { children: React.ReactNode
           <span className="t-label text-ink-2">Global Content</span>
         </div>
         <div className="flex-1 overflow-y-auto pt-2">
-          {hasClientOrg ? (
-            <nav className="flex flex-col gap-px px-2 pb-2">
-              <Link
-                href="/"
-                className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
-              >
-                ← Dashboard
-              </Link>
-            </nav>
-          ) : null}
           <GcNav />
         </div>
+        {/* Dual-role operators (also a client owner): a quiet way into their own client
+            dashboard, pinned to the footer so it never reads as a breadcrumb above the tabs. */}
+        {hasClientOrg ? (
+          <nav className="border-t border-hairline px-2 py-2">
+            <Link
+              href="/"
+              className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
+            >
+              Client view
+            </Link>
+          </nav>
+        ) : null}
       </aside>
 
       <header

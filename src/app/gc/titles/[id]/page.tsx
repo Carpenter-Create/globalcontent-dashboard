@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
@@ -87,10 +86,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <Link href="/gc/queue" className="t-body-sm text-ink-3 transition-colors hover:text-ink-2">
-        ← Queue
-      </Link>
-      <div className="flex flex-col gap-0.5 pt-3 pb-6">
+      <div className="flex flex-col gap-0.5 pb-6">
         <h1 className="t-subhead text-ink">{t.title}</h1>
         <span className="t-body-sm text-ink-3">
           {t.catalog_id} · {t.organizations?.name ?? "—"} · {gcTitleStatusLabel(t.status as TitleStatus)}
