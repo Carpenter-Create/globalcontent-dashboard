@@ -10,9 +10,9 @@ import { FindingsCard } from "@/components/findings/findings-card";
 import type { ReleaseType } from "@/lib/releases";
 import { ReleaseDateControl } from "./release-date-control";
 import { gcTitleStatusLabel, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
-import { ReviewControls } from "@/app/gc/review/review-controls";
-import { LinkControls, type Suggestion } from "@/app/gc/review/link-controls";
-import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/gc/review/screener-panel";
+import { ReviewControls } from "@/app/(app)/(operator)/gc/review/review-controls";
+import { LinkControls, type Suggestion } from "@/app/(app)/(operator)/gc/review/link-controls";
+import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/(app)/(operator)/gc/review/screener-panel";
 import { GcAssets, type GcAsset } from "./gc-assets";
 
 // The GC per-title detail = the internal review page (folds in /gc/review). Review actions

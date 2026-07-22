@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, Store } from "lucide-react";
+import { Inbox, Store, Send, type LucideIcon } from "lucide-react";
 
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/cn";
+
+// GC operator surfaces — shown only to GC staff, and they render INSIDE this same shell
+// (no separate area). Queue and Vendors are top-level routes; the delivery queue keeps its
+// /gc/deliveries URL (the client already owns /deliveries) but renders here all the same.
+const GC_NAV: { label: string; href: string; icon: LucideIcon }[] = [
+  { label: "Queue", href: "/queue", icon: Inbox },
+  { label: "Vendors", href: "/vendors", icon: Store },
+  { label: "Deliveries", href: "/gc/deliveries", icon: Send },
+];
 
 // Nav row rhythm ported from watershedportal (px-3 py-2, text-[13px], gap-2.5,
 // icon h-4 strokeWidth 1.5) — proportions kept, colors rethemed to GC tokens.
@@ -49,20 +58,23 @@ export function SideNav({
         <>
           <div className="mx-1 my-2 border-t border-hairline" />
           <span className="px-3 pb-1 t-label text-ink-3">Global Content</span>
-          <Link
-            href="/queue"
-            className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
-          >
-            <Inbox className="h-4 w-4" strokeWidth={1.5} />
-            <span className="flex-1">Queue</span>
-          </Link>
-          <Link
-            href="/vendors"
-            className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
-          >
-            <Store className="h-4 w-4" strokeWidth={1.5} />
-            <span className="flex-1">Vendors</span>
-          </Link>
+          {GC_NAV.map((item) => {
+            const active = pathname.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 t-body-sm font-medium transition-colors",
+                  active ? "bg-surface text-ink" : "text-ink-3 hover:bg-surface hover:text-ink-2",
+                )}
+              >
+                <Icon className="h-4 w-4" strokeWidth={1.5} />
+                <span className="flex-1">{item.label}</span>
+              </Link>
+            );
+          })}
         </>
       ) : null}
     </nav>
