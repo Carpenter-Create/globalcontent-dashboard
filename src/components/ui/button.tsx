@@ -20,7 +20,9 @@ export function Button({
     <button
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] px-4 py-2 t-body-sm font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60",
+        // Brand button: pill-shaped, a subtle hover lift that settles on press (the
+        // globalcontent-web recipe). Geometry from tokens; color from the variant.
+        "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 t-body-sm font-medium transition hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0",
         VARIANTS[variant],
         className,
       )}
