@@ -37,10 +37,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const activeRow =
     rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0] ?? null;
 
-  // Everyone finishes onboarding before the dashboard: no org, or an org that hasn't
-  // completed agreement/payment (registered / awaiting_payment), goes to the wizard
-  // (full-screen, outside this shell). The wizard resumes at the right step from status.
-  if (rows.length === 0) redirect(isGcStaff ? "/queue" : "/onboarding");
+  // Client onboarding gate: a NON-GC user with no org (or an org mid-onboarding) goes to the
+  // full-screen wizard. A GC operator is not a client — one with no client org still renders
+  // this shell and uses the operator surfaces (Queue/Vendors now live INSIDE it, under the
+  // (operator) group). We must not bounce them to onboarding, and must not redirect them to
+  // /queue either — /queue now lives under this same layout, so that would loop.
+  if (rows.length === 0 && !isGcStaff) redirect("/onboarding");
   if (activeRow && activeRow.organizations!.status !== "active") {
     redirect("/onboarding");
   }
