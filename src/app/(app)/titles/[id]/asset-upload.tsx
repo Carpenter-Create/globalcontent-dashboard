@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ async function putWithRetry(url: string, body: Blob, tries = 3): Promise<string>
 // Multipart upload direct to S3: initiate → per part (sign → PUT) → complete.
 export function AssetUpload({ titleId }: { titleId: string }) {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<Kind>("master");
   const [file, setFile] = useState<File | null>(null);
   const [pct, setPct] = useState<number | null>(null);
@@ -89,6 +90,9 @@ export function AssetUpload({ titleId }: { titleId: string }) {
       if (!complete.ok) throw new Error((await complete.json()).error ?? "complete failed");
 
       setFile(null);
+      // Reset the native file input too — clearing React state alone leaves the browser
+      // still showing the just-uploaded filename next to "Choose File".
+      if (fileInputRef.current) fileInputRef.current.value = "";
       setPct(null);
       router.refresh();
     } catch (err) {
@@ -112,6 +116,7 @@ export function AssetUpload({ titleId }: { titleId: string }) {
           <option value="screener">Screener</option>
         </select>
         <input
+          ref={fileInputRef}
           type="file"
           aria-label="Asset file"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
