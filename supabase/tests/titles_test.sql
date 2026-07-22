@@ -20,8 +20,8 @@ insert into auth.users (id) values
   (current_setting('t.viewer')::uuid), (current_setting('t.acct')::uuid),
   (current_setting('t.legal')::uuid), (current_setting('t.gc')::uuid);
 
-insert into public.organizations (id, name) values
-  (current_setting('t.org_a')::uuid, 'Org A'), (current_setting('t.org_b')::uuid, 'Org B');
+insert into public.organizations (id, name, status) values
+  (current_setting('t.org_a')::uuid, 'Org A', 'active'), (current_setting('t.org_b')::uuid, 'Org B', 'active');
 
 insert into public.memberships (org_id, user_id, role, status) values
   (current_setting('t.org_a')::uuid, current_setting('t.owner')::uuid,  'account_owner', 'active'),
@@ -65,37 +65,37 @@ select throws_ok($$ insert into public.titles (org_id, title)
   '42501', null, 'direct client INSERT is rejected (RPC-only write path)');
 
 -- create_title capability matrix (RPC re-checks member_can 'operate').
-select lives_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Owner Title') $$,
+select lives_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Owner Title', 'new_release'::public.release_type, null) $$,
   'account_owner: create_title succeeds');
 
 -- ===== delivery_ops =====
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.deliv'), 'role', 'authenticated')::text, true);
-select lives_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Deliv Title') $$,
+select lives_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Deliv Title', 'new_release'::public.release_type, null) $$,
   'delivery_ops: create_title succeeds');
 
 -- ===== viewer =====
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role', 'authenticated')::text, true);
-select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope') $$,
+select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope', 'new_release'::public.release_type, null) $$,
   'P0001', null, 'viewer: create_title raises (not operate-capable)');
 
 -- ===== accountant =====
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.acct'), 'role', 'authenticated')::text, true);
-select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope') $$,
+select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope', 'new_release'::public.release_type, null) $$,
   'P0001', null, 'accountant: create_title raises (not operate-capable)');
 
 -- ===== legal =====
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.legal'), 'role', 'authenticated')::text, true);
-select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope') $$,
+select throws_ok($$ select public.create_title(current_setting('t.org_a')::uuid, 'Nope', 'new_release'::public.release_type, null) $$,
   'P0001', null, 'legal: create_title raises (read-only)');
 
 -- ===== GC staff (scope inverts — all orgs) =====
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role', 'authenticated')::text, true);
-select lives_ok($$ select public.create_title(current_setting('t.org_b')::uuid, 'GC Title') $$,
+select lives_ok($$ select public.create_title(current_setting('t.org_b')::uuid, 'GC Title', 'new_release'::public.release_type, null) $$,
   'gc_staff: create_title succeeds on any org');
 
 reset role;

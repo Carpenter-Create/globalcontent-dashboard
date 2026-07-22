@@ -1,157 +1,147 @@
 # Release dates + portfolio Dashboard tiles — design
 
 **Date:** 2026-07-21
-**Status:** Approved (design), pending migration-SQL sign-off
+**Status:** Approved (design + migration SQL)
 **Branch:** `feat/release-dates-and-dashboard-tiles`
 
 ## Goal
 
-Give the client Dashboard a **portfolio snapshot** — how many titles, revenue (as a
-seam until statements land), and a **release pipeline** (upcoming / new / just-in). The
-pipeline needs a real per-title release date, which the data model does not yet have. So
-this is two slices:
+Give the client Dashboard a **portfolio snapshot** — how many titles, revenue (a seam until
+statements land), and a **release pipeline** (upcoming / new / just-in). The pipeline needs a
+real per-title release date, which the model does not yet have. Two slices:
 
-- **Slice A — release-date model** (prerequisite): add release type + two dates to titles,
-  collect them at intake, let GC set the re-release date, enforce in RLS, record in the
-  domain spec, migrate + backfill.
+- **Slice A — release-date model** (prerequisite): release type + two dates on titles,
+  collected/owned per the rule below, enforced in RLS, recorded in the domain spec, migrated
+  + backfilled.
 - **Slice B — Dashboard tiles**: read Slice A + existing tables and render the snapshot.
 
-Both slices ship together on this branch (founder: "do it all").
+Both ship together on this branch.
 
 ---
 
 ## Slice A — release-date model
 
-### The model
+### The model (who owns which date)
 
-At **upload**, the client chooses a **release type** and enters the **original release date**:
+The forward-looking **go-to-market date is a distribution decision, and distribution is GC's**
+(manual, GC-driven; GC/Globee never promise a client a delivery date). So the client only ever
+enters a *historical fact they know*; GC always owns the forward date.
 
-- **New release** → the title has not been distributed before. The original release date
-  *is* its upcoming/first release (may be in the future).
-- **Re-release** → the original release date is historical; **GC staff** later set a
-  **re-release date** (the upcoming distribution date).
-
-The Dashboard's effective **"release date" is the *later* of `original_release_date` and
-`re_release_date`** (nulls ignored). So a new release shows its original date; a re-release
-shows the GC-set re-release date. `Upcoming` = that date is in the future; `New` = it is
-recently in the past.
+- **New release** — client picks the type and enters **no date**. GC sets `release_date`; that
+  date is both the original and the upcoming release (they coincide for a first release).
+- **Re-release** — client enters `original_release_date` (the historical original). GC later
+  sets `release_date` (the upcoming re-release date).
 
 ### Fields (on `public.titles`)
 
 | Field | Type | Writer | Rule |
 |---|---|---|---|
-| `release_type` | enum `new_release \| re_release` | Client, at intake | Required for new titles |
-| `original_release_date` | `date` | Client, at intake | Required for new titles; retires the `release_year` metadata field |
-| `re_release_date` | `date`, nullable | **GC staff only** | Null until GC sets it; RLS-enforced |
+| `release_type` | enum `new_release \| re_release` | Client, at intake | |
+| `original_release_date` | `date`, nullable | **Client — re-release only** | Historical original. Null for new releases. |
+| `release_date` | `date`, nullable | **GC only, always** | Go-to-market date. Dashboard shows future ones as "Upcoming". |
+
+**Derived / read rules:**
+- **Dashboard release date = `release_date`** (single source, always GC). No "later of two".
+- **Authoritative original date** (metadata display) = `COALESCE(original_release_date, release_date)`
+  — a new release's original reads as its release date.
+
+**`release_year` is KEPT this PR (not retired).** Discovered during implementation:
+`release_year` feeds the vendor export mapping (`export-spec.ts` derives its allowed field keys
+from `METADATA_FIELDS`; the standard template maps a "Year" column to it) and the
+`suggest_same_work` RPC. The export engine has no source kind for a title *column*, so retiring
+`release_year` would require a new export source + resolver + a second RPC migration — vendor-export
+blast radius, out of scope here. `original_release_date` is the authoritative *distribution*
+original going forward; unifying `release_year` onto it (derive the year + add an export source) is
+a fast-follow. No metadata-lib / export / validator changes in this PR.
 
 **Design calls (approved):**
-1. `original_release_date` is a **first-class `titles` column**, not a JSONB metadata key —
-   it drives operational logic (the pipeline) and pairs with `release_type` /
-   `re_release_date`. It still appears in the metadata form UX. Retires `release_year`.
-2. `re_release_date` is **GC-write / client-read, enforced in RLS** (golden rule 12/10 —
-   a client editing a distribution date is a correctness/authority risk), via a
-   `set_re_release_date` SECURITY DEFINER RPC gated on `is_gc_staff` (mirrors
-   `set_delivery_status`).
+1. Both dates are first-class `titles` columns (drive operational logic; pair with `release_type`).
+2. `release_date` is **GC-write only, enforced in RLS** via a `set_release_date` SECURITY DEFINER
+   RPC gated on `is_gc_staff` (mirrors `set_delivery_status`). No client write path.
 
-### Write paths (RPCs — house pattern: mutations are RPCs)
+### Write paths (RPCs)
 
-- **`create_title(p_org_id, p_title, p_release_type, p_original_release_date)`** — extend the
-  existing RPC. All four args **required** (no DEFAULT — we *want* TS to force them; the
-  known-gotcha only applies to args we intend to omit). Drop the old 2-arg overload first so
-  no ambiguous overload lingers. Raise if `p_release_type`/`p_original_release_date` missing.
-- **`set_title_release_info(p_org_id, p_title_id, p_release_type, p_original_release_date)`** —
-  new, **client** (`member_can(...,'operate')`), for edits from the metadata/title form.
-- **`set_re_release_date(p_title_id, p_date date default null)`** — new, **GC-only**
-  (`is_gc_staff`), mirrors `set_delivery_status`. `default null` so it is omittable/clearable.
+- **`create_title(p_org_id, p_title, p_release_type, p_original_release_date default null)`** —
+  extend; drop the old 2-arg overload. `release_type` required; `original_release_date` required
+  **iff** `re_release`; never accepts `release_date`.
+- **`set_title_release_info(p_org_id, p_title_id, p_release_type, p_original_release_date default null)`**
+  — new, client (`member_can 'operate'`), for form edits. Same re-release rule.
+- **`set_release_date(p_title_id, p_date date default null)`** — new, **GC-only** (`is_gc_staff`).
+  `default null` clears.
 
 ### Backfill
 
-Existing titles carry `release_year` (a year, in `title_metadata.data`). Backfill
-`original_release_date = make_date(year,1,1)` where a 4-digit year exists (regex-guarded).
-`release_type` defaults to `new_release` (the existing catalog was originally released).
-`re_release_date` stays null. Titles with no valid `release_year` keep a null
-`original_release_date` (legacy drafts) — enforced-required only on new writes.
+Existing catalog is already released: seed **both** `original_release_date` and `release_date`
+from `title_metadata.data->>'release_year'` (`make_date(year,1,1)`, regex-guarded, NULLs only).
+`release_type` defaults `new_release`.
 
 ### App changes (Slice A)
 
-- **New-title / intake form** gains a **release type** selector + **original release date**
-  input; passes them to `create_title`. (Founder checkpoint: form copy/layout.)
-- **`lib/metadata.ts`** — remove `release_year` from `METADATA_FIELDS` (retired). Adjust the
-  required-completeness count + the metadata validator accordingly. Release fields are edited
-  via `set_title_release_info`, not the JSONB blob.
-- **GC title detail** (`app/gc/titles/[id]`) — add a GC-only **re-release date** control
-  (calls `set_re_release_date`), shown for `release_type = re_release` (settable regardless,
-  but surfaced primarily for re-releases).
-- **`docs/domain-spec.md`** — record the release-date model in the same PR (golden rule /
-  CLAUDE.md: decisions not in the spec get written to the spec).
+- **New-title / intake form** — add a **release type** selector; show an **original release date**
+  input only when *Re-release* is chosen; pass to `create_title`. (Founder checkpoint: copy/layout.)
+- **`lib/metadata.ts`** — unchanged (`release_year` kept — see note above).
+- **Client title detail** — a release-info section: view type + original date; operators edit via
+  `set_title_release_info`.
+- **GC title detail** (`app/gc/titles/[id]`) — GC-only **release date** control → `set_release_date`.
+- **`docs/domain-spec.md`** — record the release-date model in this PR.
 - Regenerate `src/lib/supabase/database.types.ts`.
 
 ---
 
 ## Slice B — portfolio Dashboard tiles
 
-### Effective release date (shared helper, `lib/releases.ts`)
+### Release logic (shared helper, `lib/releases.ts`)
 
-```
-effectiveReleaseDate(t) = max(original_release_date, re_release_date)   // nulls ignored, null if both null
-```
-
-Buckets (constants in `lib/releases.ts`, adjustable):
-- **Upcoming** — `effectiveReleaseDate > today`
-- **New releases** — `today - RELEASE_NEW_WINDOW_DAYS <= effectiveReleaseDate <= today` (default 30d)
-- **Just in** (recent acquisitions) — `created_at >= today - JUST_IN_WINDOW_DAYS` (default 30d); independent of release date
+- `effectiveReleaseDate(t) = t.release_date` (the always-GC forward date; null if unset).
+- `originalReleaseDate(t) = t.original_release_date ?? t.release_date` (display only).
+- Buckets (constants, adjustable): **Upcoming** `release_date > today`; **New releases**
+  `today - RELEASE_NEW_WINDOW_DAYS <= release_date <= today` (default 30d); **Just in**
+  `created_at >= today - JUST_IN_WINDOW_DAYS` (default 30d; independent of release date).
 
 ### Tiles
 
-1. **Catalog** — total titles; meta: `N live · M in review`. Links to `/titles`.
-2. **Revenue** — placeholder seam: value `—`, meta "Arrives with statements". No number, no link (until the module lands).
-3. **Upcoming releases** — count of upcoming; meta: `next: <date>`. Links to `/titles` (filtered later).
-4. **New releases** — count in the new window; meta: window label.
-5. **Just in** — a compact recent-acquisitions **list** (title + date added) below the KPI row, since it's naturally a list, not a single number.
+1. **Catalog** — total titles; meta `N live · M in review`; links `/titles`.
+2. **Revenue** — placeholder seam: value `—`, meta "Arrives with statements"; no number, no link.
+3. **Upcoming releases** — count upcoming; meta `next: <date>`.
+4. **New releases** — count in the new window; meta window label.
+5. **Just in** — compact recent-acquisitions **list** (title + date added) below the KPI row.
 
-Retained from PR #19 (below the tiles): the **Catalog Health attention pointer** + the
-**org summary** card. Findings stay owned by the Catalog Health page — the Dashboard only
-points there.
+Retained from PR #19 below the tiles: the **Catalog Health attention pointer** + **org summary**.
+Findings stay owned by the Catalog Health page.
 
 ### Layout (founder checkpoint — visual)
 
-KPI strip, 4 across: **Catalog · Revenue · Upcoming · New releases**; then the **Just in**
-list; then the attention pointer + org summary. Chosen for scan-density; adjustable — this is
-a visual decision the founder signs off on.
+KPI strip 4-across: **Catalog · Revenue · Upcoming · New releases**; then **Just in**; then the
+attention pointer + org summary. Adjustable.
 
 ### Primitive
 
-New shared **`StatTile`** (`src/components/dashboard/stat-tile.tsx`):
-`{ label, value, meta?, href?, tone? }`, built on `.card-surface` + `.stat-card` tokens,
-`tabular-nums` for the number. Server-component-safe (no client hooks). Shared so the future
-**GC aggregate Dashboard** reuses it unchanged (same reads, `is_gc_staff` scope).
+New shared **`StatTile`** (`src/components/dashboard/stat-tile.tsx`): `{ label, value, meta?, href?, tone? }`,
+on `.card-surface`/`.stat-card` tokens, `tabular-nums`, server-component-safe. Shared so the future
+GC aggregate Dashboard reuses it unchanged.
 
-### Data reads (server component, per the established pattern)
+### Data reads
 
-- Titles + release fields + status + created_at: `titles` (org-scoped by RLS).
-- Counts computed in the server component (catalog sizes don't justify aggregate RPCs yet —
-  revisit if they grow).
-- Revenue: none (placeholder).
+Server component reads `titles` (org-scoped by RLS) with the release fields + status + created_at;
+counts computed in the component (no aggregate RPCs yet). Revenue: none (placeholder).
 
 ---
 
 ## Testing / verification
 
-- **DB (pgTAP or SQL):** `set_re_release_date` rejects a non-GC caller; a client cannot write
-  `re_release_date`; `create_title` requires the new args; backfill maps `release_year` → date.
-- **Unit (Vitest):** `effectiveReleaseDate` + bucket logic (new/upcoming/just-in) across
-  edge cases (both null, original only, re-release later/earlier, boundary dates).
-- **Manual:** create a new-release title (future date → shows Upcoming); mark a title
-  re-release + GC sets a re-release date → shows Upcoming with the GC date; verify the client
-  cannot edit `re_release_date`.
+- **DB:** `set_release_date` rejects non-GC callers; client has no `release_date` write path;
+  `create_title` enforces the re-release rule; backfill maps `release_year` → both dates.
+- **Unit (Vitest):** `effectiveReleaseDate` + bucket logic across edge cases (release_date null,
+  future, boundary days; new vs re-release).
+- **Manual:** new-release title (GC sets future `release_date` → Upcoming); re-release (client
+  original + GC re-release date → Upcoming); confirm client cannot set `release_date`.
 - `pnpm typecheck && pnpm lint && pnpm test` green before PR.
 
-## Out of scope (seams, not built)
+## Out of scope (seams)
 
-Revenue numbers (statements module), per-platform/per-window release dates, GC aggregate
-Dashboard, `/titles` release-filtered views. Designed so each drops in later without rework.
+Revenue numbers (statements module), per-platform/per-window release dates, GC aggregate Dashboard,
+`/titles` release-filtered views.
 
 ## Sequencing
 
-Slice A (migration → SQL approval → apply → app + spec + types) **then** Slice B (helper +
-tiles + tests). One PR on this branch.
+Slice A (migration → apply → app + spec + types) then Slice B (helper + tiles + tests). One PR.

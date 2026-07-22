@@ -8,6 +8,8 @@ import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { METADATA_FIELDS } from "@/lib/metadata";
 import { FindingsCard } from "@/components/findings/findings-card";
+import type { ReleaseType } from "@/lib/releases";
+import { ReleaseDateControl } from "./release-date-control";
 import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
 import { ReviewControls } from "@/app/gc/review/review-controls";
 import { LinkControls, type Suggestion } from "@/app/gc/review/link-controls";
@@ -34,7 +36,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
 
   const { data: t } = await supabase
     .from("titles")
-    .select("id, title, catalog_id, status, work_id, created_at, organizations(name)")
+    .select("id, title, catalog_id, status, work_id, created_at, release_type, original_release_date, release_date, organizations(name)")
     .eq("id", id)
     .maybeSingle();
   if (!t) notFound();
@@ -98,6 +100,18 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
       <div className="flex flex-col gap-4">
         {/* Findings first — what needs attention on this title. */}
         <FindingsCard findings={findings ?? []} />
+
+        {/* Release date — GC-owned go-to-market date (client cannot set it). */}
+        <Card>
+          <CardBody>
+            <ReleaseDateControl
+              titleId={t.id}
+              releaseType={t.release_type as ReleaseType}
+              originalReleaseDate={t.original_release_date}
+              releaseDate={t.release_date}
+            />
+          </CardBody>
+        </Card>
 
         {/* Rights & territories */}
         <Card>

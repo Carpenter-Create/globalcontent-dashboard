@@ -75,6 +75,34 @@ export async function setScreenerSource(input: {
   return {};
 }
 
+// Set a title's release type + (for a re-release) the historical original date.
+// Client-owned; written via set_title_release_info (operate-gated in the DB). The
+// forward-looking release_date is GC-owned and set elsewhere.
+export async function setTitleReleaseInfo(input: {
+  orgId: string;
+  titleId: string;
+  releaseType: "new_release" | "re_release";
+  originalReleaseDate?: string;
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("set_title_release_info", {
+    p_org_id: input.orgId,
+    p_title_id: input.titleId,
+    p_release_type: input.releaseType,
+    p_original_release_date:
+      input.releaseType === "re_release" ? input.originalReleaseDate : undefined,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/titles/${input.titleId}`);
+  return {};
+}
+
 // Submit a draft title for chain-of-title review (§11): draft → in_review, via
 // the submit_title RPC (operate-gated in the DB).
 export async function submitTitle(

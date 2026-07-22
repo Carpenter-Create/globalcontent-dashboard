@@ -10,7 +10,9 @@ import { describeTerritory } from "@/lib/territories";
 import { requiredComplete } from "@/lib/metadata";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { FindingsCard } from "@/components/findings/findings-card";
+import type { ReleaseType } from "@/lib/releases";
 import { AddRightsForm } from "./add-rights-form";
+import { ReleaseInfoForm } from "./release-info-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
 import { SubmitButton } from "./submit-button";
@@ -57,7 +59,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const { data: title } = await supabase
     .from("titles")
-    .select("id, title, status, org_id, catalog_id, screener_source")
+    .select("id, title, status, org_id, catalog_id, screener_source, release_type, original_release_date, release_date")
     .eq("id", id)
     .maybeSingle();
   if (!title) notFound(); // RLS returns null for another org's title → 404
@@ -144,6 +146,21 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           <FindingsCard findings={findings ?? []} />
         </div>
       ) : null}
+
+      <div className="mb-6">
+        <Card>
+          <CardBody>
+            <ReleaseInfoForm
+              orgId={title.org_id}
+              titleId={title.id}
+              releaseType={title.release_type as ReleaseType}
+              originalReleaseDate={title.original_release_date}
+              releaseDate={title.release_date}
+              canOperate={canOperate}
+            />
+          </CardBody>
+        </Card>
+      </div>
 
       {canOperate ? (
         <div className="mb-6 max-w-xl">

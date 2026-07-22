@@ -1113,6 +1113,9 @@ export type Database = {
           created_by: string | null
           id: string
           org_id: string
+          original_release_date: string | null
+          release_date: string | null
+          release_type: Database["public"]["Enums"]["release_type"]
           screener_source: Database["public"]["Enums"]["screener_source"]
           status: Database["public"]["Enums"]["title_status"]
           title: string
@@ -1126,6 +1129,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           org_id: string
+          original_release_date?: string | null
+          release_date?: string | null
+          release_type?: Database["public"]["Enums"]["release_type"]
           screener_source?: Database["public"]["Enums"]["screener_source"]
           status?: Database["public"]["Enums"]["title_status"]
           title: string
@@ -1139,6 +1145,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           org_id?: string
+          original_release_date?: string | null
+          release_date?: string | null
+          release_type?: Database["public"]["Enums"]["release_type"]
           screener_source?: Database["public"]["Enums"]["screener_source"]
           status?: Database["public"]["Enums"]["title_status"]
           title?: string
@@ -1318,7 +1327,12 @@ export type Database = {
         Returns: string
       }
       create_title: {
-        Args: { p_org_id: string; p_title: string }
+        Args: {
+          p_org_id: string
+          p_original_release_date?: string
+          p_release_type: Database["public"]["Enums"]["release_type"]
+          p_title: string
+        }
         Returns: string
       }
       finalize_paid_signup: {
@@ -1465,6 +1479,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_release_date: {
+        Args: { p_date?: string; p_title_id: string }
+        Returns: undefined
+      }
       set_screener_source: {
         Args: {
           p_source: Database["public"]["Enums"]["screener_source"]
@@ -1474,6 +1492,15 @@ export type Database = {
       }
       set_title_metadata: {
         Args: { p_data: Json; p_org_id: string; p_title_id: string }
+        Returns: undefined
+      }
+      set_title_release_info: {
+        Args: {
+          p_org_id: string
+          p_original_release_date?: string
+          p_release_type: Database["public"]["Enums"]["release_type"]
+          p_title_id: string
+        }
         Returns: undefined
       }
       submit_title: {
@@ -1539,6 +1566,7 @@ export type Database = {
         | "download"
         | "restore_requested"
       portal_link_purpose: "master_download" | "screener_view"
+      release_type: "new_release" | "re_release"
       review_decision: "approve" | "reject"
       rights_type:
         | "theatrical"
@@ -1756,6 +1784,7 @@ export const Constants = {
         "restore_requested",
       ],
       portal_link_purpose: ["master_download", "screener_view"],
+      release_type: ["new_release", "re_release"],
       review_decision: ["approve", "reject"],
       rights_type: [
         "theatrical",
