@@ -78,9 +78,11 @@ export async function linkTitleToWork(
   return {};
 }
 
-// The raw token is shown to GC exactly once, in this return value — only the hash is
-// ever persisted (create_screener_link stores p_token_hash). GC gate is the RPC itself
-// (is_gc_staff + screenable-asset check), not this action.
+// Create (or reset) the ONE reusable screener share link for a title. The RPC revokes any
+// prior live screener link first, so calling this again is the "reset". Unlike master-download
+// links (hash-only), the raw token is persisted as share_token so GC can re-copy the URL on
+// later page loads — acceptable for a screener (view-only, OTP-gated; see the migration note).
+// GC gate is the RPC itself (is_gc_staff + screenable-asset check), not this action.
 export async function createScreenerLink(input: { titleId: string }): Promise<{ error?: string; url?: string }> {
   const supabase = await createClient();
   const {
@@ -92,11 +94,13 @@ export async function createScreenerLink(input: { titleId: string }): Promise<{ 
   const { error } = await supabase.rpc("create_screener_link", {
     p_title_id: input.titleId,
     p_token_hash: hashToken(token),
+    p_share_token: token,
   });
   if (error) return { error: error.message };
 
   const base = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
   revalidatePath("/gc/review");
+  revalidatePath(`/gc/titles/${input.titleId}`);
   return { url: `${base}/portal/${token}` };
 }
 

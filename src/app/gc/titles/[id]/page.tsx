@@ -53,7 +53,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
       supabase.rpc("same_work_conflicts", { p_title_id: id }),
       supabase
         .from("portal_links")
-        .select("id, title_id, expires_at, revoked_at, created_at")
+        .select("id, title_id, expires_at, revoked_at, created_at, share_token")
         .eq("purpose", "screener_view")
         .eq("title_id", id)
         .order("created_at", { ascending: false }),
@@ -72,6 +72,11 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
     ]);
 
   const links = (screenerLinks ?? []) as ScreenerLink[];
+  // The reusable share URL is built server-side (PORTAL_BASE_URL) from the live link's
+  // persisted token. Newest live link with a token wins (list is created_at desc).
+  const shareLink = links.find((l) => !l.revoked_at && new Date(l.expires_at) > new Date() && l.share_token);
+  const portalBase = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
+  const activeShareUrl = shareLink?.share_token ? `${portalBase}/portal/${shareLink.share_token}` : null;
   const engagementEntries = await Promise.all(
     links
       .filter((l) => !l.revoked_at)
@@ -171,7 +176,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         {/* Screener (external pitch link) + engagement */}
         <Card>
           <CardBody>
-            <ScreenerPanel titleId={t.id} links={links} engagement={engagement} />
+            <ScreenerPanel titleId={t.id} links={links} engagement={engagement} activeShareUrl={activeShareUrl} />
           </CardBody>
         </Card>
       </div>

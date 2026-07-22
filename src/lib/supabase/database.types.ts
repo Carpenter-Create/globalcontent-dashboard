@@ -641,6 +641,7 @@ export type Database = {
           id: string
           purpose: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at: string | null
+          share_token: string | null
           title_id: string | null
           token_hash: string
         }
@@ -653,6 +654,7 @@ export type Database = {
           id?: string
           purpose?: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at?: string | null
+          share_token?: string | null
           title_id?: string | null
           token_hash: string
         }
@@ -665,6 +667,7 @@ export type Database = {
           id?: string
           purpose?: Database["public"]["Enums"]["portal_link_purpose"]
           revoked_at?: string | null
+          share_token?: string | null
           title_id?: string | null
           token_hash?: string
         }
@@ -1321,6 +1324,7 @@ export type Database = {
       create_screener_link: {
         Args: {
           p_expires_at?: string
+          p_share_token?: string
           p_title_id: string
           p_token_hash: string
         }
