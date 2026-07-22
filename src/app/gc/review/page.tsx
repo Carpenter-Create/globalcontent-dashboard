@@ -4,5 +4,5 @@ import { redirect } from "next/navigation";
 // redirects; the review components (review-controls, link-controls, screener-panel) and
 // actions still live here and are imported by /gc/titles/[id].
 export default function GcReviewRedirect() {
-  redirect("/gc/queue");
+  redirect("/queue");
 }

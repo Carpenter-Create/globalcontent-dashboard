@@ -31,7 +31,7 @@ export default async function GcVendorsPage() {
       ) : (
         <div className="mb-8 flex flex-col gap-2">
           {list.map((vn) => (
-            <Link key={vn.id} href={`/gc/vendors/${vn.id}`} className="block">
+            <Link key={vn.id} href={`/vendors/${vn.id}`} className="block">
               <Card className="transition-colors hover:bg-surface-muted">
                 <CardBody className="flex items-center justify-between gap-4">
                   <span className="t-body font-medium text-ink">{vn.name}</span>

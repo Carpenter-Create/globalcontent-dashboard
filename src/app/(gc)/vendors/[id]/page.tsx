@@ -16,7 +16,7 @@ export default async function EditVendorPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <PageHeader title={vn.name} subtitle="Edit vendor" backLink={{ href: "/gc/vendors", label: "Vendors" }} />
+      <PageHeader title={vn.name} subtitle="Edit vendor" backLink={{ href: "/vendors", label: "Vendors" }} />
       <VendorForm
         initial={{
           id: vn.id,

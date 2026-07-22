@@ -57,7 +57,7 @@ export function VendorForm({ initial }: { initial?: VendorInitial }) {
     // button stays stuck on "Saving…". (The edit form navigates away and unmounts.)
     setSaving(false);
     if (!initial?.id) setV(EMPTY);
-    router.push("/gc/vendors");
+    router.push("/vendors");
     router.refresh();
   }
 
