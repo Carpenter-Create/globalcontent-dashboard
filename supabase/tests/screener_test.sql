@@ -6,7 +6,7 @@
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
 
 begin;
-select plan(33);
+select plan(38);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -16,6 +16,7 @@ select set_config('t.title_m', gen_random_uuid()::text, false);  -- screener_sou
 select set_config('t.title_d', gen_random_uuid()::text, false);  -- screener_source 'dedicated'
 select set_config('t.title_x', gen_random_uuid()::text, false);  -- 'master' source, no master asset
 select set_config('t.asset_m', gen_random_uuid()::text, false);  -- master asset for title_m
+select set_config('t.title_s', gen_random_uuid()::text, false);  -- 'master' source, isolated share-link tests
 select set_config('t.grant',   gen_random_uuid()::text, false);
 select set_config('t.vendor',  gen_random_uuid()::text, false);
 select set_config('t.deliv',   gen_random_uuid()::text, false);
@@ -37,6 +38,11 @@ insert into public.titles (id, org_id, title, status)
 insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
   values (current_setting('t.asset_m')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
           'master', 'orgs/x/titles/m/master/film.mov', 'deadbeef', 1000);
+insert into public.titles (id, org_id, title, status)
+  values (current_setting('t.title_s')::uuid, current_setting('t.org')::uuid, 'Film Share', 'in_delivery');
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
+  values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_s')::uuid,
+          'master', 'orgs/x/titles/s/master/film.mov', 'cafecafe', 1000);
 insert into public.rights_grants (id, org_id, title_id, rights_type, territory_mode, territories, effective_from)
   values (current_setting('t.grant')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
           'svod', 'world', '{}', now() - interval '1 day');
@@ -265,6 +271,36 @@ select lives_ok(
   'owner sets screener_source');
 select is((select screener_source::text from public.titles where id = current_setting('t.title_m')::uuid),
   'dedicated', 'screener_source updated to dedicated');
+
+-- ============================================================================
+-- Reusable share link: share_token persists; a second create revokes the first
+-- (single active screener link per title). Isolated on title_s so it doesn't
+-- disturb the tok_master / tok_dedicated_ok links used above.
+-- ============================================================================
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L) $$,
+         current_setting('t.title_s'), 'tok_share_1', 'share_aaa'),
+  'GC creates a share link carrying a persisted token');
+select is(
+  (select share_token from public.portal_links where token_hash = 'tok_share_1'),
+  'share_aaa', 'share_token is persisted on the screener link');
+
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L) $$,
+         current_setting('t.title_s'), 'tok_share_2', 'share_bbb'),
+  'GC creates a replacement share link for the same title');
+select is(
+  (select revoked_at is not null from public.portal_links where token_hash = 'tok_share_1'),
+  true, 'creating a new share link revokes the prior one (single-active)');
+select is(
+  (select count(*) from public.portal_links
+     where title_id = current_setting('t.title_s')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
+  1, 'exactly one active screener link remains per title');
 
 reset role;
 select * from finish();

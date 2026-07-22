@@ -6,8 +6,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { createScreenerLink, revokeScreenerLink } from "./actions";
+import { ScreenerWatch } from "./screener-watch";
 
-export type ScreenerLink = { id: string; expires_at: string; revoked_at: string | null; created_at: string };
+export type ScreenerLink = {
+  id: string;
+  expires_at: string;
+  revoked_at: string | null;
+  created_at: string;
+  share_token: string | null;
+};
 export type ScreenerViewer = {
   session_id: string;
   name: string | null;
@@ -19,31 +26,46 @@ export type ScreenerViewer = {
   last_viewed: string | null;
 };
 
-// GC-only "Screen this title" panel: generate/revoke screener links and the
-// per-viewer watch summary. The RPCs (create_screener_link, revoke_portal_link,
-// screener_engagement) are the auth boundary — is_gc_staff enforced in the DB, not here.
+// GC-only "Screener" panel. Two distinct verbs: WATCH the screener in-app (no OTP, silent —
+// see ScreenerWatch), and manage ONE reusable SHARE link to send to an outside viewer. The
+// RPCs (create_screener_link, revoke_portal_link, screener_engagement) are the auth boundary —
+// is_gc_staff enforced in the DB, not here. `activeShareUrl` is built server-side from the live
+// link's persisted share_token (null until a link exists / for legacy hash-only links).
 export function ScreenerPanel({
   titleId,
   links,
   engagement,
+  activeShareUrl,
 }: {
   titleId: string;
   links: ScreenerLink[];
   engagement: Record<string, ScreenerViewer[]>;
+  activeShareUrl: string | null;
 }) {
   const router = useRouter();
-  const [generated, setGenerated] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  async function generate() {
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy — select the link and copy it manually.");
+    }
+  }
+
+  // Create (or reset) the reusable share link: the RPC revokes any prior live link for this
+  // title, so this is both "create" and "reset". Auto-copy the fresh URL — that's the point.
+  async function createOrReset() {
     setBusy(true);
     setError(null);
-    setGenerated(null);
     const res = await createScreenerLink({ titleId });
     setBusy(false);
     if (res.error) return setError(res.error);
-    setGenerated(res.url ?? null);
+    if (res.url) await copy(res.url);
     router.refresh();
   }
 
@@ -57,52 +79,87 @@ export function ScreenerPanel({
   }
 
   const active = links.filter((l) => !l.revoked_at);
-  const revoked = links.filter((l) => l.revoked_at);
+  const shareLink = active.find((l) => l.share_token) ?? null;
+  // Legacy hash-only links (no persisted token) can't be re-copied — list them for cleanup.
+  const legacyActive = active.filter((l) => l.id !== shareLink?.id);
   const viewers = active.flatMap((l) => engagement[l.id] ?? []);
 
   return (
-    <div className="flex flex-col gap-2 border-t border-hairline pt-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="t-body-sm font-medium text-ink-2">Screen this title</span>
-        <Button variant="secondary" onClick={generate} disabled={busy} className="shrink-0">
-          Generate link
-        </Button>
+    <div className="flex flex-col gap-4 border-t border-hairline pt-3">
+      {/* WATCH — GC staff view the screener in-app, no OTP, not logged as a screening. */}
+      <div className="flex flex-col gap-1">
+        <span className="t-body-sm font-medium text-ink-2">Screener</span>
+        <ScreenerWatch titleId={titleId} />
       </div>
 
-      {generated ? (
-        <InlineNotice tone="info">
-          Copy into your email — shown once, not stored: <code className="break-all">{generated}</code>
-        </InlineNotice>
-      ) : null}
-      {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+      {/* SHARE — one reusable link to send to an outside viewer. */}
+      <div className="flex flex-col gap-2">
+        <span className="t-label text-ink-3">Share with an outside viewer</span>
 
-      {active.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          {active.map((l) => (
-            <div key={l.id} className="flex items-center justify-between gap-2 t-body-sm text-ink-2">
-              <span>Active · expires {new Date(l.expires_at).toLocaleDateString()}</span>
-              <Button variant="ghost" onClick={() => revoke(l.id)} disabled={busy}>
-                Revoke
+        {activeShareUrl ? (
+          <>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded-[var(--radius-sm)] bg-surface-muted px-2 py-1.5 t-body-sm text-ink-2">
+                {activeShareUrl}
+              </code>
+              <Button variant="secondary" onClick={() => copy(activeShareUrl)} disabled={busy} className="shrink-0">
+                {copied ? "Copied" : "Copy link"}
               </Button>
             </div>
-          ))}
-        </div>
-      ) : (
-        <p className="t-body-sm text-ink-3">No active screener links.</p>
-      )}
-
-      {revoked.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          {revoked.map((l) => (
-            <div key={l.id} className="t-body-sm text-ink-3">
-              Revoked · was set to expire {new Date(l.expires_at).toLocaleDateString()}
+            <div className="flex items-center gap-3 t-body-sm text-ink-3">
+              {shareLink ? <span>Expires {new Date(shareLink.expires_at).toLocaleDateString()}</span> : null}
+              <button
+                type="button"
+                onClick={createOrReset}
+                disabled={busy}
+                className="text-ink-2 underline-offset-2 transition-colors hover:text-ink hover:underline disabled:opacity-50"
+              >
+                Reset link
+              </button>
+              {shareLink ? (
+                <button
+                  type="button"
+                  onClick={() => revoke(shareLink.id)}
+                  disabled={busy}
+                  className="text-ink-2 underline-offset-2 transition-colors hover:text-ink hover:underline disabled:opacity-50"
+                >
+                  Revoke
+                </button>
+              ) : null}
             </div>
-          ))}
-        </div>
-      ) : null}
+          </>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <p className="t-body-sm text-ink-3">
+              Anyone with the link confirms their name and email before they can watch.
+            </p>
+            <Button variant="secondary" onClick={createOrReset} disabled={busy} className="shrink-0">
+              Create share link
+            </Button>
+          </div>
+        )}
 
+        {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+
+        {/* Legacy links minted before the reusable model — no stored token, so offer cleanup. */}
+        {legacyActive.length > 0 ? (
+          <div className="flex flex-col gap-1 pt-1">
+            <span className="t-label text-ink-3">Older links</span>
+            {legacyActive.map((l) => (
+              <div key={l.id} className="flex items-center justify-between gap-2 t-body-sm text-ink-3">
+                <span>Active · expires {new Date(l.expires_at).toLocaleDateString()}</span>
+                <Button variant="ghost" onClick={() => revoke(l.id)} disabled={busy}>
+                  Revoke
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Who has watched — external viewers only (GC in-app previews are not logged). */}
       {viewers.length > 0 ? (
-        <div className="flex flex-col gap-0.5 pt-1">
+        <div className="flex flex-col gap-0.5">
           <span className="t-label text-ink-3">Viewer activity</span>
           {viewers.map((v) => (
             <div key={v.session_id} className="flex items-center justify-between gap-3 t-body-sm text-ink-2">
