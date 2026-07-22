@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
+import { Stat, StatGrid } from "@/components/layout/stat";
 import {
   CATALOG_RANGES,
   RANGE_WORD,
@@ -314,32 +315,13 @@ export function CatalogActivityHero({ createdAt, nowMs, stats }: CatalogActivity
         ) : null}
       </div>
 
-      {/* Stats row */}
-      <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] bg-band-ink/[0.06] sm:grid-cols-4">
-        <HeroStat label="Catalog" value={stats.catalog} />
-        <HeroStat label="Upcoming" value={stats.upcoming} />
-        <HeroStat label="Live" value={stats.live} />
-        <HeroStat label="Revenue" value={stats.revenue} muted />
-      </dl>
+      {/* Stats row — the shared Stat primitive on the band surface (layout standard) */}
+      <StatGrid surface="band" className="mt-6">
+        <Stat surface="band" label="Catalog" value={stats.catalog} />
+        <Stat surface="band" label="Upcoming" value={stats.upcoming} />
+        <Stat surface="band" label="Live" value={stats.live} />
+        <Stat surface="band" label="Revenue" value={stats.revenue} muted />
+      </StatGrid>
     </section>
-  );
-}
-
-function HeroStat({
-  label,
-  value,
-  muted = false,
-}: {
-  label: string;
-  value: React.ReactNode;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1 bg-band px-4 py-3">
-      <dt className="t-label text-band-ink/50">{label}</dt>
-      <dd className={cn("t-data text-2xl font-medium leading-none", muted ? "text-band-ink/40" : "text-band-ink")}>
-        {value}
-      </dd>
-    </div>
   );
 }

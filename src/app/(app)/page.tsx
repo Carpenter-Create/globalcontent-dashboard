@@ -106,7 +106,6 @@ export default async function DashboardPage() {
                       {t.title}
                     </Link>
                     <span className="shrink-0 text-ink-3">
-                      {t.catalog_id ? `${t.catalog_id} · ` : ""}
                       added {ADDED_FMT.format(new Date(t.created_at))}
                     </span>
                   </li>

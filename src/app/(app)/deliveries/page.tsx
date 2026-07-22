@@ -1,10 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending", delivered: "Delivered", live: "Live", rejected: "Rejected", taken_down: "Taken down",
-};
+import { DELIVERY_STATUS_ROW_LABELS, type DeliveryStatus } from "@/lib/titles";
 
 export default async function DeliveriesPage() {
   const supabase = await createClient();
@@ -25,7 +22,9 @@ export default async function DeliveriesPage() {
                   <span className="t-body font-medium text-ink">{d.title}</span>
                   <span className="t-body-sm text-ink-3">{d.vendor_name} · {d.territory}</span>
                 </div>
-                <span className="shrink-0 t-body-sm text-ink-2">{STATUS_LABELS[d.status] ?? d.status}</span>
+                <span className="shrink-0 t-body-sm text-ink-2">
+                  {DELIVERY_STATUS_ROW_LABELS[d.status as DeliveryStatus] ?? d.status}
+                </span>
               </CardBody>
             </Card>
           ))}

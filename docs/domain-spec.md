@@ -414,6 +414,15 @@ rights live in the account.
 
 > Seam (do not build): if TV structure ever matters, add a nullable `parent_id` + `type` enum.
 
+**`catalog_id` is a GC-internal reference (founder-set 2026-07-22).** The `GC-0001234` catalog
+number is GC's cataloging + accounting key, not a client-facing browsing handle. It is **off the
+client's primary surfaces** (titles list, Dashboard) — in the layout standard it's a `gcOnly`
+table column — and shown normally on GC operator surfaces. It stays *available but demoted* to
+clients (a small, copyable reference on the title detail, and on statements later) because clients
+need an unambiguous key at support/accounting time (titles share names; re-releases exist). This is
+UI-level scoping; `catalog_id` is a non-sensitive internal sequence, so it is not hidden at the data
+layer (a client-facing view omitting it is a future option if ever required).
+
 ### Status lifecycle
 
 ```
