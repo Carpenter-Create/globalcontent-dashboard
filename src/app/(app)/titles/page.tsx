@@ -6,48 +6,46 @@ import { createClient } from "@/lib/supabase/server";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
-import { StatusChip } from "@/components/layout/status-chip";
 import { EmptyState } from "@/components/layout/empty-state";
 import { Artwork } from "@/components/layout/artwork";
-import { Rail } from "@/components/layout/rail";
-import { SpotlightBanner } from "@/components/layout/spotlight-banner";
 import { SearchField } from "@/components/layout/search-field";
-import { StatusFilter } from "@/components/layout/status-filter";
+import { SortControl } from "@/components/layout/sort-control";
 import { AddTitleButton } from "./add-title-button";
 import { titleArtworkUrls } from "@/lib/artwork";
 import { parseSort, parseView, sortRows, nextSort, buildQuery, type SortDir } from "@/lib/catalog-view";
-import {
-  filterTitles,
-  groupIntoRails,
-  spotlightTitle,
-  filterByStatus,
-  parseStatusFilter,
-  CATALOG_STATUS_FILTERS,
-  type BrowseTitle,
-} from "@/lib/titles-browse";
-import { TITLE_STATUS_LABELS } from "@/lib/titles";
-import { formatReleaseDate, isUpcoming } from "@/lib/releases";
+import { filterTitles, type BrowseTitle } from "@/lib/titles-browse";
+import { formatReleaseDate } from "@/lib/releases";
 
-// The catalog (§11) as the Visual register: streaming browse (spotlight + poster rails
-// + search) ⇄ dense operational table. RLS-scoped to the active org. `catalog_id` is a
-// GC-only column — never shown on this client surface.
+// The catalog (§11) as the Visual register: a clean streaming grid of landscape covers
+// (search + sort) ⇄ dense operational table. RLS-scoped to the active org. `catalog_id`
+// is a GC-only column — never shown on this client surface.
+//
+// Statuses are intentionally not surfaced here (the status filter, per-card chips, and
+// cinematic hero were removed as noise for viewers). The underlying components
+// (StatusChip, StatusFilter, SpotlightBanner) and helpers (groupIntoRails, filterByStatus)
+// remain in the tree for future use — this page simply no longer renders them.
 
-const ALLOWED_SORTS = ["title", "status", "live", "release", "catalog", "created"] as const;
+const ALLOWED_SORTS = ["title", "live", "release", "catalog", "created"] as const;
 const DEFAULT_DIR: Record<string, SortDir> = {
   title: "asc",
-  status: "asc",
   catalog: "asc",
   live: "desc",
   release: "desc",
   created: "desc",
 };
 
+// Browse-grid sort pills. Each maps to a (key, dir) the shared sorter understands; the
+// "recent" default carries no params so the canonical URL stays clean.
+const BROWSE_SORTS: { id: string; label: string; key: string; dir: SortDir }[] = [
+  { id: "recent", label: "Recently added", key: "created", dir: "desc" },
+  { id: "release", label: "Release date", key: "release", dir: "desc" },
+  { id: "title", label: "A–Z", key: "title", dir: "asc" },
+];
+
 function sortValue(key: string, r: BrowseTitle): string | number | null {
   switch (key) {
     case "title":
       return r.title.toLowerCase();
-    case "status":
-      return TITLE_STATUS_LABELS[r.status];
     case "live":
       return r.live;
     case "release":
@@ -59,14 +57,6 @@ function sortValue(key: string, r: BrowseTitle): string | number | null {
   }
 }
 
-function statusChipFor(r: BrowseTitle): { label: string; tone: "neutral" | "active" | "muted" } {
-  if (r.live > 0) return { label: "Live", tone: "active" };
-  return {
-    label: TITLE_STATUS_LABELS[r.status],
-    tone: r.status === "draft" ? "muted" : "neutral",
-  };
-}
-
 export default async function TitlesPage({
   searchParams,
 }: {
@@ -76,7 +66,6 @@ export default async function TitlesPage({
   const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const view = parseView(str(sp.view), "browse");
   const q = (str(sp.q) ?? "").slice(0, 100);
-  const status = parseStatusFilter(str(sp.status));
   const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
   const supabase = await createClient();
@@ -130,15 +119,15 @@ export default async function TitlesPage({
     bannerUrl: posters.get(t.id)?.banner ?? null,
   }));
 
-  const now = new Date();
-  const filtered = filterTitles(filterByStatus(all, status, now), q);
   const searching = q.trim().length > 0;
-  const filtering = searching || status !== "all"; // → show a flat grid, not the rails
+  const filtered = filterTitles(all, q);
+  const sorted = sortRows(filtered, (r) => sortValue(sort.key, r), sort.dir);
 
-  // Shared param bag so every control preserves the others (view/q/status/sort).
+  const activeSortId = BROWSE_SORTS.find((s) => s.key === sort.key && s.dir === sort.dir)?.id ?? "recent";
+
+  // Shared param bag so every control preserves the others (view / q / sort).
   const baseParams: Record<string, string | undefined> = {
     ...(searching ? { q: q.trim() } : {}),
-    ...(status !== "all" ? { status } : {}),
     ...(sort.key === "created" && sort.dir === "desc" ? {} : { sort: sort.key, dir: sort.dir }),
   };
   const href = (override: Record<string, string | undefined>) =>
@@ -149,8 +138,12 @@ export default async function TitlesPage({
     const ns = nextSort(sort, key, DEFAULT_DIR[key] ?? "asc");
     return href({ view: view === "table" ? "table" : undefined, sort: ns.key, dir: ns.dir });
   };
-  const statusHref = (key: string) =>
-    href({ view: view === "table" ? "table" : undefined, status: key === "all" ? undefined : key });
+  // Browse sort pills stay in browse view; the default carries no params for a clean URL.
+  const sortControlHref = (id: string) => {
+    const s = BROWSE_SORTS.find((x) => x.id === id)!;
+    const isDefault = s.key === "created" && s.dir === "desc";
+    return href({ sort: isDefault ? undefined : s.key, dir: isDefault ? undefined : s.dir });
+  };
 
   const columns: Column<BrowseTitle>[] = [
     {
@@ -172,15 +165,6 @@ export default async function TitlesPage({
       sortable: true,
       gcOnly: true,
       cell: () => <span className="text-ink-3">—</span>,
-    },
-    {
-      key: "status",
-      header: "Status",
-      sortable: true,
-      cell: (r) => {
-        const s = statusChipFor(r);
-        return <StatusChip label={s.label} tone={s.tone} />;
-      },
     },
     {
       key: "live",
@@ -216,110 +200,66 @@ export default async function TitlesPage({
           href={`/titles/${r.id}`}
           title={r.title}
           bannerUrl={r.bannerUrl}
-          status={statusChipFor(r)}
           meta={r.release_date ? formatReleaseDate(r.release_date) : undefined}
         />
       ))}
     </div>
   );
 
-  const rails = groupIntoRails(filtered, now);
-  const spotlight = spotlightTitle(filtered, now);
-
-  const heroShown = view === "browse" && !filtering && !!spotlight?.bannerUrl;
-
   return (
-    <>
-      {/* Full-bleed cinematic hero (Apple-TV register) — the page opts out of the width
-          cap in AppShell so this spans the full content width. */}
-      {heroShown ? (
-        <SpotlightBanner
-          href={`/titles/${spotlight!.id}`}
-          kicker={isUpcoming(spotlight!.release_date, now) ? "Next up" : "Featured"}
-          title={spotlight!.title}
-          bannerUrl={spotlight!.bannerUrl}
-          statusLabel={statusChipFor(spotlight!).label}
-          active={spotlight!.live > 0}
-          meta={spotlight!.release_date ? formatReleaseDate(spotlight!.release_date) : undefined}
-        />
-      ) : null}
-
-      {/* Everything below the hero lives in a centered, comfortable-width column. */}
-      <div
-        className={`mx-auto w-full px-6 pb-4 ${heroShown ? "pt-6" : "pt-8"}`}
-        style={{ maxWidth: "var(--page-max-width)" }}
-      >
-        {!heroShown ? (
-          <div className="flex flex-col gap-1 pb-6">
-            <span className="t-label text-accent">Catalog</span>
-            <h1 className="t-subhead text-ink">Titles</h1>
-            <p className="t-body-sm text-ink-3">{`${activeOrg.name}'s catalog.`}</p>
-          </div>
-        ) : null}
-
-        {/* Controls — filters left; search / view / add right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
-          {list.length > 0 ? (
-            <StatusFilter current={status} options={CATALOG_STATUS_FILTERS} hrefFor={statusHref} />
-          ) : (
-            <span />
-          )}
-          <div className="flex items-center gap-2">
-            {list.length > 0 ? <SearchField /> : null}
-            {list.length > 0 ? (
-              <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
-            ) : null}
-            {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
-          </div>
-        </div>
-
-        {list.length === 0 ? (
-          <EmptyState
-            icon={Clapperboard}
-            title="No titles yet"
-            description={
-              canOperate
-                ? "Add your first title to begin building your catalog."
-                : "Titles will appear here once they're added."
-            }
-          />
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={Clapperboard}
-            title={searching ? `No titles match “${q.trim()}”` : "No titles in this filter"}
-            description="Try a different search or filter."
-          />
-        ) : view === "table" ? (
-          <DataTable
-            columns={columns}
-            rows={sortRows(filtered, (r) => sortValue(sort.key, r), sort.dir)}
-            rowKey={(r) => r.id}
-            sort={sort}
-            sortHref={sortHref}
-            rowHref={(r) => `/titles/${r.id}`}
-            isGc={false}
-          />
-        ) : filtering || rails.length <= 1 ? (
-          bannerGrid(filtered)
-        ) : (
-          <div className="flex flex-col gap-8">
-            {rails.map((rail) => (
-              <Rail key={rail.key} label={rail.label}>
-                {rail.rows.map((r) => (
-                  <div key={r.id} className="w-60 shrink-0 snap-start sm:w-72">
-                    <BannerCard
-                      href={`/titles/${r.id}`}
-                      title={r.title}
-                      bannerUrl={r.bannerUrl}
-                      status={statusChipFor(r)}
-                    />
-                  </div>
-                ))}
-              </Rail>
-            ))}
-          </div>
-        )}
+    <div className="mx-auto w-full px-6 pb-4 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
+      {/* Clean text header — no cinematic hero. */}
+      <div className="flex flex-col gap-1 pb-6">
+        <span className="t-label text-accent">Catalog</span>
+        <h1 className="t-subhead text-ink">Titles</h1>
+        <p className="t-body-sm text-ink-3">{`Every title in ${activeOrg.name}'s catalog.`}</p>
       </div>
-    </>
+
+      {/* Controls — sort left (browse only); search / view / add right. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
+        {list.length > 0 && view === "browse" ? (
+          <SortControl current={activeSortId} options={BROWSE_SORTS} hrefFor={sortControlHref} />
+        ) : (
+          <span />
+        )}
+        <div className="flex items-center gap-2">
+          {list.length > 0 ? <SearchField /> : null}
+          {list.length > 0 ? (
+            <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
+          ) : null}
+          {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <EmptyState
+          icon={Clapperboard}
+          title="No titles yet"
+          description={
+            canOperate
+              ? "Add your first title to begin building your catalog."
+              : "Titles will appear here once they're added."
+          }
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Clapperboard}
+          title={`No titles match “${q.trim()}”`}
+          description="Try a different search."
+        />
+      ) : view === "table" ? (
+        <DataTable
+          columns={columns}
+          rows={sorted}
+          rowKey={(r) => r.id}
+          sort={sort}
+          sortHref={sortHref}
+          rowHref={(r) => `/titles/${r.id}`}
+          isGc={false}
+        />
+      ) : (
+        bannerGrid(sorted)
+      )}
+    </div>
   );
 }
