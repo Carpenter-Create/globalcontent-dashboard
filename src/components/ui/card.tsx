@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 export function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("rounded-[var(--radius)] border border-hairline bg-surface", className)}
+      className={cn("rounded-[var(--radius-lg)] border border-hairline bg-surface", className)}
       {...props}
     />
   );

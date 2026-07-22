@@ -38,7 +38,6 @@
   --color-border: var(--border);
 
   --font-sans: var(--font-geist-sans), "Geist", ui-sans-serif, -apple-system, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
 }
 
 html {
@@ -63,8 +62,8 @@ body {
 
 /* ============================================================
    TYPE SYSTEM — one modular scale.
-   Geist (sans) carries everything prominent and functional;
-   Geist Mono handles eyebrows and figures (the "systems" register).
+   Geist Sans carries everything — headings, body, eyebrows, and figures
+   (figures use tabular-nums to align; no monospace face).
    ============================================================ */
 @layer components {
   .t-display {
@@ -130,18 +129,20 @@ body {
     font-weight: 400;
     line-height: 1.6;
   }
-  /* Eyebrows / kickers — monospace "systems" register. */
+  /* Eyebrows / kickers — Geist Sans, uppercase + tracked (matches globalcontent-web;
+     the site moved off the mono "systems" register). Tint with text-accent per usage. */
   .t-label {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: 0.6875rem;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
-  /* Tabular data / figures — mono, so numbers align and read as instruments. */
+  /* Figures — Geist Sans with tabular-nums so numbers align (NO monospace; the brand
+     moved away from Geist Mono). */
   .t-data {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }

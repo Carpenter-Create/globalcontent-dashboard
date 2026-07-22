@@ -15,14 +15,18 @@
 :root {
   /* --- Typeface (Geist — house default) --- */
   --font-sans: "Geist", ui-sans-serif, -apple-system, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+  /* Geist Mono removed — the brand uses Geist Sans throughout (figures use
+     tabular-nums, not a monospace face). */
 
   /* --- Accent: THE one per-product variable. ---
-     NEUTRAL PLACEHOLDER — a grey drawn from the ramp, NOT a brand color. The
-     real Global Content accent is a founder checkpoint pending the logo; do not
-     pick a brand color here. Replace this single value once the brand is set. */
-  --accent: #6b7280;            /* PLACEHOLDER — neutral grey */
-  --accent-contrast: #ffffff;   /* text/icon color on top of --accent */
+     Global Content brand "Sporty Blue" (#1769FF) — the CONFIRMED brand accent
+     (founder-set 2026-07-18 in globalcontent-web; ported here to match the brand
+     truth). Used SPARINGLY: primary action, links, focus ring, small badges, and
+     data/chart accents. White on this blue is ~3.9:1 (AA for large/UI text only) —
+     keep it OFF small body copy. (The logo/wordmark is a separate founder
+     checkpoint and is still pending; that does not block the accent.) */
+  --accent: #1769ff;            /* Global Content — Sporty Blue */
+  --accent-contrast: #ffffff;   /* white on the blue */
 
   /* --- Neutral ramp — LIGHT (default base) ---
      House greyscale canon: airy, neutral near-white. Colour comes only from the
