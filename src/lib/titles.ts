@@ -32,3 +32,16 @@ export const GC_TITLE_STATUS_LABELS: Partial<Record<TitleStatus, string>> = {
 };
 export const gcTitleStatusLabel = (s: TitleStatus): string =>
   GC_TITLE_STATUS_LABELS[s] ?? TITLE_STATUS_LABELS[s];
+
+export type DeliveryStatus = Database["public"]["Enums"]["delivery_status"];
+
+// Standalone, capitalized delivery-status labels for row/summary display. Distinct from the
+// lowercase sentence-fragment DELIVERY_STATUS_LABELS in lib/notifications.ts, which is meant
+// to sit inside a copy string ("…is now live on X"), not stand alone in a status column.
+export const DELIVERY_STATUS_ROW_LABELS: Record<DeliveryStatus, string> = {
+  pending: "Pending",
+  delivered: "Delivered",
+  live: "Live",
+  rejected: "Rejected",
+  taken_down: "Taken down",
+};

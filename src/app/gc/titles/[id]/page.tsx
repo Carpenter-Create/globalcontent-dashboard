@@ -9,7 +9,7 @@ import { METADATA_FIELDS } from "@/lib/metadata";
 import { FindingsCard } from "@/components/findings/findings-card";
 import type { ReleaseType } from "@/lib/releases";
 import { ReleaseDateControl } from "./release-date-control";
-import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
+import { gcTitleStatusLabel, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
 import { ReviewControls } from "@/app/gc/review/review-controls";
 import { LinkControls, type Suggestion } from "@/app/gc/review/link-controls";
 import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/gc/review/screener-panel";
@@ -40,7 +40,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
     .maybeSingle();
   if (!t) notFound();
 
-  const [{ data: grants }, { data: suggestions }, { data: conflicts }, { data: screenerLinks }, { data: metaRow }, { data: findings }, { data: assets }] =
+  const [{ data: grants }, { data: suggestions }, { data: conflicts }, { data: screenerLinks }, { data: metaRow }, { data: findings }, { data: assets }, { data: deliveries }] =
     await Promise.all([
       supabase
         .from("rights_grants")
@@ -68,6 +68,11 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         .select("id, kind, original_filename, bytes")
         .eq("title_id", id)
         .order("kind"),
+      supabase
+        .from("deliveries")
+        .select("id, territory, status, vendors(name)")
+        .eq("title_id", id)
+        .order("created_at", { ascending: false }),
     ]);
 
   const links = (screenerLinks ?? []) as ScreenerLink[];
@@ -140,6 +145,28 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
                   .join("; ")}
               </InlineNotice>
             ) : null}
+          </CardBody>
+        </Card>
+
+        {/* Deliveries — where this title is placed, per vendor/territory (read-only here;
+            GC sets status from the Deliveries queue). */}
+        <Card>
+          <CardBody className="flex flex-col gap-2">
+            <span className="t-label text-ink-3">Deliveries</span>
+            {(deliveries ?? []).length > 0 ? (
+              (deliveries ?? []).map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-4">
+                  <span className="t-body-sm text-ink-2">
+                    {d.vendors?.name ?? "—"} · {d.territory}
+                  </span>
+                  <span className="shrink-0 t-body-sm text-ink-3">
+                    {DELIVERY_STATUS_ROW_LABELS[d.status]}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <span className="t-body-sm text-ink-3">Not yet delivered.</span>
+            )}
           </CardBody>
         </Card>
 

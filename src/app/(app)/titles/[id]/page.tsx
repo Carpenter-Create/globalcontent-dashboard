@@ -16,7 +16,7 @@ import { ReleaseInfoForm } from "./release-info-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
 import { SubmitButton } from "./submit-button";
-import { titleDisplayStatus, type TitleStatus } from "@/lib/titles";
+import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
 
 const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "screener", string> = {
   master: "Master",
@@ -102,12 +102,13 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const showRejection =
     title.status === "draft" && latestReview?.decision === "reject" && !!latestReview.reason;
 
-  const { data: titleDlv } = await supabase
-    .from("deliveries")
-    .select("status")
-    .eq("title_id", id);
-  const liveCount = (titleDlv ?? []).filter((d) => d.status === "live").length;
-  const totalCount = (titleDlv ?? []).length;
+  // Deliveries for this title. Via my_deliveries (SECURITY DEFINER) rather than a direct
+  // query, because clients can't join the vendors table (vendor names are GC-only) — the RPC
+  // returns vendor_name safely. Counts derive from the same array (no second data path).
+  const { data: allDlv } = await supabase.rpc("my_deliveries");
+  const titleDlv = (allDlv ?? []).filter((d) => d.title_id === id);
+  const liveCount = titleDlv.filter((d) => d.status === "live").length;
+  const totalCount = titleDlv.length;
 
   // Open findings, in-context (same store the Catalog Health overview reads). Required first.
   const { data: findings } = await supabase
@@ -200,6 +201,32 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           ))}
         </div>
       )}
+
+      <div className="mt-10">
+        <h2 className="t-body font-medium text-ink pb-3">Deliveries</h2>
+        {titleDlv.length === 0 ? (
+          <Card>
+            <CardBody>
+              <p className="t-body-sm text-ink-3">Not yet delivered to any platform.</p>
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {titleDlv.map((d) => (
+              <Card key={d.delivery_id}>
+                <CardBody className="flex items-center justify-between gap-4">
+                  <span className="t-body-sm text-ink-2">
+                    {d.vendor_name} · {d.territory}
+                  </span>
+                  <span className="shrink-0 t-body-sm font-medium text-ink">
+                    {DELIVERY_STATUS_ROW_LABELS[d.status]}
+                  </span>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="mt-10">
         <h2 className="t-body font-medium text-ink pb-3">Assets</h2>
