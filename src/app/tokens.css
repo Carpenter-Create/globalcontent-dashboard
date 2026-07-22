@@ -15,7 +15,8 @@
 :root {
   /* --- Typeface (Geist — house default) --- */
   --font-sans: "Geist", ui-sans-serif, -apple-system, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+  /* Geist Mono removed — the brand uses Geist Sans throughout (figures use
+     tabular-nums, not a monospace face). */
 
   /* --- Accent: THE one per-product variable. ---
      Global Content brand "Sporty Blue" (#1769FF) — the CONFIRMED brand accent
