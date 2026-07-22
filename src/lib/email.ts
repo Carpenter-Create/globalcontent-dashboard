@@ -4,6 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PORTAL } from "@/lib/portal";
 import type { Database } from "@/lib/supabase/database.types";
 
+// Asset-related + GC-Support emails send from a dedicated identity (founder: "anything asset
+// related should come from assets@globalcontent.co"). Override via ASSETS_EMAIL_FROM; defaults
+// to the verified assets@ address on the globalcontent.co Resend domain (no extra setup needed).
+const EMAIL_FROM = process.env.ASSETS_EMAIL_FROM ?? "Global Content <assets@globalcontent.co>";
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -26,11 +31,10 @@ export function buildOtpEmail(code: string): { subject: string; text: string; ht
 
 export async function sendOtpEmail(to: string, code: string): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.PORTAL_EMAIL_FROM;
-  if (!apiKey || !from) throw new Error("Missing RESEND_API_KEY or PORTAL_EMAIL_FROM");
+  if (!apiKey) throw new Error("Missing RESEND_API_KEY");
   const { subject, text, html } = buildOtpEmail(code);
   const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({ from, to, subject, text, html });
+  const { error } = await resend.emails.send({ from: EMAIL_FROM, to, subject, text, html });
   if (error) throw new Error(`Email send failed: ${error.message}`);
 }
 
@@ -58,10 +62,9 @@ async function sendNotificationEmail(
   msg: { subject: string; text: string; html: string },
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.PORTAL_EMAIL_FROM;
-  if (!apiKey || !from) throw new Error("Missing RESEND_API_KEY or PORTAL_EMAIL_FROM");
+  if (!apiKey) throw new Error("Missing RESEND_API_KEY");
   const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({ from, to, subject: msg.subject, text: msg.text, html: msg.html });
+  const { error } = await resend.emails.send({ from: EMAIL_FROM, to, subject: msg.subject, text: msg.text, html: msg.html });
   if (error) throw new Error(`Email send failed: ${error.message}`);
 }
 
