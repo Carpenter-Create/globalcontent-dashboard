@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { OrganizationSwitcher } from "./organization-switcher";
@@ -33,6 +34,13 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const pathname = usePathname();
+
+  // The Titles area is a dark, cinematic "streaming" space — the whole shell (sidebar +
+  // header + content) goes dark on /titles routes and reverts to light elsewhere, so
+  // navigating into Titles enters the dark space. The rest of the app stays light by
+  // default. `[color-scheme:dark]` makes native controls (date inputs, selects) match.
+  const darkArea = pathname === "/titles" || pathname.startsWith("/titles/");
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -44,7 +52,7 @@ export function AppShell({
 
   return (
     <div
-      className="min-h-dvh"
+      className={cn("min-h-dvh bg-canvas", darkArea && "dark [color-scheme:dark]")}
       style={
         collapsed
           ? ({ "--sidebar-width": "var(--sidebar-width-collapsed)" } as React.CSSProperties)
