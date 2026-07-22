@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
@@ -7,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { NOTIFICATION_KIND_LABEL, NOTIFICATION_EMAIL, MESSAGES_EMPTY, MESSAGES_SUBTITLE } from "@/lib/notifications";
 import { MarkAllRead } from "./mark-all-read";
 import { MarkRead } from "./mark-read";
+import { MessageLink } from "./message-link";
 
 // §20 GC-Support in-app inbox: the client's notifications, newest first, per-user unread.
 export default async function MessagesPage() {
@@ -44,12 +43,14 @@ export default async function MessagesPage() {
               <Card key={n.id}>
                 <CardBody className={cn(n.unread && "border-l-2 border-accent")}>
                   <div className="flex items-baseline justify-between gap-3 pb-1">
-                    <Link
+                    <MessageLink
+                      id={n.id}
                       href={href}
+                      unread={n.unread}
                       className="t-body font-medium text-ink underline-offset-2 hover:underline"
                     >
                       {n.title}
-                    </Link>
+                    </MessageLink>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <span className="t-label text-ink-3">
                         {NOTIFICATION_KIND_LABEL[n.kind]} · {new Date(n.created_at).toLocaleDateString()}
@@ -57,9 +58,14 @@ export default async function MessagesPage() {
                       {n.unread ? <MarkRead id={n.id} /> : null}
                     </div>
                   </div>
-                  <Link href={href} className="block t-body-sm text-ink-2 transition-colors hover:text-ink">
+                  <MessageLink
+                    id={n.id}
+                    href={href}
+                    unread={n.unread}
+                    className="block t-body-sm text-ink-2 transition-colors hover:text-ink"
+                  >
                     {n.body}
-                  </Link>
+                  </MessageLink>
                 </CardBody>
               </Card>
             );
