@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { generateToken, hashToken } from "@/lib/portal";
+import { sendOrgNotificationEmail } from "@/lib/email";
+import { NOTIFICATION_EMAIL } from "@/lib/notifications";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Decision = Database["public"]["Enums"]["review_decision"];
@@ -39,12 +41,21 @@ export async function reviewTitle(
         .eq("id", titleId)
         .maybeSingle();
       if (t) {
+        const body = `"${t.title}" was returned for revision: ${reason.trim()}`;
         await supabase.rpc("create_notification", {
           p_org_id: t.org_id,
           p_kind: "title_rejected",
           p_title: "Title returned for revision",
-          p_body: `"${t.title}" was returned for revision: ${reason.trim()}`,
+          p_body: body,
           p_source_refs: { title_id: titleId, reason: reason.trim() } as Json,
+        });
+        // §20 email leg: same message, to every active member of the org (best-effort).
+        const copy = NOTIFICATION_EMAIL.title_rejected;
+        await sendOrgNotificationEmail(supabase, t.org_id, {
+          subject: copy.subject({ title: t.title }),
+          body,
+          ctaLabel: copy.cta,
+          ctaPath: copy.path({ titleId }),
         });
       }
     } catch (e) {

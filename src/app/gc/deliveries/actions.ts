@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { generateToken, hashToken } from "@/lib/portal";
+import { sendOrgNotificationEmail } from "@/lib/email";
 import type { Database, Json } from "@/lib/supabase/database.types";
-import { DELIVERY_STATUS_LABELS } from "@/lib/notifications";
+import { DELIVERY_STATUS_LABELS, NOTIFICATION_EMAIL } from "@/lib/notifications";
 
 type DeliveryStatus = Database["public"]["Enums"]["delivery_status"];
 
@@ -53,12 +54,22 @@ export async function setDeliveryStatus(
       .eq("id", deliveryId)
       .maybeSingle();
     if (d) {
+      const title = d.titles?.title ?? "Your title";
+      const body = `"${title}" is now ${DELIVERY_STATUS_LABELS[status]} on ${d.vendors?.name ?? "a platform"}`;
       await supabase.rpc("create_notification", {
         p_org_id: d.org_id,
         p_kind: "delivery_update",
         p_title: "Delivery update",
-        p_body: `"${d.titles?.title ?? "Your title"}" is now ${DELIVERY_STATUS_LABELS[status]} on ${d.vendors?.name ?? "a platform"}`,
+        p_body: body,
         p_source_refs: { delivery_id: deliveryId, title_id: d.title_id, status } as Json,
+      });
+      // §20 email leg: same message, to every active member of the org (best-effort).
+      const copy = NOTIFICATION_EMAIL.delivery_update;
+      await sendOrgNotificationEmail(supabase, d.org_id, {
+        subject: copy.subject({ title }),
+        body,
+        ctaLabel: copy.cta,
+        ctaPath: copy.path({ titleId: d.title_id }),
       });
     }
   } catch (e) {
