@@ -53,6 +53,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Unread notification count for the nav badge (§20 in-app push).
   const { data: unread } = await supabase.rpc("my_unread_count");
 
+  // Sidebar collapse state persists in a cookie; read here so there's no expand→collapse flash.
+  const sidebarCollapsed = (await cookies()).get("gc_sidebar_collapsed")?.value === "1";
+
   return (
     <AppShell
       email={user.email ?? ""}
@@ -60,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       activeOrgId={activeOrgId}
       messagesUnread={unread ?? 0}
       isGcStaff={isGcStaff}
+      defaultCollapsed={sidebarCollapsed}
     >
       {children}
     </AppShell>
