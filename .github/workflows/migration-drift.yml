@@ -21,6 +21,7 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/**"
+  workflow_dispatch: {} # manual "Run workflow" button — runs regardless of path filters
 
 permissions:
   contents: read
