@@ -14,6 +14,7 @@ export type BrowseTitle = {
   live: number;
   total: number;
   posterUrl: string | null;
+  bannerUrl: string | null;
 };
 
 export type Rail<T> = { key: string; label: string; rows: T[] };
@@ -61,13 +62,51 @@ export function groupIntoRails(rows: BrowseTitle[], now: Date): Rail<BrowseTitle
   return rails;
 }
 
-/** Featured title: soonest upcoming release, else the most-recent live title, else the most recent. */
+// Spotlight = the "Next up" hero: the soonest UPCOMING release only. No "Featured"
+// fallback (founder: yes to next-up, no to featured) — returns null when nothing is
+// upcoming, and the page additionally requires a banner so we never show a weak
+// placeholder hero.
 export function spotlightTitle(rows: BrowseTitle[], now: Date): BrowseTitle | null {
-  if (rows.length === 0) return null;
   const upcoming = rows
     .filter((r) => isUpcoming(r.release_date, now))
     .sort((a, b) => (a.release_date! < b.release_date! ? -1 : 1));
-  if (upcoming.length) return upcoming[0];
-  const byRecency = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-  return byRecency.find((r) => r.live > 0) ?? byRecency[0];
+  return upcoming[0] ?? null;
+}
+
+export type CatalogStatusFilter = "all" | "live" | "upcoming" | "in_review" | "in_progress";
+
+export const CATALOG_STATUS_FILTERS: { key: CatalogStatusFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "live", label: "Live" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "in_review", label: "In review" },
+  { key: "in_progress", label: "In progress" },
+];
+
+export function parseStatusFilter(v: string | undefined): CatalogStatusFilter {
+  return CATALOG_STATUS_FILTERS.some((f) => f.key === v) ? (v as CatalogStatusFilter) : "all";
+}
+
+/** Filter by the same categories the rails use. 'all' passes everything through. */
+export function filterByStatus(
+  rows: BrowseTitle[],
+  status: CatalogStatusFilter,
+  now: Date,
+): BrowseTitle[] {
+  switch (status) {
+    case "live":
+      return rows.filter((r) => r.live > 0);
+    case "upcoming":
+      return rows.filter((r) => isUpcoming(r.release_date, now));
+    case "in_review":
+      return rows.filter((r) => r.status === "in_review");
+    case "in_progress":
+      return rows.filter(
+        (r) =>
+          r.live === 0 &&
+          (r.status === "draft" || r.status === "submitted" || r.status === "in_delivery"),
+      );
+    default:
+      return rows;
+  }
 }

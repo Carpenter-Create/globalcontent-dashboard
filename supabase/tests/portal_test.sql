@@ -72,10 +72,10 @@ select throws_ok(
 reset role;
 insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
   values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title')::uuid,
-          'artwork', 'orgs/x/titles/y/artwork/z/art.jpg', 'beef', 10);
+          'poster', 'orgs/x/titles/y/poster/z/art.jpg', 'beef', 10);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.create_portal_link(%L, (select id from public.assets where kind='artwork'), %L) $$,
+  format($$ select public.create_portal_link(%L, (select id from public.assets where kind='poster'), %L) $$,
          current_setting('t.deliv'), 'hash_art'),
   'P0001', 'Asset must be a master asset on the delivery''s title', 'non-master asset rejected');
 

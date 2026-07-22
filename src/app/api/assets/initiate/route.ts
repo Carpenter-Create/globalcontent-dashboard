@@ -7,7 +7,7 @@ import { createMultipart } from "@/lib/s3";
 
 const Body = z.object({
   titleId: z.string().uuid(),
-  kind: z.enum(["master", "caption", "artwork", "screener"]),
+  kind: z.enum(["master", "caption", "poster", "banner", "screener"]),
   filename: z.string().min(1).max(255),
   contentType: z.string().max(255).optional(),
   bytes: z.number().int().nonnegative(),

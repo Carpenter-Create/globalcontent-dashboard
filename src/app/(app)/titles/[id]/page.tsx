@@ -18,10 +18,12 @@ import { ScreenerSourceControl } from "./screener-source-control";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
 
-const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "screener", string> = {
+const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "poster" | "banner" | "screener", string> = {
   master: "Master",
   caption: "Caption",
-  artwork: "Artwork",
+  artwork: "Poster", // legacy generic 'artwork' == the vertical poster (backfilled)
+  poster: "Poster",
+  banner: "Banner",
   screener: "Screener",
 };
 

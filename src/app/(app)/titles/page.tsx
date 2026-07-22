@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageStack } from "@/components/layout/page-section";
 import { DataTable, type Column } from "@/components/layout/data-table";
-import { PosterCard } from "@/components/layout/poster-card";
+import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
 import { StatusChip } from "@/components/layout/status-chip";
 import { EmptyState } from "@/components/layout/empty-state";
@@ -14,10 +14,19 @@ import { Artwork } from "@/components/layout/artwork";
 import { Rail } from "@/components/layout/rail";
 import { SpotlightBanner } from "@/components/layout/spotlight-banner";
 import { SearchField } from "@/components/layout/search-field";
+import { StatusFilter } from "@/components/layout/status-filter";
 import { AddTitleButton } from "./add-title-button";
 import { titleArtworkUrls } from "@/lib/artwork";
 import { parseSort, parseView, sortRows, nextSort, buildQuery, type SortDir } from "@/lib/catalog-view";
-import { filterTitles, groupIntoRails, spotlightTitle, type BrowseTitle } from "@/lib/titles-browse";
+import {
+  filterTitles,
+  groupIntoRails,
+  spotlightTitle,
+  filterByStatus,
+  parseStatusFilter,
+  CATALOG_STATUS_FILTERS,
+  type BrowseTitle,
+} from "@/lib/titles-browse";
 import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import { formatReleaseDate } from "@/lib/releases";
 
@@ -69,6 +78,7 @@ export default async function TitlesPage({
   const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
   const view = parseView(str(sp.view), "browse");
   const q = (str(sp.q) ?? "").slice(0, 100);
+  const status = parseStatusFilter(str(sp.status));
   const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
   const supabase = await createClient();
@@ -118,22 +128,31 @@ export default async function TitlesPage({
     release_date: t.release_date,
     live: counts.get(t.id)?.live ?? 0,
     total: counts.get(t.id)?.total ?? 0,
-    posterUrl: posters.get(t.id) ?? null,
+    posterUrl: posters.get(t.id)?.poster ?? null,
+    bannerUrl: posters.get(t.id)?.banner ?? null,
   }));
 
   const now = new Date();
-  const filtered = filterTitles(all, q);
+  const filtered = filterTitles(filterByStatus(all, status, now), q);
   const searching = q.trim().length > 0;
+  const filtering = searching || status !== "all"; // → show a flat grid, not the rails
 
-  const qParam = searching ? { q: q.trim() } : {};
-  const sortParams =
-    sort.key === "created" && sort.dir === "desc" ? {} : { sort: sort.key, dir: sort.dir };
-  const browseHref = buildQuery({ ...qParam, ...sortParams });
-  const tableHref = buildQuery({ view: "table", ...qParam, ...sortParams });
+  // Shared param bag so every control preserves the others (view/q/status/sort).
+  const baseParams: Record<string, string | undefined> = {
+    ...(searching ? { q: q.trim() } : {}),
+    ...(status !== "all" ? { status } : {}),
+    ...(sort.key === "created" && sort.dir === "desc" ? {} : { sort: sort.key, dir: sort.dir }),
+  };
+  const href = (override: Record<string, string | undefined>) =>
+    buildQuery({ ...baseParams, ...override });
+  const browseHref = href({ view: undefined });
+  const tableHref = href({ view: "table" });
   const sortHref = (key: string) => {
     const ns = nextSort(sort, key, DEFAULT_DIR[key] ?? "asc");
-    return buildQuery({ view: "table", ...qParam, sort: ns.key, dir: ns.dir });
+    return href({ view: view === "table" ? "table" : undefined, sort: ns.key, dir: ns.dir });
   };
+  const statusHref = (key: string) =>
+    href({ view: view === "table" ? "table" : undefined, status: key === "all" ? undefined : key });
 
   const columns: Column<BrowseTitle>[] = [
     {
@@ -191,14 +210,14 @@ export default async function TitlesPage({
     },
   ];
 
-  const posterGrid = (items: BrowseTitle[]) => (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
+  const bannerGrid = (items: BrowseTitle[]) => (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((r) => (
-        <PosterCard
+        <BannerCard
           key={r.id}
           href={`/titles/${r.id}`}
           title={r.title}
-          posterUrl={r.posterUrl}
+          bannerUrl={r.bannerUrl}
           status={statusChipFor(r)}
           meta={r.release_date ? formatReleaseDate(r.release_date) : undefined}
         />
@@ -217,7 +236,6 @@ export default async function TitlesPage({
         subtitle={`${activeOrg.name}'s catalog.`}
         actions={
           <>
-            {list.length > 0 ? <SearchField /> : null}
             {list.length > 0 ? (
               <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
             ) : null}
@@ -227,6 +245,14 @@ export default async function TitlesPage({
       />
 
       <PageStack>
+        {/* Filter bar — search + status chips (searchable + filterable) */}
+        {list.length > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <StatusFilter current={status} options={CATALOG_STATUS_FILTERS} hrefFor={statusHref} />
+            <SearchField />
+          </div>
+        ) : null}
+
         {list.length === 0 ? (
           <EmptyState
             icon={Clapperboard}
@@ -237,11 +263,11 @@ export default async function TitlesPage({
                 : "Titles will appear here once they're added."
             }
           />
-        ) : searching && filtered.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={Clapperboard}
-            title={`No titles match “${q.trim()}”`}
-            description="Try a different search."
+            title={searching ? `No titles match “${q.trim()}”` : "No titles in this filter"}
+            description="Try a different search or filter."
           />
         ) : view === "table" ? (
           <DataTable
@@ -253,18 +279,18 @@ export default async function TitlesPage({
             rowHref={(r) => `/titles/${r.id}`}
             isGc={false}
           />
-        ) : searching ? (
-          posterGrid(filtered)
+        ) : filtering ? (
+          bannerGrid(filtered)
         ) : rails.length <= 1 ? (
-          posterGrid(filtered)
+          bannerGrid(filtered)
         ) : (
           <>
-            {spotlight ? (
+            {spotlight && spotlight.bannerUrl ? (
               <SpotlightBanner
                 href={`/titles/${spotlight.id}`}
-                kicker={spotlight.live > 0 ? "Featured" : spotlight.release_date ? "Next up" : "Featured"}
+                kicker="Next up"
                 title={spotlight.title}
-                posterUrl={spotlight.posterUrl}
+                bannerUrl={spotlight.bannerUrl}
                 statusLabel={statusChipFor(spotlight).label}
                 active={spotlight.live > 0}
                 meta={spotlight.release_date ? formatReleaseDate(spotlight.release_date) : undefined}
@@ -273,12 +299,12 @@ export default async function TitlesPage({
             {rails.map((rail) => (
               <Rail key={rail.key} label={rail.label}>
                 {rail.rows.map((r) => (
-                  <div key={r.id} className="w-36 shrink-0 snap-start sm:w-40">
-                    {/* Rail cards are narrow — status chip only; the date lives in the grid/table. */}
-                    <PosterCard
+                  <div key={r.id} className="w-60 shrink-0 snap-start sm:w-72">
+                    {/* Rail cards are compact — status chip only; the date lives in the grid/table. */}
+                    <BannerCard
                       href={`/titles/${r.id}`}
                       title={r.title}
-                      posterUrl={r.posterUrl}
+                      bannerUrl={r.bannerUrl}
                       status={statusChipFor(r)}
                     />
                   </div>

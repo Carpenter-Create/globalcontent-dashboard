@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 
-type Kind = "master" | "caption" | "artwork" | "screener";
+type Kind = "master" | "caption" | "poster" | "banner" | "screener";
 
 // Plain presigned part PUT (SignedHeaders=host) — no checksum header; S3 returns
 // the part ETag, collected for CompleteMultipartUpload.
@@ -112,7 +112,10 @@ export function AssetUpload({ titleId }: { titleId: string }) {
         >
           <option value="master">Master</option>
           <option value="caption">Caption</option>
-          <option value="artwork">Artwork</option>
+          <optgroup label="Artwork">
+            <option value="poster">Poster (vertical, ~2:3)</option>
+            <option value="banner">Banner (horizontal, 16:9)</option>
+          </optgroup>
           <option value="screener">Screener</option>
         </select>
         <input

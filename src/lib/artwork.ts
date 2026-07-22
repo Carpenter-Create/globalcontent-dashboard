@@ -5,31 +5,36 @@ import { signAssetUrl } from "@/lib/cloudfront";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
-// Resolve title_id → signed poster URL for the latest `artwork` asset per title.
-// Best-effort by design: reads are RLS-scoped (org isolation), and if CloudFront env is
-// absent (e.g. local dev) or a title has no artwork, that title is simply omitted and the
-// UI falls back to the monogram placeholder. Never throws — a poster is decoration, not data.
+export type TitleArtwork = { poster: string | null; banner: string | null };
+
+// Resolve title_id → signed { poster, banner } URLs (the two "Artwork" graphics), latest
+// of each kind per title. Best-effort by design: reads are RLS-scoped (org isolation), and
+// if CloudFront env is absent (e.g. local dev) or a graphic is missing, that slot is null and
+// the UI shows the monogram placeholder. Never throws — a graphic is decoration, not data.
 export async function titleArtworkUrls(
   supabase: ServerClient,
   titleIds: string[],
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+): Promise<Map<string, TitleArtwork>> {
+  const map = new Map<string, TitleArtwork>();
   if (titleIds.length === 0) return map;
 
   const { data } = await supabase
     .from("assets")
-    .select("title_id, storage_key, created_at")
-    .eq("kind", "artwork")
+    .select("title_id, kind, storage_key, created_at")
+    .in("kind", ["poster", "banner"])
     .in("title_id", titleIds)
     .order("created_at", { ascending: false });
 
   for (const a of data ?? []) {
-    if (map.has(a.title_id)) continue; // query is desc → first seen is the latest
+    const slot = a.kind === "banner" ? "banner" : "poster";
+    const entry = map.get(a.title_id) ?? { poster: null, banner: null };
+    if (entry[slot]) continue; // query is desc → first seen of each kind is the latest
     try {
-      map.set(a.title_id, signAssetUrl(a.storage_key));
+      entry[slot] = signAssetUrl(a.storage_key);
     } catch {
-      // CloudFront not configured (local) → leave unset → placeholder. Intentional.
+      // CloudFront not configured (local) → leave null → placeholder. Intentional.
     }
+    map.set(a.title_id, entry);
   }
   return map;
 }
