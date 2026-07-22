@@ -18,6 +18,7 @@ import { AddRightsForm } from "./add-rights-form";
 import { ReleaseInfoForm } from "./release-info-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
+import { ScreenerWatchButton } from "./screener-watch-button";
 import { AssetDownloadButton } from "./asset-download-button";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
@@ -132,6 +133,11 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const canSubmit = canOperate && title.status === "draft";
 
+  // Screener is watchable when its source exists: a dedicated screener asset if the title
+  // is set to 'dedicated', else the master. (The stream is signed server-side, RLS-scoped.)
+  const screenerKind = title.screener_source === "dedicated" ? "screener" : "master";
+  const screenerAvailable = assetList.some((a) => a.kind === screenerKind);
+
   return (
     <>
       <TitleHero
@@ -143,6 +149,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
         posterUrl={art.poster}
         bannerUrl={art.banner}
         facts={heroFacts}
+        action={screenerAvailable ? <ScreenerWatchButton titleId={title.id} /> : null}
       />
 
       <div className="mt-6 flex flex-col gap-6">
