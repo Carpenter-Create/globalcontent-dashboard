@@ -4,6 +4,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { NOTIFICATION_KIND_LABEL, MESSAGES_EMPTY, MESSAGES_SUBTITLE } from "@/lib/notifications";
 import { MarkAllRead } from "./mark-all-read";
+import { MarkRead } from "./mark-read";
 
 // §20 GC-Support in-app inbox: the client's notifications, newest first, per-user unread.
 export default async function MessagesPage() {
@@ -35,9 +36,12 @@ export default async function MessagesPage() {
               <CardBody className={cn(n.unread && "border-l-2 border-accent")}>
                 <div className="flex items-baseline justify-between gap-3 pb-1">
                   <span className="t-body font-medium text-ink">{n.title}</span>
-                  <span className="shrink-0 t-label text-ink-3">
-                    {NOTIFICATION_KIND_LABEL[n.kind]} · {new Date(n.created_at).toLocaleDateString()}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="t-label text-ink-3">
+                      {NOTIFICATION_KIND_LABEL[n.kind]} · {new Date(n.created_at).toLocaleDateString()}
+                    </span>
+                    {n.unread ? <MarkRead id={n.id} /> : null}
+                  </div>
                 </div>
                 <p className="t-body-sm text-ink-2">{n.body}</p>
               </CardBody>
