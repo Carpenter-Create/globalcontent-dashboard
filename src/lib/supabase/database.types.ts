@@ -1414,6 +1414,10 @@ export type Database = {
         }[]
       }
       my_unread_count: { Args: never; Returns: number }
+      org_notification_recipients: {
+        Args: { p_org_id: string }
+        Returns: string[]
+      }
       portal_resolve_download: {
         Args: { p_session_token_hash: string }
         Returns: {

@@ -3,25 +3,30 @@
 -- (mark_notifications_read / my_notifications.unread / my_unread_count).
 
 begin;
-select plan(10);
+select plan(13);
 
-select set_config('t.orgA',   gen_random_uuid()::text, false);
-select set_config('t.orgB',   gen_random_uuid()::text, false);
-select set_config('t.ownerA', gen_random_uuid()::text, false);
-select set_config('t.memberA',gen_random_uuid()::text, false);  -- 2nd member of org A
-select set_config('t.ownerB', gen_random_uuid()::text, false);
-select set_config('t.gc',     gen_random_uuid()::text, false);
+select set_config('t.orgA',    gen_random_uuid()::text, false);
+select set_config('t.orgB',    gen_random_uuid()::text, false);
+select set_config('t.ownerA',  gen_random_uuid()::text, false);
+select set_config('t.memberA', gen_random_uuid()::text, false);  -- 2nd member of org A
+select set_config('t.removedA',gen_random_uuid()::text, false);  -- removed member of org A
+select set_config('t.ownerB',  gen_random_uuid()::text, false);
+select set_config('t.gc',      gen_random_uuid()::text, false);
 
-insert into auth.users (id) values
-  (current_setting('t.ownerA')::uuid), (current_setting('t.memberA')::uuid),
-  (current_setting('t.ownerB')::uuid), (current_setting('t.gc')::uuid);
+insert into auth.users (id, email) values
+  (current_setting('t.ownerA')::uuid,   'ownerA@test.example'),
+  (current_setting('t.memberA')::uuid,  'memberA@test.example'),
+  (current_setting('t.removedA')::uuid, 'removedA@test.example'),
+  (current_setting('t.ownerB')::uuid,   'ownerB@test.example'),
+  (current_setting('t.gc')::uuid,       'gc@test.example');
 insert into public.organizations (id, name, status) values
   (current_setting('t.orgA')::uuid, 'Org A', 'active'),
   (current_setting('t.orgB')::uuid, 'Org B', 'active');
-insert into public.memberships (user_id, org_id, role) values
-  (current_setting('t.ownerA')::uuid,  current_setting('t.orgA')::uuid, 'account_owner'),
-  (current_setting('t.memberA')::uuid, current_setting('t.orgA')::uuid, 'viewer'),
-  (current_setting('t.ownerB')::uuid,  current_setting('t.orgB')::uuid, 'account_owner');
+insert into public.memberships (user_id, org_id, role, status) values
+  (current_setting('t.ownerA')::uuid,   current_setting('t.orgA')::uuid, 'account_owner', 'active'),
+  (current_setting('t.memberA')::uuid,  current_setting('t.orgA')::uuid, 'viewer',        'active'),
+  (current_setting('t.removedA')::uuid, current_setting('t.orgA')::uuid, 'viewer',        'removed'),
+  (current_setting('t.ownerB')::uuid,   current_setting('t.orgB')::uuid, 'account_owner', 'active');
 insert into public.gc_staff (user_id, role) values (current_setting('t.gc')::uuid, 'gc_delivery_ops');
 
 -- ---- create_notification: GC-only ----------------------------------------
@@ -66,6 +71,20 @@ select is(public.my_unread_count(), 0, 'ownerA unread count = 0 after read');
 -- ---- per-user: the 2nd org A member still sees it unread -------------------
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.memberA'),'role','authenticated')::text, true);
 select is(public.my_unread_count(), 1, 'other org A member still has it unread (per-user read state)');
+
+-- ---- org_notification_recipients: GC-only, active members only -------------
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.gc'),'role','authenticated')::text, true);
+select is(
+  (select count(*) from public.org_notification_recipients(current_setting('t.orgA')::uuid))::int, 2,
+  'GC gets both ACTIVE org A member emails');
+select is(
+  (select count(*) from public.org_notification_recipients(current_setting('t.orgA')::uuid) r
+     where r = 'removedA@test.example')::int, 0,
+  'a removed member is excluded from recipients');
+select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.ownerA'),'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.org_notification_recipients(%L) $$, current_setting('t.orgA')),
+  'P0001', 'Not authorized', 'a client cannot list org notification recipients');
 
 reset role;
 select * from finish();
