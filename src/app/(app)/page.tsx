@@ -3,17 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
-import { StatTile } from "@/components/dashboard/stat-tile";
+import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
-import {
-  isUpcoming,
-  isNewRelease,
-  isJustIn,
-  formatReleaseDate,
-  RELEASE_NEW_WINDOW_DAYS,
-} from "@/lib/releases";
+import { isUpcoming, isJustIn } from "@/lib/releases";
 
 const ROLE_LABELS: Record<string, string> = {
   account_owner: "Account Owner",
@@ -36,9 +29,10 @@ const STATUS_LABELS: Record<string, string> = {
 const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
 // Dashboard = the client's portfolio snapshot (spec: 2026-07-21 release-dates-and-
-// dashboard-tiles). Operational tiles read live data; Revenue is a seam until the
-// statements module lands. Findings stay owned by Catalog Health — the Dashboard
-// only points there.
+// dashboard-tiles; hero: 2026-07-22 charted-hero). The charcoal hero carries the
+// one data-viz — cumulative catalog size over time, a REAL series derived from
+// title.created_at — plus the snapshot stats row. Revenue stays a seam until the
+// statements module lands; findings stay owned by Catalog Health (we only point there).
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -66,17 +60,16 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const liveCount = titles.filter((t) => t.status === "live").length;
-  const inReviewCount = titles.filter((t) => t.status === "in_review").length;
   const upcoming = titles.filter((t) => isUpcoming(t.release_date, now));
-  const newReleases = titles.filter((t) => isNewRelease(t.release_date, now));
-  const nextUpcoming = upcoming
-    .map((t) => t.release_date!)
-    .sort()
-    .at(0);
   const justIn = titles
     .filter((t) => isJustIn(t.created_at, now))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
     .slice(0, 5);
+
+  // Real, derived series for the hero chart: title creation timestamps, sorted ascending.
+  const createdAt = titles
+    .map((t) => new Date(t.created_at).getTime())
+    .sort((a, b) => a - b);
 
   // Attention pointer — how many titles have open findings (findings live in Catalog Health).
   const { data: allFindings } = await supabase.rpc("my_findings");
@@ -86,27 +79,18 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle={`Welcome back to ${org.name}.`} />
+      <h1 className="sr-only">Dashboard — {org.name}</h1>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile
-          label="Catalog"
-          value={titles.length}
-          meta={`${liveCount} live · ${inReviewCount} in review`}
-          href="/titles"
-        />
-        <StatTile label="Revenue" value="—" meta="Arrives with statements" tone="muted" />
-        <StatTile
-          label="Upcoming"
-          value={upcoming.length}
-          meta={nextUpcoming ? `Next ${formatReleaseDate(nextUpcoming)}` : "None scheduled"}
-        />
-        <StatTile
-          label="New releases"
-          value={newReleases.length}
-          meta={`Last ${RELEASE_NEW_WINDOW_DAYS} days`}
-        />
-      </div>
+      <CatalogActivityHero
+        createdAt={createdAt}
+        nowMs={now.getTime()}
+        stats={{
+          catalog: titles.length,
+          upcoming: upcoming.length,
+          live: liveCount,
+          revenue: "—",
+        }}
+      />
 
       <div className="mt-3">
         <Card>
