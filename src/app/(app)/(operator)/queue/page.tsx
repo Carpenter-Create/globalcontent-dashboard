@@ -108,7 +108,12 @@ export default async function GcQueuePage() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="t-label text-ink-3">Ready to deliver</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="t-label text-ink-3">Ready to deliver</span>
+          <Link href="/gc/deliveries" className="t-body-sm text-accent transition-colors hover:underline">
+            Delivery queue →
+          </Link>
+        </div>
         {readyToDeliver.length === 0 ? (
           <Card>
             <CardBody>
