@@ -15,7 +15,13 @@ type ReleaseType = "new_release" | "re_release";
 // the createTitle server action → create_title RPC. The client picks the release
 // type and, for a re-release, the historical original date; Global Content owns the
 // forward-looking release date, so it is not entered here.
-export function AddTitleForm({ orgId }: { orgId: string }) {
+export function AddTitleForm({
+  orgId,
+  onSuccess,
+}: {
+  orgId: string;
+  onSuccess?: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [releaseType, setReleaseType] = useState<ReleaseType>("new_release");
   const [originalDate, setOriginalDate] = useState("");
@@ -52,6 +58,7 @@ export function AddTitleForm({ orgId }: { orgId: string }) {
     setReleaseType("new_release");
     setOriginalDate("");
     setSaving(false);
+    onSuccess?.();
   }
 
   return (

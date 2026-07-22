@@ -21,7 +21,7 @@ export function ViewToggle({
       role="group"
       aria-label="View"
     >
-      <ViewLink href={gridHref} active={current === "grid"} label="Poster grid">
+      <ViewLink href={gridHref} active={current === "browse"} label="Browse">
         <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
       </ViewLink>
       <ViewLink href={tableHref} active={current === "table"} label="Table">

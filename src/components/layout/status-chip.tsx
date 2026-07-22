@@ -17,7 +17,7 @@ export function StatusChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 t-label",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-1 t-label",
         tone === "muted" ? "text-ink-3" : "text-ink-2",
         className,
       )}
