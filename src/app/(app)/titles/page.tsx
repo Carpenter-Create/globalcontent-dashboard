@@ -3,8 +3,6 @@ import { cookies } from "next/headers";
 import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/ui/page-header";
-import { PageStack } from "@/components/layout/page-section";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
@@ -228,30 +226,52 @@ export default async function TitlesPage({
   const rails = groupIntoRails(filtered, now);
   const spotlight = spotlightTitle(filtered, now);
 
+  const heroShown = view === "browse" && !filtering && !!spotlight?.bannerUrl;
+
   return (
     <>
-      <PageHeader
-        eyebrow="Catalog"
-        title="Titles"
-        subtitle={`${activeOrg.name}'s catalog.`}
-        actions={
-          <>
+      {/* Full-bleed cinematic hero (Apple-TV register) — the page opts out of the width
+          cap in AppShell so this spans the full content width. */}
+      {heroShown ? (
+        <SpotlightBanner
+          href={`/titles/${spotlight!.id}`}
+          kicker="Next up"
+          title={spotlight!.title}
+          bannerUrl={spotlight!.bannerUrl}
+          statusLabel={statusChipFor(spotlight!).label}
+          active={spotlight!.live > 0}
+          meta={spotlight!.release_date ? formatReleaseDate(spotlight!.release_date) : undefined}
+        />
+      ) : null}
+
+      {/* Everything below the hero lives in a centered, comfortable-width column. */}
+      <div
+        className={`mx-auto w-full px-6 pb-4 ${heroShown ? "pt-6" : "pt-8"}`}
+        style={{ maxWidth: "var(--page-max-width)" }}
+      >
+        {!heroShown ? (
+          <div className="flex flex-col gap-1 pb-6">
+            <span className="t-label text-accent">Catalog</span>
+            <h1 className="t-subhead text-ink">Titles</h1>
+            <p className="t-body-sm text-ink-3">{`${activeOrg.name}'s catalog.`}</p>
+          </div>
+        ) : null}
+
+        {/* Controls — filters left; search / view / add right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
+          {list.length > 0 ? (
+            <StatusFilter current={status} options={CATALOG_STATUS_FILTERS} hrefFor={statusHref} />
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            {list.length > 0 ? <SearchField /> : null}
             {list.length > 0 ? (
               <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
             ) : null}
             {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
-          </>
-        }
-      />
-
-      <PageStack>
-        {/* Filter bar — search + status chips (searchable + filterable) */}
-        {list.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <StatusFilter current={status} options={CATALOG_STATUS_FILTERS} hrefFor={statusHref} />
-            <SearchField />
           </div>
-        ) : null}
+        </div>
 
         {list.length === 0 ? (
           <EmptyState
@@ -279,28 +299,14 @@ export default async function TitlesPage({
             rowHref={(r) => `/titles/${r.id}`}
             isGc={false}
           />
-        ) : filtering ? (
-          bannerGrid(filtered)
-        ) : rails.length <= 1 ? (
+        ) : filtering || rails.length <= 1 ? (
           bannerGrid(filtered)
         ) : (
-          <>
-            {spotlight && spotlight.bannerUrl ? (
-              <SpotlightBanner
-                href={`/titles/${spotlight.id}`}
-                kicker="Next up"
-                title={spotlight.title}
-                bannerUrl={spotlight.bannerUrl}
-                statusLabel={statusChipFor(spotlight).label}
-                active={spotlight.live > 0}
-                meta={spotlight.release_date ? formatReleaseDate(spotlight.release_date) : undefined}
-              />
-            ) : null}
+          <div className="flex flex-col gap-8">
             {rails.map((rail) => (
               <Rail key={rail.key} label={rail.label}>
                 {rail.rows.map((r) => (
                   <div key={r.id} className="w-60 shrink-0 snap-start sm:w-72">
-                    {/* Rail cards are compact — status chip only; the date lives in the grid/table. */}
                     <BannerCard
                       href={`/titles/${r.id}`}
                       title={r.title}
@@ -311,9 +317,9 @@ export default async function TitlesPage({
                 ))}
               </Rail>
             ))}
-          </>
+          </div>
         )}
-      </PageStack>
+      </div>
     </>
   );
 }
