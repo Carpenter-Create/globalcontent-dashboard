@@ -146,6 +146,14 @@ body {
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }
+  /* Hide the scrollbar on streaming rails (keeps horizontal scroll, drops the chrome). */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* keyboard focus — the accent, always visible on light or dark */

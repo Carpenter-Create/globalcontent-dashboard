@@ -18,11 +18,11 @@ describe("parseSort", () => {
 });
 
 describe("parseView", () => {
-  it("accepts grid/table, falls back otherwise", () => {
-    expect(parseView("table", "grid")).toBe("table");
-    expect(parseView("grid", "table")).toBe("grid");
-    expect(parseView(undefined, "grid")).toBe("grid");
-    expect(parseView("weird", "grid")).toBe("grid");
+  it("accepts browse/table, falls back otherwise", () => {
+    expect(parseView("table", "browse")).toBe("table");
+    expect(parseView("browse", "table")).toBe("browse");
+    expect(parseView(undefined, "browse")).toBe("browse");
+    expect(parseView("grid", "browse")).toBe("browse"); // old value no longer valid
   });
 });
 

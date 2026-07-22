@@ -4,41 +4,26 @@ import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
-import { PageStack, PageSection } from "@/components/layout/page-section";
+import { PageStack } from "@/components/layout/page-section";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { PosterCard } from "@/components/layout/poster-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
 import { StatusChip } from "@/components/layout/status-chip";
 import { EmptyState } from "@/components/layout/empty-state";
 import { Artwork } from "@/components/layout/artwork";
+import { Rail } from "@/components/layout/rail";
+import { SpotlightBanner } from "@/components/layout/spotlight-banner";
+import { SearchField } from "@/components/layout/search-field";
+import { AddTitleButton } from "./add-title-button";
 import { titleArtworkUrls } from "@/lib/artwork";
-import {
-  parseSort,
-  parseView,
-  sortRows,
-  nextSort,
-  buildQuery,
-  type SortDir,
-} from "@/lib/catalog-view";
-import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
+import { parseSort, parseView, sortRows, nextSort, buildQuery, type SortDir } from "@/lib/catalog-view";
+import { filterTitles, groupIntoRails, spotlightTitle, type BrowseTitle } from "@/lib/titles-browse";
+import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import { formatReleaseDate } from "@/lib/releases";
-import { AddTitleForm } from "./add-title-form";
 
-// The catalog (§11, flat), rebuilt to the layout standard: poster grid ⇄ dense table,
-// URL-driven sort, one section grammar. `catalog_id` is GC-only (a `gcOnly` column) so it
-// never shows on this client surface. RLS-scoped to the active org.
-
-type Row = {
-  id: string;
-  title: string;
-  status: TitleStatus;
-  created_at: string;
-  catalog_id: string | null;
-  release_date: string | null;
-  live: number;
-  total: number;
-  posterUrl: string | null;
-};
+// The catalog (§11) as the Visual register: streaming browse (spotlight + poster rails
+// + search) ⇄ dense operational table. RLS-scoped to the active org. `catalog_id` is a
+// GC-only column — never shown on this client surface.
 
 const ALLOWED_SORTS = ["title", "status", "live", "release", "catalog", "created"] as const;
 const DEFAULT_DIR: Record<string, SortDir> = {
@@ -50,7 +35,7 @@ const DEFAULT_DIR: Record<string, SortDir> = {
   created: "desc",
 };
 
-function sortValue(key: string, r: Row): string | number | null {
+function sortValue(key: string, r: BrowseTitle): string | number | null {
   switch (key) {
     case "title":
       return r.title.toLowerCase();
@@ -61,13 +46,13 @@ function sortValue(key: string, r: Row): string | number | null {
     case "release":
       return r.release_date;
     case "catalog":
-      return r.catalog_id;
+      return null; // GC-only; not sortable on the client surface
     default:
       return r.created_at;
   }
 }
 
-function statusChipFor(r: Row): { label: string; tone: "neutral" | "active" | "muted" } {
+function statusChipFor(r: BrowseTitle): { label: string; tone: "neutral" | "active" | "muted" } {
   if (r.live > 0) return { label: "Live", tone: "active" };
   return {
     label: TITLE_STATUS_LABELS[r.status],
@@ -82,11 +67,9 @@ export default async function TitlesPage({
 }) {
   const sp = await searchParams;
   const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-  const view = parseView(str(sp.view), "grid");
-  const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, {
-    key: "created",
-    dir: "desc",
-  });
+  const view = parseView(str(sp.view), "browse");
+  const q = (str(sp.q) ?? "").slice(0, 100);
+  const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
   const supabase = await createClient();
   const {
@@ -127,47 +110,37 @@ export default async function TitlesPage({
 
   const posters = await titleArtworkUrls(supabase, ids);
 
-  const data: Row[] = list.map((t) => ({
+  const all: BrowseTitle[] = list.map((t) => ({
     id: t.id,
     title: t.title,
-    status: t.status as TitleStatus,
+    status: t.status,
     created_at: t.created_at,
-    catalog_id: t.catalog_id,
     release_date: t.release_date,
     live: counts.get(t.id)?.live ?? 0,
     total: counts.get(t.id)?.total ?? 0,
     posterUrl: posters.get(t.id) ?? null,
   }));
 
-  const sorted = sortRows(data, (r) => sortValue(sort.key, r), sort.dir);
+  const now = new Date();
+  const filtered = filterTitles(all, q);
+  const searching = q.trim().length > 0;
 
+  const qParam = searching ? { q: q.trim() } : {};
   const sortParams =
     sort.key === "created" && sort.dir === "desc" ? {} : { sort: sort.key, dir: sort.dir };
-  const gridHref = buildQuery({ ...sortParams });
-  const tableHref = buildQuery({ view: "table", ...sortParams });
+  const browseHref = buildQuery({ ...qParam, ...sortParams });
+  const tableHref = buildQuery({ view: "table", ...qParam, ...sortParams });
   const sortHref = (key: string) => {
     const ns = nextSort(sort, key, DEFAULT_DIR[key] ?? "asc");
-    return buildQuery({ view: "table", sort: ns.key, dir: ns.dir });
+    return buildQuery({ view: "table", ...qParam, sort: ns.key, dir: ns.dir });
   };
 
-  const deliveriesCell = (r: Row) =>
-    r.total > 0 ? (
-      <span>
-        <span className="text-ink">{r.live}</span>
-        <span className="text-ink-3">/{r.total}</span>
-      </span>
-    ) : (
-      <span className="text-ink-3">—</span>
-    );
-
-  const columns: Column<Row>[] = [
+  const columns: Column<BrowseTitle>[] = [
     {
       key: "poster",
       header: "",
       width: "w-14",
-      cell: (r) => (
-        <Artwork src={r.posterUrl} title={r.title} className="h-12 w-8" rounded="rounded-[4px]" />
-      ),
+      cell: (r) => <Artwork src={r.posterUrl} title={r.title} className="h-12 w-8" rounded="rounded-[4px]" />,
     },
     {
       key: "title",
@@ -181,7 +154,7 @@ export default async function TitlesPage({
       header: "Catalog ID",
       sortable: true,
       gcOnly: true,
-      cell: (r) => <span className="tabular-nums text-ink-2">{r.catalog_id ?? "—"}</span>,
+      cell: () => <span className="text-ink-3">—</span>,
     },
     {
       key: "status",
@@ -198,7 +171,15 @@ export default async function TitlesPage({
       sortable: true,
       align: "right",
       width: "w-24",
-      cell: deliveriesCell,
+      cell: (r) =>
+        r.total > 0 ? (
+          <span>
+            <span className="text-ink">{r.live}</span>
+            <span className="text-ink-3">/{r.total}</span>
+          </span>
+        ) : (
+          <span className="text-ink-3">—</span>
+        ),
     },
     {
       key: "release",
@@ -210,6 +191,24 @@ export default async function TitlesPage({
     },
   ];
 
+  const posterGrid = (items: BrowseTitle[]) => (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
+      {items.map((r) => (
+        <PosterCard
+          key={r.id}
+          href={`/titles/${r.id}`}
+          title={r.title}
+          posterUrl={r.posterUrl}
+          status={statusChipFor(r)}
+          meta={r.release_date ? formatReleaseDate(r.release_date) : undefined}
+        />
+      ))}
+    </div>
+  );
+
+  const rails = groupIntoRails(filtered, now);
+  const spotlight = spotlightTitle(filtered, now);
+
   return (
     <>
       <PageHeader
@@ -217,57 +216,77 @@ export default async function TitlesPage({
         title="Titles"
         subtitle={`${activeOrg.name}'s catalog.`}
         actions={
-          list.length > 0 ? (
-            <ViewToggle current={view} gridHref={gridHref} tableHref={tableHref} />
-          ) : undefined
+          <>
+            {list.length > 0 ? <SearchField /> : null}
+            {list.length > 0 ? (
+              <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
+            ) : null}
+            {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
+          </>
         }
       />
 
       <PageStack>
-        <PageSection>
-          {list.length === 0 ? (
-            <EmptyState
-              icon={Clapperboard}
-              title="No titles yet"
-              description={
-                canOperate
-                  ? "Add your first title below to begin building your catalog."
-                  : "Titles will appear here once they're added."
-              }
-            />
-          ) : view === "grid" ? (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-              {sorted.map((r) => (
-                <PosterCard
-                  key={r.id}
-                  href={`/titles/${r.id}`}
-                  title={r.title}
-                  posterUrl={r.posterUrl}
-                  status={statusChipFor(r)}
-                  meta={r.release_date ? formatReleaseDate(r.release_date) : undefined}
-                />
-              ))}
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              rows={sorted}
-              rowKey={(r) => r.id}
-              sort={sort}
-              sortHref={sortHref}
-              rowHref={(r) => `/titles/${r.id}`}
-              isGc={false}
-            />
-          )}
-        </PageSection>
-
-        {canOperate ? (
-          <PageSection title="Add a title" description="Register a new title to start intake.">
-            <div className="max-w-xl">
-              <AddTitleForm orgId={activeOrg.id} />
-            </div>
-          </PageSection>
-        ) : null}
+        {list.length === 0 ? (
+          <EmptyState
+            icon={Clapperboard}
+            title="No titles yet"
+            description={
+              canOperate
+                ? "Add your first title to begin building your catalog."
+                : "Titles will appear here once they're added."
+            }
+          />
+        ) : searching && filtered.length === 0 ? (
+          <EmptyState
+            icon={Clapperboard}
+            title={`No titles match “${q.trim()}”`}
+            description="Try a different search."
+          />
+        ) : view === "table" ? (
+          <DataTable
+            columns={columns}
+            rows={sortRows(filtered, (r) => sortValue(sort.key, r), sort.dir)}
+            rowKey={(r) => r.id}
+            sort={sort}
+            sortHref={sortHref}
+            rowHref={(r) => `/titles/${r.id}`}
+            isGc={false}
+          />
+        ) : searching ? (
+          posterGrid(filtered)
+        ) : rails.length <= 1 ? (
+          posterGrid(filtered)
+        ) : (
+          <>
+            {spotlight ? (
+              <SpotlightBanner
+                href={`/titles/${spotlight.id}`}
+                kicker={spotlight.live > 0 ? "Featured" : spotlight.release_date ? "Next up" : "Featured"}
+                title={spotlight.title}
+                posterUrl={spotlight.posterUrl}
+                statusLabel={statusChipFor(spotlight).label}
+                active={spotlight.live > 0}
+                meta={spotlight.release_date ? formatReleaseDate(spotlight.release_date) : undefined}
+              />
+            ) : null}
+            {rails.map((rail) => (
+              <Rail key={rail.key} label={rail.label}>
+                {rail.rows.map((r) => (
+                  <div key={r.id} className="w-36 shrink-0 snap-start sm:w-40">
+                    {/* Rail cards are narrow — status chip only; the date lives in the grid/table. */}
+                    <PosterCard
+                      href={`/titles/${r.id}`}
+                      title={r.title}
+                      posterUrl={r.posterUrl}
+                      status={statusChipFor(r)}
+                    />
+                  </div>
+                ))}
+              </Rail>
+            ))}
+          </>
+        )}
       </PageStack>
     </>
   );

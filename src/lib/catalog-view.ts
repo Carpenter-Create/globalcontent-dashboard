@@ -4,7 +4,7 @@
 
 export type SortDir = "asc" | "desc";
 export type Sort = { key: string; dir: SortDir };
-export type View = "grid" | "table";
+export type View = "browse" | "table";
 
 /** Resolve ?sort=&dir= against an allow-list, falling back safely (never trust the URL). */
 export function parseSort(
@@ -19,7 +19,7 @@ export function parseSort(
 }
 
 export function parseView(viewParam: string | undefined, fallback: View): View {
-  return viewParam === "grid" || viewParam === "table" ? viewParam : fallback;
+  return viewParam === "browse" || viewParam === "table" ? viewParam : fallback;
 }
 
 /**

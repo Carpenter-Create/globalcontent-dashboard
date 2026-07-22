@@ -49,7 +49,7 @@ the URL), `sortRows` (stable, nulls-last), `nextSort` (header toggle), `buildQue
 - Every page opens with `<PageHeader>` and is a `PageStack` of `PageSection`s. No bespoke headers.
 - Working-surface collections = `<DataTable>`. One concept, one rendering.
 - Metrics = `<Stat>` / `<StatGrid>` only. Numbers are always tabular (`.t-data` / `tabular-nums`).
-- One hover, one gap scale, `rounded-[var(--radius-*)]` only, one accent.
+- One hover, one gap scale, radius tokens only (`--radius-sm` / `--radius` / `--radius-lg`), one accent.
 - **`catalog_id` is GC-only** — a `gcOnly: true` column; shown on GC surfaces, off the client's
   primary scan (titles list, dashboard). It's an internal cataloging/accounting reference; kept
   available (copyable, demoted) on the client title detail as a follow-up. See `docs/domain-spec.md`.
