@@ -17,6 +17,7 @@ export function TitleHero({
   posterUrl,
   bannerUrl,
   facts = [],
+  action,
 }: {
   title: string;
   backHref: string;
@@ -26,6 +27,7 @@ export function TitleHero({
   posterUrl: string | null;
   bannerUrl: string | null;
   facts?: { label: string; value: React.ReactNode }[];
+  action?: React.ReactNode;
 }) {
   return (
     <section className="relative overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-band text-band-ink">
@@ -70,6 +72,7 @@ export function TitleHero({
                 ))}
               </div>
             ) : null}
+            {action ? <div className="pt-3">{action}</div> : null}
           </div>
         </div>
       </div>

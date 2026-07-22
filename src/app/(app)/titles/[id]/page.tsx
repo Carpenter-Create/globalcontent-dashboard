@@ -7,7 +7,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardBody } from "@/compon
 import { TitleHero } from "@/components/layout/title-hero";
 import { FieldList } from "@/components/layout/field-list";
 import { StatusChip } from "@/components/layout/status-chip";
-import { Artwork } from "@/components/layout/artwork";
 import { RIGHTS_META } from "@/lib/rights";
 import { describeTerritory } from "@/lib/territories";
 import { requiredComplete } from "@/lib/metadata";
@@ -19,6 +18,8 @@ import { AddRightsForm } from "./add-rights-form";
 import { ReleaseInfoForm } from "./release-info-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
+import { ScreenerWatchButton } from "./screener-watch-button";
+import { AssetDownloadButton } from "./asset-download-button";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
 
@@ -132,6 +133,11 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   const canSubmit = canOperate && title.status === "draft";
 
+  // Screener is watchable when its source exists: a dedicated screener asset if the title
+  // is set to 'dedicated', else the master. (The stream is signed server-side, RLS-scoped.)
+  const screenerKind = title.screener_source === "dedicated" ? "screener" : "master";
+  const screenerAvailable = assetList.some((a) => a.kind === screenerKind);
+
   return (
     <>
       <TitleHero
@@ -143,6 +149,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
         posterUrl={art.poster}
         bannerUrl={art.banner}
         facts={heroFacts}
+        action={screenerAvailable ? <ScreenerWatchButton titleId={title.id} /> : null}
       />
 
       <div className="mt-6 flex flex-col gap-6">
@@ -269,68 +276,51 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
             )}
           </Card>
 
-          {/* Artwork */}
+          {/* Artwork & assets — files are downloadable, not previewed here (the visuals
+              live in the hero + catalog). Each: a view/download button, info beneath. */}
           <Card>
             <CardHeader>
-              <CardTitle>Artwork</CardTitle>
-              <CardDescription>Every title needs a poster and a banner.</CardDescription>
+              <CardTitle>Artwork &amp; assets</CardTitle>
+              <CardDescription>Every title needs a poster and a banner. Open a file to view or download it.</CardDescription>
             </CardHeader>
-            <CardBody className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-5">
-                <ArtworkSlot label="Poster" hint="Vertical · ~2:3" src={art.poster} className="aspect-[2/3] w-28" />
-                <ArtworkSlot label="Banner" hint="Horizontal · 16:9" src={art.banner} className="aspect-video w-56" />
-              </div>
-              {canOperate ? (
-                <div className="max-w-xl space-y-4 border-t border-hairline pt-4">
+            {canOperate ? (
+              <CardBody className="border-b border-hairline">
+                <div className="max-w-xl space-y-4">
                   <AssetUpload titleId={title.id} />
                   <ScreenerSourceControl
                     titleId={title.id}
                     current={(title.screener_source ?? "master") as "master" | "dedicated"}
                   />
                 </div>
-              ) : null}
-            </CardBody>
-            {assetList.length > 0 ? (
-              <div className="divide-y divide-hairline border-t border-hairline">
+              </CardBody>
+            ) : null}
+            {assetList.length === 0 ? (
+              <CardBody>
+                <p className="t-body-sm text-ink-3">No files uploaded yet.</p>
+              </CardBody>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 {assetList.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between gap-4 px-5 py-3">
-                    <span className="t-body-sm font-medium text-ink">
-                      {a.original_filename ?? ASSET_KIND_LABELS[a.kind]}
-                    </span>
-                    <span className="shrink-0 t-body-sm text-ink-3">
-                      {ASSET_KIND_LABELS[a.kind]} · {formatBytes(a.bytes)}
-                    </span>
+                  <div
+                    key={a.id}
+                    className="flex flex-col gap-2 rounded-[var(--radius)] border border-hairline bg-surface p-3"
+                  >
+                    <AssetDownloadButton assetId={a.id} />
+                    <div className="flex min-w-0 flex-col px-0.5">
+                      <span className="t-label text-ink-2">{ASSET_KIND_LABELS[a.kind]}</span>
+                      <span className="truncate t-body-sm text-ink-3">
+                        {a.original_filename ? `${a.original_filename} · ` : ""}
+                        {formatBytes(a.bytes)}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : null}
+            )}
           </Card>
           </div>
         </div>
       </div>
     </>
-  );
-}
-
-// A labelled artwork slot: the current graphic or a "not uploaded" placeholder.
-function ArtworkSlot({
-  label,
-  hint,
-  src,
-  className,
-}: {
-  label: string;
-  hint: string;
-  src: string | null;
-  className?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Artwork src={src} title={label} className={`${className} border border-hairline`} />
-      <div className="flex flex-col">
-        <span className="t-label text-ink-2">{label}</span>
-        <span className="t-body-sm text-ink-3">{src ? hint : `${hint} · not uploaded`}</span>
-      </div>
-    </div>
   );
 }
