@@ -68,13 +68,25 @@ describe("spotlightTitle", () => {
   });
   it("prefers the soonest upcoming release", () => {
     const rows = [
-      mk({ id: "live", title: "L", live: 1, total: 1 }),
-      mk({ id: "up", title: "U", status: "in_delivery", release_date: "2026-10-01" }),
+      mk({ id: "far", title: "F", status: "in_delivery", release_date: "2027-01-01" }),
+      mk({ id: "near", title: "N", status: "in_delivery", release_date: "2026-10-01" }),
     ];
-    expect(spotlightTitle(rows, NOW)!.id).toBe("up");
+    expect(spotlightTitle(rows, NOW)!.id).toBe("near");
   });
-  it("returns null when nothing is upcoming (no 'featured' fallback)", () => {
-    expect(spotlightTitle([mk({ id: "live", title: "L", live: 1 }), mk({ id: "d", title: "D" })], NOW)).toBeNull();
+  it("falls back to the most-recently-added title when nothing is upcoming", () => {
+    const rows = [
+      mk({ id: "old", title: "Old", created_at: "2026-01-01T00:00:00Z" }),
+      mk({ id: "new", title: "New", created_at: "2026-07-01T00:00:00Z" }),
+    ];
+    expect(spotlightTitle(rows, NOW)!.id).toBe("new");
+  });
+  it("prefers a title WITH a banner within the chosen pool", () => {
+    // No upcoming → recency pool; the most-recent has no banner, an older one does → pick the bannered one.
+    const rows = [
+      mk({ id: "new-nobanner", title: "New", created_at: "2026-07-01T00:00:00Z" }),
+      mk({ id: "old-banner", title: "Old", created_at: "2026-01-01T00:00:00Z", bannerUrl: "https://cdn/x.jpg" }),
+    ];
+    expect(spotlightTitle(rows, NOW)!.id).toBe("old-banner");
   });
 });
 

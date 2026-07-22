@@ -26,7 +26,7 @@ import {
   type BrowseTitle,
 } from "@/lib/titles-browse";
 import { TITLE_STATUS_LABELS } from "@/lib/titles";
-import { formatReleaseDate } from "@/lib/releases";
+import { formatReleaseDate, isUpcoming } from "@/lib/releases";
 
 // The catalog (§11) as the Visual register: streaming browse (spotlight + poster rails
 // + search) ⇄ dense operational table. RLS-scoped to the active org. `catalog_id` is a
@@ -235,7 +235,7 @@ export default async function TitlesPage({
       {heroShown ? (
         <SpotlightBanner
           href={`/titles/${spotlight!.id}`}
-          kicker="Next up"
+          kicker={isUpcoming(spotlight!.release_date, now) ? "Next up" : "Featured"}
           title={spotlight!.title}
           bannerUrl={spotlight!.bannerUrl}
           statusLabel={statusChipFor(spotlight!).label}

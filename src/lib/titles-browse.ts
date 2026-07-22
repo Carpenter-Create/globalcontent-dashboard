@@ -62,15 +62,19 @@ export function groupIntoRails(rows: BrowseTitle[], now: Date): Rail<BrowseTitle
   return rails;
 }
 
-// Spotlight = the "Next up" hero: the soonest UPCOMING release only. No "Featured"
-// fallback (founder: yes to next-up, no to featured) — returns null when nothing is
-// upcoming, and the page additionally requires a banner so we never show a weak
-// placeholder hero.
+// Spotlight = the hero pick: soonest UPCOMING release, else the most-recently-added title.
+// Within the chosen pool, prefer one that HAS a banner (so the hero actually shows), but
+// still return a candidate otherwise — the page requires a banner to render the hero, so
+// we never show a weak no-image placeholder. Whether the pick is upcoming decides the
+// "Next up" vs "Featured" kicker (see isUpcoming in the page).
 export function spotlightTitle(rows: BrowseTitle[], now: Date): BrowseTitle | null {
   const upcoming = rows
     .filter((r) => isUpcoming(r.release_date, now))
     .sort((a, b) => (a.release_date! < b.release_date! ? -1 : 1));
-  return upcoming[0] ?? null;
+  const pool = upcoming.length
+    ? upcoming
+    : [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return pool.find((r) => r.bannerUrl) ?? pool[0] ?? null;
 }
 
 export type CatalogStatusFilter = "all" | "live" | "upcoming" | "in_review" | "in_progress";
