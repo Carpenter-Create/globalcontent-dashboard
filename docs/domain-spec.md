@@ -420,6 +420,31 @@ rights live in the account.
 draft → submitted → in_review → in_delivery → live → takedown_requested → taken_down
 ```
 
+### Release dates — the forward date is GC's
+
+Every title carries a **release type** and up to two dates. The forward-looking go-to-market date is
+a **distribution decision, and distribution is GC's** (manual, GC-driven; GC/Globee never promise a
+client a delivery date, §13/two-channel). So the client only ever enters a historical fact it knows;
+**GC always owns the forward date.**
+
+- **`release_type`** (`new_release | re_release`) — client picks at intake.
+- **`original_release_date`** — client-entered, **re-release only** (the historical original).
+  Null for a new release.
+- **`release_date`** — **GC-only** (RLS: `set_release_date` gated on `is_gc_staff`; no client write
+  path). The go-to-market date. New release → this is the first release; re-release → the re-release
+  date.
+
+**Derived reads:** the Dashboard pipeline (§19-adjacent) treats **`release_date`** as the title's
+release (Upcoming = future, New = recently past). The **authoritative original** for display =
+`COALESCE(original_release_date, release_date)`.
+
+**Enforcement:** `create_title` / `set_title_release_info` require `original_release_date` iff
+`re_release`. `release_date` is never set at intake.
+
+> `release_year` (§12 metadata) is **kept for now** — it feeds the vendor export mapping (§13) and
+> same-work matching (§11 work identity). Unifying it onto `original_release_date` (derive the year;
+> add an export source for a title column) is a fast-follow, not built here.
+
 ### `in_review` is THE human gate — and it is narrow (chain of title only)
 
 With the account gate gone (clickwrap, §3), `in_review` is the one place a human intervenes. It
