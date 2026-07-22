@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { OrganizationSwitcher } from "./organization-switcher";
@@ -33,6 +34,10 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const pathname = usePathname();
+  // The catalog opts out of the centered width cap so its hero can bleed full-width
+  // (edge of sidebar → right edge). That page then manages its own content max-width.
+  const fullBleed = pathname === "/titles";
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -98,9 +103,13 @@ export function AppShell({
           minHeight: "calc(100dvh - var(--header-height))",
         }}
       >
-        <div className="mx-auto w-full px-6 pb-24 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
-          {children}
-        </div>
+        {fullBleed ? (
+          <div className="w-full pb-24">{children}</div>
+        ) : (
+          <div className="mx-auto w-full px-6 pb-24 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );

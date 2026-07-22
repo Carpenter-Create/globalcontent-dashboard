@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Play } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
-// Featured title, streaming-hero style: the landscape BANNER as a full-bleed backdrop with
-// a gradient scrim and overlaid title/status (Apple-TV register). Falls back to the charcoal
-// band when a title has no banner yet, so overlaid text always reads.
+// The full-bleed catalog hero (Visual register): the featured title's BANNER as an
+// edge-to-edge backdrop with a scrim and overlaid kicker / big title / status / CTA —
+// Apple-TV register. Theme-consistent: the charcoal band fallback + band-ink text read
+// well in both light and dark, so no per-area theme flip is needed. Tall, no border/round.
 export function SpotlightBanner({
   href,
   kicker,
@@ -13,6 +15,7 @@ export function SpotlightBanner({
   statusLabel,
   active = false,
   meta,
+  className,
 }: {
   href: string;
   kicker?: string;
@@ -21,11 +24,15 @@ export function SpotlightBanner({
   statusLabel: string;
   active?: boolean;
   meta?: string;
+  className?: string;
 }) {
   return (
     <Link
       href={href}
-      className="group relative block aspect-video w-full overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-band sm:aspect-[21/9]"
+      className={cn(
+        "group relative flex min-h-[400px] w-full flex-col justify-end overflow-hidden bg-band text-band-ink sm:min-h-[520px]",
+        className,
+      )}
     >
       {bannerUrl ? (
         <>
@@ -33,21 +40,27 @@ export function SpotlightBanner({
           <img
             src={bannerUrl}
             alt=""
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             loading="lazy"
             decoding="async"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent" />
         </>
       ) : null}
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 p-5 text-band-ink sm:p-8">
+
+      <div className="relative flex max-w-2xl flex-col gap-3 p-6 sm:p-10">
         {kicker ? <span className="t-label text-accent">{kicker}</span> : null}
-        <span className="t-statement leading-tight text-band-ink">{title}</span>
+        <h2 className="t-title leading-[1.05] text-band-ink">{title}</h2>
         <div className="flex items-center gap-2 t-label text-band-ink/70">
           <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-accent" : "bg-band-ink/50")} />
           {statusLabel}
           {meta ? <span className="text-band-ink/50">· {meta}</span> : null}
         </div>
+        <span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-band-ink px-4 py-2 t-body-sm font-medium text-band transition-transform group-hover:-translate-y-px">
+          <Play className="h-4 w-4" strokeWidth={2} />
+          Open
+        </span>
       </div>
     </Link>
   );
