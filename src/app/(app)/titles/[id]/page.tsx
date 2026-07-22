@@ -137,7 +137,16 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
           <InlineNotice tone="error">Returned for revision: {latestReview!.reason}</InlineNotice>
         ) : null}
         {canOperate && title.status === "draft" ? (
-          <SubmitButton orgId={title.org_id} titleId={title.id} />
+          complete.filled >= complete.total ? (
+            <SubmitButton orgId={title.org_id} titleId={title.id} />
+          ) : (
+            <InlineNotice tone="info">
+              Complete the {complete.total} required metadata fields to submit this title for review.{" "}
+              <Link href={`/titles/${id}/metadata`} className="text-accent">
+                Edit metadata
+              </Link>
+            </InlineNotice>
+          )
         ) : null}
       </div>
 
