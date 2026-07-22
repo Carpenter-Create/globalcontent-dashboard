@@ -1,0 +1,81 @@
+name: migration-drift
+
+# Guards against the failure we hit twice: code merged to main auto-deploys on Vercel, but
+# applying the DB migration is a separate manual step — so main can carry a migration the prod
+# DB doesn't have yet, and pages that read the new column/RPC 404 in production.
+#
+# This is a WARNING/notify check, deliberately NOT a build block: it never gates the Vercel
+# deploy (blocking the app on prod-DB reachability would be fragile). On a push to main it fails
+# the check (red X) so drift is loud; on a PR it emits a warning so you see it coming.
+#
+# Requires two repo secrets. Until they're set the job no-ops (green), so this can merge before
+# they exist:
+#   SUPABASE_ACCESS_TOKEN  — a Supabase account access token (Account → Access Tokens)
+#   SUPABASE_DB_PASSWORD   — the prod project's database password
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_REF: uevsculwzwlhxeamagwg # GC dashboard PROD Supabase project
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Are the Supabase secrets configured?
+        id: guard
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::notice::Supabase secrets not set — skipping the migration-drift check. Add SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD repo secrets to enable it."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: supabase/setup-cli@v1
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          version: latest
+
+      - name: Compare local migrations against the prod database
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -uo pipefail
+          supabase link --project-ref "$PROJECT_REF"
+
+          # A dry-run lists the migrations that WOULD be applied — i.e. exactly the ones the prod
+          # DB is missing. Empty = in sync. (SUPABASE_DB_PASSWORD is read from the env.)
+          out="$(supabase db push --dry-run 2>&1)"
+          echo "$out"
+
+          # Any 14-digit-timestamped migration filename in the output means prod is behind.
+          pending="$(echo "$out" | grep -oE '[0-9]{14}_[a-z0-9_]+\.sql' || true)"
+          if [ -z "$pending" ]; then
+            echo "Prod DB is in sync with main. ✓"
+            exit 0
+          fi
+
+          count="$(echo "$pending" | wc -l | tr -d ' ')"
+          msg="Prod DB is behind main by ${count} migration(s) not yet applied: $(echo "$pending" | paste -sd', ' -). Apply them with the Supabase CLI from the repo root."
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "::error::${msg}"
+            exit 1
+          else
+            echo "::warning::${msg}"
+          fi
