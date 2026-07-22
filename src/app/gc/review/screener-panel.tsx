@@ -80,8 +80,9 @@ export function ScreenerPanel({
 
   const active = links.filter((l) => !l.revoked_at);
   const shareLink = active.find((l) => l.share_token) ?? null;
-  // Legacy hash-only links (no persisted token) can't be re-copied — list them for cleanup.
-  const legacyActive = active.filter((l) => l.id !== shareLink?.id);
+  // Links from the pre-reusable model (no persisted token, can't be re-copied). They're all
+  // revoked the next time a link is created/reset, so we just note the count — no row-per-link.
+  const staleCount = active.length - (shareLink ? 1 : 0);
   const viewers = active.flatMap((l) => engagement[l.id] ?? []);
 
   return (
@@ -129,32 +130,25 @@ export function ScreenerPanel({
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-between gap-2">
-            <p className="t-body-sm text-ink-3">
-              Anyone with the link confirms their name and email before they can watch.
-            </p>
-            <Button variant="secondary" onClick={createOrReset} disabled={busy} className="shrink-0">
-              Create share link
-            </Button>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="t-body-sm text-ink-3">
+                Anyone with the link confirms their name and email before they can watch.
+              </p>
+              <Button variant="secondary" onClick={createOrReset} disabled={busy} className="shrink-0">
+                Create share link
+              </Button>
+            </div>
+            {staleCount > 0 ? (
+              <p className="t-body-sm text-ink-3">
+                {staleCount} older link{staleCount === 1 ? "" : "s"} still active — creating a new one replaces
+                {staleCount === 1 ? " it" : " them"}.
+              </p>
+            ) : null}
           </div>
         )}
 
         {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
-
-        {/* Legacy links minted before the reusable model — no stored token, so offer cleanup. */}
-        {legacyActive.length > 0 ? (
-          <div className="flex flex-col gap-1 pt-1">
-            <span className="t-label text-ink-3">Older links</span>
-            {legacyActive.map((l) => (
-              <div key={l.id} className="flex items-center justify-between gap-2 t-body-sm text-ink-3">
-                <span>Active · expires {new Date(l.expires_at).toLocaleDateString()}</span>
-                <Button variant="ghost" onClick={() => revoke(l.id)} disabled={busy}>
-                  Revoke
-                </Button>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       {/* Who has watched — external viewers only (GC in-app previews are not logged). */}
