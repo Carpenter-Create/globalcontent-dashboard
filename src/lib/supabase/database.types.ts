@@ -1535,7 +1535,7 @@ export type Database = {
       }
     }
     Enums: {
-      asset_kind: "master" | "caption" | "artwork" | "screener"
+      asset_kind: "master" | "caption" | "artwork" | "poster" | "screener" | "banner"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1748,7 +1748,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      asset_kind: ["master", "caption", "artwork", "screener"],
+      asset_kind: ["master", "caption", "artwork", "poster", "screener", "banner"],
       delivery_status: [
         "pending",
         "delivered",

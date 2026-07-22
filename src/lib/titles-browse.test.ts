@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { filterTitles, groupIntoRails, spotlightTitle, type BrowseTitle } from "./titles-browse";
+import {
+  filterTitles,
+  groupIntoRails,
+  spotlightTitle,
+  filterByStatus,
+  parseStatusFilter,
+  type BrowseTitle,
+} from "./titles-browse";
 
 const NOW = new Date("2026-07-22T00:00:00Z");
 const mk = (o: Partial<BrowseTitle> & { id: string; title: string }): BrowseTitle => ({
@@ -10,6 +17,7 @@ const mk = (o: Partial<BrowseTitle> & { id: string; title: string }): BrowseTitl
   live: 0,
   total: 0,
   posterUrl: null,
+  bannerUrl: null,
   ...o,
 });
 
@@ -65,18 +73,35 @@ describe("spotlightTitle", () => {
     ];
     expect(spotlightTitle(rows, NOW)!.id).toBe("up");
   });
-  it("falls back to a live title, then the most recent", () => {
-    expect(
-      spotlightTitle([mk({ id: "live", title: "L", live: 1 }), mk({ id: "d", title: "D" })], NOW)!.id,
-    ).toBe("live");
-    expect(
-      spotlightTitle(
-        [
-          mk({ id: "a", title: "A", created_at: "2026-01-01T00:00:00Z" }),
-          mk({ id: "b", title: "B", created_at: "2026-07-01T00:00:00Z" }),
-        ],
-        NOW,
-      )!.id,
-    ).toBe("b");
+  it("returns null when nothing is upcoming (no 'featured' fallback)", () => {
+    expect(spotlightTitle([mk({ id: "live", title: "L", live: 1 }), mk({ id: "d", title: "D" })], NOW)).toBeNull();
+  });
+});
+
+describe("parseStatusFilter", () => {
+  it("accepts known filters, falls back to all", () => {
+    expect(parseStatusFilter("live")).toBe("live");
+    expect(parseStatusFilter("in_review")).toBe("in_review");
+    expect(parseStatusFilter(undefined)).toBe("all");
+    expect(parseStatusFilter("bogus")).toBe("all");
+  });
+});
+
+describe("filterByStatus", () => {
+  const rows: BrowseTitle[] = [
+    mk({ id: "live", title: "Live", live: 1, total: 2 }),
+    mk({ id: "up", title: "Up", status: "in_delivery", release_date: "2026-12-01" }),
+    mk({ id: "rev", title: "Rev", status: "in_review" }),
+    mk({ id: "draft", title: "Draft", status: "draft" }),
+  ];
+  it("passes everything for 'all'", () => {
+    expect(filterByStatus(rows, "all", NOW)).toHaveLength(4);
+  });
+  it("filters to each category", () => {
+    expect(filterByStatus(rows, "live", NOW).map((r) => r.id)).toEqual(["live"]);
+    expect(filterByStatus(rows, "upcoming", NOW).map((r) => r.id)).toEqual(["up"]);
+    expect(filterByStatus(rows, "in_review", NOW).map((r) => r.id)).toEqual(["rev"]);
+    // in_progress = not live, and draft/submitted/in_delivery (the upcoming one is in_delivery)
+    expect(filterByStatus(rows, "in_progress", NOW).map((r) => r.id).sort()).toEqual(["draft", "up"]);
   });
 });

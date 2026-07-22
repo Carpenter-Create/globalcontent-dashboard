@@ -65,7 +65,7 @@ select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.deliv'), 'role', 'authenticated')::text, true);
 select lives_ok($$ select public.create_asset(
   current_setting('t.org_a')::uuid, current_setting('t.title_a')::uuid,
-  'artwork', 'orgs/a/titles/a/artwork/z/key.jpg', 'sha256:ghi', 5, 'image/jpeg', 'key.jpg') $$,
+  'poster', 'orgs/a/titles/a/poster/z/key.jpg', 'sha256:ghi', 5, 'image/jpeg', 'key.jpg') $$,
   'delivery_ops: create_asset succeeds');
 
 -- viewer cannot
