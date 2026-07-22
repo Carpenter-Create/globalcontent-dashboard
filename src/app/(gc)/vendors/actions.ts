@@ -78,6 +78,6 @@ export async function saveVendor(raw: unknown): Promise<{ error?: string }> {
     return { error: error.message };
   }
 
-  revalidatePath("/gc/vendors");
+  revalidatePath("/vendors");
   return {};
 }
