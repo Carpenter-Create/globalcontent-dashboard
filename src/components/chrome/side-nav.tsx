@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, Store, Send, type LucideIcon } from "lucide-react";
+import { Inbox, Store, type LucideIcon } from "lucide-react";
 
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
-// GC operator surfaces — shown only to GC staff, and they render INSIDE this same shell
-// (no separate area). Queue and Vendors are top-level routes; the delivery queue keeps its
-// /gc/deliveries URL (the client already owns /deliveries) but renders here all the same.
+// GC operator surfaces — shown only to GC staff, rendered INSIDE this same shell (no separate
+// area). The delivery QUEUE is deliberately NOT here: "Deliveries" already exists in the client
+// nav (a client's own deliveries), so a second "Deliveries" for a dual-role account is confusing.
+// GC reaches the delivery queue from the Queue's "Ready to deliver" section instead.
 const GC_NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Queue", href: "/queue", icon: Inbox },
   { label: "Vendors", href: "/vendors", icon: Store },
-  { label: "Deliveries", href: "/gc/deliveries", icon: Send },
 ];
 
 // Nav row rhythm ported from watershedportal (px-3 py-2, text-[13px], gap-2.5,
