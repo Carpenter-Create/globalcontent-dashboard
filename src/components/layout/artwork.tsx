@@ -28,8 +28,8 @@ export function Artwork({
           decoding="async"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <span className="t-data select-none text-3xl font-medium text-ink-3/70">{initial}</span>
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-muted via-surface-muted to-surface">
+          <span className="t-data select-none text-3xl font-medium text-ink-3/40">{initial}</span>
         </div>
       )}
     </div>

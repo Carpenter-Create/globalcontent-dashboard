@@ -193,7 +193,7 @@ export default async function TitlesPage({
   ];
 
   const bannerGrid = (items: BrowseTitle[]) => (
-    <div className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {items.map((r) => (
         <BannerCard
           key={r.id}
@@ -209,10 +209,12 @@ export default async function TitlesPage({
   return (
     <div className="mx-auto w-full px-6 pb-4 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
       {/* Clean text header — no cinematic hero. */}
-      <div className="flex flex-col gap-1 pb-6">
+      <div className="flex flex-col gap-2 pb-8">
         <span className="t-label text-accent">Catalog</span>
-        <h1 className="t-subhead text-ink">Titles</h1>
-        <p className="t-body-sm text-ink-3">{`Every title in ${activeOrg.name}'s catalog.`}</p>
+        <h1 className="t-statement text-ink">Titles</h1>
+        <p className="t-body text-ink-2">
+          {all.length} {all.length === 1 ? "title" : "titles"} in {activeOrg.name}&rsquo;s catalog.
+        </p>
       </div>
 
       {/* Controls — sort left (browse only); search / view / add right. */}
