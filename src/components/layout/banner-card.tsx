@@ -27,10 +27,14 @@ export function BannerCard({
       />
       <div className="flex flex-col gap-1.5">
         <span className="line-clamp-1 t-body-sm font-medium text-ink">{title}</span>
-        <div className="flex items-center justify-between gap-2">
-          {status ? <StatusChip label={status.label} tone={status.tone} /> : <span />}
-          {meta ? <span className="shrink-0 t-body-sm text-ink-3">{meta}</span> : null}
-        </div>
+        {/* Sub-row: status pill (when set) + meta. With only meta it left-aligns; with
+            neither, the row is dropped entirely so the card ends on the title. */}
+        {status || meta ? (
+          <div className="flex items-center justify-between gap-2">
+            {status ? <StatusChip label={status.label} tone={status.tone} /> : null}
+            {meta ? <span className="shrink-0 t-body-sm text-ink-3">{meta}</span> : null}
+          </div>
+        ) : null}
       </div>
     </Link>
   );
