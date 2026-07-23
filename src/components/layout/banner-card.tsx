@@ -19,20 +19,25 @@ export function BannerCard({
   meta?: React.ReactNode;
 }) {
   return (
-    <Link href={href} className="group flex flex-col gap-2.5">
+    <Link href={href} className="group flex flex-col gap-3">
       <Artwork
         src={bannerUrl}
         title={title}
-        className="aspect-video w-full border border-hairline transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[var(--elevation)]"
+        rounded="rounded-[var(--radius-lg)]"
+        className="aspect-video w-full border border-hairline transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-ink-3/25 group-hover:shadow-[var(--elevation)]"
       />
-      <div className="flex flex-col gap-1.5">
-        <span className="line-clamp-1 t-body-sm font-medium text-ink">{title}</span>
+      <div className="flex flex-col gap-1">
+        <span className="line-clamp-1 t-body font-medium leading-snug text-ink transition-colors group-hover:text-accent">
+          {title}
+        </span>
         {/* Sub-row: status pill (when set) + meta. With only meta it left-aligns; with
             neither, the row is dropped entirely so the card ends on the title. */}
         {status || meta ? (
           <div className="flex items-center justify-between gap-2">
             {status ? <StatusChip label={status.label} tone={status.tone} /> : null}
-            {meta ? <span className="shrink-0 t-body-sm text-ink-3">{meta}</span> : null}
+            {meta ? (
+              <span className="shrink-0 t-body-sm tabular-nums text-ink-3">{meta}</span>
+            ) : null}
           </div>
         ) : null}
       </div>
