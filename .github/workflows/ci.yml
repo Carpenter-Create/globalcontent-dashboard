@@ -116,6 +116,8 @@ jobs:
         run: node scripts/security/l7-chain-of-title-gate.mjs
         continue-on-error: true
 
+      # `if: always()` also runs when an earlier step failed before the CLI was installed,
+      # where `supabase stop` is exit 127 and turns a clear failure into two. Tolerate it.
       - name: Stop Supabase
         if: always()
-        run: supabase stop
+        run: supabase stop || true
