@@ -14,7 +14,12 @@ holders sign a licensing agreement, submit titles and **platform-ready** assets,
 across vendors, and (later) receive revenue statements and payouts.
 
 **Not** the public site — that's `globalcontent-web`, separate repo, Tier 2. **Not** 24Frame —
-separate product, separate repo, separate Supabase project.
+separate product, separate repo, and a **separate Supabase ACCOUNT**, not merely a separate
+project. Reason: Supabase access tokens are **account-scoped** — there is no project-scoped
+variant — and a token can read any project's `service_role` key, which bypasses RLS entirely. One
+account means one token compromise reaches everything in it. Creating 24Frame under this account
+because the org and billing already exist would silently widen every existing token, with nothing
+failing to signal it. **Never create 24Frame under the Global Content Supabase account.**
 
 ## Source of truth
 - **`docs/domain-spec.md`** — domain model, roles, rights/territory, terms, fees, rate rules,
