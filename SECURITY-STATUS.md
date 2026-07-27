@@ -225,7 +225,8 @@ and a harness that seeds nothing must not report success.
 | **`pnpm lint`** — 841 errors / 8727 warnings | All pre-existing. Advisory in CI so the gate is not red on arrival |
 | **`brace-expansion`** high advisory | Unfixable in place — the patch exists only in 5.0.8, and forcing it breaks ESLint and the `.xlsx` export path. Declared in `auditConfig.ignoreGhsas` |
 | **`uuid` moderate** | Three-major jump on a transitive dep of the export engine. Below the `high` gate |
-| **`migration-drift.yml` secrets** | Not set. The workflow no-ops. Blocked on the production-vs-staging decision — and neither secret can be scoped to schema-read-only |
+| **`migration-drift.yml` secret** | Still unset; the workflow still no-ops. **No longer blocked on the production-vs-staging decision.** `SUPABASE_ACCESS_TOKEN` is gone — `migration list --db-url` needs no account token, verified with the token unset — so the account-wide credential that reached 13 projects is out of CI entirely. What remains is `SUPABASE_DB_PASSWORD`, deliberately **not** set yet: `docs/scheduled/drift-reader-role.md` proposes a `drift_reader` role first, so the `postgres` password never enters GitHub at all |
+| **`gc_staff` is single-factor and role-agnostic** | **Two findings, one row — see `docs/scheduled/gc-staff-single-factor.md`.** (1) Authentication is email possession alone; no MFA exists anywhere in `src/`. `member_can` short-circuits to `true` on **every org** for any staff row, so one compromised mailbox is a whole-tenant compromise — 16 of 35 policies and 16 functions. (2) **Independently: `is_gc_staff` does not consult `gc_role` at all.** A `gc_viewer` can create a delivery, approve a title for delivery and mint a master-asset URL. The scope inversion shipped; the role separation did not. Scoped, costed, **not built** — the `aal2` migration must land *after* an enrollment flow or it locks out the only staff account (prod has 1 row) |
 | **Section I** — console items | Untouched. **I10 (preview deployment protection) first** |
 | **Sections J/L/M/O for the other two repos** | `globalcontent-web` and `24frame` have had no pass at all |
 
@@ -254,6 +255,8 @@ is where that distinction goes to die.
 | Item | Trigger |
 |---|---|
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
+| **`drift_reader` role** — `docs/scheduled/drift-reader-role.md` | **Before `SUPABASE_DB_PASSWORD` is set.** Owner's ordering: create the least-privilege role first, then set only its password. Putting the `postgres` credential in GitHub "for now" means it lives there until someone gets to it. SQL written and awaiting approval; deliberately **not** in `supabase/migrations/`, since a file there is a file `db push` applies |
+| **GC-side role separation** | Independent of the MFA decision and cheaper. `is_gc_staff` ignores `gc_role` entirely (§5) |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
 | **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
 
