@@ -41,14 +41,19 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/**"
-  # ⏸ SCHEDULE PAUSED 2026-07-27 — there is no working database credential yet, so an hourly
-  # run would be an hourly failure email, and a control you learn to ignore is worse than one
-  # you know is off. Restore this the moment `drift_reader` exists and its password is set
-  # (docs/scheduled/drift-reader-role.md). :17 rather than :00 because the top of the hour is
-  # when GitHub's scheduler is most congested and cron runs are most likely to be dropped.
+  # Restored 2026-07-27 once `drift_reader` had a working password. :17 rather than :00 because
+  # the top of the hour is when GitHub's scheduler is most congested and cron runs are most
+  # likely to be delayed or dropped.
   #
-  # schedule:
-  #   - cron: "17 * * * *"
+  # IF THIS FAILS ONCE WITH `password authentication failed`, RE-RUN BEFORE DEBUGGING.
+  # Supavisor caches credentials PER NODE. After a role password change, one pooler node can
+  # serve the new credential while another still serves the old, for minutes. This cost an hour
+  # on 2026-07-27: a local psql test passed three times in a row while CI failed three times in
+  # a row, because the two were reaching different nodes. GitHub runners resolve consistently to
+  # one node, so a local test proves nothing about CI's path — to check CI's specifically,
+  # connect to its IP directly rather than to the hostname.
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch: {} # manual "Run workflow" button — ignores path filters
 
 permissions:

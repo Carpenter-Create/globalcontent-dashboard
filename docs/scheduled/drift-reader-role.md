@@ -4,17 +4,43 @@
 instruction. Still deliberately **not** in `supabase/migrations/` — see "Why this is not a
 migration" at the foot.*
 
-## Status
+## Status — COMPLETE except the last step
 
 | Step | State |
 |---|---|
-| 1. Create the role | ✅ **applied**, verified 10/10 against the production catalog |
-| 2. Set its password | ⬜ **owner — interactive, see below** |
-| 3. Repoint `DB_USER` in the workflow | ✅ done, `drift_reader.uevsculwzwlhxeamagwg` |
-| 4. Set `SUPABASE_DB_PASSWORD` to the new password | ⬜ owner |
-| 5. Dispatch to prove the pooler accepts a non-`postgres` role | ⬜ blocked on 2 and 4 |
-| 6. Restore the hourly schedule | ⬜ only after 5 is green |
-| 7. Delete `SUPABASE_ACCESS_TOKEN` | ⬜ owner — already unused by any workflow |
+| 1. Create the role | ✅ applied, verified 10/10 against the production catalog |
+| 2. Set its password | ✅ done 2026-07-27 |
+| 3. Repoint `DB_USER` in the workflow | ✅ `drift_reader.uevsculwzwlhxeamagwg` |
+| 4. Set `SUPABASE_DB_PASSWORD` | ✅ done 2026-07-27 |
+| 5. Prove the pooler accepts a non-`postgres` role | ✅ **it does** — CI reads the ledger as `drift_reader` |
+| 6. Restore the hourly schedule | ✅ restored |
+| 7. Delete `SUPABASE_ACCESS_TOKEN` | ⬜ **owner** — unused by any workflow since `dd06151` |
+
+CI now reports `ledger rows: 41   migration files: 41` / `Prod DB and main are in sync, both
+directions. ✓`, using a credential that can read one table and nothing else.
+
+## ⚠ Supavisor caches credentials PER NODE — this cost an hour
+
+**After changing a role's password, different pooler nodes serve different credentials for
+minutes.** Observed directly on 2026-07-27, and the evidence is unambiguous because it inverted:
+
+| Node | After the 1st password set | After the 2nd |
+|---|---|---|
+| `34.215.156.231` (this laptop resolves here) | ✅ works | ❌ `password authentication failed` |
+| `44.252.246.120` (GitHub runners resolve here) | ❌ fails | ✅ works |
+
+The trap: a local `psql` test passed **three times in a row** while CI failed **three times in a
+row**, with the same password. That read as "the credential is right, the secret transfer is
+broken" and sent the investigation in the wrong direction. It was neither — the two tests were
+reaching different nodes.
+
+**Rules that follow:**
+
+1. **A local connection test proves nothing about CI's path.** To test the node CI actually uses,
+   connect to its IP directly rather than the hostname:
+   `psql "postgresql://drift_reader.<ref>@44.252.246.120:5432/postgres?sslmode=require"`
+2. **After any password rotation, expect one spurious failure.** Re-run before debugging.
+3. Verify the node IP from a recent CI log before relying on it — it can change.
 
 **Verification at apply time**, read from `pg_roles` / `pg_authid` rather than trusting the
 migration's own assertions: role exists and can log in · not superuser, no `createrole`, no

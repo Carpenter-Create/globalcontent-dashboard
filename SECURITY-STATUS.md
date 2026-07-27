@@ -178,6 +178,7 @@ Postgres upgrade, not afterwards.
 | The `20260726*` batch | All nine in production. End state verified against the catalog, 24/24 |
 | **GC role separation** | `20260727000100` — `gc_can()`, `member_can` delegates instead of short-circuiting, 15 policies and 15 functions repointed, `gc_viewer` blocked by CHECK. **`gc_role` now decides.** Verified in production 33/33 against the catalog; the 4×7 capability matrix is proven behaviourally by 32 pgTAP assertions in CI |
 | Branch protection | `main` protected. `isolation` a **required status check**, `enforce_admins` on, force-push and deletion off |
+| **Drift check, on a least-privilege credential** | `migration-drift.yml` reads the production ledger as `drift_reader` — one table, no writes, no account token. Hourly schedule restored; CI reports `41 / 41, in sync, both directions ✓`. The account-scoped `SUPABASE_ACCESS_TOKEN` that reached 12 projects is out of CI entirely |
 
 ---
 
@@ -235,7 +236,6 @@ and a harness that seeds nothing must not report success.
 | **`pnpm lint`** — 841 errors / 8727 warnings | All pre-existing. Advisory in CI so the gate is not red on arrival |
 | **`brace-expansion`** high advisory | Unfixable in place — the patch exists only in 5.0.8, and forcing it breaks ESLint and the `.xlsx` export path. Declared in `auditConfig.ignoreGhsas` |
 | **`uuid` moderate** | Three-major jump on a transitive dep of the export engine. Below the `high` gate |
-| **`migration-drift.yml` — the check ran on the ACCESS TOKEN alone; the DB password does not work** | **Three corrections in one row, all found by running it rather than reading it.** (1) This file said "Not set. The workflow no-ops" for five days — false. Both secrets were set `2026-07-22T03:5x` and the check has been live against production, correctly failing the `05:08` push on 2026-07-27 when prod was behind by seven. (2) **`--linked` goes through the Management API and needs no database password** — verified by running it with `SUPABASE_DB_PASSWORD` unset: exit 0. So `SUPABASE_DB_PASSWORD` has sat in GitHub for five days **unused and never validated**. (3) It is also **wrong**: both `supabase --db-url` and a plain `psql` are refused by the pooler with `password authentication failed for user "postgres"`. Removing the account token therefore requires a database credential that does not exist in working form — which is why `drift_reader` comes first. **Schedule paused**; `push`→main and `workflow_dispatch` remain |
 | **`gc_staff` is single-factor** | **Half of this row closed on 2026-07-27; the half that remains is the MFA one.** Authentication is email possession alone — no MFA anywhere in `src/`, and `gc_staff` spans every org, so one compromised mailbox is still a whole-tenant compromise. Scoped and costed in `docs/scheduled/gc-staff-single-factor.md`, **not built**: the `aal2` migration must land *after* an enrollment flow or it locks out the only staff account. **Owner has enforced MFA on the magic-link mailbox**, which closes the actual attack path; everything in that document hardens the app against someone who already has the mailbox. *Role separation — the second finding in this row — is now **DONE** (`20260727000100`), which limits what a compromise yields even though it does not prevent one.* |
 | **Section I** — console items | Untouched. **I10 (preview deployment protection) first** |
 | **Sections J/L/M/O for the other two repos** | `globalcontent-web` and `24frame` have had no pass at all |
@@ -266,7 +266,7 @@ is where that distinction goes to die.
 | Item | Trigger |
 |---|---|
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
-| **`drift_reader` — set its password, then finish the chain** | **Role applied 2026-07-27, verified 10/10.** Remaining, in order: set the password interactively → set `SUPABASE_DB_PASSWORD` to it → dispatch to prove the pooler accepts a non-`postgres` role (**untested, and the one thing that could sink the approach**) → restore the hourly schedule → delete `SUPABASE_ACCESS_TOKEN`. `docs/scheduled/drift-reader-role.md` tracks the state |
+| **Delete `SUPABASE_ACCESS_TOKEN`** | Now. Unused by any workflow since `dd06151`, and the drift check no longer needs it. Account-scoped, reaching 12 projects. Deleting the repo secret removes GitHub's copy; revoking it at Supabase → Account → Access Tokens kills it everywhere (and logs out the local CLI if it is the same token) |
 | **Re-create `drift_reader` after any real restore** | Second item on the restore runbook, with `000300`. Roles are cluster-level and **do not survive a `pg_dump` restore** — same trap as `pg_default_acl`, and the drift check would start failing afterwards for a reason nobody connects to the restore |
 | **Hide view-only controls in the UI** | With the next operator-UI change. `mark_notifications_read` refuses silently by design (filtered `insert…select` — raising would let one bad id kill a batch), so a refused control gives no error. Mirror the pattern in `src/lib/assets.ts:8-11`: the rule lives in one place and the page imports it |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
@@ -316,7 +316,14 @@ is where that distinction goes to die.
    It cannot record that a *later* file in the same batch undid it — and `create or replace
    function` is exactly that hazard, since it is the normal way to edit a function and it sits in
    the same batch as the migration that revoked the function's PUBLIC grant. Verify the objects.
-6. **A gate that cannot fail is not a gate, and a gate that is red on arrival gets deleted.**
+6. **Supavisor caches credentials per node, so a local connection test proves nothing about CI.**
+   After rotating `drift_reader`'s password, a local `psql` passed three times running while CI
+   failed three times running — same password, different pooler node. The evidence only became
+   unambiguous when it *inverted*: the node that worked started failing and the one that failed
+   started working. An hour went into "the secret transfer must be broken" because the local
+   check looked like a control and wasn't one. **To test CI's path, connect to CI's node IP, not
+   the hostname** — and expect one spurious failure after any rotation.
+7. **A gate that cannot fail is not a gate, and a gate that is red on arrival gets deleted.**
    Both failure modes were live tonight: L7 was `continue-on-error` (could not fail) and exited 1
    on a decided exception (would be red the moment it could). The resolution is neither — it is a
    baseline that names each accepted finding and the change that retires it. Check that a new
