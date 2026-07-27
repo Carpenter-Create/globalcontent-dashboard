@@ -75,9 +75,22 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # PINNED, not `latest`. Tracking latest made the database non-reproducible: a newer
+      # CLI ships a newer Postgres image whose bootstrap no longer runs
+      # `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO anon, authenticated,
+      # service_role`. Not one migration in this repo issues an explicit GRANT — all 26
+      # tables inherit their privileges from that default — so on `latest` the whole schema
+      # comes up with no table privileges for `authenticated` and pgTAP dies with
+      # "permission denied for table vendors".
+      #
+      # 2.102.0 is what the local stack runs and what matches production (verified against
+      # a live schema dump: prod grants ALL on every table to authenticated, same as local).
+      # Keep CI, local and prod on the same version until the migrations state their grants
+      # explicitly — until then the platform default IS the schema, and a floating CLI
+      # silently changes it.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.102.0
 
       - name: Install
         run: pnpm install --frozen-lockfile
