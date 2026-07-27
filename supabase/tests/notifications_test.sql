@@ -3,7 +3,7 @@
 -- (mark_notifications_read / my_notifications.unread / my_unread_count).
 
 begin;
-select plan(13);
+select plan(15);
 
 select set_config('t.orgA',    gen_random_uuid()::text, false);
 select set_config('t.orgB',    gen_random_uuid()::text, false);
@@ -71,6 +71,17 @@ select is(public.my_unread_count(), 0, 'ownerA unread count = 0 after read');
 -- ---- per-user: the 2nd org A member still sees it unread -------------------
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.memberA'),'role','authenticated')::text, true);
 select is(public.my_unread_count(), 1, 'other org A member still has it unread (per-user read state)');
+
+-- A `viewer` CAN mark their own copy read, and that is intended (20260727000100 examined
+-- this and left it). `notification_reads` is keyed (notification_id, user_id) and the insert
+-- uses auth.uid(), so it changes only what THIS user sees. It is a private UI preference, not
+-- an action on the org — which is why 'view' is the right capability rather than 'operate'.
+select lives_ok(
+  format($$ select public.mark_notifications_read(array[%L]::uuid[]) $$, current_setting('t.nid')),
+  'viewer marks their OWN copy read');
+select is(public.my_unread_count(), 0, 'viewer unread count = 0 — their own inbox only');
+-- And the proof it stayed private: ownerA already read it, so nothing observable changed for
+-- anyone else. The per-user assertion above (memberA unread while ownerA read) is the pair.
 
 -- ---- org_notification_recipients: GC-only, active members only -------------
 select set_config('request.jwt.claims', json_build_object('sub', current_setting('t.gc'),'role','authenticated')::text, true);

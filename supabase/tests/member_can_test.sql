@@ -56,9 +56,13 @@ select ok(not  public.member_can(null,                               current_set
 select ok(not  public.member_can(current_setting('t.owner')::uuid,   current_setting('t.org_b')::uuid, 'view'),              'owner of A: NOT view B');
 select ok(not  public.member_can(current_setting('t.outside')::uuid, current_setting('t.org_a')::uuid, 'view'),              'non-member: NOT view');
 
--- GC staff bypass (scope inverts — all orgs, all capabilities)
-select ok(     public.member_can(current_setting('t.gc')::uuid,      current_setting('t.org_a')::uuid, 'manage_settings'),   'gc_staff: bypass A');
-select ok(     public.member_can(current_setting('t.gc')::uuid,      current_setting('t.org_b')::uuid, 'view'),              'gc_staff: bypass B (all orgs)');
+-- GC staff: scope inverts (all orgs) but the ROLE now decides the capability.
+-- CHANGED by 20260727000100. This block previously asserted `manage_settings` was TRUE for a
+-- gc_delivery_ops — that assertion was documenting the defect, not a requirement: every GC
+-- role had every capability because member_can short-circuited to `true` without reading
+-- gc_role. The scope inversion is unchanged; the blanket grant is gone.
+select ok(     public.member_can(current_setting('t.gc')::uuid,      current_setting('t.org_b')::uuid, 'view'),              'gc_delivery_ops: reads ALL orgs (scope still inverts)');
+select ok(not  public.member_can(current_setting('t.gc')::uuid,      current_setting('t.org_a')::uuid, 'manage_settings'),   'gc_delivery_ops: NOT manage_settings (role now decides)');
 
 select * from finish();
 rollback;
