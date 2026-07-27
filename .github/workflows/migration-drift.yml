@@ -62,7 +62,10 @@ env:
   PROJECT_REF: uevsculwzwlhxeamagwg # GC dashboard PROD Supabase project
   # Session pooler (IPv4). Region is us-west-2; see supabase/.temp/pooler-url.
   DB_HOST: aws-1-us-west-2.pooler.supabase.com
-  DB_USER: postgres.uevsculwzwlhxeamagwg
+  # drift_reader, not postgres. Created 2026-07-27; reads supabase_migrations.schema_migrations
+  # and nothing else — verified against the production catalog: 0 readable tables in `public`
+  # while the same probe finds 27 for `authenticated`. See docs/scheduled/drift-reader-role.md.
+  DB_USER: drift_reader.uevsculwzwlhxeamagwg
 
 jobs:
   check:
