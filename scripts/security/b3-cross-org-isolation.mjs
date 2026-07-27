@@ -266,10 +266,31 @@ async function seedOrg(owner, gc, name, vendorId) {
     session_id: sess.id, link_id: linkId, event_type: "play", position_seconds: 0,
   }));
 
+  // Added in audit pass 3, after 20260721000300 and 20260722000100 were applied:
+  //   - portal_links.share_token now stores the RAW screener token in plaintext
+  //     (hash-only for master_download; deliberate, see the migration header).
+  //     Seed one so the cross-org read test has a real credential as bait.
+  //   - asset_kind gained 'poster'/'banner'; seed a poster so the new kinds are
+  //     covered by the storage_key isolation tests rather than assumed.
+  const rawShareToken = `RAW-SHARE-${name}-${run}`;
+  const { data: screenerLinkId, error: slErr } = await g.rpc("create_screener_link", {
+    p_title_id: live.titleId,
+    p_token_hash: createHash("sha256").update(`${name}-screener`).digest("hex"),
+    p_share_token: rawShareToken,
+  });
+  if (slErr) throw new Error(`seed screener link ${name}: ${slErr.message}`);
+  const { data: posterId, error: poErr } = await c.rpc("create_asset", {
+    p_org_id: orgId, p_title_id: live.titleId, p_kind: "poster",
+    p_storage_key: `orgs/${orgId}/titles/${live.titleId}/poster/${randomUUID()}/poster.jpg`,
+    p_content_hash: createHash("sha256").update(`${name}-poster`).digest("hex"), p_bytes: 99,
+  });
+  if (poErr) throw new Error(`seed poster ${name}: ${poErr.message}`);
+
   return {
     name, orgId, docId, deliveryId, linkId, sessionId: sess.id,
     titleId: draft.titleId, grantId: draft.grantId, assetId: draft.assetId,
     liveTitleId: live.titleId, liveAssetId: live.assetId,
+    screenerLinkId, rawShareToken, posterId,
     termId: terms?.[0]?.id ?? null,
   };
 }
@@ -363,6 +384,26 @@ async function main() {
       async () => { const { count } = await admin.from(t).select("*", { count: "exact", head: true }); return count ?? 0; },
       () => a.from(t).select("*"));
   }
+
+  // --- pass 3 additions: objects that did not exist when this harness was written ---
+  await R("SELECT portal_links.share_token — the RAW screener token, stored in plaintext (20260721000300)",
+    async () => { const { count } = await admin.from("portal_links").select("*", { count: "exact", head: true }).not("share_token","is",null); return count ?? 0; },
+    async () => {
+      const r = await a.from("portal_links").select("id, title_id, share_token").not("share_token", "is", null);
+      return r.error ? r : { data: r.data ?? [], error: null };
+    });
+  await R("SELECT portal_links WHERE title_id = <OrgB's title> — B's screener link row",
+    countAs("portal_links", "title_id", B.liveTitleId),
+    () => a.from("portal_links").select("*").eq("title_id", B.liveTitleId));
+  await R("SELECT assets WHERE id = <OrgB poster> — new 'poster' kind (20260722000100)",
+    countAs("assets", "id", B.posterId),
+    () => a.from("assets").select("*").eq("id", B.posterId));
+  await R("SELECT assets WHERE kind in (poster,banner) — any artwork key outside Org A",
+    async () => { const { count } = await admin.from("assets").select("*", { count: "exact", head: true }).eq("org_id", B.orgId).in("kind", ["poster","banner"]); return count ?? 0; },
+    async () => {
+      const r = await a.from("assets").select("id, org_id, kind, storage_key").in("kind", ["poster","banner"]);
+      return r.error ? r : { data: (r.data ?? []).filter((x) => x.org_id !== A.orgId), error: null };
+    });
 
   // Embedded/nested reads — the classic attempt to reach a protected table via a FK join.
   await R("SELECT titles(id, assets(storage_key)) embedded — reach B's asset via a join",
@@ -556,6 +597,18 @@ async function main() {
   await W("INSERT portal_links — mint a master-download link for B's asset",
     () => a.from("portal_links").insert({ purpose: "master_download", asset_id: B.assetId,
       token_hash: "x".repeat(64), expires_at: new Date(Date.now() + 6e8).toISOString() }).select());
+  await W("UPDATE portal_links SET share_token (steal/replace B's raw screener token)",
+    () => a.from("portal_links").update({ share_token: "ATTACKER-TOKEN" }).eq("id", B.screenerLinkId).select(),
+    async () => {
+      const { data } = await admin.from("portal_links").select("share_token").eq("id", B.screenerLinkId).maybeSingle();
+      return !!data && data.share_token === B.rawShareToken;
+    });
+  await W("UPDATE assets SET kind='poster' on B's master (mislabel to dodge the master gate)",
+    () => a.from("assets").update({ kind: "poster" }).eq("id", B.assetId).select(),
+    async () => {
+      const { data } = await admin.from("assets").select("kind").eq("id", B.assetId).maybeSingle();
+      return !!data && data.kind === "master";
+    });
   await W("UPDATE portal_links SET revoked_at=null, expires_at=+1y (revive a revoked link)",
     () => a.from("portal_links").update({ expires_at: new Date(Date.now() + 3e10).toISOString() }).eq("id", B.linkId).select(),
     async () => {
