@@ -3,8 +3,10 @@
 -- tenant isolation; my_deliveries scoping.
 
 begin;
-select plan(12);
+select plan(15);
 
+select set_config('t.tdraft', gen_random_uuid()::text, false);
+select set_config('t.dlv_bad', gen_random_uuid()::text, false);  -- never reviewed, for the gate's negative case
 select set_config('t.org_a', gen_random_uuid()::text, false);
 select set_config('t.org_b', gen_random_uuid()::text, false);
 select set_config('t.owner', gen_random_uuid()::text, false);  -- client account_owner, org A
@@ -22,9 +24,22 @@ insert into public.memberships (org_id, user_id, role, status) values
   (current_setting('t.org_a')::uuid, current_setting('t.owner')::uuid, 'account_owner', 'active');
 insert into public.gc_staff (user_id, role) values (current_setting('t.gc')::uuid, 'gc_delivery_ops');
 insert into public.works (id) values (current_setting('t.work')::uuid);
-insert into public.titles (id, org_id, title, work_id) values
-  (current_setting('t.ta')::uuid, current_setting('t.org_a')::uuid, 'Film', current_setting('t.work')::uuid),
-  (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, 'Film', current_setting('t.work')::uuid);
+-- status = 'in_delivery' is REQUIRED as of 20260726000100: create_delivery refuses a title
+-- that has not passed chain-of-title review. Without it these fixtures fail on the gate and
+-- the rule-12 / exclusivity assertions below never get to run.
+insert into public.titles (id, org_id, title, work_id, status) values
+  (current_setting('t.ta')::uuid, current_setting('t.org_a')::uuid, 'Film', current_setting('t.work')::uuid, 'in_delivery'),
+  (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, 'Film', current_setting('t.work')::uuid, 'in_delivery');
+-- A title that was never reviewed. Nothing advances it; it exists so the gate has something
+-- to refuse. Same org and same grant shape as t.ta, so the ONLY difference is status.
+insert into public.titles (id, org_id, title, status) values
+  (current_setting('t.tdraft')::uuid, current_setting('t.org_a')::uuid, 'Never Reviewed', 'draft');
+-- set_delivery_status keys on a DURABLE approval record rather than the current status, so
+-- that a takedown stays recordable after titles.status leaves 'in_delivery'. Setting the
+-- column above is therefore not sufficient for it — the review row is what it reads.
+insert into public.title_reviews (title_id, org_id, reviewer, decision) values
+  (current_setting('t.ta')::uuid, current_setting('t.org_a')::uuid, current_setting('t.gc')::uuid, 'approve'),
+  (current_setting('t.tb')::uuid, current_setting('t.org_b')::uuid, current_setting('t.gc')::uuid, 'approve');
 insert into public.vendors (id, name, delivery_mode) values
   (current_setting('t.vendor')::uuid, 'Endpoint One', 'portal_upload');
 -- Grant on A: SVOD, include US, NON-exclusive, active.
@@ -52,6 +67,18 @@ select throws_ok(
 select lives_ok(
   format($$ select public.create_delivery(%L,%L,%L,'US') $$, current_setting('t.ta'), current_setting('t.vendor'), current_setting('t.ga')),
   'gc: valid create_delivery (US covered) succeeds');
+
+-- ===== chain-of-title gate: the NEGATIVE case (20260726000100) =====
+-- Setting status='in_delivery' above restores the positive assertions but proves nothing
+-- about the gate. These two assert it actually refuses. Five findings in this audit were
+-- controls that existed without proof they functioned; this is the proof for this one.
+select throws_ok(
+  format($$ select public.create_delivery(%L,%L,%L,'US') $$, current_setting('t.tdraft'), current_setting('t.vendor'), current_setting('t.ga')),
+  'P0001', null, 'gate: create_delivery REFUSES a never-reviewed (draft) title');
+-- and the refusal is the chain-of-title one specifically, not an incidental failure
+select throws_like(
+  format($$ select public.create_delivery(%L,%L,%L,'US') $$, current_setting('t.tdraft'), current_setting('t.vendor'), current_setting('t.ga')),
+  '%Chain of title%', 'gate: refusal is the chain-of-title check, not a side effect');
 select is((select count(*) from public.deliveries where title_id = current_setting('t.ta')::uuid)::int,
   1, 'one delivery row created');
 select is((select status::text from public.deliveries where title_id = current_setting('t.ta')::uuid),
@@ -95,6 +122,8 @@ select lives_ok(
 select is((select status::text from public.deliveries where id = current_setting('t.dlv')::uuid),
   'live', 'status advanced to live');
 
+
+
 -- ===== client: reads own deliveries; set_delivery_status denied; my_deliveries scoped =====
 -- Adversarial org-B delivery: the client (org A) must NOT see it — makes the
 -- isolation + my_deliveries assertions genuine (3 rows exist; client sees 2).
@@ -118,6 +147,24 @@ select throws_ok(
   'P0001', 'Not authorized', 'client: set_delivery_status denied');
 select is((select count(*) from public.my_deliveries() where vendor_name = 'Endpoint One')::int, 2,
   'client: my_deliveries returns own deliveries + vendor name');
+
+-- Placed last on purpose: it inserts a delivery row, and the client-read assertions
+-- above count rows in org A.
+-- The same gate on set_delivery_status, proven rather than assumed. create_delivery can no
+-- longer produce this state, which is precisely why the check exists here too: if a delivery
+-- for an unreviewed title ever exists, the RPC that puts a title live must still refuse.
+-- Insert one directly (owner, bypassing the RPC) to construct the state.
+reset role;
+insert into public.deliveries (id, org_id, title_id, vendor_id, grant_id, territory)
+  values (current_setting('t.dlv_bad')::uuid, current_setting('t.org_a')::uuid,
+          current_setting('t.tdraft')::uuid, current_setting('t.vendor')::uuid,
+          current_setting('t.ga')::uuid, 'US');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role', 'authenticated')::text, true);
+select throws_like(
+  format($$ select public.set_delivery_status(%L, 'live') $$, current_setting('t.dlv_bad')),
+  '%Chain of title%', 'gate: set_delivery_status REFUSES a delivery whose title never passed review');
 
 reset role;
 select * from finish();
