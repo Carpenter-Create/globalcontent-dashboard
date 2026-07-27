@@ -13,6 +13,7 @@ import { requiredComplete } from "@/lib/metadata";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { FindingsCard } from "@/components/findings/findings-card";
 import { titleArtworkUrls } from "@/lib/artwork";
+import { screenerKindFor } from "@/lib/assets";
 import { RELEASE_TYPE_LABEL, formatReleaseDate, type ReleaseType } from "@/lib/releases";
 import { AddRightsForm } from "./add-rights-form";
 import { ReleaseInfoForm } from "./release-info-form";
@@ -135,8 +136,16 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   // Screener is watchable when its source exists: a dedicated screener asset if the title
   // is set to 'dedicated', else the master. (The stream is signed server-side, RLS-scoped.)
-  const screenerKind = title.screener_source === "dedicated" ? "screener" : "master";
-  const screenerAvailable = assetList.some((a) => a.kind === screenerKind);
+  // Mirror /api/screener/url's split exactly (screenerKindFor is the shared rule): staff may
+  // fall back to the master, a client may only ever be served a dedicated screener. Without
+  // the staff check this button renders for clients on master-source titles and then 404s.
+  const { data: staffRow } = await supabase
+    .from("gc_staff")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const screenerKind = screenerKindFor(title.screener_source, Boolean(staffRow));
+  const screenerAvailable = screenerKind !== null && assetList.some((a) => a.kind === screenerKind);
 
   return (
     <>
@@ -305,7 +314,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
                     key={a.id}
                     className="flex flex-col gap-2 rounded-[var(--radius)] border border-hairline bg-surface p-3"
                   >
-                    <AssetDownloadButton assetId={a.id} />
+                    <AssetDownloadButton assetId={a.id} kind={a.kind} />
                     <div className="flex min-w-0 flex-col px-0.5">
                       <span className="t-label text-ink-2">{ASSET_KIND_LABELS[a.kind]}</span>
                       <span className="truncate t-body-sm text-ink-3">

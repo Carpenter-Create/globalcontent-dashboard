@@ -4,24 +4,13 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signAssetUrl } from "@/lib/cloudfront";
 import { resolveOrRestore } from "@/lib/s3";
+import { isClientViewableAssetKind } from "@/lib/assets";
 
 const Body = z.object({ assetId: z.string().uuid() });
 
-// Kinds this route may sign. Deliberately an ALLOW-list: a new asset_kind added by a future
-// migration is unreachable here until someone consciously adds it, rather than becoming
-// downloadable the moment the enum grows.
-//
-// `master` and `screener` are excluded. RLS scopes this route to the caller's own org and
-// that holds (verified: cross-org requests 404), but `assets_select` gates on
-// member_can(...,'view'), which admits ALL FIVE org roles including `viewer` — a role
-// CLAUDE.md scopes to "catalog read-only". Without this filter any viewer could mint a
-// signed URL for the master. That matters more than it looks: the signed-URL expiry is
-// checked when the request is RECEIVED, not while it streams (measured — a 10s URL
-// happily ran a 30s transfer to completion), so a 300s URL starts a download that finishes
-// whenever it finishes. The master reaches vendors through the OTP-gated portal, which
-// re-checks delivery status and the rights grant per request; it does not need a
-// second, unaudited path through a client button.
-const CLIENT_VIEWABLE_KINDS = ["poster", "banner", "artwork", "caption"] as const;
+// The allow-list lives in @/lib/assets so the route and the UI cannot drift apart —
+// see the reasoning there. The UI imports the same constant to decide whether to render
+// a download control at all.
 
 // Client asset viewer/download: a signed CloudFront URL for an asset the caller may read.
 // Ownership is enforced by RLS — a normal user-JWT select on `assets` returns the row ONLY
@@ -46,7 +35,7 @@ export async function POST(req: Request) {
   if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
 
   // Same 404 as "not yours" on purpose — a distinct code would confirm the id exists.
-  if (!(CLIENT_VIEWABLE_KINDS as readonly string[]).includes(asset.kind)) {
+  if (!isClientViewableAssetKind(asset.kind)) {
     return NextResponse.json({ error: "Asset not found" }, { status: 404 });
   }
 
