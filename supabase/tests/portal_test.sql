@@ -4,7 +4,7 @@
 -- (client cannot read portal tables), append-only portal_access_events.
 
 begin;
-select plan(19);
+select plan(20);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',   gen_random_uuid()::text, false);
@@ -15,6 +15,9 @@ select set_config('t.grant', gen_random_uuid()::text, false);
 select set_config('t.asset', gen_random_uuid()::text, false);
 select set_config('t.vendor',gen_random_uuid()::text, false);
 select set_config('t.deliv', gen_random_uuid()::text, false);
+select set_config('t.tdraft',   gen_random_uuid()::text, false);
+select set_config('t.adraft',   gen_random_uuid()::text, false);
+select set_config('t.dlvdraft', gen_random_uuid()::text, false);
 
 insert into auth.users (id) values
   (current_setting('t.gc')::uuid), (current_setting('t.owner')::uuid);
@@ -84,6 +87,29 @@ select throws_ok(
   format($$ select public.create_portal_link(%L, (select id from public.assets where kind='poster' and title_id = %L limit 1), %L) $$,
          current_setting('t.deliv'), current_setting('t.title'), 'hash_art'),
   'P0001', 'Asset must be a master asset on the delivery''s title', 'non-master asset rejected');
+
+-- ---- chain-of-title gate on create_portal_link (20260726000100) -------------
+-- L7's harness cannot reach this case: create_delivery now refuses an unreviewed title, so
+-- no delivery exists to mint a link against and the harness records it SKIPPED / NOT PROVEN.
+-- This is the direct proof it was deferring to. Constructed by inserting the delivery as
+-- owner, bypassing the RPC, because the RPC can no longer produce this state.
+reset role;
+insert into public.titles (id, org_id, title, status)
+  values (current_setting('t.tdraft')::uuid, current_setting('t.org')::uuid, 'Never Reviewed', 'draft');
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
+  values (current_setting('t.adraft')::uuid, current_setting('t.org')::uuid, current_setting('t.tdraft')::uuid,
+          'master', 'orgs/x/titles/draft/master/z/film.mov', 'deadbeef', 1000);
+insert into public.deliveries (id, org_id, title_id, vendor_id, grant_id, territory)
+  values (current_setting('t.dlvdraft')::uuid, current_setting('t.org')::uuid,
+          current_setting('t.tdraft')::uuid, current_setting('t.vendor')::uuid,
+          current_setting('t.grant')::uuid, 'US');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select throws_like(
+  format($$ select public.create_portal_link(%L, %L, %L) $$,
+         current_setting('t.dlvdraft'), current_setting('t.adraft'), 'hash_draft'),
+  '%Chain of title%', 'gate: create_portal_link REFUSES a delivery whose title is not approved');
 
 -- ---- portal_resolve_download ----------------------------------------------
 reset role;  -- fixture inserts into RPC-only / append-only tables run as owner

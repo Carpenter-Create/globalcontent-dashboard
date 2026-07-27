@@ -181,8 +181,9 @@ async function main() {
     // gate inside set_delivery_status is unproven by this run. supabase/tests/deliveries_test.sql
     // covers it directly.
     record("Q2b", "gc_staff set_delivery_status('live') on that delivery", "SKIPPED",
-      "NOT PROVEN — no delivery exists to test against because Q2a was correctly refused. " +
-      "Transitively protected, not measured here.");
+      "NOT PROVEN HERE — no delivery exists to test against because Q2a was correctly " +
+      "refused. Proven directly by supabase/tests/deliveries_test.sql " +
+      "('gate: set_delivery_status REFUSES a delivery whose title never passed review').");
   }
   if (deliveryId) {
     const r = await g.rpc("set_delivery_status", { p_delivery_id: deliveryId, p_status: "live" });
@@ -196,8 +197,9 @@ async function main() {
   // Q2c — mint a master-download portal link (the vendor gets the actual master).
   if (!deliveryId) {
     record("Q2c", "gc_staff create_portal_link() — hand the master to a vendor", "SKIPPED",
-      "NOT PROVEN — create_portal_link needs a delivery, and Q2a correctly refused to create " +
-      "one. Transitively protected, not measured here.");
+      "NOT PROVEN HERE — create_portal_link needs a delivery, and Q2a correctly refused to " +
+      "create one. Proven directly by supabase/tests/portal_test.sql " +
+      "('gate: create_portal_link REFUSES a delivery whose title is not approved').");
   }
   if (deliveryId) {
     const r = await g.rpc("create_portal_link", {
@@ -269,7 +271,8 @@ async function main() {
     console.log("\nSKIPPED is not a pass. Each of these had its precondition removed by an");
     console.log("EARLIER gate firing, so the path is transitively protected but unmeasured here:");
     for (const r of skipped) console.log(`  ${r.id}  ${r.what}`);
-    console.log("  -> covered directly by supabase/tests/deliveries_test.sql");
+    console.log("  -> each names the pgTAP assertion that proves it; both were checked to exist,");
+    console.log("     not assumed. Q2c had NO coverage until portal_test.sql gained it.");
   }
   if (ungated.length) {
     console.log("\nUNGATED — reached without the review gate:");
