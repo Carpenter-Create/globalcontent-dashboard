@@ -538,17 +538,51 @@ export type Database = {
           },
         ]
       }
+      organization_payout_details: {
+        Row: {
+          created_at: string
+          org_id: string
+          payout_display: string | null
+          payout_status: string | null
+          tax_form_status: string | null
+          trolley_recipient_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          org_id: string
+          payout_display?: string | null
+          payout_status?: string | null
+          tax_form_status?: string | null
+          trolley_recipient_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          org_id?: string
+          payout_display?: string | null
+          payout_status?: string | null
+          tax_form_status?: string | null
+          trolley_recipient_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_payout_details_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
           dunning_hold: boolean
           id: string
           name: string
-          payout_display: string | null
-          payout_status: string | null
           status: Database["public"]["Enums"]["org_status"]
-          tax_form_status: string | null
-          trolley_recipient_id: string | null
           updated_at: string
         }
         Insert: {
@@ -556,11 +590,7 @@ export type Database = {
           dunning_hold?: boolean
           id?: string
           name: string
-          payout_display?: string | null
-          payout_status?: string | null
           status?: Database["public"]["Enums"]["org_status"]
-          tax_form_status?: string | null
-          trolley_recipient_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -568,11 +598,7 @@ export type Database = {
           dunning_hold?: boolean
           id?: string
           name?: string
-          payout_display?: string | null
-          payout_status?: string | null
           status?: Database["public"]["Enums"]["org_status"]
-          tax_form_status?: string | null
-          trolley_recipient_id?: string | null
           updated_at?: string
         }
         Relationships: []
