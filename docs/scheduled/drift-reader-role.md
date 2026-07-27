@@ -14,7 +14,15 @@ migration" at the foot.*
 | 4. Set `SUPABASE_DB_PASSWORD` | ✅ done 2026-07-27 |
 | 5. Prove the pooler accepts a non-`postgres` role | ✅ **it does** — CI reads the ledger as `drift_reader` |
 | 6. Restore the hourly schedule | ✅ restored |
-| 7. Delete `SUPABASE_ACCESS_TOKEN` | ⬜ **owner** — unused by any workflow since `dd06151` |
+| 7. Delete `SUPABASE_ACCESS_TOKEN` | ✅ deleted 2026-07-27 |
+
+**`SUPABASE_DB_PASSWORD` is now the only repo secret**, and it authenticates a role that can read
+`supabase_migrations.schema_migrations` and nothing else.
+
+*Still outstanding, and a different thing: deleting the repo secret removed GitHub's copy of the
+account token. **The token itself is still valid** wherever else it exists — including the local
+macOS keychain, which is how `supabase db query --linked` still works from this machine. To kill
+it everywhere: Supabase → Account → Access Tokens → revoke, then `supabase login` again.*
 
 CI now reports `ledger rows: 41   migration files: 41` / `Prod DB and main are in sync, both
 directions. ✓`, using a credential that can read one table and nothing else.

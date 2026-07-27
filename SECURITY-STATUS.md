@@ -266,7 +266,7 @@ is where that distinction goes to die.
 | Item | Trigger |
 |---|---|
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
-| **Delete `SUPABASE_ACCESS_TOKEN`** | Now. Unused by any workflow since `dd06151`, and the drift check no longer needs it. Account-scoped, reaching 12 projects. Deleting the repo secret removes GitHub's copy; revoking it at Supabase → Account → Access Tokens kills it everywhere (and logs out the local CLI if it is the same token) |
+| **Revoke the account token at Supabase** | Optional but stronger. The repo secret was deleted 2026-07-27, which removed GitHub's copy; the token is still valid in the local macOS keychain. Supabase → Account → Access Tokens → revoke, then `supabase login`. Account-scoped, reaches 12 projects |
 | **Re-create `drift_reader` after any real restore** | Second item on the restore runbook, with `000300`. Roles are cluster-level and **do not survive a `pg_dump` restore** — same trap as `pg_default_acl`, and the drift check would start failing afterwards for a reason nobody connects to the restore |
 | **Hide view-only controls in the UI** | With the next operator-UI change. `mark_notifications_read` refuses silently by design (filtered `insert…select` — raising would let one bad id kill a batch), so a refused control gives no error. Mirror the pattern in `src/lib/assets.ts:8-11`: the rule lives in one place and the page imports it |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
