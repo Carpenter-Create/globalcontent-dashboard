@@ -118,7 +118,7 @@ gh secret list --repo Carpenter-Create/globalcontent-dashboard
 | B2. Supabase PITR (3 projects) | ☐ | |
 | B3. RLS enabled in production | ☐ | |
 | B4. AWS budget alarms | ☐ | |
-| B5. Stripe webhook live mode | ☐ | |
+| B5. Stripe webhook live mode | ⛔ | **No destinations in live mode, deliberately** — still testing, UI not built. Reclassified as a **launch blocker**, not an open finding: see `SECURITY-STATUS.md` §6. Must be registered before the first real payment, or a customer is charged and `finalize_paid_signup` never runs |
 | B6. Vercel preview protection | ☐ | |
 
 ---
