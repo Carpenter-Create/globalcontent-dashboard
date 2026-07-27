@@ -66,72 +66,40 @@ was local. Production has 3 orgs. Its actual claim — the move transfers zero v
 
 ### Rollback point
 
-> ⚠ **One migration behind as of 2026-07-27.** This dump predates `20260727000100`
-> (GC role separation), so restoring it returns production to the 40-migration state with
-> `member_can` short-circuiting GC staff to `true` again — it silently undoes role separation.
-> Take a fresh one.
->
-> *The TOC figures below stay valid as a check on THIS file: `20260727000100` replaces 15
-> policies rather than adding any, so a post-migration dump should still read 35 policies. The
-> `gc_can` function and the `gc_staff_role_no_viewer` constraint are what a fresh dump gains.*
+**Current — `~/gc-dumps/prod-20260727T233527Z.dump`**, taken 2026-07-27 18:35 local / 23:35Z,
+**after** `20260727000100` (GC role separation). 552K, mode 600.
+**Verified at all three levels. Row M9 closed on this file.**
 
-**Current — `~/gc-dumps/prod-20260727T053612Z.dump`**, taken 2026-07-27 00:36 local / 05:36Z,
-**after** the batch. 369K. **Verified at all three levels. Row M9 closed on this file, not
-inherited from the previous one.**
+1. **TOC readable** — 957 entries, 35 policies, 223 ACLs, 221 functions, and `gc_can` present.
+2. **Restored** into throwaway `gc_verify_233527`. 131 ignored errors, **none touching a `public`
+   object**: `SET ROLE supabase_auth_admin` ×37, `supabase_storage_admin` ×26, `permission denied
+   for schema realtime` ×21, default privileges ×18, `supabase_admin` ×15.
+3. **Compared against live production** via `compare-schema-digest.sql`. Every digest identical —
+   `table_acl_md5` (the grant string), `function_acl_md5`, `policy_md5`, `column_md5`,
+   `function_src_md5`, `rowcount_md5`, and the ledger at 41. **One difference:
+   `default_acl_entries` 6 vs 3**, which is the documented restore-environment limitation, not
+   drift.
 
-1. **TOC readable** — 705 entries, 35 policies / 111 ACLs.
-2. **Restored** into throwaway `gc_prod_verify_053612` (PG 17.6 client inside the local
-   container). 45 errors, all ignored and all platform-owned: `must be able to SET ROLE
-   supabase_auth_admin` ×37 (the `auth` schema), `permission denied to change default
-   privileges` ×6, `schema "public" already exists` ×1, `SET ROLE supabase_admin` ×1. Zero
-   errors touching a `public` object.
-3. **Compared count-by-count against live production** via
-   `scripts/security/compare-schema-digest.sql`, as md5 digests so a one-byte difference in a
-   single grant string cannot hide inside a matching count:
+The restored copy also reads **33/33** on `verify-prod-end-state.sql`, including the `gc_can`
+checks — so role separation survives a restore.
 
-| | Production | Restored |
-|---|---|---|
-| tables / policies / RLS-on | 27 / 35 / 27 | **identical** |
-| functions / triggers / indexes / constraints | 44 / 34 / 82 / 94 | **identical** |
-| `table_acl_md5` — **the grant string** | `4c2a65a3…` | **identical** |
-| `function_acl_md5` | `720477c6…` | **identical** |
-| `policy_md5` (name, cmd, roles, `qual`, `with_check`) | `19a1263f…` | **identical** |
-| `column_md5` (type, nullability, default) | `e83f4ae1…` | **identical** |
-| `function_src_md5` | `4436dae9…` | **identical** |
-| `rowcount_md5` / total rows | `7600b76f…` / 132 | **identical** |
-| ledger | 40 rows, max `20260726000900` | **identical** |
-| `default_acl_entries` | 6 | **3 — the only difference** |
+⚠ **Two things still do NOT survive a restore, and both are on the runbook:** `pg_default_acl`
+(re-apply `20260726000300`'s `alter default privileges`) and **roles** — `drift_reader` is
+cluster-level and absent from this dump, so the drift check would start failing after a DR event
+for a reason nobody would connect to the restore.
 
-The restored copy also reads **24/24 PASS** on `verify-prod-end-state.sql`, including
-`C10: 0 populated / 3 orgs`.
-
-⚠ **The one difference is real and worth knowing before you need it.** `pg_default_acl` does not
-survive a restore performed by a non-superuser — those are the 6 `permission denied to change
-default privileges` errors above. Production carries the *narrowed* defaults that
-`20260726000300` installed; a restored database gets whatever the new cluster bootstraps with.
-So a restore is not self-sufficient: **after any real restore, re-apply `000300`'s
-`alter default privileges … revoke truncate, references, trigger, maintain`**, or the
-default-privilege decay resumes on the next `CREATE TABLE`. Nothing else in the dump is affected —
-the 27 existing tables carry their correct ACLs, which is what `table_acl_md5` matching proves.
-
-*Two throwaway databases remain in the local container — `gc_prod_verify_053612` and the older
-`gc_prod_verify`, 12 MB each. **Kept deliberately** (owner's call, 2026-07-27): they cost nothing,
-and a terminate-and-remove chain is not worth running for 24 MB. Neither is load-bearing — the
-verification reproduces from the dump plus `verify-prod-end-state.sql` and
-`compare-schema-digest.sql`.*
-
-*If they are ever cleared out: terminate the backends first. Removing an in-use database fails
-with `database is being accessed by other users`, and that failure is quiet enough to read as
-success — it already did once.*
-
-**Superseded — `~/gc-dumps/prod-20260727T051203Z.dump`**, the pre-batch point. Restores production
-to the 33-migration state. Keep it: it is the rollback target if the batch itself ever needs
-undoing, which the current dump cannot do.
+**Superseded — `~/gc-dumps/prod-20260727T053612Z.dump`** (pre-role-separation, 40 migrations) and
+**`~/gc-dumps/prod-20260727T051203Z.dump`** (pre-batch, 33 migrations). Keep both: each is the
+rollback target for undoing the change that came after it.
 
 PITR deliberately not purchased at zero clients.
 
 *A dump is a point, not a window. It protects against the migrations taken before it and
 nothing after, and it does not cover S3.*
+
+*Throwaway verification databases are left in the local container for inspection —
+`gc_verify_233527`, `gc_prod_verify_053612`, `gc_prod_verify`. Owner's call: not worth a
+terminate-and-remove chain for ~36 MB.*
 
 ### Restoring without Docker — resolved
 
