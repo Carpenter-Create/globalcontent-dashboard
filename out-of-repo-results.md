@@ -28,7 +28,7 @@ problem.*
 | Item | Status | Result |
 |---|---|---|
 | A1. Get the commands | ✅ | `ci.yml` written (commit `28c1fea`). Job names confirmed: **`checks`** and **`isolation`**. Commands below. |
-| A2. Set the two secrets | ⛔ | **Still blocked**, unchanged. Awaiting the production-vs-staging decision; `migration-drift.yml` no-ops until then. Same blocker as Part C. Commands drafted below, values not supplied. |
+| A2. Set the two secrets | ⚠️ | **DONE ON 2026-07-22 — this row said "not supplied" for five days and was wrong.** `gh secret list` shows both `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD`, dated `2026-07-22T03:5x`, and the workflow has been running against **production** since. The production-vs-staging tradeoff below was therefore never a *pending* decision — it was already decided by action, pointing at prod. Two live consequences: `SUPABASE_ACCESS_TOKEN` is **no longer used by any workflow** and should be deleted; and because the `postgres` password is already stored, `drift_reader` is now a **rotation**, not an avoidance. |
 | A3. Add the required check | ✅ | **Done 2026-07-27.** `main` had no protection at all until then. `isolation` is registered and `enforce_admins` is on. **The applied payload differs from the draft below — see A3 result.** |
 | A4. Add CODEOWNERS | ⚠️ | `.github/CODEOWNERS` written (commit `28c1fea`). `@acarpcreate` on everything, with Tier-3 paths enumerated. **Still enforces nothing.** Branch protection now exists but sets `required_pull_request_reviews: null`, so "Require review from Code Owners" is off. Unchanged by A3 — see the note there. |
 
