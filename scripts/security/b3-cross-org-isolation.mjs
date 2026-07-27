@@ -418,10 +418,10 @@ async function main() {
       const r = await a.from("deliveries").select("id, org_id, portal_links(token_hash)").eq("org_id", B.orgId);
       return r.error ? r : { data: r.data ?? [], error: null };
     });
-  await R("SELECT memberships(organizations(trolley_recipient_id)) — enumerate orgs via embed",
+  await R("SELECT memberships(organizations(...)) — enumerate other orgs via embed",
     countAs("memberships", "org_id", B.orgId),
     async () => {
-      const r = await a.from("memberships").select("org_id, organizations(id, name, trolley_recipient_id)");
+      const r = await a.from("memberships").select("org_id, organizations(id, name, status)");
       return r.error ? r : { data: (r.data ?? []).filter((x) => x.org_id !== A.orgId), error: null };
     });
 
@@ -476,8 +476,12 @@ async function main() {
     return (count ?? 0) === 2;
   };
   const orgBUnchanged = async () => {
-    const { data } = await admin.from("organizations").select("name, trolley_recipient_id").eq("id", B.orgId).maybeSingle();
-    return !!data && data.name === `OrgB-${run}` && data.trolley_recipient_id === null;
+    // Payout columns live in organization_payout_details since 20260726000900. Reading a
+    // dropped column here returned null and made this verifier report a false breach.
+    const { data } = await admin.from("organizations").select("name").eq("id", B.orgId).maybeSingle();
+    const { count } = await admin.from("organization_payout_details")
+      .select("*", { count: "exact", head: true }).eq("org_id", B.orgId);
+    return !!data && data.name === `OrgB-${run}` && (count ?? 0) === 0;
   };
   const orgATermsUnchanged = async () => {
     const { data } = await admin.from("contract_terms").select("id, revenue_share_rate_bp, tier").eq("org_id", A.orgId);
@@ -523,8 +527,9 @@ async function main() {
     () => a.from("titles").delete().eq("org_id", B.orgId).select(), titleStillExists);
   await W("UPDATE organizations SET name WHERE id = OrgB",
     () => a.from("organizations").update({ name: "PWNED" }).eq("id", B.orgId).select(), orgBUnchanged);
-  await W("UPDATE organizations SET trolley_recipient_id WHERE id = OrgB (payout redirect)",
-    () => a.from("organizations").update({ trolley_recipient_id: "R-ATTACKER" }).eq("id", B.orgId).select(), orgBUnchanged);
+  await W("INSERT organization_payout_details for OrgB (payout redirect)",
+    () => a.from("organization_payout_details")
+      .insert({ org_id: B.orgId, trolley_recipient_id: "R-ATTACKER" }).select(), orgBUnchanged);
   await W("INSERT organizations directly (bypass create_org_and_membership)",
     () => a.from("organizations").insert({ name: `Direct-${run}`, status: "active" }).select());
   await W("INSERT assets (org_id = OrgB) — attach an asset to B",
@@ -716,11 +721,13 @@ async function main() {
     () => v.from("memberships").insert({ org_id: A.orgId, user_id: outsider.id, role: "account_owner", status: "active" }).select());
   await E("B4 viewer: UPDATE organizations (own-org settings)",
     () => v.from("organizations").update({ name: "Viewer Renamed" }).eq("id", A.orgId).select(), orgANameUnchanged);
-  await E("B4 viewer: UPDATE organizations.trolley_recipient_id (own org, payout redirect)",
-    () => v.from("organizations").update({ trolley_recipient_id: "R-VIEWER" }).eq("id", A.orgId).select(),
+  await E("B4 viewer: write organization_payout_details for own org (payout redirect)",
+    () => v.from("organization_payout_details")
+      .upsert({ org_id: A.orgId, trolley_recipient_id: "R-VIEWER" }).select(),
     async () => {
-      const { data } = await admin.from("organizations").select("trolley_recipient_id").eq("id", A.orgId).maybeSingle();
-      return !!data && data.trolley_recipient_id === null;
+      const { data } = await admin.from("organization_payout_details")
+        .select("trolley_recipient_id").eq("org_id", A.orgId).maybeSingle();
+      return !data || data.trolley_recipient_id !== "R-VIEWER";
     });
   await E("B4 viewer: rpc accept_terms — bind own org to a paid agreement",
     () => v.rpc("accept_terms", { p_tier: "premium", p_terms_version: "v1", p_content_hash: "x", p_rendered_text: "x" }));
@@ -739,12 +746,14 @@ async function main() {
   await mustBeEmpty(`E${e++}`, "B4 viewer: SELECT contract_terms (revenue-share rate) in own org",
     countAs("contract_terms", "org_id", A.orgId),
     () => v.from("contract_terms").select("*").eq("org_id", A.orgId));
-  await mustBeEmpty(`E${e++}`, "B4 viewer: SELECT organizations.trolley_recipient_id / payout_display in own org",
-    countAs("organizations", "id", A.orgId),
-    async () => {
-      const r = await v.from("organizations").select("id, trolley_recipient_id, payout_status, payout_display").eq("id", A.orgId);
-      return r.error ? r : { data: r.data ?? [], error: null };
-    });
+  // The payout columns moved to organization_payout_details in 20260726000900 — a policy
+  // cannot mask a column, and a column GRANT cannot separate roles that share the
+  // `authenticated` DB role. Seed a row so this is not a vacuous pass.
+  await admin.from("organization_payout_details")
+    .upsert({ org_id: A.orgId, trolley_recipient_id: "R-B3", payout_display: "****9999" });
+  await mustBeEmpty(`E${e++}`, "B4 viewer: SELECT organization_payout_details in own org",
+    countAs("organization_payout_details", "org_id", A.orgId),
+    () => v.from("organization_payout_details").select("*").eq("org_id", A.orgId));
 
   await E("B5 owner: INSERT gc_staff (self-assign gc_account_owner)",
     () => a.from("gc_staff").insert({ user_id: ownerA.id, role: "gc_account_owner" }).select(),
@@ -862,12 +871,12 @@ async function main() {
   // closes each. A failure outside this set fails the build; one inside it does not.
   // A baselined case that starts PASSING is reported loudly — the baseline is then
   // stale and should be trimmed — but does not fail the build.
-  const KNOWN_OPEN = {
-    E9:  "viewer reads subscriptions in own org — spec deviation, blocked on decision D1",
-    E10: "viewer reads contract_terms.revenue_share_rate_bp — spec deviation, blocked on D1",
-    E11: "viewer reads organizations payout columns — spec deviation, blocked on D1",
-    C9:  "sole account_owner can orphan the org — closed by 20260726000500 once applied",
-  };
+  // Empty on purpose. Every case that was ever baselined is now closed:
+  //   C9            closed by 20260726000500 (last-owner guard)
+  //   E9/E10/E11    closed by 20260726000900 (view_financial)
+  // A baseline is a list of known defects, not a place to park them. Adding an entry here
+  // requires the reason AND the migration that will remove it.
+  const KNOWN_OPEN = {};
   const failed = results.filter((r) => r.verdict === "FAIL").map((r) => r.id);
   const unexpected = failed.filter((id) => !(id in KNOWN_OPEN));
   const fixed = Object.keys(KNOWN_OPEN).filter((id) => !failed.includes(id));
