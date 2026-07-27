@@ -233,18 +233,31 @@ and a harness that seeds nothing must not report success.
 
 ---
 
-## 6. Scheduled, with triggers
+## 6. Launch blockers — before the first real client
+
+**These gate onboarding. None of them is a defect today; each becomes one the moment a real
+client exists.** Kept apart from the open findings in §5 because they are not things to fix —
+they are things that must be true before the first paying customer, and a list of "open findings"
+is where that distinction goes to die.
+
+| Blocker | What happens if it is missed |
+|---|---|
+| **B5 — the live-mode Stripe webhook endpoint is not registered.** No destinations in live mode, deliberately: still testing, and the UI is not built | **A customer is charged and never provisioned.** `checkout.session.completed` is the only trigger for `finalize_paid_signup`, which writes `contract_terms` and flips the org to `active` (`src/app/api/stripe/webhook/route.ts:26-44`). With no live destination there is no delivery, no retry queue, and nothing in the app that notices — Stripe reports a successful payment while the org sits inactive with no terms row. Money in, no access, and no error anywhere on our side. **Register the live-mode endpoint before the first real payment, and confirm it with one live transaction rather than a test-mode event.** `finalize_paid_signup` is idempotent and Stripe retains events, so a missed charge is recoverable by resending the event from the dashboard — but only if someone notices, and nothing here surfaces it |
+| **Dedicated screener pipeline** (MediaConvert watermark + proxy) | Clients see no in-app preview. Staff review is unaffected, so this blocks the client experience rather than delivery. Needs per-org concurrency caps (row E9) first, or one client can queue unbounded transcode spend |
+| **`source_documents` tier/pricing separation** — `docs/scheduled/source-documents-tier-separation.md` | **Trigger is counsel's agreement text, which lands before launch.** `renderAgreement()` interpolates `TIER_META`; today's placeholder body has no pricing, but real text turns a latent duplication into a live disclosure — and it arrives as a *content* change, so CI will not flag it |
+| **`member_can` follow-up: `source_documents`** | With the item above |
+| **Revisit PITR** | A dump stops being proportionate the moment there is data you cannot recreate. Trigger is the first client upload, which is the same event as onboarding |
+| **Re-run both matrices** | Before each launch (row H4) |
+
+---
+
+## 6b. Scheduled, with triggers
 
 | Item | Trigger |
 |---|---|
-| **`source_documents` tier/pricing separation** — `docs/scheduled/source-documents-tier-separation.md` | **Before counsel's agreement text lands.** `renderAgreement()` interpolates `TIER_META`; today the placeholder body has no pricing, but real text turns a latent duplication into a live disclosure — and it arrives as a *content* change, so CI will not flag it |
-| **Dedicated screener pipeline** (MediaConvert watermark + proxy) | Before onboarding the first client. Until then clients see no in-app preview and staff review is unaffected. Needs per-org concurrency caps (row E9) or one client can queue unbounded transcode spend |
-| **`member_can` follow-up: `source_documents`** | With the item above |
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
 | **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
-| **Revisit PITR** | When the first client uploads a title. A dump stops being proportionate the moment there is data you cannot recreate |
-| **Re-run both matrices** | Before each launch (row H4) |
 
 ---
 
