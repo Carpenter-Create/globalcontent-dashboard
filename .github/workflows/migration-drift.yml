@@ -51,7 +51,18 @@ jobs:
         with:
           version: latest
 
-      - name: Compare local migrations against the prod database
+      # SYMMETRIC. The original version ran `db push --dry-run` and grepped for pending
+      # filenames, which only ever detects PROD BEHIND MAIN. It is blind to the opposite
+      # direction, and the opposite direction happened: a `db push` run from a feature
+      # branch applied a migration to production that was not yet on main. Production sat
+      # ahead of main and this workflow would have reported "in sync" — the exact drift the
+      # control exists to catch, invisible to it.
+      #
+      # `migration list --linked` prints Local | Remote | Time, so both directions are
+      # readable from one call. A blank Remote means prod is behind; a blank Local means
+      # prod has a migration with no file in the repo, which is the worse case: the schema
+      # cannot be reproduced from the repository, and a rebuild silently loses it.
+      - name: Compare migrations against prod, in BOTH directions
         if: steps.guard.outputs.skip != 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -60,23 +71,38 @@ jobs:
           set -uo pipefail
           supabase link --project-ref "$PROJECT_REF"
 
-          # A dry-run lists the migrations that WOULD be applied — i.e. exactly the ones the prod
-          # DB is missing. Empty = in sync. (SUPABASE_DB_PASSWORD is read from the env.)
-          out="$(supabase db push --dry-run 2>&1)"
+          out="$(supabase migration list --linked 2>&1)"
           echo "$out"
 
-          # Any 14-digit-timestamped migration filename in the output means prod is behind.
-          pending="$(echo "$out" | grep -oE '[0-9]{14}_[a-z0-9_]+\.sql' || true)"
-          if [ -z "$pending" ]; then
-            echo "Prod DB is in sync with main. ✓"
+          # Rows look like:  20260726000600 | 20260726000600 | 2026-07-26 00:06:00
+          # Local-only  -> prod is BEHIND.  Remote-only -> prod is AHEAD.
+          behind="$(echo "$out" | awk -F'|' '
+            $1 ~ /[0-9]{14}/ && $2 !~ /[0-9]{14}/ { gsub(/ /,"",$1); print $1 }')"
+          ahead="$(echo "$out" | awk -F'|' '
+            $2 ~ /[0-9]{14}/ && $1 !~ /[0-9]{14}/ { gsub(/ /,"",$2); print $2 }')"
+
+          rc=0
+          if [ -n "$behind" ]; then
+            n="$(echo "$behind" | wc -l | tr -d ' ')"
+            echo "::error::Prod DB is BEHIND main by ${n} migration(s): $(echo "$behind" | paste -sd', ' -). Apply them from a clean main checkout."
+            rc=1
+          fi
+          if [ -n "$ahead" ]; then
+            n="$(echo "$ahead" | wc -l | tr -d ' ')"
+            # Always an error, on PRs too. Prod holding a migration that main does not means
+            # the schema is not reproducible from the repo — a broken DR and staging path.
+            echo "::error::Prod DB is AHEAD of main by ${n} migration(s) with NO file in the repo: $(echo "$ahead" | paste -sd', ' -). The schema cannot be rebuilt from migrations. Land the file on main, or roll the change back."
+            rc=1
+          fi
+          if [ "$rc" -eq 0 ]; then
+            echo "Prod DB and main are in sync, both directions. ✓"
             exit 0
           fi
 
-          count="$(echo "$pending" | wc -l | tr -d ' ')"
-          msg="Prod DB is behind main by ${count} migration(s) not yet applied: $(echo "$pending" | paste -sd', ' -). Apply them with the Supabase CLI from the repo root."
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            echo "::error::${msg}"
-            exit 1
-          else
-            echo "::warning::${msg}"
+          # `behind` on a PR stays advisory — it is usually just "not applied yet". `ahead`
+          # is never advisory: it means the repo has already lost the schema.
+          if [ "$GITHUB_EVENT_NAME" != "push" ] && [ -z "$ahead" ]; then
+            echo "PR event and prod is only behind — warning, not a failure."
+            exit 0
           fi
+          exit 1
