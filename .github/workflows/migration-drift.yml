@@ -16,8 +16,9 @@ name: migration-drift
 # account holds 13 projects including Watershed Portal and Royalogic. A drift check on one
 # database does not need reach over all of them.
 #
-# `migration list --db-url` does the same job with no token at all. Verified before switching:
-# run with the token unset, it exits 0 and prints the ledger.
+# A `psql` SELECT against supabase_migrations.schema_migrations does the same job with no token
+# at all — and, after one failed attempt at `supabase migration list --db-url`, without putting
+# the password into a URL either. See the step body for why that mattered.
 #
 # ─── WHY THE POOLER HOST AND NOT db.<ref>.supabase.co ────────────────────────────────────────
 # The direct host is IPv6-ONLY — it publishes an AAAA record and no A record. GitHub-hosted
@@ -75,13 +76,16 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # PINNED, matching CI and local. This job does not start a local stack, so the version
-      # matters less here than in ci.yml — but a floating CLI is how the schema stopped being
-      # reproducible once already, and `migration list` output is parsed below by column.
-      - uses: supabase/setup-cli@v1
-        if: steps.guard.outputs.skip != 'true'
-        with:
-          version: 2.102.0
+      # NO SUPABASE CLI. This step used to be `supabase migration list`, which needs the
+      # password inside a percent-encoded connection string — and that is what broke it:
+      # `failed SASL auth ... password authentication failed`, while the same secret had
+      # worked for weeks via `--linked`. The URL round-trip is an entire class of bug
+      # (encoding, quoting, a stray newline in the secret) sitting between the credential and
+      # the query, in service of one SELECT.
+      #
+      # `psql` takes the password out of band in PGPASSWORD, so there is nothing to encode,
+      # nothing for GitHub to fail to mask, and no CLI version coupling. postgresql-client
+      # ships in the ubuntu-latest runner image; the guard below fails loudly if that changes.
 
       # SYMMETRIC. The original version ran `db push --dry-run` and grepped for pending
       # filenames, which only ever detects PROD BEHIND MAIN. It is blind to the opposite
@@ -90,64 +94,66 @@ jobs:
       # ahead of main and this workflow would have reported "in sync" — the exact drift the
       # control exists to catch, invisible to it.
       #
-      # `migration list` prints Local | Remote | Time, so both directions are readable from one
-      # call. A blank Remote means prod is behind; a blank Local means prod has a migration with
-      # no file in the repo, which is the worse case: the schema cannot be reproduced from the
-      # repository, and a rebuild silently loses it.
+      # The comparison is a set difference between the migration FILENAMES in the repo and the
+      # `version` column of the remote ledger. In the repo but not the ledger -> prod is BEHIND.
+      # In the ledger but not the repo -> prod is AHEAD, which is the worse case: the schema
+      # cannot be reproduced from the repository, and a rebuild silently loses it.
       - name: Compare migrations against prod, in BOTH directions
         if: steps.guard.outputs.skip != 'true'
         env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -uo pipefail
 
-          # The CLI requires a percent-encoded connection string, and an unencoded '@' or '/'
-          # in a password silently truncates the URL into a DIFFERENT host — which fails in a
-          # way that looks like a network problem rather than a quoting bug.
-          enc="$(jq -rn --arg p "$SUPABASE_DB_PASSWORD" '$p|@uri')"
+          command -v psql >/dev/null || {
+            echo "::error::psql is not on this runner. postgresql-client used to ship in the ubuntu-latest image; add a setup step."
+            exit 1
+          }
 
-          # CRITICAL: GitHub auto-masks the raw secret, but NOT its percent-encoded form. If the
-          # CLI echoes the connection string on error — which it does on some failures — the
-          # encoded password would land in the log in clear text. Register it as a mask first.
-          echo "::add-mask::$enc"
+          # Password travels in PGPASSWORD, never in the URL — nothing to percent-encode, and
+          # GitHub's automatic masking of the raw secret is sufficient.
+          conn="postgresql://${DB_USER}@${DB_HOST}:5432/postgres?sslmode=require"
 
-          db_url="postgresql://${DB_USER}:${enc}@${DB_HOST}:5432/postgres"
-
-          # `shell: bash -e` (GitHub's default) aborts the step the instant a command
-          # substitution assignment fails — BEFORE the next line can echo what went wrong. So a
-          # credential or connection failure produced a bare "exit code 1" and no diagnostic at
-          # all. Capture the status explicitly instead, and always print the output.
-          if ! out="$(supabase migration list --db-url "$db_url" 2>&1)"; then
-            echo "$out"
-            echo "::error::migration list did not run. This is a connection or credential failure, NOT a drift result — the comparison below never happened."
+          # `shell: bash -e` aborts on a failing command-substitution assignment BEFORE the next
+          # line can echo what went wrong, so a credential failure otherwise produces a bare
+          # "exit code 1" with no diagnostic. Capture the status explicitly.
+          if ! remote_raw="$(psql "$conn" -tAX -c \
+                "select version from supabase_migrations.schema_migrations order by version" 2>&1)"; then
+            echo "$remote_raw"
+            echo "::error::Could not read the remote migration ledger. Connection or credential failure, NOT a drift result — the comparison never happened."
             exit 1
           fi
-          echo "$out"
 
-          # Rows look like:  20260726000600 | 20260726000600 | 2026-07-26 00:06:00
-          # Local-only  -> prod is BEHIND.  Remote-only -> prod is AHEAD.
-          behind="$(echo "$out" | awk -F'|' '
-            $1 ~ /[0-9]{14}/ && $2 !~ /[0-9]{14}/ { gsub(/ /,"",$1); print $1 }')"
-          ahead="$(echo "$out" | awk -F'|' '
-            $2 ~ /[0-9]{14}/ && $1 !~ /[0-9]{14}/ { gsub(/ /,"",$2); print $2 }')"
+          remote="$(printf '%s\n' "$remote_raw" | tr -d ' \r' | grep -E '^[0-9]{14}$' | sort -u)"
+          local_="$(ls supabase/migrations/*.sql 2>/dev/null | xargs -n1 basename \
+                    | grep -oE '^[0-9]{14}' | sort -u)"
 
-          # A parse that finds NEITHER direction and no rows at all is not "in sync" — it is a
-          # harness that proved nothing. Distinguish the two before reporting success.
-          rows="$(echo "$out" | awk -F'|' '$1 ~ /[0-9]{14}/ || $2 ~ /[0-9]{14}/' | wc -l | tr -d ' ')"
-          if [ "$rows" -eq 0 ]; then
-            echo "::error::migration list returned no parseable rows. Connection or output-format failure, NOT a clean result."
+          nr="$(printf '%s' "$remote" | grep -c . || true)"
+          nl="$(printf '%s' "$local_" | grep -c . || true)"
+          echo "ledger rows: ${nr}   migration files: ${nl}"
+
+          # An empty result is not "in sync" — it is a query that proved nothing. A successful
+          # connection to the WRONG database would also land here.
+          if [ "$nr" -eq 0 ]; then
+            echo "::error::The remote ledger returned zero rows. That is a connection or wrong-database failure, NOT a clean result."
             exit 1
           fi
-          echo "parsed ${rows} migration row(s)."
+          if [ "$nl" -eq 0 ]; then
+            echo "::error::No migration files found in supabase/migrations. Checkout or path failure, NOT a clean result."
+            exit 1
+          fi
+
+          behind="$(comm -23 <(printf '%s\n' "$local_") <(printf '%s\n' "$remote"))"
+          ahead="$(comm -13 <(printf '%s\n' "$local_") <(printf '%s\n' "$remote"))"
 
           rc=0
           if [ -n "$behind" ]; then
-            n="$(echo "$behind" | wc -l | tr -d ' ')"
+            n="$(printf '%s' "$behind" | grep -c .)"
             echo "::error::Prod DB is BEHIND main by ${n} migration(s): $(echo "$behind" | paste -sd', ' -). Apply them from a clean main checkout."
             rc=1
           fi
           if [ -n "$ahead" ]; then
-            n="$(echo "$ahead" | wc -l | tr -d ' ')"
+            n="$(printf '%s' "$ahead" | grep -c .)"
             echo "::error::Prod DB is AHEAD of main by ${n} migration(s) with NO file in the repo: $(echo "$ahead" | paste -sd', ' -). The schema cannot be rebuilt from migrations. Land the file on main, or roll the change back."
             rc=1
           fi
