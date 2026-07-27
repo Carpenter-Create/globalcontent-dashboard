@@ -17,10 +17,19 @@ read-only credential, and the workflow needs to read exactly one table:
 select version from supabase_migrations.schema_migrations;
 ```
 
-**Order matters here and it is the owner's call, already made:** create this role *first*, then set
-only its password as the repo secret. Putting the `postgres` password into GitHub and replacing it
-later means it lives there until someone gets to it — and "later" is how the residual grants
-survived for six migrations.
+**Correction, 2026-07-27: the `postgres` password is already in GitHub.** Both secrets were set on
+2026-07-22 — `SECURITY-STATUS.md` and `out-of-repo-results.md` both claimed otherwise for five
+days. The owner's ordering ("create the role first so the `postgres` credential never lands in
+GitHub") was the right call made on wrong information, and the situation it was meant to prevent
+already exists.
+
+That changes this from an **avoidance** to a **rotation**, and makes it more urgent rather than
+less: the credential is live now, so the sequence becomes create role → repoint `DB_USER` → replace
+the secret → **rotate the `postgres` password itself**, because a credential that has sat in a
+third-party store for five days should not be considered clean afterwards.
+
+**Delete `SUPABASE_ACCESS_TOKEN` first, though — it is unused by any workflow as of
+`202d4c8` and costs nothing to remove.** That is the account-wide one.
 
 ---
 

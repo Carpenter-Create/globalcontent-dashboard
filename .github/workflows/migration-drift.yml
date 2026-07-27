@@ -113,7 +113,15 @@ jobs:
 
           db_url="postgresql://${DB_USER}:${enc}@${DB_HOST}:5432/postgres"
 
-          out="$(supabase migration list --db-url "$db_url" 2>&1)"
+          # `shell: bash -e` (GitHub's default) aborts the step the instant a command
+          # substitution assignment fails — BEFORE the next line can echo what went wrong. So a
+          # credential or connection failure produced a bare "exit code 1" and no diagnostic at
+          # all. Capture the status explicitly instead, and always print the output.
+          if ! out="$(supabase migration list --db-url "$db_url" 2>&1)"; then
+            echo "$out"
+            echo "::error::migration list did not run. This is a connection or credential failure, NOT a drift result — the comparison below never happened."
+            exit 1
+          fi
           echo "$out"
 
           # Rows look like:  20260726000600 | 20260726000600 | 2026-07-26 00:06:00
