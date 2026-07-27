@@ -3,7 +3,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { DeliveryControls } from "./delivery-controls";
 import { NewDeliveryForm } from "./new-delivery-form";
 import { ExportPanel } from "./export-panel";
-import { PortalLinks, type Master, type PortalLink, type PortalAccessEvent } from "./portal-links";
+import { PortalLinks, type Master, type PortalLink, type PortalSession, type PortalAccessEvent } from "./portal-links";
 
 export default async function GcDeliveriesPage() {
   const supabase = await createClient();
@@ -70,6 +70,14 @@ export default async function GcDeliveriesPage() {
     });
   }
 
+  // Recipient sessions, so staff can cut one recipient without cutting the link. RLS on
+  // portal_sessions is gc_staff-only, so this returns nothing for anyone else.
+  const { data: sessionRows } = await supabase
+    .from("portal_sessions")
+    .select("id, link_id, name, company, email, expires_at, revoked_at")
+    .order("created_at", { ascending: false });
+  const sessions: PortalSession[] = sessionRows ?? [];
+
   const { data: eventRows } = await supabase
     .from("portal_access_events")
     .select("link_id, event_type, email, company, occurred_at")
@@ -115,6 +123,7 @@ export default async function GcDeliveriesPage() {
                     deliveryId={d.id}
                     masters={mastersByTitle[d.title_id] ?? []}
                     links={links}
+                    sessions={sessions}
                     events={events}
                   />
                 </CardBody>

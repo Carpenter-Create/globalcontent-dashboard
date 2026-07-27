@@ -1457,6 +1457,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_portal_link: { Args: { p_link_id: string }; Returns: undefined }
+      revoke_portal_session: {
+        Args: { p_session_id: string }
+        Returns: undefined
+      }
       same_work_conflicts: {
         Args: { p_title_id: string }
         Returns: {
@@ -1535,7 +1539,13 @@ export type Database = {
       }
     }
     Enums: {
-      asset_kind: "master" | "caption" | "artwork" | "poster" | "screener" | "banner"
+      asset_kind:
+        | "master"
+        | "caption"
+        | "artwork"
+        | "screener"
+        | "poster"
+        | "banner"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1748,7 +1758,14 @@ export const Constants = {
   },
   public: {
     Enums: {
-      asset_kind: ["master", "caption", "artwork", "poster", "screener", "banner"],
+      asset_kind: [
+        "master",
+        "caption",
+        "artwork",
+        "screener",
+        "poster",
+        "banner",
+      ],
       delivery_status: [
         "pending",
         "delivered",
