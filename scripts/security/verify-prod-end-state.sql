@@ -304,6 +304,117 @@ with checks(sort, id, what, expected, actual, pass) as (
             from pg_proc p join pg_namespace n on n.oid=p.pronamespace
            where n.nspname='public' and p.proname='create_title')
 
+  -- ── 20260727000100 — gc_role actually decides ───────────────────────────────
+  -- NOTE ON WHAT THIS CAN AND CANNOT PROVE. The full 4-role capability matrix is proven
+  -- behaviourally by gc_can_test.sql (32 assertions) against a clean database built from
+  -- these exact migrations, in CI. It cannot be re-proven here without creating staff rows
+  -- in production, which this file will not do. What these rows establish is that the
+  -- deployed objects match what was tested, and that the one real staff row behaves.
+  union all
+  select 44, 'G1', 'gc_can exists',
+         'true',
+         (to_regprocedure('public.gc_can(uuid,text)') is not null)::text,
+         (to_regprocedure('public.gc_can(uuid,text)') is not null)
+
+  union all
+  select 45, 'G2', 'member_can DELEGATES to gc_can instead of short-circuiting to true',
+         'true',
+         (select (prosrc like '%gc_can(p_uid, p_capability)%'
+                  and prosrc not like '%is_gc_staff(p_uid) then true%')::text
+            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname='member_can'),
+         (select (prosrc like '%gc_can(p_uid, p_capability)%'
+                  and prosrc not like '%is_gc_staff(p_uid) then true%')
+            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname='member_can')
+
+  union all
+  select 46, 'G3', 'no function retains a bare is_gc_staff gate (is_gc_staff/member_can aside)',
+         '0',
+         (select count(*)::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.prosrc like '%is_gc_staff%'
+             and p.proname not in ('is_gc_staff','member_can')),
+         (select count(*) = 0 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.prosrc like '%is_gc_staff%'
+             and p.proname not in ('is_gc_staff','member_can'))
+
+  union all
+  select 47, 'G4', 'no policy gates on bare is_gc_staff except the gc_staff identity read',
+         '0',
+         (select count(*)::text from pg_policies
+           where schemaname='public' and tablename <> 'gc_staff'
+             and (coalesce(qual,'') like '%is_gc_staff%' or coalesce(with_check,'') like '%is_gc_staff%')
+             and coalesce(qual,'')||coalesce(with_check,'') not like '%gc_can%'),
+         (select count(*) = 0 from pg_policies
+           where schemaname='public' and tablename <> 'gc_staff'
+             and (coalesce(qual,'') like '%is_gc_staff%' or coalesce(with_check,'') like '%is_gc_staff%')
+             and coalesce(qual,'')||coalesce(with_check,'') not like '%gc_can%')
+
+  union all
+  -- CONTROL for G3/G4: gc_staff_select MUST still use is_gc_staff. If this reads false the
+  -- identity read got capability-gated and the operator layout will bounce staff to '/'.
+  select 48, 'G4n', 'CONTROL — gc_staff_select still uses is_gc_staff (identity read intact)',
+         'true',
+         (select (qual like '%is_gc_staff%')::text from pg_policies
+           where schemaname='public' and tablename='gc_staff' and cmd='SELECT'),
+         (select (qual like '%is_gc_staff%') from pg_policies
+           where schemaname='public' and tablename='gc_staff' and cmd='SELECT')
+
+  union all
+  select 49, 'G5', 'gc_viewer is not assignable (CHECK constraint present)',
+         'true',
+         (select count(*) > 0 from pg_constraint
+           where conname='gc_staff_role_no_viewer' and contype='c')::text,
+         (select count(*) > 0 from pg_constraint
+           where conname='gc_staff_role_no_viewer' and contype='c')
+
+  union all
+  -- BEHAVIOURAL, on whatever gc_account_owner rows actually exist. Asserts EVERY such row
+  -- holds all 7 capabilities: granted-pairs must equal 7 x rows.
+  --
+  -- The row count is printed rather than assumed, because with zero owner rows this check is
+  -- vacuously true — 0 = 0 — and would otherwise read as a pass having examined nothing.
+  -- Local typically has no gc_account_owner (its gc_staff rows are harness fixtures), so
+  -- expect "0 owner(s)" there and a real count in production.
+  select 49.1, 'G6', 'every gc_account_owner row is granted all 7 capabilities',
+         '7 x rows',
+         (select count(*)::text from public.gc_staff where role='gc_account_owner') || ' owner(s), '
+         || (select count(*)::text from public.gc_staff s
+               cross join unnest(array['view','view_financial','operate','manage_tax_banking',
+                                       'manage_billing','manage_team','manage_settings']) c
+              where s.role='gc_account_owner' and public.gc_can(s.user_id, c))
+         || ' granted of '
+         || (7 * (select count(*) from public.gc_staff where role='gc_account_owner'))::text,
+         (select count(*) from public.gc_staff s
+            cross join unnest(array['view','view_financial','operate','manage_tax_banking',
+                                    'manage_billing','manage_team','manage_settings']) c
+           where s.role='gc_account_owner' and public.gc_can(s.user_id, c))
+         = 7 * (select count(*) from public.gc_staff where role='gc_account_owner')
+
+  union all
+  -- CONTROL for G6: gc_can must be capable of returning FALSE. Without this, G6 passes on a
+  -- function that returns true unconditionally — which is precisely the bug being fixed.
+  select 49.2, 'G6n', 'CONTROL — gc_can returns false for a non-staff uid and an unknown capability',
+         '0 of 2',
+         (select count(*)::text from (values
+            (public.gc_can('00000000-0000-0000-0000-000000000000'::uuid,'view')),
+            (public.gc_can((select user_id from public.gc_staff limit 1),'teleport'))) t(r)
+           where r) || ' of 2',
+         (select count(*) = 0 from (values
+            (public.gc_can('00000000-0000-0000-0000-000000000000'::uuid,'view')),
+            (public.gc_can((select user_id from public.gc_staff limit 1),'teleport'))) t(r)
+           where r)
+
+  union all
+  select 49.3, 'G7', 'gc_can carries no PUBLIC execute grant',
+         'true',
+         (select (not exists (select 1 from unnest(p.proacl) a where a::text like '=%'))::text
+            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname='gc_can'),
+         (select (not exists (select 1 from unnest(p.proacl) a where a::text like '=%'))
+            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname='gc_can')
+
   -- ── context, not a gate ─────────────────────────────────────────────────────
   union all
   select 50, 'I1', 'INFO — tables / policies / RLS-enabled in public',
