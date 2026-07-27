@@ -279,7 +279,56 @@ async function main() {
     for (const r of ungated) console.log(`  ${r.id}  ${r.what}\n        ${r.detail}`);
   }
   console.log(`\nFinal title status: '${await status()}' (fixtures left in place, run tag ${run}).`);
-  process.exit(ungated.length ? 1 : 0);
+
+  // ---- CI gate ---------------------------------------------------------------
+  // BLOCKING as of 2026-07-27, when 20260726000100 reached production. Same shape as
+  // b3-cross-org-isolation.mjs: the gate answers "did anything NEW open", not "is the
+  // schema perfect", because a gate that is red on arrival gets ignored.
+  //
+  // Exactly one entry, and it is a DECISION, not a defect parked here. Adding another
+  // requires the reason AND the change that will remove it — same rule as B3.
+  const KNOWN_OPEN = {
+    Q2d: "create_screener_link on a never-reviewed title. Deliberate: screening is HOW " +
+         "chain-of-title review is performed, so gating it on 'in_delivery' would make the " +
+         "review unperformable. The RPC is gc_staff-only — verified: a client account_owner " +
+         "on their own draft title is refused 'Not authorized'. Removed from this baseline " +
+         "when the narrower 'must be submitted' floor lands — it is written into " +
+         "20260726000100 as an unapplied comment.",
+  };
+
+  const ungatedIds = ungated.map((r) => r.id);
+  const unexpected = ungatedIds.filter((id) => !(id in KNOWN_OPEN));
+  const nowGated = Object.keys(KNOWN_OPEN).filter((id) => !ungatedIds.includes(id));
+
+  console.log("\n---- regression gate ----");
+  if (nowGated.length) {
+    console.log(`baselined paths now GATED (trim the baseline): ${nowGated.join(", ")}`);
+  }
+  for (const id of ungatedIds.filter((i) => i in KNOWN_OPEN)) {
+    console.log(`known-open (not a regression): ${id} — ${KNOWN_OPEN[id]}`);
+  }
+  if (unexpected.length) {
+    console.log(`\nREGRESSION — ${unexpected.length} ungated path(s) outside the baseline: ${unexpected.join(", ")}`);
+    process.exit(1);
+  }
+  // A SKIP is not a pass, and this gate must not launder one into a pass. Q2b and Q2c are
+  // unmeasurable HERE — an earlier gate removes their precondition — so each names the
+  // pgTAP assertion that covers it instead, and those run in the same CI job immediately
+  // before this script. Any NEW skip means a path stopped being exercised and nobody
+  // noticed, which is how the L7 harness produced a false clean twice already.
+  const EXPECTED_SKIPS = ["Q2b", "Q2c"];
+  const newSkips = skipped.map((r) => r.id).filter((id) => !EXPECTED_SKIPS.includes(id));
+  if (newSkips.length) {
+    console.log(`\nGATE FAILED — ${newSkips.length} NEW unmeasured path(s): ${newSkips.join(", ")}. ` +
+      `A path that was never exercised must not be counted as gated.`);
+    process.exit(1);
+  }
+  if (!gated.length) {
+    console.log("\nGATE FAILED — 0 paths measured as GATED. The harness proved nothing.");
+    process.exit(1);
+  }
+  console.log(`no new ungated paths (${gated.length} measured GATED).`);
+  process.exit(0);
 }
 
 main().catch((e) => {

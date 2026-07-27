@@ -9,10 +9,15 @@ name: ci
 # stands up a real Postgres, applies every migration, and runs the security harnesses —
 # slower, and the one that actually protects the audit result.
 #
-# `isolation` is the job to register as a required status check on main. It converts the
-# strongest finding of the audit (116 cross-tenant attempts, zero breaches) from a
+# `isolation` IS a required status check on main (registered 2026-07-27, once the
+# 20260726* batch reached production and the L7 step below went blocking). It converts the
+# strongest finding of the audit (140 cross-tenant attempts, zero breaches) from a
 # point-in-time result into a standing control, so a future policy or permission change
 # that quietly loosens isolation fails the build instead of shipping.
+#
+# Every step in `isolation` is now blocking. If you add a step here, it gates main — add it
+# green or add it advisory deliberately, with the reason written down, the way the lint step
+# below is.
 
 on:
   pull_request:
@@ -114,20 +119,22 @@ jobs:
       # Exits non-zero if any path can deliver a title that never passed chain-of-title
       # review.
       #
-      # ADVISORY UNTIL THE FIX LANDS, and this is the whole point of it being here now.
-      # `main` currently HAS the L7 gap: the delivery-gate migration (20260726000100) is
-      # written but not merged, so this step reports 6 ungated paths and exits 1. That is
-      # a correct result, not a broken step — the finding is real until the migration is
-      # applied. Running it advisory means the number is visible on every PR instead of
-      # living in a findings document, without blocking unrelated work on a
-      # known-outstanding item.
+      # BLOCKING as of 2026-07-27. It was advisory while `main` still had the L7 gap: the
+      # delivery-gate migration (20260726000100) was written but unmerged, so the step
+      # reported 6 ungated paths and exited 1 — a correct result, not a broken step.
+      # 000100 is now merged AND applied to production, and the step reports 10 GATED /
+      # 1 UNGATED (deliberate) / 2 SKIPPED, exit 0.
       #
-      # FLIP THIS TO BLOCKING the moment 20260726000100 merges. If it is still
-      # continue-on-error after that, the gate is decorative — the same failure mode as a
-      # revoke that never targeted PUBLIC.
-      - name: Chain-of-title delivery gate (L7) — advisory until 20260726000100 merges
+      # The one UNGATED path is Q2d, create_screener_link on an unreviewed title, and it is
+      # deliberate: screening is HOW review is performed, and the RPC is gc_staff-only. The
+      # script encodes that as an expected result rather than a failure. If you decide to
+      # add the narrower "must be submitted" floor — it is written into 20260726000100 as an
+      # unapplied comment — this step's expectation moves with it.
+      #
+      # The 2 SKIPPED are declared unproven, not passed. See the script's own footer; a
+      # SKIP must never be allowed to read as a pass.
+      - name: Chain-of-title delivery gate (L7)
         run: node scripts/security/l7-chain-of-title-gate.mjs
-        continue-on-error: true
 
       # `if: always()` also runs when an earlier step failed before the CLI was installed,
       # where `supabase stop` is exit 127 and turns a clear failure into two. Tolerate it.
