@@ -2,21 +2,24 @@
 -- submit_title required-metadata gate; record_export GC-only + append-only + RLS.
 
 begin;
-select plan(7);
+select plan(9);
 
 select set_config('t.org', gen_random_uuid()::text, false);
 select set_config('t.owner', gen_random_uuid()::text, false);
 select set_config('t.gc', gen_random_uuid()::text, false);
 select set_config('t.title', gen_random_uuid()::text, false);
 select set_config('t.vendor', gen_random_uuid()::text, false);
+select set_config('t.tdraft', gen_random_uuid()::text, false);  -- never reviewed, for the gate's negative case
 
 insert into auth.users (id) values (current_setting('t.owner')::uuid), (current_setting('t.gc')::uuid);
 insert into public.organizations (id, name) values (current_setting('t.org')::uuid, 'Org A');
 insert into public.memberships (org_id, user_id, role, status) values
   (current_setting('t.org')::uuid, current_setting('t.owner')::uuid, 'account_owner', 'active');
 insert into public.gc_staff (user_id, role) values (current_setting('t.gc')::uuid, 'gc_delivery_ops');
+-- t.title deliberately keeps the 'draft' default: the submit_title assertions below need it.
 insert into public.titles (id, org_id, title) values
-  (current_setting('t.title')::uuid, current_setting('t.org')::uuid, 'Film');
+  (current_setting('t.title')::uuid, current_setting('t.org')::uuid, 'Film'),
+  (current_setting('t.tdraft')::uuid, current_setting('t.org')::uuid, 'Never Reviewed');
 insert into public.vendors (id, name, delivery_mode) values
   (current_setting('t.vendor')::uuid, 'Endpoint', 'portal_upload');
 
@@ -60,9 +63,24 @@ select throws_ok(
   'P0001', 'Not authorized', 'client: record_export denied');
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role', 'authenticated')::text, true);
+
+-- As of 20260726000100 an export may only name titles approved for delivery. Advance this
+-- one through the REAL path — GC review — rather than writing the column, so the fixture
+-- reaches in_delivery the same way production does.
+select public.review_title(current_setting('t.title')::uuid, 'approve', null);
+select is((select status::text from public.titles where id = current_setting('t.title')::uuid),
+  'in_delivery', 'review advanced the title to in_delivery');
+
 select lives_ok(
   format($$ select public.record_export(%L, array[%L]::uuid[], '[{"Title":"Film"}]'::jsonb) $$, current_setting('t.vendor'), current_setting('t.title')),
   'gc: record_export succeeds');
+
+-- ===== chain-of-title gate: the NEGATIVE case (20260726000100) =====
+-- Approving the title above restores the positive assertion but proves nothing about the
+-- gate. This asserts it refuses, and refuses for the right reason.
+select throws_like(
+  format($$ select public.record_export(%L, array[%L]::uuid[], '[]'::jsonb) $$, current_setting('t.vendor'), current_setting('t.tdraft')),
+  '%Chain of title%', 'gate: record_export REFUSES a never-reviewed (draft) title');
 select throws_ok(
   $$ update public.export_records set payload = '{}'::jsonb $$,
   '42501', null, 'export_records is append-only (direct UPDATE denied)');
