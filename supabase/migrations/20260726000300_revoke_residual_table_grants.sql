@@ -30,6 +30,23 @@
 -- contradicts the stated intent of golden rule 5, not an open door. It becomes live the
 -- moment anything connects directly as that role.
 --
+-- ⚠ ORDERING DEPENDENCY — THIS FILE MUST NOT BE APPLIED WITHOUT 20260726000600.
+--
+--   THIS FILE ALONE, on a current Supabase image  ->  a database with NO DML.
+--     Not one of the 31 prior migrations issues a GRANT; every table privilege is inherited
+--     from pg_default_acl. On a current image that default has been narrowed to exactly
+--     REFERENCES, TRIGGER and the wipe verb — i.e. the four this migration revokes are the
+--     ONLY privileges `authenticated` has. Revoke them and stop, and all 26 tables have zero
+--     SELECT/INSERT/UPDATE/DELETE. Every read 403s. SECURITY DEFINER RPCs keep running as
+--     owner, so writes appear to succeed while nothing can be read back — which presents as
+--     an application bug rather than a permissions one.
+--
+--   20260726000600 states the DML grants explicitly and is what makes this safe. Verified on
+--   a throwaway rebuild (CLI 2.109.1, 31 migrations from scratch): 000300 then 000600 leaves
+--   the residuals cleared AND all 26 tables readable.
+--
+--   Apply order: 20260726000300, then 20260726000600. Never one without the other.
+--
 -- DESTRUCTIVE OPS: REVOKE across all tables in public, and ALTER DEFAULT PRIVILEGES.
 -- Nothing is dropped and no data changes. Forward-only and idempotent.
 -- ============================================================================
