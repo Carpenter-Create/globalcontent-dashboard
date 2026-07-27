@@ -106,16 +106,14 @@ default-privilege decay resumes on the next `CREATE TABLE`. Nothing else in the 
 the 27 existing tables carry their correct ACLs, which is what `table_acl_md5` matching proves.
 
 *Two throwaway databases remain in the local container — `gc_prod_verify_053612` and the older
-`gc_prod_verify`, 12 MB each. Neither is needed: the verification is reproducible from the dump
-plus the two scripts. Drop them with the terminate step first, or the drop fails with "database
-is being accessed by other users" and the failure is easy to miss:*
+`gc_prod_verify`, 12 MB each. **Kept deliberately** (owner's call, 2026-07-27): they cost nothing,
+and a terminate-and-remove chain is not worth running for 24 MB. Neither is load-bearing — the
+verification reproduces from the dump plus `verify-prod-end-state.sql` and
+`compare-schema-digest.sql`.*
 
-```sh
-docker exec supabase_db_globalcontent-dashboard psql -U postgres -c \
-  "select pg_terminate_backend(pid) from pg_stat_activity where datname like 'gc_prod_verify%';"
-docker exec supabase_db_globalcontent-dashboard psql -U postgres -c \
-  "drop database if exists gc_prod_verify_053612;" -c "drop database if exists gc_prod_verify;"
-```
+*If they are ever cleared out: terminate the backends first. Removing an in-use database fails
+with `database is being accessed by other users`, and that failure is quiet enough to read as
+success — it already did once.*
 
 **Superseded — `~/gc-dumps/prod-20260727T051203Z.dump`**, the pre-batch point. Restores production
 to the 33-migration state. Keep it: it is the rollback target if the batch itself ever needs
@@ -281,7 +279,13 @@ is where that distinction goes to die.
 1. **`db push` reads the working tree, not a branch.** That is how `000700` reached production
    early. Always `git checkout main && git pull && git status` first, and read the file list
    the CLI prints before confirming.
-2. **`migration-drift.yml` was blind to prod being *ahead*.** Fixed on PR #53, unmerged.
+2. **`migration-drift.yml` was blind to prod being *ahead*.** **Fixed and on `main`** — the
+   workflow now reports both directions (`migration-drift.yml:79-105`), and treats *ahead* as an
+   error even on a PR, because a migration applied to production with no file in the repo means
+   the schema cannot be rebuilt. Originally written on PR #53, which was closed as superseded
+   after its unique files were carried across; this note said "unmerged" until 2026-07-27, which
+   was wrong. **It still no-ops** — the two secrets are unset (§5), so the fix is present but
+   dormant. That is exactly the gap that let `000700` reach production unnoticed.
 3. **Local, CI and production must stay on the same Supabase CLI.** A newer image drops the
    default table grants; on `latest` the schema comes up with **0 of 26 tables readable**.
    Pinned to 2.102.0 in CI. This is why `000600` exists.
