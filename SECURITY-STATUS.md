@@ -1,6 +1,6 @@
 # Security work — where everything actually stands
 
-*Generated 2026-07-27, from live checks against local and production, not from memory.*
+*Generated 2026-07-27; refreshed after the consolidation merge. All figures from live checks.*
 *Supersedes nothing; the audit findings files remain the record of what was found and how.*
 
 ---
@@ -62,24 +62,30 @@ nothing after, and it does not cover S3.*
 
 ---
 
-## 3. Committed and unmerged
+## 3. Branch state — resolved
 
-| Branch | Ahead | Contains |
-|---|---|---|
-| `integration/migration-batch` | 4 | The 7 pending migrations, repaired pgTAP fixtures + negative tests, harness fixes, the scoped `source_documents` item |
-| `fix/audit-scope-and-drift-symmetry` (**PR #53**) | 3 | `000800`, symmetric drift check, C-group harness |
-| `security-remediation-2026-07-26` | 12 | Original batch authoring; content now carried onto `integration/migration-batch`. **Superseded — do not merge both** |
+All security work is **merged to `main`**. The three overlapping branches are retired.
 
-**PR #53 overlaps `integration/migration-batch`** (both carry `000800`). Merge one, rebase the
-other.
+| Branch | Outcome |
+|---|---|
+| `integration/migration-batch` | **Merged** (PR #54). Carried everything |
+| `fix/audit-scope-and-drift-symmetry` | PR #53 **closed as superseded**. Its two unique files were carried across first |
+| `security-remediation-2026-07-26` | Retired. Content verified present on `main` |
+| `security-audit-2026-07-26` | Retired. Content verified present on `main` |
 
----
+All four were **pushed to `origin` before local deletion** and remain recoverable.
+
+**What verifying the diffs caught.** The four audit findings documents —
+`security-audit-findings.md`, `-part-2`, `-part-3`, `out-of-repo-results.md` — existed
+**only on unmerged branches** and were not on `main`. Deleting `security-remediation` as
+originally planned would have destroyed the record of all three audit passes. They are now on
+`main`. Verified after merge: 0 files on any retired branch are absent from `main`.
 
 ## 4. Test and control state
 
 | | |
 |---|---|
-| pgTAP | **313 tests, 23 files, PASS** (was 271 before tonight) |
+| pgTAP | **314 tests, 23 files, PASS** (was 271 before tonight) |
 | B3 cross-org isolation | **exit 0 · 140 pass · 0 fail · 0 vacuous · 0 inconclusive** · baseline **empty** |
 | L7 chain-of-title | 10 GATED · 1 UNGATED (deliberate) · 2 SKIPPED (declared unproven) |
 | App | typecheck clean · 83/83 · build succeeds |
