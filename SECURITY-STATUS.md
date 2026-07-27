@@ -105,9 +105,17 @@ So a restore is not self-sufficient: **after any real restore, re-apply `000300`
 default-privilege decay resumes on the next `CREATE TABLE`. Nothing else in the dump is affected —
 the 27 existing tables carry their correct ACLs, which is what `table_acl_md5` matching proves.
 
-*The throwaway `gc_prod_verify_053612` was left in place for inspection, alongside the older
-`gc_prod_verify`. Drop when done:*
-`docker exec supabase_db_globalcontent-dashboard psql -U postgres -c 'drop database gc_prod_verify_053612'`
+*Two throwaway databases remain in the local container — `gc_prod_verify_053612` and the older
+`gc_prod_verify`, 12 MB each. Neither is needed: the verification is reproducible from the dump
+plus the two scripts. Drop them with the terminate step first, or the drop fails with "database
+is being accessed by other users" and the failure is easy to miss:*
+
+```sh
+docker exec supabase_db_globalcontent-dashboard psql -U postgres -c \
+  "select pg_terminate_backend(pid) from pg_stat_activity where datname like 'gc_prod_verify%';"
+docker exec supabase_db_globalcontent-dashboard psql -U postgres -c \
+  "drop database if exists gc_prod_verify_053612;" -c "drop database if exists gc_prod_verify;"
+```
 
 **Superseded — `~/gc-dumps/prod-20260727T051203Z.dump`**, the pre-batch point. Restores production
 to the 33-migration state. Keep it: it is the rollback target if the batch itself ever needs
@@ -118,35 +126,35 @@ PITR deliberately not purchased at zero clients.
 *A dump is a point, not a window. It protects against the migrations taken before it and
 nothing after, and it does not cover S3.*
 
-⚠ **The local `pg_restore` cannot read either file.** Homebrew ships 16.14; production is
-Postgres 17.6.1 and writes archive format 1.16, so `pg_restore -l` fails with
-`unsupported version (1.16) in file header` before it reads a single object. The TOC above was
-read with the 17.x client inside the `supabase_db_globalcontent-dashboard` container:
+### Restoring without Docker — resolved
 
-```
-docker cp ~/gc-dumps/<file>.dump supabase_db_globalcontent-dashboard:/tmp/chk.dump
-docker exec supabase_db_globalcontent-dashboard pg_restore -l /tmp/chk.dump
-```
+**`pg_restore` 17.10 is installed locally and reads `053612Z` directly: 705 / 35 / 111, matching
+the figures above with no container involved.**
 
-A backup is only as good as the client available to restore it, and the container may be exactly
-what is down on the day you need it. The fix, not yet run:
+It did not, until 2026-07-27. Homebrew's linked client was 16.14, production writes archive
+format 1.16, and `pg_restore -l` failed at the file header — `unsupported version (1.16) in file
+header` — before reading a single object. For a few hours the only tool on this machine that
+could open the backups lived inside the `supabase_db_globalcontent-dashboard` container, which is
+plausibly the thing that is down on the day a restore is needed. Closed with:
 
 ```sh
-brew install postgresql@17          # keg-only; does not disturb the linked 16.14
+brew install postgresql@17          # keg-only; leaves the linked 16.14 alone
 echo 'export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"' >> ~/.zshrc && exec zsh
 ```
 
-Confirm, with no Docker in the path — these are the numbers §1 records above:
+Re-confirm any dump the same way — a mismatch here means the dump, not the client:
 
 ```sh
-pg_restore --version                                             # expect 17.x
-pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | wc -l      # expect 705
-pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' POLICY '   # expect 35
-pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' ACL '      # expect 111
+pg_restore --version                                                       # 17.x
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | wc -l                # 705
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' POLICY '   # 35
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' ACL '      # 111
 ```
 
-Production is Postgres 17.6.1 today. The gap reopens if it is ever upgraded to 18 — the client
-must be at or above the server that wrote the dump.
+**The gap reopens on a server upgrade.** Production is Postgres 17.6.1 today; if it ever moves to
+18, this client is behind again and the failure appears at the worst moment. The rule is that the
+client must be at or above the server that wrote the dump — check it as part of any planned
+Postgres upgrade, not afterwards.
 
 ---
 
@@ -233,7 +241,7 @@ and a harness that seeds nothing must not report success.
 | **Dedicated screener pipeline** (MediaConvert watermark + proxy) | Before onboarding the first client. Until then clients see no in-app preview and staff review is unaffected. Needs per-org concurrency caps (row E9) or one client can queue unbounded transcode spend |
 | **`member_can` follow-up: `source_documents`** | With the item above |
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
-| **Install a Postgres 17 client** | Before the next incident, not during one. Local `pg_restore` is 16.14 and cannot read either dump — `brew install postgresql@17`, then confirm per §1. Until then the only working client is inside a Docker container |
+| **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
 | **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
 | **Revisit PITR** | When the first client uploads a title. A dump stops being proportionate the moment there is data you cannot recreate |
 | **Re-run both matrices** | Before each launch (row H4) |
