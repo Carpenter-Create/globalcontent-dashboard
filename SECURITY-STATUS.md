@@ -66,16 +66,87 @@ was local. Production has 3 orgs. Its actual claim — the move transfers zero v
 
 ### Rollback point
 
-`~/gc-dumps/prod-20260727T051203Z.dump`, verified, taken **before** the batch — so it restores
-production to the 33-migration state, not to today's. **Row M9 closed.** PITR deliberately not
-purchased at zero clients.
+**Current — `~/gc-dumps/prod-20260727T053612Z.dump`**, taken 2026-07-27 00:36 local / 05:36Z,
+**after** the batch. 369K. **Verified at all three levels. Row M9 closed on this file, not
+inherited from the previous one.**
+
+1. **TOC readable** — 705 entries, 35 policies / 111 ACLs.
+2. **Restored** into throwaway `gc_prod_verify_053612` (PG 17.6 client inside the local
+   container). 45 errors, all ignored and all platform-owned: `must be able to SET ROLE
+   supabase_auth_admin` ×37 (the `auth` schema), `permission denied to change default
+   privileges` ×6, `schema "public" already exists` ×1, `SET ROLE supabase_admin` ×1. Zero
+   errors touching a `public` object.
+3. **Compared count-by-count against live production** via
+   `scripts/security/compare-schema-digest.sql`, as md5 digests so a one-byte difference in a
+   single grant string cannot hide inside a matching count:
+
+| | Production | Restored |
+|---|---|---|
+| tables / policies / RLS-on | 27 / 35 / 27 | **identical** |
+| functions / triggers / indexes / constraints | 44 / 34 / 82 / 94 | **identical** |
+| `table_acl_md5` — **the grant string** | `4c2a65a3…` | **identical** |
+| `function_acl_md5` | `720477c6…` | **identical** |
+| `policy_md5` (name, cmd, roles, `qual`, `with_check`) | `19a1263f…` | **identical** |
+| `column_md5` (type, nullability, default) | `e83f4ae1…` | **identical** |
+| `function_src_md5` | `4436dae9…` | **identical** |
+| `rowcount_md5` / total rows | `7600b76f…` / 132 | **identical** |
+| ledger | 40 rows, max `20260726000900` | **identical** |
+| `default_acl_entries` | 6 | **3 — the only difference** |
+
+The restored copy also reads **24/24 PASS** on `verify-prod-end-state.sql`, including
+`C10: 0 populated / 3 orgs`.
+
+⚠ **The one difference is real and worth knowing before you need it.** `pg_default_acl` does not
+survive a restore performed by a non-superuser — those are the 6 `permission denied to change
+default privileges` errors above. Production carries the *narrowed* defaults that
+`20260726000300` installed; a restored database gets whatever the new cluster bootstraps with.
+So a restore is not self-sufficient: **after any real restore, re-apply `000300`'s
+`alter default privileges … revoke truncate, references, trigger, maintain`**, or the
+default-privilege decay resumes on the next `CREATE TABLE`. Nothing else in the dump is affected —
+the 27 existing tables carry their correct ACLs, which is what `table_acl_md5` matching proves.
+
+*The throwaway `gc_prod_verify_053612` was left in place for inspection, alongside the older
+`gc_prod_verify`. Drop when done:*
+`docker exec supabase_db_globalcontent-dashboard psql -U postgres -c 'drop database gc_prod_verify_053612'`
+
+**Superseded — `~/gc-dumps/prod-20260727T051203Z.dump`**, the pre-batch point. Restores production
+to the 33-migration state. Keep it: it is the rollback target if the batch itself ever needs
+undoing, which the current dump cannot do.
+
+PITR deliberately not purchased at zero clients.
 
 *A dump is a point, not a window. It protects against the migrations taken before it and
 nothing after, and it does not cover S3.*
 
-**This dump is now seven migrations behind the live schema** — it was taken after `000600` and
-`000700` were already in production, and before the batch. Restoring it today would undo all
-seven. **Take a fresh one before the next batch.**
+⚠ **The local `pg_restore` cannot read either file.** Homebrew ships 16.14; production is
+Postgres 17.6.1 and writes archive format 1.16, so `pg_restore -l` fails with
+`unsupported version (1.16) in file header` before it reads a single object. The TOC above was
+read with the 17.x client inside the `supabase_db_globalcontent-dashboard` container:
+
+```
+docker cp ~/gc-dumps/<file>.dump supabase_db_globalcontent-dashboard:/tmp/chk.dump
+docker exec supabase_db_globalcontent-dashboard pg_restore -l /tmp/chk.dump
+```
+
+A backup is only as good as the client available to restore it, and the container may be exactly
+what is down on the day you need it. The fix, not yet run:
+
+```sh
+brew install postgresql@17          # keg-only; does not disturb the linked 16.14
+echo 'export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"' >> ~/.zshrc && exec zsh
+```
+
+Confirm, with no Docker in the path — these are the numbers §1 records above:
+
+```sh
+pg_restore --version                                             # expect 17.x
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | wc -l      # expect 705
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' POLICY '   # expect 35
+pg_restore -l ~/gc-dumps/prod-20260727T053612Z.dump | grep -c ' ACL '      # expect 111
+```
+
+Production is Postgres 17.6.1 today. The gap reopens if it is ever upgraded to 18 — the client
+must be at or above the server that wrote the dump.
 
 ---
 
@@ -162,7 +233,8 @@ and a harness that seeds nothing must not report success.
 | **Dedicated screener pipeline** (MediaConvert watermark + proxy) | Before onboarding the first client. Until then clients see no in-app preview and staff review is unaffected. Needs per-org concurrency caps (row E9) or one client can queue unbounded transcode spend |
 | **`member_can` follow-up: `source_documents`** | With the item above |
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
-| **Fresh production dump** | Before the next migration batch. The current one predates the seven applied on 2026-07-27 |
+| **Install a Postgres 17 client** | Before the next incident, not during one. Local `pg_restore` is 16.14 and cannot read either dump — `brew install postgresql@17`, then confirm per §1. Until then the only working client is inside a Docker container |
+| **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
 | **Revisit PITR** | When the first client uploads a title. A dump stops being proportionate the moment there is data you cannot recreate |
 | **Re-run both matrices** | Before each launch (row H4) |
 
