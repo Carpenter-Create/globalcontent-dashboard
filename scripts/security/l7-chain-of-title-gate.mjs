@@ -37,7 +37,7 @@ const PW = "Passw0rd!-" + run;
 const results = [];
 function record(id, what, verdict, detail) {
   results.push({ id, what, verdict, detail });
-  const mark = { GATED: " GATED ", UNGATED: "UNGATED", INFO: "  ..   " }[verdict];
+  const mark = { GATED: " GATED ", UNGATED: "UNGATED", SKIPPED: "SKIPPED", INFO: "  ..   " }[verdict];
   console.log(`[${mark}] ${id.padEnd(5)} ${what}\n         → ${detail}`);
 }
 
@@ -174,6 +174,16 @@ async function main() {
   }
 
   // Q2b — mark that delivery live.
+  if (!deliveryId) {
+    // NOT A PASS. Q2a refused to create the delivery, so there is no delivery to advance and
+    // this path was never exercised. It is transitively protected — you cannot set the status
+    // of a delivery that cannot exist — but that is an inference, not a measurement, and the
+    // gate inside set_delivery_status is unproven by this run. supabase/tests/deliveries_test.sql
+    // covers it directly.
+    record("Q2b", "gc_staff set_delivery_status('live') on that delivery", "SKIPPED",
+      "NOT PROVEN — no delivery exists to test against because Q2a was correctly refused. " +
+      "Transitively protected, not measured here.");
+  }
   if (deliveryId) {
     const r = await g.rpc("set_delivery_status", { p_delivery_id: deliveryId, p_status: "live" });
     const { data: d } = await admin.from("deliveries").select("status").eq("id", deliveryId).single();
@@ -184,6 +194,11 @@ async function main() {
   }
 
   // Q2c — mint a master-download portal link (the vendor gets the actual master).
+  if (!deliveryId) {
+    record("Q2c", "gc_staff create_portal_link() — hand the master to a vendor", "SKIPPED",
+      "NOT PROVEN — create_portal_link needs a delivery, and Q2a correctly refused to create " +
+      "one. Transitively protected, not measured here.");
+  }
   if (deliveryId) {
     const r = await g.rpc("create_portal_link", {
       p_delivery_id: deliveryId, p_asset_id: assetId,
@@ -244,9 +259,18 @@ async function main() {
 
   // ==========================================================================
   const ungated = results.filter((r) => r.verdict === "UNGATED");
+  const skipped = results.filter((r) => r.verdict === "SKIPPED");
+  const gated = results.filter((r) => r.verdict === "GATED");
   console.log("\n==================== SUMMARY ====================");
-  console.log(`GATED:   ${results.filter((r) => r.verdict === "GATED").length}`);
+  console.log(`GATED:   ${gated.length}   (measured: the call was made and refused)`);
   console.log(`UNGATED: ${ungated.length}`);
+  console.log(`SKIPPED: ${skipped.length}   *** NOT PROVEN — these were never exercised ***`);
+  if (skipped.length) {
+    console.log("\nSKIPPED is not a pass. Each of these had its precondition removed by an");
+    console.log("EARLIER gate firing, so the path is transitively protected but unmeasured here:");
+    for (const r of skipped) console.log(`  ${r.id}  ${r.what}`);
+    console.log("  -> covered directly by supabase/tests/deliveries_test.sql");
+  }
   if (ungated.length) {
     console.log("\nUNGATED — reached without the review gate:");
     for (const r of ungated) console.log(`  ${r.id}  ${r.what}\n        ${r.detail}`);
