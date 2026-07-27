@@ -30,6 +30,20 @@ export async function createDelivery(input: {
   return {};
 }
 
+// Revoke ONE recipient's portal session (D3). Distinct from revokePortalLink, which cuts
+// the link and therefore every recipient on it — a portal link is not one-per-recipient
+// (verified: three live sessions from three addresses on a single link, all resolving).
+// This is the containment tool: kill a leaked cookie, leave the delivery running.
+export async function revokePortalSession(input: { sessionId: string }): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  const { error } = await supabase.rpc("revoke_portal_session", { p_session_id: input.sessionId });
+  if (error) return { error: error.message };
+  revalidatePath("/gc/deliveries");
+  return {};
+}
+
 export async function setDeliveryStatus(
   deliveryId: string,
   status: DeliveryStatus,

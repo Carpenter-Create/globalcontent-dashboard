@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { createPortalLink, revokePortalLink } from "./actions";
+import { createPortalLink, revokePortalLink, revokePortalSession } from "./actions";
 import type { Database } from "@/lib/supabase/database.types";
 
 type PortalEvent = Database["public"]["Enums"]["portal_event"];
@@ -19,6 +19,17 @@ const EVENT_LABELS: Record<PortalEvent, string> = {
 
 export type Master = { id: string; original_filename: string | null; bytes: number };
 export type PortalLink = { id: string; asset_id: string; expires_at: string; revoked_at: string | null };
+// One link can carry MANY recipients — it has no email column, and each session supplies
+// its own address. So sessions are listed individually and revoked individually.
+export type PortalSession = {
+  id: string;
+  link_id: string;
+  name: string;
+  company: string;
+  email: string;
+  expires_at: string;
+  revoked_at: string | null;
+};
 export type PortalAccessEvent = {
   link_id: string;
   event_type: PortalEvent;
@@ -33,11 +44,13 @@ export function PortalLinks({
   deliveryId,
   masters,
   links,
+  sessions,
   events,
 }: {
   deliveryId: string;
   masters: Master[];
   links: PortalLink[];
+  sessions: PortalSession[];
   events: PortalAccessEvent[];
 }) {
   const [assetId, setAssetId] = useState(masters[0]?.id ?? "");
@@ -56,6 +69,14 @@ export function PortalLinks({
     setGenerated(res.url ?? null);
   }
 
+  async function revokeSession(sessionId: string) {
+    setBusy(true);
+    setError(null);
+    const res = await revokePortalSession({ sessionId });
+    setBusy(false);
+    if (res.error) setError(res.error);
+  }
+
   async function revoke(linkId: string) {
     setBusy(true);
     setError(null);
@@ -64,6 +85,10 @@ export function PortalLinks({
     if (res.error) setError(res.error);
   }
 
+  const linkIds = new Set(links.map((l) => l.id));
+  const mySessions = sessions.filter((sn) => linkIds.has(sn.link_id));
+  const liveSessions = mySessions.filter((sn) => !sn.revoked_at && new Date(sn.expires_at) > new Date());
+  const revokedSessions = mySessions.filter((sn) => sn.revoked_at);
   const active = links.filter((l) => !l.revoked_at);
   const revoked = links.filter((l) => l.revoked_at);
 
@@ -109,6 +134,36 @@ export function PortalLinks({
           {revoked.map((l) => (
             <div key={l.id} className="t-body-sm text-ink-3">
               Revoked · was set to expire {new Date(l.expires_at).toLocaleDateString()}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Live recipient sessions. Revoking one cuts that recipient only; revoking the link
+          above cuts all of them. During an incident that is the difference between
+          containing a leak and halting the delivery. */}
+      {liveSessions.length > 0 ? (
+        <div className="flex flex-col gap-1 pt-1">
+          <span className="t-label text-ink-3">Signed-in recipients</span>
+          {liveSessions.map((sn) => (
+            <div key={sn.id} className="flex items-center justify-between gap-2 t-body-sm text-ink-2">
+              <span className="truncate">
+                {sn.email}{sn.company ? ` (${sn.company})` : ""} · until{" "}
+                {new Date(sn.expires_at).toLocaleString()}
+              </span>
+              <Button variant="ghost" onClick={() => revokeSession(sn.id)} disabled={busy}>
+                Revoke access
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {revokedSessions.length > 0 ? (
+        <div className="flex flex-col gap-0.5">
+          {revokedSessions.map((sn) => (
+            <div key={sn.id} className="t-body-sm text-ink-3">
+              Access revoked · {sn.email}
             </div>
           ))}
         </div>
