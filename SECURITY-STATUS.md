@@ -10,8 +10,8 @@ live checks.*
 
 | | Local | Production (`uevsculwzwlhxeamagwg`) |
 |---|---|---|
-| Migrations applied | **40** | **40** |
-| High-water | `20260726000900` | `20260726000900` |
+| Migrations applied | **41** | **41** |
+| High-water | `20260727000100` | `20260727000100` |
 | Postgres | 17.6 | 17.6.1.147 |
 | Tables / policies / RLS-on | 27 / 35 / 27 | 27 / 35 / 27 |
 
@@ -65,6 +65,15 @@ was local. Production has 3 orgs. Its actual claim — the move transfers zero v
 (C10: 0 populated).*
 
 ### Rollback point
+
+> ⚠ **One migration behind as of 2026-07-27.** This dump predates `20260727000100`
+> (GC role separation), so restoring it returns production to the 40-migration state with
+> `member_can` short-circuiting GC staff to `true` again — it silently undoes role separation.
+> Take a fresh one.
+>
+> *The TOC figures below stay valid as a check on THIS file: `20260727000100` replaces 15
+> policies rather than adding any, so a post-migration dump should still read 35 policies. The
+> `gc_can` function and the `gc_staff_role_no_viewer` constraint are what a fresh dump gains.*
 
 **Current — `~/gc-dumps/prod-20260727T053612Z.dump`**, taken 2026-07-27 00:36 local / 05:36Z,
 **after** the batch. 369K. **Verified at all three levels. Row M9 closed on this file, not
@@ -167,6 +176,7 @@ Postgres upgrade, not afterwards.
 | Explicit grants | `000600` — the DR fix |
 | Session revocation | `000700` + the staff control |
 | The `20260726*` batch | All nine in production. End state verified against the catalog, 24/24 |
+| **GC role separation** | `20260727000100` — `gc_can()`, `member_can` delegates instead of short-circuiting, 15 policies and 15 functions repointed, `gc_viewer` blocked by CHECK. **`gc_role` now decides.** Verified in production 33/33 against the catalog; the 4×7 capability matrix is proven behaviourally by 32 pgTAP assertions in CI |
 | Branch protection | `main` protected. `isolation` a **required status check**, `enforce_admins` on, force-push and deletion off |
 
 ---
@@ -194,7 +204,7 @@ originally planned would have destroyed the record of all three audit passes. Th
 
 | | |
 |---|---|
-| pgTAP | **314 tests, 23 files, PASS**, exit 0 |
+| pgTAP | **348 tests, 24 files, PASS**, exit 0 |
 | B3 cross-org isolation | **exit 0 · 140 pass · 0 fail · 0 vacuous · 0 inconclusive** · baseline **empty** |
 | L7 chain-of-title | **exit 0** · 10 GATED · 1 UNGATED (Q2d, baselined) · 2 SKIPPED (declared unproven) |
 | Production end state | `verify-prod-end-state.sql` **24/24 PASS**, 4 negative controls fired |
@@ -226,7 +236,7 @@ and a harness that seeds nothing must not report success.
 | **`brace-expansion`** high advisory | Unfixable in place — the patch exists only in 5.0.8, and forcing it breaks ESLint and the `.xlsx` export path. Declared in `auditConfig.ignoreGhsas` |
 | **`uuid` moderate** | Three-major jump on a transitive dep of the export engine. Below the `high` gate |
 | **`migration-drift.yml` — the check ran on the ACCESS TOKEN alone; the DB password does not work** | **Three corrections in one row, all found by running it rather than reading it.** (1) This file said "Not set. The workflow no-ops" for five days — false. Both secrets were set `2026-07-22T03:5x` and the check has been live against production, correctly failing the `05:08` push on 2026-07-27 when prod was behind by seven. (2) **`--linked` goes through the Management API and needs no database password** — verified by running it with `SUPABASE_DB_PASSWORD` unset: exit 0. So `SUPABASE_DB_PASSWORD` has sat in GitHub for five days **unused and never validated**. (3) It is also **wrong**: both `supabase --db-url` and a plain `psql` are refused by the pooler with `password authentication failed for user "postgres"`. Removing the account token therefore requires a database credential that does not exist in working form — which is why `drift_reader` comes first. **Schedule paused**; `push`→main and `workflow_dispatch` remain |
-| **`gc_staff` is single-factor and role-agnostic** | **Two findings, one row — see `docs/scheduled/gc-staff-single-factor.md`.** (1) Authentication is email possession alone; no MFA exists anywhere in `src/`. `member_can` short-circuits to `true` on **every org** for any staff row, so one compromised mailbox is a whole-tenant compromise — 16 of 35 policies and 16 functions. (2) **Independently: `is_gc_staff` does not consult `gc_role` at all.** A `gc_viewer` can create a delivery, approve a title for delivery and mint a master-asset URL. The scope inversion shipped; the role separation did not. Scoped, costed, **not built** — the `aal2` migration must land *after* an enrollment flow or it locks out the only staff account (prod has 1 row) |
+| **`gc_staff` is single-factor** | **Half of this row closed on 2026-07-27; the half that remains is the MFA one.** Authentication is email possession alone — no MFA anywhere in `src/`, and `gc_staff` spans every org, so one compromised mailbox is still a whole-tenant compromise. Scoped and costed in `docs/scheduled/gc-staff-single-factor.md`, **not built**: the `aal2` migration must land *after* an enrollment flow or it locks out the only staff account. **Owner has enforced MFA on the magic-link mailbox**, which closes the actual attack path; everything in that document hardens the app against someone who already has the mailbox. *Role separation — the second finding in this row — is now **DONE** (`20260727000100`), which limits what a compromise yields even though it does not prevent one.* |
 | **Section I** — console items | Untouched. **I10 (preview deployment protection) first** |
 | **Sections J/L/M/O for the other two repos** | `globalcontent-web` and `24frame` have had no pass at all |
 
@@ -257,7 +267,7 @@ is where that distinction goes to die.
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
 | **`drift_reader` — set its password, then finish the chain** | **Role applied 2026-07-27, verified 10/10.** Remaining, in order: set the password interactively → set `SUPABASE_DB_PASSWORD` to it → dispatch to prove the pooler accepts a non-`postgres` role (**untested, and the one thing that could sink the approach**) → restore the hourly schedule → delete `SUPABASE_ACCESS_TOKEN`. `docs/scheduled/drift-reader-role.md` tracks the state |
 | **Re-create `drift_reader` after any real restore** | Second item on the restore runbook, with `000300`. Roles are cluster-level and **do not survive a `pg_dump` restore** — same trap as `pg_default_acl`, and the drift check would start failing afterwards for a reason nobody connects to the restore |
-| **GC-side role separation** | Independent of the MFA decision and cheaper. `is_gc_staff` ignores `gc_role` entirely (§5) |
+| **Hide view-only controls in the UI** | With the next operator-UI change. `mark_notifications_read` refuses silently by design (filtered `insert…select` — raising would let one bad id kill a batch), so a refused control gives no error. Mirror the pattern in `src/lib/assets.ts:8-11`: the rule lives in one place and the page imports it |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
 | **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
 
