@@ -74,9 +74,15 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
   values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title')::uuid,
           'poster', 'orgs/x/titles/y/poster/z/art.jpg', 'beef', 10);
 set local role authenticated;
+-- Scope the lookup to THIS test's title. An unqualified `where kind='poster'` only
+-- works on a database that holds exactly one poster, which is true of a fresh CI run
+-- and false of any developer machine that has run a seed or a harness — there it
+-- returns multiple rows and the assertion dies with 21000 instead of the P0001 it is
+-- testing for. The test then fails for a reason that has nothing to do with the code
+-- under test.
 select throws_ok(
-  format($$ select public.create_portal_link(%L, (select id from public.assets where kind='poster'), %L) $$,
-         current_setting('t.deliv'), 'hash_art'),
+  format($$ select public.create_portal_link(%L, (select id from public.assets where kind='poster' and title_id = %L limit 1), %L) $$,
+         current_setting('t.deliv'), current_setting('t.title'), 'hash_art'),
   'P0001', 'Asset must be a master asset on the delivery''s title', 'non-master asset rejected');
 
 -- ---- portal_resolve_download ----------------------------------------------

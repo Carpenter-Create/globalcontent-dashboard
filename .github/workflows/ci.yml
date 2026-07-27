@@ -1,0 +1,108 @@
+name: ci
+
+# Remediation 2.4. Before this file existed, a pull request touching only `src/` ran
+# NO automated check at all — the sole workflow (migration-drift.yml) is path-filtered
+# to supabase/migrations/** and is explicitly designed not to gate. That is why eight
+# high-severity advisories accumulated unnoticed: nothing was watching.
+#
+# Two jobs, deliberately separate. `checks` is fast and runs on every push. `isolation`
+# stands up a real Postgres, applies every migration, and runs the security harnesses —
+# slower, and the one that actually protects the audit result.
+#
+# `isolation` is the job to register as a required status check on main. It converts the
+# strongest finding of the audit (116 cross-tenant attempts, zero breaches) from a
+# point-in-time result into a standing control, so a future policy or permission change
+# that quietly loosens isolation fails the build instead of shipping.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # --frozen-lockfile also enforces audit row J1 on every PR: the install fails if
+      # package.json and pnpm-lock.yaml have drifted apart.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      # Gated at `high`, not at the default. The one surviving advisory is uuid<11.1.1
+      # via exceljs (moderate) — a three-major jump on a transitive dependency of the
+      # export engine, deliberately not forced. Raise this to `moderate` once that is
+      # resolved, and see pnpm-workspace.yaml for the brace-expansion exception.
+      - name: Dependency audit (high and above)
+        run: pnpm audit --audit-level high
+
+      # NON-BLOCKING ON PURPOSE, and this should not stay that way. `pnpm lint` currently
+      # reports 841 errors and 8727 warnings, all pre-existing — verified by stashing the
+      # 2.1 dependency bump and re-running, identical output. A gate that is red on day
+      # one gets ignored, and an ignored gate is worse than no gate. Burn the backlog
+      # down, then delete this line.
+      - name: Lint (advisory until the existing backlog is cleared)
+        run: pnpm lint
+        continue-on-error: true
+
+  isolation:
+    name: isolation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Applies every migration in supabase/migrations to a clean database. This is also
+      # the only place the new 20260726* migrations get executed end to end — they are
+      # written but deliberately not applied to any developer database.
+      - name: Start Supabase
+        run: supabase start
+
+      # 275 assertions across 22 files, including rls_tenant_isolation_test.sql, which
+      # correctly drops to `set local role authenticated` rather than testing as owner.
+      - name: Database tests (pgTAP)
+        run: supabase test db
+
+      # Baselined: fails on a NEW isolation failure, not on the known-open ones. The
+      # baseline and the reason for each entry live at the foot of the script.
+      - name: Cross-org isolation (B3)
+        run: node scripts/security/b3-cross-org-isolation.mjs
+
+      # Exits non-zero if any path can deliver a title that never passed chain-of-title
+      # review. Expected to pass here because `supabase start` applies 20260726000100.
+      - name: Chain-of-title delivery gate (L7)
+        run: node scripts/security/l7-chain-of-title-gate.mjs
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
