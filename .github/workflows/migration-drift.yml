@@ -41,10 +41,14 @@ on:
     branches: [main]
     paths:
       - "supabase/migrations/**"
-  schedule:
-    # :17 rather than :00 — the top of the hour is when GitHub's scheduler is most congested and
-    # cron runs are most likely to be delayed or dropped.
-    - cron: "17 * * * *"
+  # ⏸ SCHEDULE PAUSED 2026-07-27 — there is no working database credential yet, so an hourly
+  # run would be an hourly failure email, and a control you learn to ignore is worse than one
+  # you know is off. Restore this the moment `drift_reader` exists and its password is set
+  # (docs/scheduled/drift-reader-role.md). :17 rather than :00 because the top of the hour is
+  # when GitHub's scheduler is most congested and cron runs are most likely to be dropped.
+  #
+  # schedule:
+  #   - cron: "17 * * * *"
   workflow_dispatch: {} # manual "Run workflow" button — ignores path filters
 
 permissions:

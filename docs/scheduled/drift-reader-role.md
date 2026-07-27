@@ -23,13 +23,25 @@ days. The owner's ordering ("create the role first so the `postgres` credential 
 GitHub") was the right call made on wrong information, and the situation it was meant to prevent
 already exists.
 
-That changes this from an **avoidance** to a **rotation**, and makes it more urgent rather than
-less: the credential is live now, so the sequence becomes create role → repoint `DB_USER` → replace
-the secret → **rotate the `postgres` password itself**, because a credential that has sat in a
-third-party store for five days should not be considered clean afterwards.
+**Second correction, later the same day: the stored `postgres` password does not work.** Both
+`supabase migration list --db-url` and a plain `psql` are refused by the pooler —
+`password authentication failed for user "postgres"` — while the workflow had been passing for
+weeks. The explanation, verified by running `migration list --linked` with `SUPABASE_DB_PASSWORD`
+unset (exit 0): **`--linked` goes through the Management API and never touches the database
+password at all.** The check has been running on `SUPABASE_ACCESS_TOKEN` alone since 2026-07-22,
+and `SUPABASE_DB_PASSWORD` has been sitting beside it unused and unvalidated.
 
-**Delete `SUPABASE_ACCESS_TOKEN` first, though — it is unused by any workflow as of
-`202d4c8` and costs nothing to remove.** That is the account-wide one.
+So this is **not** a rotation after all — it is the only way to get a working credential that is
+not the account token:
+
+- The exposure is smaller than it looked. A wrong password is not a live credential.
+- The dependency is larger than it looked. Removing `SUPABASE_ACCESS_TOKEN` is blocked on this
+  role existing, because there is nothing else that authenticates to that database today.
+- **The schedule is paused** until then, so the check is dormant rather than noisily red.
+
+**`SUPABASE_ACCESS_TOKEN` is nonetheless now unused by any workflow** (as of `dd06151`) and can be
+deleted the moment you accept the check staying dormant. It is the account-wide one, reaching 13
+projects. **`SUPABASE_DB_PASSWORD` can be deleted immediately** — it authenticates nothing.
 
 ---
 
