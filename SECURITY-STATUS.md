@@ -255,7 +255,8 @@ is where that distinction goes to die.
 | Item | Trigger |
 |---|---|
 | **Explicit grants, tightening pass** | `000600` reproduces today's privileges exactly. Narrowing them to what each policy admits is a separate reviewable change |
-| **`drift_reader` role** — `docs/scheduled/drift-reader-role.md` | **Before `SUPABASE_DB_PASSWORD` is set.** Owner's ordering: create the least-privilege role first, then set only its password. Putting the `postgres` credential in GitHub "for now" means it lives there until someone gets to it. SQL written and awaiting approval; deliberately **not** in `supabase/migrations/`, since a file there is a file `db push` applies |
+| **`drift_reader` — set its password, then finish the chain** | **Role applied 2026-07-27, verified 10/10.** Remaining, in order: set the password interactively → set `SUPABASE_DB_PASSWORD` to it → dispatch to prove the pooler accepts a non-`postgres` role (**untested, and the one thing that could sink the approach**) → restore the hourly schedule → delete `SUPABASE_ACCESS_TOKEN`. `docs/scheduled/drift-reader-role.md` tracks the state |
+| **Re-create `drift_reader` after any real restore** | Second item on the restore runbook, with `000300`. Roles are cluster-level and **do not survive a `pg_dump` restore** — same trap as `pg_default_acl`, and the drift check would start failing afterwards for a reason nobody connects to the restore |
 | **GC-side role separation** | Independent of the MFA decision and cheaper. `is_gc_staff` ignores `gc_role` entirely (§5) |
 | **Re-check the client/server version gap** | As part of any planned Postgres upgrade, not after. `pg_restore` 17.10 reads today's dumps; a move to Postgres 18 puts it behind again (§1) |
 | **Re-apply `000300` after any real restore** | Immediately, as part of the restore runbook. `pg_default_acl` does not survive a non-superuser restore, so a restored database resumes the default-privilege decay until that migration's `alter default privileges` is re-run |
@@ -273,6 +274,7 @@ is where that distinction goes to die.
 | PITR | Not purchased. Verified dump instead |
 | `audit_log` | Gate the read, never redact the write |
 | Migrations | **Claude does not apply anything to production.** Command handed over, run from a clean `main` checkout. Unchanged by the `--include-all` run — the rehearsal, the file-list prediction and the post-hoc verification were Claude's; the apply was not. Verification is read-only catalog SELECTs, which is a different class of act and stays on this side of the line |
+| **Exception, 2026-07-27 — `drift_reader`** | **First and only time Claude has written to production.** On explicit owner approval and instruction, after the exact SQL had been reviewed in `docs/scheduled/drift-reader-role.md`. Scope: one `CREATE ROLE` plus three grants, no schema object, no data, no RLS. Recorded because a standing rule with an unlogged exception is not a standing rule. The rule itself is unchanged — migrations still go through the owner |
 | Branch protection | `enforce_admins` **on**. A gate the only committer can walk around is the `revoke ... from anon` mistake in a different costume |
 
 ---

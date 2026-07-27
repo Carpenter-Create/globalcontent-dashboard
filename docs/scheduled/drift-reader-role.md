@@ -1,8 +1,27 @@
 # `drift_reader` — a read-one-table credential for the drift check
 
-*Written 2026-07-27. **Proposal awaiting approval. NOT APPLIED, and deliberately not in
-`supabase/migrations/`** — a file in that directory is a file `db push` will apply. It moves there
-only once the SQL below is approved.*
+*Written 2026-07-27. **APPLIED to production 2026-07-27** on the owner's explicit approval and
+instruction. Still deliberately **not** in `supabase/migrations/` — see "Why this is not a
+migration" at the foot.*
+
+## Status
+
+| Step | State |
+|---|---|
+| 1. Create the role | ✅ **applied**, verified 10/10 against the production catalog |
+| 2. Set its password | ⬜ **owner — interactive, see below** |
+| 3. Repoint `DB_USER` in the workflow | ✅ done, `drift_reader.uevsculwzwlhxeamagwg` |
+| 4. Set `SUPABASE_DB_PASSWORD` to the new password | ⬜ owner |
+| 5. Dispatch to prove the pooler accepts a non-`postgres` role | ⬜ blocked on 2 and 4 |
+| 6. Restore the hourly schedule | ⬜ only after 5 is green |
+| 7. Delete `SUPABASE_ACCESS_TOKEN` | ⬜ owner — already unused by any workflow |
+
+**Verification at apply time**, read from `pg_roles` / `pg_authid` rather than trusting the
+migration's own assertions: role exists and can log in · not superuser, no `createrole`, no
+`createdb`, no `bypassrls` · connection limit 4 · zero role memberships · **can** read the ledger ·
+**cannot** read any of the 27 tables in `public` · no `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE`
+anywhere, including on the ledger itself · password not yet set. The control that makes the sixth
+of those meaningful: the same probe finds 27 readable tables for `authenticated`.
 
 ---
 
@@ -161,6 +180,18 @@ supabase migration list --db-url "postgresql://drift_reader.<ref>:<pw>@aws-1-us-
 reads the ledger *and the catalog* looks identical in step 1.
 
 ---
+
+## Why this is not a migration
+
+Roles are **cluster-level, not schema-level**, so this does not belong in the migration ledger:
+`supabase/migrations` describes the schema, and a CI credential is not part of it. Putting it there
+would also mean every local `db reset` and every CI run creates the role, and `create role` has no
+`if not exists` form — so it would need a `do` block wrapper to survive a second application.
+
+The cost of that choice is stated plainly, because it is the same trap as `pg_default_acl`:
+**a `pg_dump` restore does not recreate this role.** It is now the second item on the restore
+runbook, alongside re-applying `20260726000300`'s `alter default privileges`. If a DR event ever
+happens, the drift check starts failing afterwards for a reason nobody will connect to the restore.
 
 ## Rollback
 
