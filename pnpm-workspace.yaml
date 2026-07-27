@@ -7,3 +7,20 @@
 allowBuilds:
   sharp: true
   unrs-resolver: true
+
+# Transitive-only security floors (audit 2.1). Neither is a direct dependency, so they
+# are pinned here rather than added to package.json:
+#   postcss  >=8.5.18  arbitrary file read + path traversal (+ XSS in CSS stringify)
+#   sharp    >=0.35.0  inherited libvips CVE-2026-33327
+#
+# DELIBERATELY NOT OVERRIDDEN — brace-expansion (>=5.0.8 would fix a high-severity DoS):
+# v5 changed its export shape, and minimatch@3 calls it as a default function. Forcing it
+# breaks ESLint outright ("TypeError: expand is not a function") and, less visibly, puts a
+# broken minimatch under exceljs -> archiver -> glob, i.e. the .xlsx export path. Tried and
+# reverted. The advisory needs a crafted glob pattern; nothing in this app routes user input
+# into a glob (exceljs uses it internally for archive handling, ESLint for config matching).
+# Accepted exception — revisit when exceljs/archiver move off glob@7.
+overrides:
+  postcss: '>=8.5.18'
+  sharp: '>=0.35.0'
+
