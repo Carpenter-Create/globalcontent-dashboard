@@ -483,9 +483,31 @@ async function main() {
       .select("*", { count: "exact", head: true }).eq("org_id", B.orgId);
     return !!data && data.name === `OrgB-${run}` && (count ?? 0) === 0;
   };
+  // SNAPSHOT, not a constant. This verifier used to assert `revenue_share_rate_bp === 0` and
+  // `tier === 'access'` literally — encoding an assumption about the DATA rather than checking
+  // for a CHANGE. When 20260801000100 gave accept_terms a real rate (8000, replacing a hardcoded
+  // 0), the seeded term legitimately held 8000, the comparison failed, and W13/W14 reported an
+  // isolation breach that had not happened. Verified independently at the time: an UPDATE on
+  // contract_terms as `authenticated` affects 0 rows, exactly as the missing UPDATE policy
+  // requires.
+  //
+  // A false FAIL is not the harmless direction. It burns the credibility that makes a real
+  // FAIL actionable, and the obvious way to make it green again is to weaken the check.
+  //
+  // Captured EAGERLY, here, after seeding and before any write probe runs. Deliberately not
+  // lazily on first call: that would make the first probe to use it pass unconditionally,
+  // which is the vacuous-pass failure this harness exists to prevent.
+  //
+  // Sibling verifiers below still compare against literals (orgASubUnchanged pins
+  // annual_price_cents, orgAAssentsIntact pins terms_version). They have not broken yet, but
+  // they are the same shape and will misfire the same way the day that seed data changes.
+  const termsBefore = JSON.stringify(
+    (await admin.from("contract_terms")
+      .select("id, revenue_share_rate_bp, tier").eq("org_id", A.orgId).order("id")).data ?? []);
   const orgATermsUnchanged = async () => {
-    const { data } = await admin.from("contract_terms").select("id, revenue_share_rate_bp, tier").eq("org_id", A.orgId);
-    return (data ?? []).length === 1 && data[0].revenue_share_rate_bp === 0 && data[0].tier === "access";
+    const { data } = await admin.from("contract_terms")
+      .select("id, revenue_share_rate_bp, tier").eq("org_id", A.orgId).order("id");
+    return JSON.stringify(data ?? []) === termsBefore;
   };
   const orgASubUnchanged = async () => {
     const { data } = await admin.from("subscriptions").select("tier, annual_price_cents").eq("org_id", A.orgId).maybeSingle();
