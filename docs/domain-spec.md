@@ -136,7 +136,9 @@ Each tier defines three things with **three different lifetimes** — do not sto
 | `features` | current tier, read live | No | Nobody asks what features they had last February. |
 | `annual_price` | subscription record (snapshotted at purchase) | No, but frozen | Repricing a tier must not change existing subs. |
 
-Term increments follow the tier, not the name: **Access = 1 year · Pro = 1 year · Premium = 2 years.**
+Term increments follow the tier, not the name: **Access = 1 year · Pro = 2 years · Premium = 2 years.**
+> **Pro moved from 1 year to 2 on 2026-08-01** (pricing sheet 8.1.26). Consequence below in §6:
+> Pro is no longer a one-date tier.
 Annual price: **Access = $0 · Pro = $497/yr · Premium = $997/yr** (prices end in 7 — §7). Rate
 direction: Access gives GC the **highest** share; Premium the lowest. (75/25 was illustrative only.)
 
@@ -224,8 +226,8 @@ the system.
 
 - **Term = the tier's increment, reset on any move.** Renewal cadence, **not a commitment lock.**
   Do not put commitment language in the contract — it won't be enforced.
-- **Billing anniversary vs. term boundary.** For **Access and Pro** (1-year term, annual billing)
-  they coincide — one date. For **Premium** they do **not**: it's billed annually inside a 2-year
+- **Billing anniversary vs. term boundary.** For **Access** (1-year term, annual billing) they
+  coincide — one date. For **Pro and Premium** they do **not**: it's billed annually inside a 2-year
   term (§5, §21.16), so there are **two dates** — the annual charge at month 12 and term expiry at
   month 24. Model both; don't assume the anniversary equals the term boundary.
 - **Credit applies against future annual charges**, drawn down before new charges. **Open (§21.19):**

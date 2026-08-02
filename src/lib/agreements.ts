@@ -22,11 +22,15 @@ export const TIER_META: Record<
     termMonths: 12,
     blurb: "Get started at no cost.",
   },
+  // termMonths 12 -> 24 per the 8.1.26 pricing sheet ("2 year minimum"). This value is
+  // interpolated into renderAgreement(), so it is the term the client actually signs and the
+  // text whose hash becomes the source document — it must match tier_term_months() in the
+  // database, which is the value written to contract_terms.
   pro: {
     label: "Pro",
     priceLabel: "$497 / year",
     annualPriceCents: 49700,
-    termMonths: 12,
+    termMonths: 24,
     blurb: "For active catalogs.",
   },
   premium: {

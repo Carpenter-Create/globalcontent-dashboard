@@ -10,7 +10,8 @@
 -- "calling it once works". Terms are immutable (rule 6): a duplicate term cannot be cleaned up.
 
 begin;
-select plan(18);
+-- 27 = 18 original + 4 term-increment + 5 tier_allows
+select plan(27);
 
 select set_config('t.org',  gen_random_uuid()::text, false);
 select set_config('t.org2', gen_random_uuid()::text, false);
@@ -92,6 +93,43 @@ select is((select count(*)::int from (
 -- ── the seam is honest about being empty ────────────────────────────────────
 select ok(public.tier_allows(current_setting('t.org')::uuid, 'create_title'),
           'tier_allows returns true — a SEAM, not a gate (see the migration header)');
+
+
+-- ── term increments (8.1.26: Pro moved 12 -> 24) ────────────────────────────
+select is(public.tier_term_months('access'),  12, 'access term = 12 months');
+select is(public.tier_term_months('pro'),     24, 'pro term = 24 months (8.1.26, was 12)');
+select is(public.tier_term_months('premium'), 24, 'premium term = 24 months');
+-- The agreement a client signs must not disagree with the term written to contract_terms.
+-- TIER_META.pro.termMonths feeds renderAgreement(); this is the DB half of that pair.
+select ok(public.tier_term_months('pro') = public.tier_term_months('premium'),
+          'pro and premium now share a term length — pro is no longer a one-date tier (spec §6)');
+
+-- ── tier_allows: the feature matrix, not authorization ──────────────────────
+-- org (t.org) is on `pro` at signup; t.org2 is `premium`. After the lapse above, t.org has an
+-- ACCESS term effective 2026-03-31 — which is in the past relative to a 2026+ test clock only
+-- if now() has passed it, so assert against org2 (premium, effective 2026-01-01) for the
+-- allowed case and use a fresh access-only org for the denied case.
+select set_config('t.org3', gen_random_uuid()::text, false);
+insert into public.organizations (id, name, status) values (current_setting('t.org3')::uuid, 'Access Org', 'active');
+insert into public.contract_terms
+  (org_id, tier, revenue_share_rate_bp, effective_from, term_length_months, expires_at, trigger)
+values
+  (current_setting('t.org3')::uuid, 'access', 8000, '2026-01-01T00:00:00Z', 12, '2027-01-01T00:00:00Z', 'signup');
+
+select ok(    public.tier_allows(current_setting('t.org2')::uuid, 'artwork_audit'),
+              'premium: artwork_audit allowed');
+select ok(not public.tier_allows(current_setting('t.org3')::uuid, 'artwork_audit'),
+              'access: artwork_audit DENIED');
+select ok(not public.tier_allows(current_setting('t.org3')::uuid, 'coproduction_qualify'),
+              'access: co-production qualification DENIED');
+-- Ask Globee moved onto Access in the 8.1.26 sheet. It is not in the restricted list, so it
+-- falls through to the fail-open branch — which is the correct answer, for the right reason.
+select ok(    public.tier_allows(current_setting('t.org3')::uuid, 'ask_globee'),
+              'access: Ask Globee allowed (included as of 8.1.26)');
+-- Fail-OPEN on unknown actions is deliberate: this gates features, not access. A typo must not
+-- lock a paying client out of their catalog — RLS does authorization, one layer down.
+select ok(    public.tier_allows(current_setting('t.org3')::uuid, 'some_action_that_does_not_exist'),
+              'unknown action: fails OPEN by design (feature gate, not an authz boundary)');
 
 select * from finish();
 rollback;
