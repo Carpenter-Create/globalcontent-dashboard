@@ -235,3 +235,14 @@ restatements crowd out the section's purpose.
 - **Independent Supabase queries in a server component must be `Promise.all`'d.** Awaiting them
   in sequence is the default thing to write and it costs a full round-trip each. This is the
   single easiest performance regression to reintroduce.
+
+- **Local dev has TWO email paths and only one of them is fake.** Cost an hour of "the magic
+  link never arrived."
+  - **Supabase Auth** (magic link / login) → the local stack's own SMTP → **Mailpit at
+    <http://127.0.0.1:54324>**. Never reaches a real inbox. Bookmark it.
+  - **App email** (portal OTP, GC Support notifications — `src/lib/email.ts`) → **Resend**, from
+    `assets@globalcontent.co` → **a real inbox, even from localhost.** Be aware you are sending
+    genuine mail while developing.
+
+  Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
+  `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
