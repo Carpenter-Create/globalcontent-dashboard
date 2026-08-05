@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { resolveTerritories, type TerritoryMode } from "@/lib/territories";
 import type { RightsType } from "@/lib/rights";
 import { computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
@@ -22,9 +23,7 @@ export async function addRights(input: {
   windowEnd: string | null;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   if (input.rightsTypes.length === 0) return { error: "Select at least one rights type." };
 
@@ -60,9 +59,7 @@ export async function setScreenerSource(input: {
   source: "master" | "dedicated";
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("set_screener_source", {
@@ -85,9 +82,7 @@ export async function setTitleReleaseInfo(input: {
   originalReleaseDate?: string;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("set_title_release_info", {
@@ -110,9 +105,7 @@ export async function submitTitle(
   titleId: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("submit_title", { p_org_id: orgId, p_title_id: titleId });

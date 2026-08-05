@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { renderAgreement, hashAgreement, TERMS_VERSION, TIERS, type Tier } from "@/lib/agreements";
 
 // Clickwrap accept. Renders + hashes the agreement server-side (content_hash covers the exact
@@ -15,9 +16,7 @@ export async function acceptAgreement(formData: FormData) {
   if (!TIERS.includes(tier)) throw new Error("Invalid tier");
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const rendered = renderAgreement(tier);

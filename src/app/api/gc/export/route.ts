@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { parseExportSpec, STANDARD_EXPORT_TEMPLATE } from "@/lib/export-spec";
 import { buildExportRows, toXlsx, type TitleExportInput } from "@/lib/export-engine";
 
@@ -9,7 +10,7 @@ import { buildExportRows, toXlsx, type TitleExportInput } from "@/lib/export-eng
 // record_export (append-only provenance), return the .xlsx.
 export async function POST(req: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { data: staff } = await supabase.from("gc_staff").select("user_id").eq("user_id", user.id).maybeSingle();
   if (!staff) return NextResponse.json({ error: "forbidden" }, { status: 403 });

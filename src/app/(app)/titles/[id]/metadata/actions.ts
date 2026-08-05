@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { parseMetadata, computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -14,9 +15,7 @@ export async function saveMetadata(
   values: unknown,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const parsed = parseMetadata(values);

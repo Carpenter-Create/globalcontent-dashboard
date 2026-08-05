@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 
 // Download the immutable rendered agreement text (§5 "downloadable forever"). RLS on
 // source_documents scopes this to the caller's orgs — they can only fetch their own.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { data: doc } = await supabase

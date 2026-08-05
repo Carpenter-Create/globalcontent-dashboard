@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { resolveOperableTitle, assetKey, PART_SIZE } from "@/lib/assets";
 import { createMultipart } from "@/lib/s3";
 
@@ -19,9 +20,7 @@ export async function POST(req: Request) {
   const { titleId, kind, filename, contentType } = parsed.data;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const op = await resolveOperableTitle(supabase, titleId, user.id);

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 
 // GC-operator surfaces (Queue, Vendors) render INSIDE the main client AppShell — same sidebar
 // as the rest of the portal, no separate area. This route group ((operator) = no URL segment)
@@ -9,9 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 // already hidden from non-GC, but a direct URL hit must still be blocked here.)
 export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: staff } = await supabase

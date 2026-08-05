@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { generateToken, hashToken } from "@/lib/portal";
 import { sendOrgNotificationEmail } from "@/lib/email";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -17,7 +18,7 @@ export async function createDelivery(input: {
   territory: string;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const { error } = await supabase.rpc("create_delivery", {
     p_title_id: input.titleId,
@@ -36,7 +37,7 @@ export async function createDelivery(input: {
 // This is the containment tool: kill a leaked cookie, leave the delivery running.
 export async function revokePortalSession(input: { sessionId: string }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const { error } = await supabase.rpc("revoke_portal_session", { p_session_id: input.sessionId });
   if (error) return { error: error.message };
@@ -50,7 +51,7 @@ export async function setDeliveryStatus(
   note?: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const { error } = await supabase.rpc("set_delivery_status", {
     p_delivery_id: deliveryId,
@@ -102,7 +103,7 @@ export async function createPortalLink(input: {
   assetId: string;
 }): Promise<{ error?: string; url?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const token = generateToken();
   const { error } = await supabase.rpc("create_portal_link", {
@@ -118,7 +119,7 @@ export async function createPortalLink(input: {
 
 export async function revokePortalLink(input: { linkId: string }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const { error } = await supabase.rpc("revoke_portal_link", { p_link_id: input.linkId });
   if (error) return { error: error.message };

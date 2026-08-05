@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { stripe } from "@/lib/stripe/server";
 import { TIER_META } from "@/lib/agreements";
 
@@ -10,9 +11,7 @@ import { TIER_META } from "@/lib/agreements";
 // what the webhook's finalize_paid_signup needs. No payment_method_types (dynamic methods).
 export async function POST() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
   const { data: memberships } = await supabase

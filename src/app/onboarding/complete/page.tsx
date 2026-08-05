@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { stripe } from "@/lib/stripe/server";
 import { CompletePoller } from "@/app/agreement/complete/complete-poller";
 import { WizardFrame } from "../wizard-frame";
@@ -12,10 +12,7 @@ export default async function CompleteStep({
 }: {
   searchParams: Promise<{ session_id?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { session_id } = await searchParams;

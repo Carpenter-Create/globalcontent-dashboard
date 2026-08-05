@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { Card, CardBody } from "@/components/ui/card";
 import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
@@ -35,9 +36,7 @@ const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 // statements module lands; findings stay owned by Catalog Health (we only point there).
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   const { data: memberships } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, status)")

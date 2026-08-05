@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { renderAgreement, TIER_META, TIERS, type Tier } from "@/lib/agreements";
 import { Card } from "@/components/ui/card";
 import { AcceptForm } from "@/app/agreement/accept-form";
@@ -14,9 +15,7 @@ export default async function PlanStep({
   searchParams: Promise<{ tier?: string }>;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase

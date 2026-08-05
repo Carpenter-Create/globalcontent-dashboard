@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetadataForm } from "./metadata-form";
 import { METADATA_FIELDS } from "@/lib/metadata";
@@ -10,9 +11,7 @@ import { METADATA_FIELDS } from "@/lib/metadata";
 export default async function TitleMetadataPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: title } = await supabase
