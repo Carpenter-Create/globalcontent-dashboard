@@ -27,10 +27,12 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do NOT insert logic between client creation and getUser() — it refreshes the token.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Do NOT insert logic between client creation and this call — it refreshes the token.
+  // getClaims() verifies the JWT locally (WebCrypto + cached JWKS) on asymmetric-key
+  // projects instead of a network round-trip to the Auth server, and still calls
+  // getSession() internally so an expired token is refreshed exactly as getUser() did.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims?.sub ? { id: claims.claims.sub } : null;
 
   const path = request.nextUrl.pathname;
   const isPublic =

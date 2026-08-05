@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { getOrgContext } from "@/lib/supabase/context";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
@@ -69,22 +69,13 @@ export default async function TitlesPage({
   const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("role, organizations(id, name)")
-    .eq("user_id", user.id)
-    .eq("status", "active");
-  const rows = (memberships ?? []).filter((m) => m.organizations);
-  const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
-  const activeRow = rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0] ?? null;
-  if (!activeRow) redirect("/");
-  const activeOrg = activeRow.organizations!;
-  const canOperate = activeRow.role === "account_owner" || activeRow.role === "delivery_ops";
+  // Shared with the layout via React cache() — no second identity check, no second
+  // memberships query. Free here because the layout already resolved it this request.
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
+  if (!ctx.activeOrg) redirect("/");
+  const activeOrg = ctx.activeOrg;
+  const canOperate = ctx.canOperate;
 
   const { data: titles } = await supabase
     .from("titles")
