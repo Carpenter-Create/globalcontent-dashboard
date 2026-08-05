@@ -8,36 +8,43 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 
-# Transitive-only security floors (audit 2.1). Neither is a direct dependency, so they
-# are pinned here rather than added to package.json:
+# Transitive-only security floors (audit 2.1). None is a direct dependency, so they are
+# pinned here rather than added to package.json:
 #   postcss  >=8.5.18  arbitrary file read + path traversal (+ XSS in CSS stringify)
 #   sharp    >=0.35.0  inherited libvips CVE-2026-33327
 #
-# DELIBERATELY NOT OVERRIDDEN — brace-expansion (>=5.0.8 would fix a high-severity DoS):
-# v5 changed its export shape, and minimatch@3 calls it as a default function. Forcing it
-# breaks ESLint outright ("TypeError: expand is not a function") and, less visibly, puts a
-# broken minimatch under exceljs -> archiver -> glob, i.e. the .xlsx export path. Tried and
-# reverted. The advisory needs a crafted glob pattern; nothing in this app routes user input
-# into a glob (exceljs uses it internally for archive handling, ESLint for config matching).
-# Accepted exception — revisit when exceljs/archiver move off glob@7.
+# brace-expansion — NOW ACTUALLY FIXED, no longer an accepted exception.
+#   Reached only as: exceljs > archiver > (archiver-utils|zip-stream) > glob@7 > minimatch@3,
+#   and via ESLint's config matching.
+#
+#   An earlier attempt forced everything to 5.x and broke things: v5 changed its export shape
+#   and minimatch@3 calls it as a default function ("TypeError: expand is not a function"),
+#   which also put a broken minimatch under the .xlsx export path. That was reverted, and the
+#   advisory was carried as an ignore on the reasoning that 1.1.16 and 2.1.2 were the newest
+#   of their lines and both still vulnerable — so minimatch@3 had no backport to take.
+#
+#   THAT IS NO LONGER TRUE. The maintainers backported: 1.1.18, 2.1.4, 3.0.6 and 5.0.9 all
+#   carry the fix. Each line can now be raised WITHIN ITS OWN MAJOR, so minimatch@3 keeps the
+#   default-function export it calls.
+#
+#   CARET RANGES ARE LOAD-BEARING. A bare '>=1.1.18' is also satisfied by 5.0.9, so pnpm
+#   resolves every line to 5.x and silently reintroduces exactly the breakage above. Observed
+#   while making this change.
+#
+#   Verified after the bump: ESLint runs, and exceljs writes a valid .xlsx through the
+#   archiver -> glob -> minimatch chain — the two things that failed last time.
+#   Covers GHSA-mh99-v99m-4gvg and GHSA-rgw5-rvv9-x895 (CVE-2026-69152), the latter a bypass
+#   of the incomplete CVE-2026-14257 mitigation. Re-check on every exceljs bump; the real fix
+#   is still exceljs/archiver moving off glob@7.
 overrides:
   postcss: '>=8.5.18'
   sharp: '>=0.35.0'
+  brace-expansion@<1.1.18: '^1.1.18'
+  brace-expansion@>=2.0.0 <2.1.4: '^2.1.4'
+  brace-expansion@>=4.0.0 <5.0.9: '^5.0.9'
 
-# The brace-expansion exception above, declared so `pnpm audit --audit-level high` is
-# honest rather than either permanently red or quietly downgraded. An exception you can
-# see in a config file is a decision; an exception you carry by lowering the gate is a
-# habit. CI (.github/workflows/ci.yml) fails on any OTHER high advisory.
-#
-# GHSA-mh99-v99m-4gvg — brace-expansion DoS via unbounded expansion.
-#   Reached only as: exceljs > archiver > (archiver-utils|zip-stream) > glob@7 > minimatch@3
-#   Unfixable in place: the fix lands in 5.0.8 only. 1.1.16 and 2.1.2 are the newest of
-#   their lines and both remain vulnerable, so there is no backport minimatch@3 can take,
-#   and forcing 5.x breaks it (see above).
-#   Real fix: exceljs/archiver moving off glob@7. Re-check on every exceljs bump.
-#   Exposure: requires a crafted glob pattern. Nothing in this app routes user input into
-#   a glob — exceljs uses it internally for archive handling.
-auditConfig:
-  ignoreGhsas:
-    - GHSA-mh99-v99m-4gvg
-
+# No auditConfig.ignoreGhsas. The brace-expansion exception that lived here is gone because
+# the advisory is fixed rather than tolerated — `pnpm audit --audit-level high` passes on its
+# own merits. If an exception is ever needed again, declare it here rather than lowering the
+# gate in CI: an exception you can see in a config file is a decision; one carried by
+# weakening the threshold is a habit.
