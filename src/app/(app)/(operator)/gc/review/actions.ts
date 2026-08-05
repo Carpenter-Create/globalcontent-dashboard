@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { generateToken, hashToken } from "@/lib/portal";
 import { sendOrgNotificationEmail } from "@/lib/email";
 import { NOTIFICATION_EMAIL } from "@/lib/notifications";
@@ -18,9 +19,7 @@ export async function reviewTitle(
   reason: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   if (decision === "reject" && !reason.trim()) return { error: "A reason is required to reject." };
 
@@ -74,9 +73,7 @@ export async function linkTitleToWork(
   targetTitleId: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("link_title_to_work_of", {
@@ -96,9 +93,7 @@ export async function linkTitleToWork(
 // GC gate is the RPC itself (is_gc_staff + screenable-asset check), not this action.
 export async function createScreenerLink(input: { titleId: string }): Promise<{ error?: string; url?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const token = generateToken();
@@ -117,9 +112,7 @@ export async function createScreenerLink(input: { titleId: string }): Promise<{ 
 
 export async function revokeScreenerLink(input: { linkId: string }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("revoke_portal_link", { p_link_id: input.linkId });

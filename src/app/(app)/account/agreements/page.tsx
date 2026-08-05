@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { TIER_META, type Tier } from "@/lib/agreements";
@@ -10,9 +11,7 @@ import { TIER_META, type Tier } from "@/lib/agreements";
 // (the immutable source document), viewable + downloadable forever.
 export default async function AgreementsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase

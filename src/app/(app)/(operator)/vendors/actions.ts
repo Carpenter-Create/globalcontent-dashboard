@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { parseExportSpec } from "@/lib/export-spec";
 
 const Input = z.object({
@@ -52,9 +53,7 @@ export async function saveVendor(raw: unknown): Promise<{ error?: string }> {
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const row = {

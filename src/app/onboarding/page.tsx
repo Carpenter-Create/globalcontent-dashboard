@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { Card, CardBody } from "@/components/ui/card";
 import { ONBOARDING_WELCOME, ONBOARDING_HIGHLIGHTS } from "@/lib/onboarding";
 import { WizardFrame } from "./wizard-frame";
@@ -10,9 +11,7 @@ import { WizardFrame } from "./wizard-frame";
 // (incl. free Access) starts here. If they already have an active org, they're onboarded.
 export default async function WelcomePage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase

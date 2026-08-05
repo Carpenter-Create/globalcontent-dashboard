@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { PaymentCheckout } from "@/app/agreement/pay/payment-checkout";
 import { WizardFrame } from "../wizard-frame";
 
@@ -8,9 +9,7 @@ import { WizardFrame } from "../wizard-frame";
 // an awaiting_payment org; Access never lands here (accept_terms activated it directly).
 export default async function PaymentStep() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase

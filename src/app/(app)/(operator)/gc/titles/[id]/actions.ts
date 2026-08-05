@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 
 // GC sets a title's forward-looking release date (go-to-market). Written via the
 // set_release_date RPC, gated on is_gc_staff in the DB — there is no client write
@@ -12,9 +13,7 @@ export async function setReleaseDate(input: {
   date: string | null;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
 
   const { error } = await supabase.rpc("set_release_date", {

@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { Card, CardHeader, CardTitle, CardDescription, CardBody } from "@/components/ui/card";
 import { TitleHero } from "@/components/layout/title-hero";
 import { FieldList } from "@/components/layout/field-list";
@@ -52,9 +53,7 @@ function formatBytes(n: number): string {
 export default async function TitleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase

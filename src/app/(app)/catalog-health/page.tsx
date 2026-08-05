@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { FindingRows } from "@/components/findings/findings-card";
@@ -13,9 +14,7 @@ import { CATALOG_HEALTH_EMPTY, CATALOG_HEALTH_SUBTITLE } from "@/lib/findings";
 // the title-detail pages show the same findings in-context. A GC-side equivalent lands later.
 export default async function CatalogHealthPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
 
   const { data: memberships } = await supabase
     .from("memberships")

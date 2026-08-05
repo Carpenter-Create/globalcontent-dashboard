@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { Card, CardBody } from "@/components/ui/card";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { RIGHTS_META } from "@/lib/rights";
@@ -28,9 +29,7 @@ function fmtMeta(v: unknown): string {
 export default async function GcTitleDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: t } = await supabase

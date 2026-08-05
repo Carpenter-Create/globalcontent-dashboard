@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/auth";
 import { OnboardingForm } from "@/components/onboarding-form";
 import { WizardFrame } from "../wizard-frame";
 
@@ -8,9 +9,7 @@ import { WizardFrame } from "../wizard-frame";
 // then createOrg redirects forward to the plan step. Resume forward if an org already exists.
 export default async function OrganizationStep() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser();
   if (!user) redirect("/login");
 
   const { data: memberships } = await supabase
