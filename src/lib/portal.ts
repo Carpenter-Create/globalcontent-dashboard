@@ -6,6 +6,14 @@ export const PORTAL = {
   otpMaxAttempts: 5,
   sessionTtlHours: 24,
   signedUrlTtlSeconds: 300, // master DOWNLOAD: a single GET only needs to start within the TTL
+  // Artwork (poster/banner) embedded as <img> on a page that may stay open for hours. The
+  // download TTL above is wrong here for the reason stated above it — an <img> is not "a
+  // single GET that starts immediately". If the browser evicts the image and re-requests it,
+  // an expired URL renders as a broken image on a page the user never navigated away from.
+  // 1h is comfortably longer than any render needs while staying leak-hygienic, and artwork
+  // is the least sensitive asset class: it is promotional material that becomes public the
+  // moment a title is distributed.
+  artworkTtlSeconds: 3600,
   // Screener STREAM: a <video> issues byte-range GETs across the whole runtime and CloudFront
   // re-validates the signed URL on every request, so this must cover a full film + pauses,
   // not just playback start. Kept well under the 24h session for leak hygiene (view-only, no DRM).

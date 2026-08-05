@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { signAssetUrl } from "@/lib/cloudfront";
+import { assetViewUrl } from "@/lib/asset-url";
+import { PORTAL } from "@/lib/portal";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -9,8 +10,8 @@ export type TitleArtwork = { poster: string | null; banner: string | null };
 
 // Resolve title_id → signed { poster, banner } URLs (the two "Artwork" graphics), latest
 // of each kind per title. Best-effort by design: reads are RLS-scoped (org isolation), and
-// if CloudFront env is absent (e.g. local dev) or a graphic is missing, that slot is null and
-// the UI shows the monogram placeholder. Never throws — a graphic is decoration, not data.
+// if a URL cannot be produced or a graphic is missing, that slot is null and the UI shows
+// the monogram placeholder. Never throws — a graphic is decoration, not data.
 export async function titleArtworkUrls(
   supabase: ServerClient,
   titleIds: string[],
@@ -25,16 +26,30 @@ export async function titleArtworkUrls(
     .in("title_id", titleIds)
     .order("created_at", { ascending: false });
 
+  // Pick the latest of each kind per title FIRST (the query is desc, so first seen wins),
+  // then sign the winners together. Signing inside the loop would serialise it.
+  const wanted: { titleId: string; slot: "poster" | "banner"; key: string }[] = [];
   for (const a of data ?? []) {
     const slot = a.kind === "banner" ? "banner" : "poster";
     const entry = map.get(a.title_id) ?? { poster: null, banner: null };
-    if (entry[slot]) continue; // query is desc → first seen of each kind is the latest
-    try {
-      entry[slot] = signAssetUrl(a.storage_key);
-    } catch {
-      // CloudFront not configured (local) → leave null → placeholder. Intentional.
-    }
     map.set(a.title_id, entry);
+    if (wanted.some((w) => w.titleId === a.title_id && w.slot === slot)) continue;
+    wanted.push({ titleId: a.title_id, slot, key: a.storage_key });
+  }
+
+  const signed = await Promise.all(
+    wanted.map(async (w) => {
+      try {
+        return { ...w, url: await assetViewUrl(w.key, PORTAL.artworkTtlSeconds) };
+      } catch {
+        return { ...w, url: null }; // unservable → placeholder. Intentional.
+      }
+    }),
+  );
+
+  for (const s of signed) {
+    const entry = map.get(s.titleId);
+    if (entry) entry[s.slot] = s.url;
   }
   return map;
 }

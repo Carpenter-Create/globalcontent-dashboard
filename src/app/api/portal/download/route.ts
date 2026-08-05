@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken, PORTAL } from "@/lib/portal";
-import { signAssetUrl } from "@/lib/cloudfront";
+import { assetViewUrl } from "@/lib/asset-url";
 import { resolveOrRestore } from "@/lib/s3";
 
 export async function POST(req: Request) {
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
   let url: string;
   try {
-    url = signAssetUrl(row.storage_key);
+    url = await assetViewUrl(row.storage_key);
   } catch {
     // Signing misconfig (env) — graceful; the Glacier case is handled above.
     return NextResponse.json({ error: "File is being prepared" }, { status: 409 });

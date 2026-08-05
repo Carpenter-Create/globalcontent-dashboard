@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken, PORTAL } from "@/lib/portal";
-import { signAssetUrl } from "@/lib/cloudfront";
+import { assetViewUrl } from "@/lib/asset-url";
 import { resolveOrRestore } from "@/lib/s3";
 
 export async function POST(req: Request) {
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   let url: string;
   // Long TTL: range-based <video> playback re-validates the signed URL on every byte-range
   // request across the whole runtime, so a short (download-style) TTL would 403 mid-film.
-  try { url = signAssetUrl(row.storage_key, PORTAL.screenerStreamTtlSeconds); }
+  try { url = await assetViewUrl(row.storage_key, PORTAL.screenerStreamTtlSeconds); }
   catch { return NextResponse.json({ error: "File is being prepared" }, { status: 409 }); }
   return NextResponse.json({ type: "progressive", url });
 }
