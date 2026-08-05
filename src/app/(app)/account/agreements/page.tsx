@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth";
+import { getOrgContext } from "@/lib/supabase/context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { TIER_META, type Tier } from "@/lib/agreements";
@@ -11,20 +10,11 @@ import { TIER_META, type Tier } from "@/lib/agreements";
 // (the immutable source document), viewable + downloadable forever.
 export default async function AgreementsPage() {
   const supabase = await createClient();
-  const user = await getAuthUser();
-  if (!user) redirect("/login");
+  // Resolved once per request and shared with the layout above (React cache()).
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
 
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("role, organizations(id, name)")
-    .eq("user_id", user.id)
-    .eq("status", "active");
-  const rows = (memberships ?? []).filter((m) => m.organizations);
-  const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
-  const activeOrg =
-    rows.find((m) => m.organizations!.id === cookieOrg)?.organizations ??
-    rows[0]?.organizations ??
-    null;
+  const activeOrg = ctx.activeOrg;
   if (!activeOrg) redirect("/");
 
   // RLS-scoped to the org; the rendered text lives on the linked source document.

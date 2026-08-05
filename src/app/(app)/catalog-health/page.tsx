@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth";
+import { getOrgContext } from "@/lib/supabase/context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { FindingRows } from "@/components/findings/findings-card";
@@ -14,18 +13,11 @@ import { CATALOG_HEALTH_EMPTY, CATALOG_HEALTH_SUBTITLE } from "@/lib/findings";
 // the title-detail pages show the same findings in-context. A GC-side equivalent lands later.
 export default async function CatalogHealthPage() {
   const supabase = await createClient();
-  const user = await getAuthUser();
-
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("organizations(id)")
-    .eq("user_id", user?.id ?? "")
-    .eq("status", "active");
-  const orgIds = (memberships ?? []).map((m) => m.organizations?.id).filter(Boolean) as string[];
-  if (orgIds.length === 0) redirect("/onboarding");
-
-  const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
-  const activeOrgId = orgIds.includes(cookieOrg ?? "") ? cookieOrg! : orgIds[0];
+  // Resolved once per request and shared with the layout above (React cache()).
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
+  if (!ctx.activeOrg) redirect("/onboarding");
+  const activeOrgId = ctx.activeOrg.id;
 
   const { data: allFindings } = await supabase.rpc("my_findings");
   const findings = (allFindings ?? []).filter((f) => f.org_id === activeOrgId);

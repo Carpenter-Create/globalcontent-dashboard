@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth";
+import { getOrgContext } from "@/lib/supabase/context";
 import { Card, CardHeader, CardTitle, CardDescription, CardBody } from "@/components/ui/card";
 import { TitleHero } from "@/components/layout/title-hero";
 import { FieldList } from "@/components/layout/field-list";
@@ -53,18 +52,11 @@ function formatBytes(n: number): string {
 export default async function TitleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const user = await getAuthUser();
-  if (!user) redirect("/login");
-
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("role, organizations(id, name)")
-    .eq("user_id", user.id)
-    .eq("status", "active");
-  const rows = (memberships ?? []).filter((m) => m.organizations);
-  const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
-  const activeRow = rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0] ?? null;
-  if (!activeRow) redirect("/");
+  // Resolved once per request and shared with the layout above (React cache()).
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
+  if (!ctx.activeOrg) redirect("/");
+  const rows = ctx.rows;
 
   const { data: title } = await supabase
     .from("titles")
@@ -73,7 +65,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .maybeSingle();
   if (!title) notFound(); // RLS returns null for another org's title → 404
 
-  const titleRole = rows.find((m) => m.organizations!.id === title.org_id)?.role;
+  const titleRole = rows.find((m) => m.organizations.id === title.org_id)?.role;
   const canOperate = titleRole === "account_owner" || titleRole === "delivery_ops";
 
   const { data: grants } = await supabase
@@ -138,12 +130,8 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   // Mirror /api/screener/url's split exactly (screenerKindFor is the shared rule): staff may
   // fall back to the master, a client may only ever be served a dedicated screener. Without
   // the staff check this button renders for clients on master-source titles and then 404s.
-  const { data: staffRow } = await supabase
-    .from("gc_staff")
-    .select("user_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const screenerKind = screenerKindFor(title.screener_source, Boolean(staffRow));
+  // ctx already resolved gc_staff for this request -- no second lookup.
+  const screenerKind = screenerKindFor(title.screener_source, ctx.isGcStaff);
   const screenerAvailable = screenerKind !== null && assetList.some((a) => a.kind === screenerKind);
 
   return (

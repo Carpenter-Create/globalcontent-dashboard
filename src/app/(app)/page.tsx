@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth";
+import { getOrgContext } from "@/lib/supabase/context";
 import { Card, CardBody } from "@/components/ui/card";
 import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
@@ -36,19 +35,11 @@ const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 // statements module lands; findings stay owned by Catalog Health (we only point there).
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const user = await getAuthUser();
-  const { data: memberships } = await supabase
-    .from("memberships")
-    .select("role, organizations(id, name, status)")
-    .eq("user_id", user?.id ?? "")
-    .eq("status", "active");
-
-  const rows = (memberships ?? []).filter((m) => m.organizations);
-  if (rows.length === 0) redirect("/onboarding");
-
-  const cookieOrg = (await cookies()).get("gc_active_org")?.value ?? null;
-  const activeRow = rows.find((m) => m.organizations!.id === cookieOrg) ?? rows[0];
-  const org = activeRow.organizations!;
+  // Resolved once per request and shared with the layout above (React cache()).
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
+  if (ctx.rows.length === 0 || !ctx.activeOrg) redirect("/onboarding");
+  const org = ctx.activeOrg;
 
   // Portfolio reads for the active org (RLS-scoped; counts computed here per spec).
   const { data: titleRows } = await supabase
@@ -147,7 +138,7 @@ export default async function DashboardPage() {
               </span>
             </div>
             <span className="rounded-[var(--radius-sm)] bg-surface-muted px-2.5 py-1 t-label text-ink-2">
-              {ROLE_LABELS[activeRow.role] ?? activeRow.role}
+              {ctx.activeRole ? (ROLE_LABELS[ctx.activeRole] ?? ctx.activeRole) : "—"}
             </span>
           </CardBody>
         </Card>
