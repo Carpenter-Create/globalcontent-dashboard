@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
-import { signAssetUrl } from "@/lib/cloudfront";
+import { assetViewUrl } from "@/lib/asset-url";
 import { resolveOrRestore } from "@/lib/s3";
 import { PORTAL } from "@/lib/portal";
 
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     if (restore.status === "restoring") {
       return NextResponse.json({ restoring: true }, { status: 202 });
     }
-    return NextResponse.json({ url: signAssetUrl(asset.storage_key, PORTAL.inAppScreenerTtlSeconds) });
+    return NextResponse.json({ url: await assetViewUrl(asset.storage_key, PORTAL.inAppScreenerTtlSeconds) });
   } catch (e) {
     console.error(`[screener:url] ${e instanceof Error ? e.message : e}`);
     return NextResponse.json({ error: "Could not prepare the screener. Please try again." }, { status: 502 });

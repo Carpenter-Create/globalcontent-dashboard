@@ -4,6 +4,7 @@ import {
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   RestoreObjectCommand,
 } from "@aws-sdk/client-s3";
@@ -61,6 +62,17 @@ export async function completeMultipart(
   );
   if (!out.ETag) throw new Error("S3 did not return an ETag");
   return out.ETag.replace(/"/g, ""); // strip the quotes S3 wraps ETags in
+}
+
+// Presigned GET straight from S3. LOCAL/PREVIEW ONLY — see lib/asset-url.
+// Production serves every asset through CloudFront + OAC so the bucket stays private;
+// this exists because the CloudFront distribution origins from the PROD bucket only, so a
+// dev-bucket key can never be served through it. Supports range requests, so video
+// scrubbing works. The caller decides when this is permissible, not this function.
+export async function presignGetObject(key: string, ttlSeconds: number): Promise<string> {
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
+    expiresIn: ttlSeconds,
+  });
 }
 
 // ---- Glacier restore (Portal-3) --------------------------------------------
