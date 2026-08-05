@@ -220,3 +220,18 @@ restatements crowd out the section's purpose.
   first time — don't ship required-arg RPCs and patch with a follow-up migration. (Bit us on
   `accept_terms` → `20260717000200`, `add_rights_grant` → `20260718000300`, `create_asset` →
   `20260718000600`.)
+
+- **Never call `supabase.auth.getUser()` in app code — use `getAuthUser()` / `getOrgContext()`
+  from `lib/supabase`.** `getUser()` is a **network round-trip to the Auth server on every
+  call** (measured 35–49ms against a *local* Supabase; worse against hosted). We had it three
+  times per navigation — middleware, layout, page — plus a duplicated memberships query, for
+  nine sequential round-trips. `getClaims()` verifies the JWT **locally** via WebCrypto against
+  a cached JWKS on asymmetric signing keys (ES256 here) and still refreshes an expired token,
+  so it is a drop-in. Wrapped in React `cache()`, a layout and its page share one verification.
+  **Layout render 79ms → 26ms.** `getOrgContext()` extends this to identity + memberships +
+  gc_staff + unread in one cached, parallel resolution — a page under `(app)` must never
+  re-query membership the layout already has. (`eb189b1`, `98e91a9`, `fefa259`.)
+
+- **Independent Supabase queries in a server component must be `Promise.all`'d.** Awaiting them
+  in sequence is the default thing to write and it costs a full round-trip each. This is the
+  single easiest performance regression to reintroduce.
