@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
 import { getOrgContext } from "@/lib/supabase/context";
+import { perfMark } from "@/lib/perf-mark";
 import { AppShell } from "@/components/chrome/app-shell";
 
 // Server layout for all authenticated routes: resolves the session + the user's orgs
@@ -11,7 +12,9 @@ import { AppShell } from "@/components/chrome/app-shell";
 // which is request-cached and fires its independent queries together. The page beneath
 // this layout reads the same context for free.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const M = perfMark('LAYOUT');
   const ctx = await getOrgContext();
+  M.step('getOrgContext');
   if (!ctx) redirect("/login");
 
   // NOTE: the "GC accounts are GC-only" enforcement is deferred until view-as-client
@@ -29,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   // Sidebar collapse state persists in a cookie; read here so there's no expand→collapse flash.
+  M.done();
   const sidebarCollapsed = (await cookies()).get("gc_sidebar_collapsed")?.value === "1";
 
   return (

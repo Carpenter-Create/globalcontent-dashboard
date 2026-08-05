@@ -3,6 +3,7 @@ import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
+import { perfMark } from "@/lib/perf-mark";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
@@ -68,10 +69,12 @@ export default async function TitlesPage({
   const q = (str(sp.q) ?? "").slice(0, 100);
   const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
+  const M = perfMark('titles');
   const supabase = await createClient();
   // Shared with the layout via React cache() — no second identity check, no second
   // memberships query. Free here because the layout already resolved it this request.
   const ctx = await getOrgContext();
+  M.step('getOrgContext');
   if (!ctx) redirect("/login");
   if (!ctx.activeOrg) redirect("/");
   const activeOrg = ctx.activeOrg;
@@ -88,6 +91,7 @@ export default async function TitlesPage({
   const { data: dlv } = ids.length
     ? await supabase.from("deliveries").select("title_id, status").in("title_id", ids)
     : { data: [] as { title_id: string; status: string }[] };
+  M.step('titles+deliveries');
   const counts = new Map<string, { live: number; total: number }>();
   for (const d of dlv ?? []) {
     const c = counts.get(d.title_id) ?? { live: 0, total: 0 };
@@ -97,6 +101,7 @@ export default async function TitlesPage({
   }
 
   const posters = await titleArtworkUrls(supabase, ids);
+  M.step('artwork signing');
 
   const all: BrowseTitle[] = list.map((t) => ({
     id: t.id,
@@ -136,6 +141,7 @@ export default async function TitlesPage({
     return href({ sort: isDefault ? undefined : s.key, dir: isDefault ? undefined : s.dir });
   };
 
+  M.done();
   const columns: Column<BrowseTitle>[] = [
     {
       key: "poster",
