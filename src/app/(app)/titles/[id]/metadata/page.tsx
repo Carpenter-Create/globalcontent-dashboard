@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { getAuthUser } from "@/lib/supabase/auth";
+import { getOrgContext } from "@/lib/supabase/context";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetadataForm } from "./metadata-form";
 import { METADATA_FIELDS } from "@/lib/metadata";
@@ -11,8 +11,9 @@ import { METADATA_FIELDS } from "@/lib/metadata";
 export default async function TitleMetadataPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const user = await getAuthUser();
-  if (!user) redirect("/login");
+  // Resolved once per request and shared with the layout above (React cache()).
+  const ctx = await getOrgContext();
+  if (!ctx) redirect("/login");
 
   const { data: title } = await supabase
     .from("titles")
@@ -21,14 +22,10 @@ export default async function TitleMetadataPage({ params }: { params: Promise<{ 
     .maybeSingle();
   if (!title) notFound();
 
-  const { data: m } = await supabase
-    .from("memberships")
-    .select("role")
-    .eq("org_id", title.org_id)
-    .eq("user_id", user.id)
-    .eq("status", "active")
-    .maybeSingle();
-  const canOperate = m?.role === "account_owner" || m?.role === "delivery_ops";
+  // The role in the org that owns THIS title -- not necessarily the active org.
+  // ctx.rows already holds every active membership, so this needs no extra query.
+  const titleRole = ctx.rows.find((r) => r.organizations.id === title.org_id)?.role;
+  const canOperate = titleRole === "account_owner" || titleRole === "delivery_ops";
 
   const { data: row } = await supabase
     .from("title_metadata")
