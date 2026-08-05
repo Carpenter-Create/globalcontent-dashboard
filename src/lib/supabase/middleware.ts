@@ -38,6 +38,7 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     path.startsWith("/login") ||
     path.startsWith("/auth") ||
+    path.startsWith("/api/diag") ||      // TEMP prod probe — remove with the route
     path.startsWith("/portal") ||       // account-less asset-access portal (token-gated)
     path.startsWith("/api/portal") ||   // portal route handlers (token/OTP/session gated in-handler)
     // Stripe webhook authenticates by signature, not a user session — must not be
