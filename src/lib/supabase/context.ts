@@ -20,7 +20,8 @@ export type OrgContext = {
   /** account_owner or delivery_ops on the active org. */
   canOperate: boolean;
   isGcStaff: boolean;
-  unread: number;
+  /** NOT awaited — see the note in getOrgContext. Unwrap with use() inside Suspense. */
+  unread: Promise<number>;
 };
 
 // The request-scoped answer to "who is this, which org are they in, what may they do".
@@ -42,15 +43,27 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
 
   const supabase = await createClient();
 
-  // Independent — fire together, not in sequence.
-  const [membershipsRes, gcStaffRes, unreadRes, cookieStore] = await Promise.all([
+  // my_unread_count is DELIBERATELY NOT AWAITED. It exists to paint a number on a nav
+  // badge, but it calls member_can() per notification row — a SECURITY DEFINER function
+  // with its own subqueries — plus a NOT EXISTS per row. It was the slowest thing in this
+  // batch and it blocked the entire page render for a decoration. The promise is handed
+  // to the shell and unwrapped inside a Suspense boundary, so the page paints without it
+  // and the badge fills in when it lands.
+  // Wrapped in Promise.resolve because the Supabase builder is a PromiseLike, not a real
+  // Promise — it has .then but no .catch, and an unhandled rejection here would crash the
+  // request. A failed badge query resolves to 0 rather than breaking the page.
+  const unread: Promise<number> = Promise.resolve(
+    supabase.rpc("my_unread_count").then((r) => r.data ?? 0),
+  ).catch(() => 0);
+
+  // The rest are on the critical path — fire together, not in sequence.
+  const [membershipsRes, gcStaffRes, cookieStore] = await Promise.all([
     supabase
       .from("memberships")
       .select("role, organizations(id, name, status)")
       .eq("user_id", user.id)
       .eq("status", "active"),
     supabase.from("gc_staff").select("user_id").eq("user_id", user.id).maybeSingle(),
-    supabase.rpc("my_unread_count"),
     cookies(),
   ]);
 
@@ -70,6 +83,6 @@ export const getOrgContext = cache(async (): Promise<OrgContext | null> => {
     activeRole,
     canOperate: activeRole === "account_owner" || activeRole === "delivery_ops",
     isGcStaff: !!gcStaffRes.data,
-    unread: unreadRes.data ?? 0,
+    unread,
   };
 });

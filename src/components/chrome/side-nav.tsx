@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef } from "react";
+import { Suspense, use, useRef } from "react";
 import { Inbox, Store, type LucideIcon } from "lucide-react";
 
 import { NAV } from "@/lib/nav";
@@ -18,11 +18,11 @@ const GC_NAV: { label: string; href: string; icon: LucideIcon }[] = [
 // Tightened nav (2026-07-22): px-2.5 py-1.5, 16px icons, 13px medium text. Collapsed mode
 // renders an icon-only rail (labels/badges hidden; title tooltips; unread → accent dot).
 export function SideNav({
-  messagesUnread = 0,
+  messagesUnread,
   isGcStaff = false,
   collapsed = false,
 }: {
-  messagesUnread?: number;
+  messagesUnread: Promise<number>;
   isGcStaff?: boolean;
   collapsed?: boolean;
 }) {
@@ -38,7 +38,7 @@ export function SideNav({
 
   const row = (
     item: { label: string; href: string; icon: LucideIcon; exact?: boolean },
-    unread = 0,
+    badge: React.ReactNode = null,
   ) => {
     const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
     const Icon = item.icon;
@@ -66,21 +66,26 @@ export function SideNav({
       >
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
         {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
-        {!collapsed && unread > 0 ? (
-          <span className="min-w-4 rounded-full bg-accent px-1.5 text-center t-label text-[var(--accent-contrast)]">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        ) : null}
-        {collapsed && unread > 0 ? (
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
-        ) : null}
+        {badge}
       </Link>
     );
   };
 
   return (
     <nav className={cn("flex flex-col gap-px", collapsed ? "px-1.5" : "px-2")}>
-      {NAV.map((item) => row(item, item.href === "/messages" ? messagesUnread : 0))}
+      {NAV.map((item) =>
+        row(
+          item,
+          item.href === "/messages" ? (
+            // Suspense so an unresolved badge never holds up the nav. Fallback is nothing
+            // — an empty slot that fills in, rather than a spinner that draws the eye to a
+            // decoration.
+            <Suspense fallback={null}>
+              <UnreadBadge count={messagesUnread} collapsed={collapsed} />
+            </Suspense>
+          ) : null,
+        ),
+      )}
       {isGcStaff ? (
         <>
           <div className="mx-1 my-2 border-t border-hairline" />
@@ -91,5 +96,20 @@ export function SideNav({
         </>
       ) : null}
     </nav>
+  );
+}
+
+// Unwraps the unread promise. Kept out of the critical render path because
+// my_unread_count calls member_can() per notification row; a badge should not be able to
+// delay the page it decorates.
+function UnreadBadge({ count, collapsed }: { count: Promise<number>; collapsed: boolean }) {
+  const unread = use(count);
+  if (unread <= 0) return null;
+  return collapsed ? (
+    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
+  ) : (
+    <span className="min-w-4 rounded-full bg-accent px-1.5 text-center t-label text-[var(--accent-contrast)]">
+      {unread > 9 ? "9+" : unread}
+    </span>
   );
 }

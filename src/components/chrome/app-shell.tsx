@@ -20,7 +20,7 @@ export function AppShell({
   email,
   orgs,
   activeOrgId,
-  messagesUnread = 0,
+  messagesUnread,
   isGcStaff = false,
   defaultCollapsed = false,
   children,
@@ -28,7 +28,9 @@ export function AppShell({
   email: string;
   orgs: Org[];
   activeOrgId: string | null;
-  messagesUnread?: number;
+  /** Promise, not a number — resolved inside SideNav's Suspense boundary so the
+   *  shell paints without waiting on the badge query. */
+  messagesUnread: Promise<number>;
   isGcStaff?: boolean;
   defaultCollapsed?: boolean;
   children: React.ReactNode;
