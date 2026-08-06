@@ -109,6 +109,16 @@ select lives_ok(
   format($$ select public.create_screener_link(%L, %L) $$,
          current_setting('t.title_c'), 'tok_c_client'),
   'account_owner creates a screener link on an approved title');
+
+-- Both assertions below must run as GC, not the client. Under the widened
+-- portal_links_select policy the client (t.owner) can no longer see tok_c_gc at all — GC's row
+-- is invisible to them by design (see policy header) — so checking these as t.owner would read
+-- a NULL subselect / a truncated count and pass or fail for the wrong reason instead of
+-- actually exercising the author-partitioned revoke, which is this migration's central safety
+-- claim. gc_can(t.gc, 'view') is true for gc_delivery_ops, so GC sees every row regardless of
+-- author, making both checks real.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select is(
   (select revoked_at from public.portal_links where token_hash = 'tok_c_gc'),
   null, 'a client link does not revoke GC''s link for the same title');
@@ -117,8 +127,14 @@ select is(
      where title_id = current_setting('t.title_c')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
   2, 'each side keeps its own single active link');
 
+-- Back to the client identity: everything from here through the case-insensitivity block
+-- below creates and inspects the CLIENT's own links, which requires 'operate' as t.owner, not
+-- GC staff.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+
 -- One link per buyer: replacing one recipient's link must not revoke another's. Still the
--- t.owner (client) identity from the block above, on the same title_c.
+-- t.owner (client) identity switched back to just above, on the same title_c.
 select lives_ok(
   format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
          current_setting('t.title_c'), 'tok_buyer_a', 'share_a', 'Tubi'),
