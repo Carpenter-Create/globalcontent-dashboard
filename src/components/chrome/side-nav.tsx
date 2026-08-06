@@ -37,6 +37,12 @@ export function SideNav({
       <Link
         key={item.href}
         href={item.href}
+        // prefetch=false: the sidebar renders on EVERY page, so viewport prefetch fired a
+        // full uncached render of every destination on every navigation — measured at ~400
+        // server invocations across a short clicking session, each doing its own
+        // getOrgContext DB work and contending with the navigation actually in flight.
+        // loading.tsx still gives instant feedback on click; the render is only ~180ms.
+        prefetch={false}
         title={collapsed ? item.label : undefined}
         aria-label={collapsed ? item.label : undefined}
         className={cn(

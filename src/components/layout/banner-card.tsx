@@ -19,7 +19,8 @@ export function BannerCard({
   meta?: React.ReactNode;
 }) {
   return (
-    <Link href={href} className="group flex flex-col gap-3">
+    // prefetch=false: a catalog grid is N links; viewport prefetch means N full renders.
+    <Link href={href} prefetch={false} className="group flex flex-col gap-3">
       <Artwork
         src={bannerUrl}
         title={title}

@@ -79,9 +79,19 @@ export async function presignGetObject(
   // The S3 presigner takes a RELATIVE expiresIn, so pinning signingDate to the window
   // start is what makes its output identical across the window — the same caching win as
   // the CloudFront path.
+  if (!opts.stableWindow) {
+    return getSignedUrl(s3, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
+      expiresIn: ttlSeconds,
+    });
+  }
+  // Pinning signingDate to the window START makes the URL identical across the window,
+  // but expiresIn is measured FROM that pinned date — so a plain ttl would have the URL
+  // die exactly at the boundary, meaning a page loaded late in the window gets a URL good
+  // for seconds. Double it so validity is always at least one full window ahead, matching
+  // what stableExpiryDate gives the CloudFront path. (Caught in review on PR #78.)
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
-    expiresIn: ttlSeconds,
-    ...(opts.stableWindow ? { signingDate: stableSigningDate(ttlSeconds) } : {}),
+    expiresIn: ttlSeconds * 2,
+    signingDate: stableSigningDate(ttlSeconds),
   });
 }
 
