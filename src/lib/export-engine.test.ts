@@ -218,13 +218,16 @@ describe("buildExportRows", () => {
     expect(rows[0][0]).toBe("Monarch");
   });
 
-  it("does not warn 'blank' for a title source", () => {
+  it("does not warn 'blank' for a title source, even alongside a genuinely blank field", () => {
     const spec: ExportFormatSpec = {
       format: "xlsx",
-      columns: [{ header: "Title", source: { kind: "title" } }],
+      columns: [
+        { header: "Title", source: { kind: "title" } },
+        { header: "Director", source: { kind: "field", key: "director" } },
+      ],
     };
-    const { warnings } = buildExportRows(spec, [title({ title: "Monarch" })]);
-    expect(warnings).toHaveLength(0);
+    const { warnings } = buildExportRows(spec, [title({ title: "Monarch", metadata: {} })]);
+    expect(warnings).toEqual([`GC-0000001: "Director" is blank`]);
   });
 });
 
