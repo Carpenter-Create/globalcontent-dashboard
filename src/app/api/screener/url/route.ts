@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { assetViewUrl } from "@/lib/asset-url";
+import { screenerKindFor } from "@/lib/assets";
 import { resolveOrRestore } from "@/lib/s3";
 import { PORTAL } from "@/lib/portal";
 
@@ -15,24 +16,10 @@ const Body = z.object({ titleId: z.string().uuid() });
 // (rule 14). Glacier-aware. Writes NO screener_view_events — that table tracks external
 // portal viewers, not internal preview.
 //
-// ── The split, and why ────────────────────────────────────────────────────────────────
-// There is no transcoding, watermarking or DRM anywhere in this codebase (by design —
-// clients deliver platform-ready). So when a title sits on the screener_source = 'master'
-// default, the "screener" is not a proxy of the master: it IS the master, the same S3
-// object byte for byte. Handing that to a browser as a signed URL produces a plain
-// forwardable bearer credential to an unwatermarked master.
-//
-// Who may do that is now split:
-//
-//   gc_staff — keeps the master fallback. Screening a title is how GC performs the
-//              chain-of-title review, and reviewers work on titles that are in_review with
-//              no dedicated screener; removing it would break the review the gate exists
-//              to protect. Small, named, employed population.
-//
-//   client   — dedicated screener only. `assets_select` gates on member_can(...,'view'),
-//              which admits ALL FIVE org roles including `viewer`, a role CLAUDE.md scopes
-//              to "catalog read-only". Without this split any seated viewer could mint an
-//              unwatermarked master URL for their org's entire catalogue.
+// Who may be served WHICH FILE is decided by screenerKindFor (lib/assets) — the same call
+// the title page makes to decide whether to render the Watch button, so the two cannot
+// drift. In short: staff any status, clients any org role once GC has approved the title.
+// See that function for the reasoning.
 //
 // Same gc_staff check as /api/gc/screener-url:23-28, so the two routes agree on who staff
 // are rather than each deciding for itself.
@@ -62,23 +49,19 @@ export async function POST(req: Request) {
   // GC staff span all orgs by design (member_can short-circuits on is_gc_staff).
   const { data: title } = await supabase
     .from("titles")
-    .select("screener_source")
+    .select("screener_source, status")
     .eq("id", parsed.data.titleId)
     .maybeSingle();
   if (!title) return NextResponse.json({ error: "Title not found" }, { status: 404 });
 
-  const dedicated = title.screener_source === "dedicated";
-
-  // A client may only ever be served a dedicated screener asset; staff may fall back to the
-  // master. This is about WHICH FILE is served, not org scope — RLS settled that above.
-  if (!dedicated && !isGcStaff) {
+  // WHICH FILE this caller gets, or null to refuse. Not org scope — RLS settled that above.
+  const kind = screenerKindFor(title.screener_source, isGcStaff, title.status);
+  if (!kind) {
     return NextResponse.json(
-      { error: "A dedicated screener has not been uploaded for this title yet." },
+      { error: "This title's screener is available once GC has approved it." },
       { status: 404 },
     );
   }
-
-  const kind = dedicated ? "screener" : "master";
   const { data: asset } = await supabase
     .from("assets")
     .select("storage_key")

@@ -13,25 +13,30 @@ import { requiredComplete } from "@/lib/metadata";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { FindingsCard } from "@/components/findings/findings-card";
 import { titleArtworkUrls } from "@/lib/artwork";
-import { screenerKindFor } from "@/lib/assets";
+import { screenerKindFor, isPostApprovalTitleStatus } from "@/lib/assets";
 import { RELEASE_TYPE_LABEL, formatReleaseDate, type ReleaseType } from "@/lib/releases";
 import { AddRightsForm } from "./add-rights-form";
 import { ReleaseInfoForm } from "./release-info-form";
 import { AssetUpload } from "./asset-upload";
 import { ScreenerSourceControl } from "./screener-source-control";
+import { BuyerShareControl } from "./buyer-share-control";
 import { ScreenerWatchButton } from "./screener-watch-button";
 import { AssetDownloadButton } from "./asset-download-button";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
 import { DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
 
-const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "poster" | "banner" | "screener", string> = {
+const ASSET_KIND_LABELS: Record<
+  "master" | "caption" | "artwork" | "poster" | "banner" | "screener" | "trailer",
+  string
+> = {
   master: "Master",
   caption: "Caption",
   artwork: "Poster", // legacy generic 'artwork' == the vertical poster (backfilled)
   poster: "Poster",
   banner: "Banner",
   screener: "Screener",
+  trailer: "Trailer",
 };
 
 function formatBytes(n: number): string {
@@ -108,14 +113,35 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const liveCount = titleDlv.filter((d) => d.status === "live").length;
   const totalCount = titleDlv.length;
 
-  const { data: findings } = await supabase
-    .from("findings")
-    .select("id, message, severity")
-    .eq("entity_type", "title")
-    .eq("entity_id", id)
-    .eq("status", "open")
-    .order("severity", { ascending: true })
-    .range(...rangeFor(DETAIL_LIST));
+  // Parallel — two independent reads (the repo's easiest perf regression is awaiting these
+  // in sequence). The share link is RLS-scoped to this org's OWN screener links, so it comes
+  // back empty for a role that may not share and for GC-authored links.
+  const [{ data: findings }, { data: shareLink }] = await Promise.all([
+    supabase
+      .from("findings")
+      .select("id, message, severity")
+      .eq("entity_type", "title")
+      .eq("entity_id", id)
+      .eq("status", "open")
+      .order("severity", { ascending: true })
+      .range(...rangeFor(DETAIL_LIST)),
+    supabase
+      .from("portal_links")
+      .select("id, share_token, expires_at")
+      .eq("title_id", id)
+      .eq("purpose", "screener_view")
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  // A client may share once GC has approved, but never a withdrawn title — mirrors the
+  // status gate inside create_screener_link so the control is not offered when it would fail.
+  const canShareScreener =
+    canOperate && ["in_delivery", "live", "takedown_requested"].includes(title.status);
+  const portalBase = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
+  const shareUrl = shareLink?.share_token ? `${portalBase}/portal/${shareLink.share_token}` : null;
 
   const art = (await titleArtworkUrls(supabase, [id])).get(id) ?? { poster: null, banner: null };
 
@@ -131,11 +157,10 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
 
   // Screener is watchable when its source exists: a dedicated screener asset if the title
   // is set to 'dedicated', else the master. (The stream is signed server-side, RLS-scoped.)
-  // Mirror /api/screener/url's split exactly (screenerKindFor is the shared rule): staff may
-  // fall back to the master, a client may only ever be served a dedicated screener. Without
-  // the staff check this button renders for clients on master-source titles and then 404s.
+  // screenerKindFor IS /api/screener/url's rule — the route calls the same function — so the
+  // button cannot render for a request that would then 404.
   // ctx already resolved gc_staff for this request -- no second lookup.
-  const screenerKind = screenerKindFor(title.screener_source, ctx.isGcStaff);
+  const screenerKind = screenerKindFor(title.screener_source, ctx.isGcStaff, title.status);
   const screenerAvailable = screenerKind !== null && assetList.some((a) => a.kind === screenerKind);
 
   return (
@@ -290,7 +315,17 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
                   <ScreenerSourceControl
                     titleId={title.id}
                     current={(title.screener_source ?? "master") as "master" | "dedicated"}
+                    isPostApproval={isPostApprovalTitleStatus(title.status)}
+                    hasDedicatedScreener={assetList.some((a) => a.kind === "screener")}
                   />
+                  {canShareScreener ? (
+                    <BuyerShareControl
+                      titleId={title.id}
+                      activeUrl={shareUrl}
+                      activeLinkId={shareLink?.id ?? null}
+                      expiresAt={shareLink?.expires_at ?? null}
+                    />
+                  ) : null}
                 </div>
               </CardBody>
             ) : null}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
+import { generateToken, hashToken } from "@/lib/portal";
 import { resolveTerritories, type TerritoryMode } from "@/lib/territories";
 import type { RightsType } from "@/lib/rights";
 import { computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
@@ -131,5 +132,50 @@ export async function submitTitle(
   }
 
   revalidatePath(`/titles/${titleId}`);
+  return {};
+}
+
+// Create (or reset) the ONE reusable screener share link the client sends a prospective
+// buyer. The raw token is persisted as share_token so the URL can be re-copied on later page
+// loads — acceptable for a screener (view-only, still OTP-gated at the portal; the OTP is the
+// real gate, not the URL). Authorization is the RPC itself — member_can(...,'operate') on the
+// title's org plus the post-approval status gate — never this action.
+//
+// Calling it again is the "reset": the RPC revokes this side's previous live link first, so
+// a URL already sent to a buyer stops resolving. It does NOT touch GC's own link for the
+// title (revoke is partitioned by author).
+export async function createBuyerScreenerLink(input: {
+  titleId: string;
+}): Promise<{ error?: string; url?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const token = generateToken();
+  const { error } = await supabase.rpc("create_screener_link", {
+    p_title_id: input.titleId,
+    p_token_hash: hashToken(token),
+    p_share_token: token,
+  });
+  if (error) return { error: error.message };
+
+  const base = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
+  revalidatePath(`/titles/${input.titleId}`);
+  return { url: `${base}/portal/${token}` };
+}
+
+// Withdraw the live link without minting a replacement — "stop sharing this".
+export async function revokeBuyerScreenerLink(input: {
+  linkId: string;
+  titleId: string;
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("revoke_portal_link", { p_link_id: input.linkId });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/titles/${input.titleId}`);
   return {};
 }

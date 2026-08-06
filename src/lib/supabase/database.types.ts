@@ -1572,6 +1572,7 @@ export type Database = {
         | "screener"
         | "poster"
         | "banner"
+        | "trailer"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1791,6 +1792,7 @@ export const Constants = {
         "screener",
         "poster",
         "banner",
+        "trailer",
       ],
       delivery_status: [
         "pending",

@@ -8,7 +8,7 @@ import { completeMultipart } from "@/lib/s3";
 
 const Body = z.object({
   titleId: z.string().uuid(),
-  kind: z.enum(["master", "caption", "poster", "banner", "screener"]),
+  kind: z.enum(["master", "caption", "poster", "banner", "screener", "trailer"]),
   key: z.string().min(1),
   uploadId: z.string().min(1),
   parts: z.array(z.object({ partNumber: z.number().int().min(1), etag: z.string().min(1) })).min(1),

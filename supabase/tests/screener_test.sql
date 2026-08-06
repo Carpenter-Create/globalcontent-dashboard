@@ -1,12 +1,12 @@
 -- screener_test.sql
--- Portal-2 screener room: create_screener_link (GC-only, screenable gate),
+-- Portal-2 screener room: create_screener_link (GC + operate-capable client, screenable gate),
 -- portal_resolve_screener (service-role only, master vs dedicated source, NO rule-12
 -- gate), screener_engagement (GC-only, watched_pct/completed/replays math), RLS on
 -- screener_view_events + screener-purpose portal_links, and confirmation that Portal-1's
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
 
 begin;
-select plan(38);
+select plan(43);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -43,6 +43,25 @@ insert into public.titles (id, org_id, title, status)
 insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
   values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_s')::uuid,
           'master', 'orgs/x/titles/s/master/film.mov', 'cafecafe', 1000);
+-- Client-share fixtures (20260806000200). Isolated titles so the client-authored links here
+-- cannot disturb the single-active assertions on title_s further down.
+select set_config('t.viewer',  gen_random_uuid()::text, false);  -- 'view' but not 'operate'
+select set_config('t.title_c', gen_random_uuid()::text, false);  -- approved: client may share
+select set_config('t.title_p', gen_random_uuid()::text, false);  -- pre-approval: client may not
+insert into auth.users (id) values (current_setting('t.viewer')::uuid);
+insert into public.memberships (user_id, org_id, role)
+  values (current_setting('t.viewer')::uuid, current_setting('t.org')::uuid, 'viewer');
+insert into public.titles (id, org_id, title, status)
+  values (current_setting('t.title_c')::uuid, current_setting('t.org')::uuid, 'Film Client Share', 'in_delivery');
+insert into public.titles (id, org_id, title, status)
+  values (current_setting('t.title_p')::uuid, current_setting('t.org')::uuid, 'Film Pending', 'draft');
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
+  values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_c')::uuid,
+          'master', 'orgs/x/titles/c/master/film.mov', 'c0ffee01', 1000);
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
+  values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_p')::uuid,
+          'master', 'orgs/x/titles/p/master/film.mov', 'c0ffee02', 1000);
+
 insert into public.rights_grants (id, org_id, title_id, rights_type, territory_mode, territories, effective_from)
   values (current_setting('t.grant')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
           'svod', 'world', '{}', now() - interval '1 day');
@@ -56,12 +75,47 @@ insert into public.deliveries (id, org_id, title_id, vendor_id, grant_id, territ
 -- create_screener_link: GC-only, screenable gate, expiry guard, CHECK shape
 -- ============================================================================
 set local role authenticated;
+
+-- 20260806000200: a client MAY share, narrowly. 'operate' on the org, and only once GC has
+-- approved the title. (Before that migration any client call raised 'Not authorized'.)
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.viewer'), 'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.create_screener_link(%L, %L) $$,
+         current_setting('t.title_c'), 'tok_viewer'),
+  'P0001', 'Not authorized', 'a viewer seat cannot create a screener link');
+
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select throws_ok(
   format($$ select public.create_screener_link(%L, %L) $$,
-         current_setting('t.title_m'), 'tok_client'),
-  'P0001', 'Not authorized', 'client cannot create a screener link');
+         current_setting('t.title_p'), 'tok_pre'),
+  'P0001', 'A screener can be shared once GC has approved the title',
+  'client cannot share a title GC has not approved');
+
+-- The partition fix: a client minting a link must NOT revoke GC's outstanding vendor link
+-- for the same title. Before the migration the revoke was unfiltered and did exactly that.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L) $$,
+         current_setting('t.title_c'), 'tok_c_gc'),
+  'GC creates its own screener link for the shared title');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L) $$,
+         current_setting('t.title_c'), 'tok_c_client'),
+  'account_owner creates a screener link on an approved title');
+select is(
+  (select revoked_at from public.portal_links where token_hash = 'tok_c_gc'),
+  null, 'a client link does not revoke GC''s link for the same title');
+select is(
+  (select count(*) from public.portal_links
+     where title_id = current_setting('t.title_c')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
+  2, 'each side keeps its own single active link');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
