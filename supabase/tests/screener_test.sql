@@ -15,9 +15,17 @@
 -- client can't act on it), and a second-org negative on the widened portal_links_select client
 -- branch (the one thing this migration actually widened, so it is exactly where a cross-tenant
 -- regression would hide).
+--
+-- 20260806000400 adds attach_link_vendor (GC-operate only: a client cannot reach this RPC under
+-- any role, since vendors is a GC-only roster) and the first-ever audit trigger on portal_links.
+-- Covered below: a client and a read-only gc_legal staffer are both refused; GC with 'operate'
+-- succeeds and vendor_id lands; re-attaching the same vendor is a no-op; reassigning to a
+-- different vendor is blocked unless p_force is set, then succeeds and is captured in audit_log;
+-- an inactive or nonexistent vendor is refused; a master_download link, a revoked link, an
+-- expired link, and an unknown link id are all refused.
 
 begin;
-select plan(57);
+select plan(77);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -486,6 +494,148 @@ select is(
   (select count(*) from public.portal_links
      where title_id = current_setting('t.title_s')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
   1, 'exactly one active screener link remains per title');
+
+-- ============================================================================
+-- attach_link_vendor (20260806000400): GC-operate only, dead-link refusal,
+-- reassignment blocked unless forced, audited when it happens.
+-- ============================================================================
+reset role;
+select set_config('t.title_v',    gen_random_uuid()::text, false);  -- isolated title for attach tests
+select set_config('t.gc_legal',   gen_random_uuid()::text, false);  -- gc_staff, read-only role
+select set_config('t.vendor2',    gen_random_uuid()::text, false);  -- second active vendor (reassign target)
+select set_config('t.vendor_bad', gen_random_uuid()::text, false);  -- inactive vendor
+insert into auth.users (id) values (current_setting('t.gc_legal')::uuid);
+insert into public.gc_staff (user_id, role) values (current_setting('t.gc_legal')::uuid, 'gc_legal');
+insert into public.titles (id, org_id, title, status)
+  values (current_setting('t.title_v')::uuid, current_setting('t.org')::uuid, 'Film Vendor Attach', 'in_delivery');
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
+  values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_v')::uuid,
+          'master', 'orgs/x/titles/v/master/film.mov', 'c0ffee03', 1000);
+insert into public.vendors (id, name, delivery_mode, active)
+  values (current_setting('t.vendor2')::uuid, 'Vendor Two', 'portal_upload', true);
+insert into public.vendors (id, name, delivery_mode, active)
+  values (current_setting('t.vendor_bad')::uuid, 'Vendor Inactive', 'portal_upload', false);
+
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_v'), 'tok_v_buyer', 'Netflix'),
+  'client mints a buyer screener link on the isolated attach-test title');
+select set_config('t.link_v', (select id::text from public.portal_links where token_hash = 'tok_v_buyer'), false);
+
+-- A second buyer link, revoked immediately, to prove attach refuses a dead link.
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_v'), 'tok_v_revoked', 'Peacock'),
+  'client mints a second buyer link, to be revoked');
+reset role;
+update public.portal_links set revoked_at = now() where token_hash = 'tok_v_revoked';
+select set_config('t.link_v_revoked', (select id::text from public.portal_links where token_hash = 'tok_v_revoked'), false);
+
+-- A third buyer link, fixture-expired (create_screener_link itself refuses a past expiry, so
+-- expiry has to be forced after the fact, same idiom used above for portal_resolve_screener).
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_v'), 'tok_v_expired', 'Hulu'),
+  'client mints a third buyer link, to be expired');
+reset role;
+update public.portal_links set expires_at = now() - interval '1 hour' where token_hash = 'tok_v_expired';
+select set_config('t.link_v_expired', (select id::text from public.portal_links where token_hash = 'tok_v_expired'), false);
+
+set local role authenticated;
+
+-- A client can never reach this RPC — vendors is a GC-only roster (see migration header).
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
+  'P0001', 'Not authorized', 'a client (account_owner) cannot attach a vendor to a buyer link');
+
+-- gc_legal is GC staff but "read all, write nothing" — gc_can(...,'operate') must still refuse
+-- it, distinct from the client refusal above (is_gc_staff true here, false there).
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc_legal'), 'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
+  'P0001', 'Not authorized', 'gc_legal (read-only GC role) cannot attach a vendor');
+
+-- GC with 'operate' succeeds and vendor_id is set.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
+  'GC (operate) attaches a vendor to the buyer link');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
+  current_setting('t.vendor')::uuid, 'vendor_id is set to the attached vendor');
+
+-- Re-attaching the SAME vendor is an idempotent no-op — no force required.
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
+  'attaching the same vendor again is a no-op');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
+  current_setting('t.vendor')::uuid, 'vendor_id is unchanged by the idempotent re-attach');
+
+-- Reassigning to a DIFFERENT vendor is blocked unless p_force is passed (judgement call 1).
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
+  'P0001', 'Link already has a different vendor attached — pass force to reassign',
+  'reassigning to a different vendor without force is refused');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
+  current_setting('t.vendor')::uuid, 'vendor_id is untouched by the refused reassignment');
+
+-- With p_force := true it succeeds — and the change is captured in audit_log (judgement call 1's
+-- other half: allowed, but never silent).
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, %L, true) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
+  'forced reassignment to a different vendor succeeds');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
+  current_setting('t.vendor2')::uuid, 'vendor_id reflects the forced reassignment');
+select is(
+  (select (after->>'vendor_id')::uuid from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid
+       and action = 'update' and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
+     order by created_at desc limit 1),
+  current_setting('t.vendor2')::uuid,
+  'the forced reassignment is captured in audit_log (portal_links now carries the audit trigger)');
+
+-- An inactive vendor is refused outright, regardless of the current attachment.
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L, true) $$, current_setting('t.link_v'), current_setting('t.vendor_bad')),
+  'P0001', 'Vendor is not active', 'an inactive vendor is refused');
+
+-- A vendor id that doesn't exist at all is refused with a distinct message.
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), gen_random_uuid()::text),
+  'P0001', 'Vendor not found', 'a nonexistent vendor id is refused');
+
+-- A master_download link (not a buyer pitch link) cannot carry a vendor through this RPC.
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$,
+         (select id from public.portal_links where token_hash = 'tok_master_download'), current_setting('t.vendor')),
+  'P0001', 'Only a buyer screener link can carry a vendor',
+  'a master_download link is refused (buyer links only)');
+
+-- Dead links: revoked and expired are both refused, no force override (judgement call 2).
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v_revoked'), current_setting('t.vendor')),
+  'P0001', 'Link has been revoked', 'a revoked buyer link is refused');
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v_expired'), current_setting('t.vendor')),
+  'P0001', 'Link has expired', 'an expired buyer link is refused');
+
+-- Unknown link id.
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, gen_random_uuid()::text, current_setting('t.vendor')),
+  'P0001', 'Link not found', 'an unknown link id is refused');
 
 reset role;
 select * from finish();

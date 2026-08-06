@@ -1309,6 +1309,10 @@ export type Database = {
         }
         Returns: string[]
       }
+      attach_link_vendor: {
+        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string }
+        Returns: undefined
+      }
       can_deliver: {
         Args: {
           p_at: string
