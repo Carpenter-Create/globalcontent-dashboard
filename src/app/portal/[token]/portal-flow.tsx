@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { PORTAL_COPY } from "@/lib/portal";
+import type { BuyerActions } from "@/lib/buyer-page";
 import { ScreenerRoom } from "./screener-room";
 
 type Stage = "identity" | "code" | "ready";
@@ -16,9 +17,27 @@ type Stage = "identity" | "code" | "ready";
 // What renders once identity + code are verified. Both portal link `purpose`s share the
 // same identity→code gate below; only the post-verification stage differs — this is the
 // seam Task 5 branches on rather than duplicating the gate in a second component.
+//
+// The screener variant carries more than ScreenerRoom currently reads (catalogId, metadata,
+// posterUrl, bannerUrl, trailerAvailable, recipientName, actions) — that's deliberate. Task 7
+// (this file's page.tsx) loads it; the title-page component that renders it is a later task.
+// Widening the type here is the minimal seam so the loader and its future consumer agree on
+// shape without this component doing any new rendering.
 export type ReadyView =
   | { mode: "download"; filename: string; bytes: number }
-  | { mode: "screener"; title: string; synopsis: string | null; runtimeMinutes: number | null };
+  | {
+      mode: "screener";
+      title: string;
+      catalogId: string | null;
+      synopsis: string | null;
+      runtimeMinutes: number | null;
+      metadata: Record<string, unknown>;
+      posterUrl: string | null;
+      bannerUrl: string | null;
+      trailerAvailable: boolean;
+      recipientName: string | null;
+      actions: BuyerActions;
+    };
 
 // Three-stage account-less flow: capture identity → verify emailed OTP → ready (download or
 // screener, per `ready.mode`). No client-side Supabase call — the /api/portal/* routes own
