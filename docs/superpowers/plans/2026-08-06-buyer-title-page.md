@@ -821,9 +821,16 @@ git commit -m "feat(portal): buyer title page"
 **Files:**
 - Create: `src/app/api/portal/screener-download/route.ts`
 - Create: `src/app/api/portal/metadata-export/route.ts`
+- Create: `src/app/api/portal/master-download/route.ts`
 
 **Interfaces:**
 - Consumes: `buyerActionsFor` (6), `BUYER_EXPORT_TEMPLATE` (3), `buildExportFilename` (2), `buildExportRows` / `toXlsx` (1).
+
+> **Amended 2026-08-06.** The original task listed only two routes. The spec requires the
+> master once the recipient's licence is live, and Task 8 correctly wired a Download master
+> button to `/api/portal/master-download` — a route this plan never specified. Without Step 3
+> that button 404s and the page renders "This link has expired or been withdrawn", which is
+> both wrong and alarming for a licensed buyer. The gap was mine, not the implementer's.
 
 - [ ] **Step 1: Screener download route**
 
@@ -860,19 +867,33 @@ return new Response(new Uint8Array(buf), {
 
 Write an access event here too.
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 3: Master download route**
+
+The highest-risk route in this plan — it serves the crown-jewel deliverable to an external party. Model it on the existing `src/app/api/portal/download/route.ts`, which already does this correctly for GC's vendor links, and follow its structure rather than inventing one.
+
+Same session resolution as Steps 1 and 2. Then, in this order:
+
+1. Recompute `buyerActionsFor` server-side and **refuse with 403 unless `canDownloadMaster` is true.** Never trust the page — the button's presence is a rendering decision, this is the authorization.
+2. `canDownloadMaster` derives from `licensed`, which must be re-resolved HERE from an active grant and delivery for **this link's `vendor_id` and this title** — not carried in from the client, and not inferred from the title alone. A link with no `vendor_id` can never reach the master.
+3. Resolve the master asset for the title, run `resolveOrRestore`, and return 409 on `restoring` so the page shows the cold-storage message.
+4. Sign with `PORTAL.signedUrlTtlSeconds` (the single-GET download TTL, not the streaming one).
+5. Write a `download` row to `portal_access_events` **before** returning the URL, and **fail closed if that insert fails** — serving an unauditable master is worse than failing. The existing master route does exactly this and its comment explains why; keep that reasoning.
+
+This route is the one place in the plan where a mistake hands an unwatermarked master to the wrong party. Prefer refusing on any ambiguity.
+
+- [ ] **Step 4: Verify**
 
 Run: `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build`
 
-- [ ] **Step 4: Manual check**
+- [ ] **Step 5: Manual check**
 
-Download the sheet. Confirm the filename matches the convention, the Title column is populated, there is no Offer column, and the file opens in Excel or Sheets.
+Download the sheet. Confirm the filename matches the convention, the Title column is populated, there is no Offer column, and the file opens in Excel or Sheets. Separately confirm the master route refuses on a link with no `vendor_id`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/app/api/portal
-git commit -m "feat(portal): screener and metadata downloads for buyers"
+git commit -m "feat(portal): screener, master and metadata downloads for buyers"
 ```
 
 ---
