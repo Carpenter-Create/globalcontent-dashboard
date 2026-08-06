@@ -22,6 +22,27 @@ const nextConfig: NextConfig = {
   // are blocked — the widget/hydration then silently fails. Allow both in dev.
   allowedDevOrigins: ["127.0.0.1"],
 
+  experimental: {
+    // Next 16 defaults staleTimes.dynamic to 0, so a page you visited ten seconds ago is
+    // refetched IN FULL on the way back. That is why back-and-forth navigation never felt
+    // instant no matter how fast the render got: the render was never the issue, the
+    // refetch was. 30s means a revisit inside that window is served from the client cache
+    // with NO server call.
+    //
+    // Only `dynamic` is set. `static` (default 5 min) is what router.prefetch() uses for
+    // hover-warmed routes, and lowering it would undo that.
+    //
+    // SAFE HERE because mutations already invalidate the client cache: 10 action files call
+    // revalidatePath and 14 components call router.refresh(). Without that, a user could add
+    // a title, navigate away and back, and see the old list for 30 seconds.
+    //
+    // CAVEAT, stated plainly: Next still labels staleTimes experimental and says it is not
+    // recommended for production. It has carried that label since 14.2 and is widely used,
+    // but this is a Tier 3 app — if anything looks stale after a write, this flag is the
+    // first thing to remove.
+    staleTimes: { dynamic: 30 },
+  },
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: cloudfrontHost },
