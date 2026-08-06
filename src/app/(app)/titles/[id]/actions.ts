@@ -135,27 +135,34 @@ export async function submitTitle(
   return {};
 }
 
-// Create (or reset) the ONE reusable screener share link the client sends a prospective
-// buyer. The raw token is persisted as share_token so the URL can be re-copied on later page
-// loads — acceptable for a screener (view-only, still OTP-gated at the portal; the OTP is the
-// real gate, not the URL). Authorization is the RPC itself — member_can(...,'operate') on the
-// title's org plus the post-approval status gate — never this action.
+// Create (or replace) a screener share link for a named buyer. The raw token is persisted
+// as share_token so the URL can be re-copied on later page loads — acceptable for a screener
+// (view-only, still OTP-gated at the portal; the OTP is the real gate, not the URL).
+// Authorization is the RPC itself — member_can(...,'operate') on the title's org plus the
+// post-approval status gate — never this action.
 //
-// Calling it again is the "reset": the RPC revokes this side's previous live link first, so
-// a URL already sent to a buyer stops resolving. It does NOT touch GC's own link for the
-// title (revoke is partitioned by author).
+// Links are now per-buyer, not per-title: calling this again for the SAME recipient name is
+// the "replace" — the RPC revokes that buyer's previous live link first, so a URL already sent
+// to them stops resolving. A different name creates a second, independent link. Matching is
+// case-insensitive in the DB but the casing the client types is what gets stored and shown, so
+// "tubi" and "Tubi" collide (replace, not two rows) — do not add client-side normalisation that
+// would contradict that.
 export async function createBuyerScreenerLink(input: {
   titleId: string;
+  recipientName: string;
 }): Promise<{ error?: string; url?: string }> {
   const supabase = await createClient();
   const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
+  const recipient = input.recipientName.trim();
+  if (!recipient) return { error: "Enter the buyer's name." };
 
   const token = generateToken();
   const { error } = await supabase.rpc("create_screener_link", {
     p_title_id: input.titleId,
     p_token_hash: hashToken(token),
     p_share_token: token,
+    p_recipient_name: recipient,
   });
   if (error) return { error: error.message };
 

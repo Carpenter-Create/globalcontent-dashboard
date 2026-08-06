@@ -114,9 +114,10 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const totalCount = titleDlv.length;
 
   // Parallel — two independent reads (the repo's easiest perf regression is awaiting these
-  // in sequence). The share link is RLS-scoped to this org's OWN screener links, so it comes
-  // back empty for a role that may not share and for GC-authored links.
-  const [{ data: findings }, { data: shareLink }] = await Promise.all([
+  // in sequence). Share links are RLS-scoped to this org's OWN screener links, so the list
+  // comes back empty for a role that may not share and for GC-authored links. Links are now
+  // per-buyer (Task 4), so this is a bounded list, not a single row.
+  const [{ data: findings }, { data: shareLinks }] = await Promise.all([
     supabase
       .from("findings")
       .select("id, message, severity")
@@ -127,13 +128,12 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
       .range(...rangeFor(DETAIL_LIST)),
     supabase
       .from("portal_links")
-      .select("id, share_token, expires_at")
+      .select("id, share_token, expires_at, recipient_name")
       .eq("title_id", id)
       .eq("purpose", "screener_view")
       .is("revoked_at", null)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .range(...rangeFor(DETAIL_LIST)),
   ]);
 
   // A client may share once GC has approved, but never a withdrawn title — mirrors the
@@ -141,7 +141,16 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const canShareScreener =
     canOperate && ["in_delivery", "live", "takedown_requested"].includes(title.status);
   const portalBase = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
-  const shareUrl = shareLink?.share_token ? `${portalBase}/portal/${shareLink.share_token}` : null;
+  // share_token is nullable in the schema but never null for a non-revoked row in practice;
+  // filter defensively rather than risk building a /portal/null URL.
+  const buyerLinks = (shareLinks ?? [])
+    .filter((l): l is typeof l & { share_token: string } => !!l.share_token)
+    .map((l) => ({
+      linkId: l.id,
+      recipientName: l.recipient_name ?? "Unnamed buyer",
+      url: `${portalBase}/portal/${l.share_token}`,
+      expiresAt: l.expires_at,
+    }));
 
   const art = (await titleArtworkUrls(supabase, [id])).get(id) ?? { poster: null, banner: null };
 
@@ -319,12 +328,7 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
                     hasDedicatedScreener={assetList.some((a) => a.kind === "screener")}
                   />
                   {canShareScreener ? (
-                    <BuyerShareControl
-                      titleId={title.id}
-                      activeUrl={shareUrl}
-                      activeLinkId={shareLink?.id ?? null}
-                      expiresAt={shareLink?.expires_at ?? null}
-                    />
+                    <BuyerShareControl titleId={title.id} links={buyerLinks} />
                   ) : null}
                 </div>
               </CardBody>
