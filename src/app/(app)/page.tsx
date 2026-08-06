@@ -7,6 +7,7 @@ import { Card, CardBody } from "@/components/ui/card";
 import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
 import { isUpcoming, isJustIn } from "@/lib/releases";
+import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
 const ROLE_LABELS: Record<string, string> = {
   account_owner: "Account Owner",
@@ -42,11 +43,17 @@ export default async function DashboardPage() {
   const org = ctx.activeOrg;
 
   // Portfolio reads for the active org (RLS-scoped; counts computed here per spec).
+  // BOUNDED. These feed portfolio counts, so a cap makes the numbers a floor rather than a
+  // total once a catalog exceeds it. Phase 4 of the catalog-at-scale spec replaces the
+  // count-in-JS with a DB aggregate, which is both correct and cheaper.
   const { data: titleRows } = await supabase
     .from("titles")
     .select("id, title, catalog_id, status, release_date, created_at")
-    .eq("org_id", org.id);
+    .eq("org_id", org.id)
+    .order("created_at", { ascending: false })
+    .range(...rangeFor(UNPAGINATED_MAX));
   const titles = titleRows ?? [];
+  const countsArePartial = titles.length >= UNPAGINATED_MAX;
 
   const now = new Date();
   const liveCount = titles.filter((t) => t.status === "live").length;
@@ -75,7 +82,7 @@ export default async function DashboardPage() {
         createdAt={createdAt}
         nowMs={now.getTime()}
         stats={{
-          catalog: titles.length,
+          catalog: countsArePartial ? `${titles.length}+` : titles.length,
           upcoming: upcoming.length,
           live: liveCount,
           revenue: "—",

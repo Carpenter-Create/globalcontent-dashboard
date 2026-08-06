@@ -30,7 +30,9 @@ export type CatalogActivityHeroProps = {
   nowMs: number;
   /** Live snapshot figures for the stats row. */
   stats: {
-    catalog: number;
+    /** ReactNode, not number — a bounded read renders "500+" rather than claiming a total.
+     *  Brand rule: never invent stats, and a truncated count IS an invented total. */
+    catalog: React.ReactNode;
     upcoming: number;
     live: number;
     /** Revenue is a seam until statements land — pass a dash. */

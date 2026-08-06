@@ -3,10 +3,12 @@ import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
+import { LIST_PAGE, probeRange, splitProbe, rangeFor } from "@/lib/list-bounds";
 import { DataTable, type Column } from "@/components/layout/data-table";
 import { BannerCard } from "@/components/layout/banner-card";
 import { ViewToggle } from "@/components/layout/view-toggle";
 import { EmptyState } from "@/components/layout/empty-state";
+import { InlineNotice } from "@/components/ui/inline-notice";
 import { Artwork } from "@/components/layout/artwork";
 import { SearchField } from "@/components/layout/search-field";
 import { SortControl } from "@/components/layout/sort-control";
@@ -77,16 +79,30 @@ export default async function TitlesPage({
   const activeOrg = ctx.activeOrg;
   const canOperate = ctx.canOperate;
 
-  const { data: titles } = await supabase
+  // BOUNDED (catalog-at-scale spec, phase 1). Unbounded, this returned exactly 1,000 rows
+  // at PostgREST's max_rows with no error — a client with 1,200 films could not see 200 of
+  // them and nothing said so. Probe fetches one extra row so truncation is detectable
+  // without an exact count(*), which is its own cost over an RLS-filtered table.
+  // Keyset pagination is phase 2; this makes the limit honest in the meantime.
+  const [tFrom, tTo] = probeRange(LIST_PAGE);
+  const { data: titlePage } = await supabase
     .from("titles")
     .select("id, title, status, created_at, catalog_id, release_date")
     .eq("org_id", activeOrg.id)
-    .order("created_at", { ascending: false });
-  const list = titles ?? [];
+    .order("created_at", { ascending: false })
+    .range(tFrom, tTo);
+  const { rows: list, truncated } = splitProbe(titlePage, LIST_PAGE);
   const ids = list.map((t) => t.id);
 
+  // Bounded to the page's titles. ~20 vendors per title means this can still be large, so
+  // it is capped; phase 4 replaces it with a DB-side aggregate.
+  const [dFrom, dTo] = rangeFor(LIST_PAGE * 25);
   const { data: dlv } = ids.length
-    ? await supabase.from("deliveries").select("title_id, status").in("title_id", ids)
+    ? await supabase
+        .from("deliveries")
+        .select("title_id, status")
+        .in("title_id", ids)
+        .range(dFrom, dTo)
     : { data: [] as { title_id: string; status: string }[] };
   const counts = new Map<string, { live: number; total: number }>();
   for (const d of dlv ?? []) {
@@ -204,9 +220,23 @@ export default async function TitlesPage({
         <span className="t-label text-accent">Catalog</span>
         <h1 className="t-statement text-ink">Titles</h1>
         <p className="t-body text-ink-2">
-          {all.length} {all.length === 1 ? "title" : "titles"} in {activeOrg.name}&rsquo;s catalog.
+          {truncated
+            ? `Showing the ${LIST_PAGE} most recent titles in ${activeOrg.name}'s catalog.`
+            : `${all.length} ${all.length === 1 ? "title" : "titles"} in ${activeOrg.name}'s catalog.`}
         </p>
       </div>
+
+      {/* Honest about the bound. Silent truncation is the bug this replaced — a client with
+          more titles than the page size could not see them and nothing said so. Paging
+          arrives in phase 2 of the catalog-at-scale spec; until then, say it out loud. */}
+      {truncated ? (
+        <div className="pb-6">
+          <InlineNotice tone="info">
+            Your catalog has more than {LIST_PAGE} titles. Search finds anything in the{" "}
+            {LIST_PAGE} shown; full browsing of larger catalogs is coming shortly.
+          </InlineNotice>
+        </div>
+      ) : null}
 
       {/* Controls — sort left (browse only); search / view / add right. */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-6">

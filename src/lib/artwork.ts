@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { assetViewUrl } from "@/lib/asset-url";
 import { PORTAL } from "@/lib/portal";
+import { LIST_PAGE, rangeFor } from "@/lib/list-bounds";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -19,12 +20,24 @@ export async function titleArtworkUrls(
   const map = new Map<string, TitleArtwork>();
   if (titleIds.length === 0) return map;
 
+  // BOUNDED, and this is the query that was silently losing artwork. It fetches poster AND
+  // banner, so N titles is up to 2N rows — it hit PostgREST's max_rows (1000) at ~500 titles
+  // and dropped the remainder with no error. Callers must hand it a PAGE of ids, never a
+  // whole catalog; the explicit cap here is the backstop if one forgets.
+  if (titleIds.length > LIST_PAGE) {
+    console.warn(
+      `[artwork] asked for ${titleIds.length} titles (page size is ${LIST_PAGE}). ` +
+        `Callers must pass one page of ids — artwork will be incomplete.`,
+    );
+  }
+  const [from, to] = rangeFor(LIST_PAGE * 2); // 2 rows per title: poster + banner
   const { data } = await supabase
     .from("assets")
     .select("title_id, kind, storage_key, created_at")
     .in("kind", ["poster", "banner"])
-    .in("title_id", titleIds)
-    .order("created_at", { ascending: false });
+    .in("title_id", titleIds.slice(0, LIST_PAGE))
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   // Pick the latest of each kind per title FIRST (the query is desc, so first seen wins),
   // then sign the winners together. Signing inside the loop would serialise it.

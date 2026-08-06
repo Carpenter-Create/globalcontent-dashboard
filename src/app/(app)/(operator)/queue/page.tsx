@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody } from "@/components/ui/card";
 import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
+import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
 // GC operator queue. Every title turned in by every client (draft excluded), newest
 // first; titles awaiting review are surfaced at the top with a path to approve. Cross-org
@@ -56,7 +57,9 @@ export default async function GcQueuePage() {
     .from("titles")
     .select("id, title, catalog_id, status, created_at, organizations(name)")
     .in("status", ["in_review", "in_delivery"])
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    // BOUNDED — GC surfaces span every org, so this is where 20k lands first.
+    .range(...rangeFor(LIST_PAGE));
 
   const list = titles ?? [];
   const needsReview = list.filter((t) => t.status === "in_review");
@@ -72,6 +75,7 @@ export default async function GcQueuePage() {
         .eq("entity_type", "title")
         .eq("status", "open")
         .in("entity_id", titleIds)
+        .range(...rangeFor(UNPAGINATED_MAX))
     : { data: [] as { entity_id: string }[] };
   const findingsByTitle: Record<string, number> = {};
   for (const f of findingRows ?? []) {

@@ -4,13 +4,16 @@ import { DeliveryControls } from "./delivery-controls";
 import { NewDeliveryForm } from "./new-delivery-form";
 import { ExportPanel } from "./export-panel";
 import { PortalLinks, type Master, type PortalLink, type PortalSession, type PortalAccessEvent } from "./portal-links";
+import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
 export default async function GcDeliveriesPage() {
   const supabase = await createClient();
   const { data: deliveries } = await supabase
     .from("deliveries")
     .select("id, territory, status, vendor_id, title_id, titles(title, catalog_id), vendors(name), organizations(name)")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    // BOUNDED — all orgs; the largest list in the app.
+    .range(...rangeFor(LIST_PAGE));
   const list = deliveries ?? [];
 
   // group deliveries → export options (endpoint → its titles)
@@ -28,9 +31,9 @@ export default async function GcDeliveriesPage() {
   // Only APPROVED titles are deliverable (assembly line: review → approved → deliver).
   // A title reaches in_delivery only after GC approves it; live = already on ≥1 platform.
   const { data: titleRows } = await supabase
-    .from("titles").select("id, title, catalog_id").in("status", ["in_delivery", "live"]).order("title");
+    .from("titles").select("id, title, catalog_id").in("status", ["in_delivery", "live"]).order("title").range(...rangeFor(UNPAGINATED_MAX));
   const { data: vendorRows } = await supabase
-    .from("vendors").select("id, name").eq("active", true).order("name");
+    .from("vendors").select("id, name").eq("active", true).order("name").range(...rangeFor(UNPAGINATED_MAX));
   const { data: grantRows } = await supabase
     .from("rights_grants").select("id, title_id, rights_type, territory_mode, territories").is("effective_to", null);
   const titleOpts = (titleRows ?? []).map((t) => ({ id: t.id, label: `${t.catalog_id} · ${t.title}` }));

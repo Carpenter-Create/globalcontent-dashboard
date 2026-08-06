@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { FindingRows } from "@/components/findings/findings-card";
 import { CATALOG_HEALTH_EMPTY, CATALOG_HEALTH_SUBTITLE } from "@/lib/findings";
+import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
 // Catalog Health = the single client-side findings/health overview (§19 attention queue).
 // Open validator findings for the active org, grouped by title. The Dashboard points here;
@@ -24,7 +25,7 @@ export default async function CatalogHealthPage() {
 
   const titleIds = [...new Set(findings.map((f) => f.entity_id))];
   const { data: titleRows } = titleIds.length
-    ? await supabase.from("titles").select("id, title, catalog_id").in("id", titleIds)
+    ? await supabase.from("titles").select("id, title, catalog_id").in("id", titleIds).range(...rangeFor(UNPAGINATED_MAX))
     : { data: [] as { id: string; title: string; catalog_id: string | null }[] };
   const titleById = new Map((titleRows ?? []).map((t) => [t.id, t]));
 
