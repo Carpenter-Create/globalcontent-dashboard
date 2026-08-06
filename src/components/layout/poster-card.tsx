@@ -20,7 +20,8 @@ export function PosterCard({
   meta?: React.ReactNode;
 }) {
   return (
-    <Link href={href} className="group flex flex-col gap-2.5">
+    // prefetch=false: a catalog grid is N links; viewport prefetch means N full renders.
+    <Link href={href} prefetch={false} className="group flex flex-col gap-2.5">
       <Artwork
         src={posterUrl}
         title={title}
