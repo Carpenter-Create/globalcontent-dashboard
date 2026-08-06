@@ -33,35 +33,73 @@ CloudFront alias hosted-zone `Z2FDTNDATAQYW2`.
 ---
 
 ## STEP 1 — S3 lifecycle: masters → Glacier Flexible at 90 days
+Selection is by **object tag `gc-archive=master`**, not by prefix. `assetKey()` builds
+`orgs/<org>/titles/<title>/<kind>/<uuid>/<file>`, so `master` sits **mid-key**, and S3 lifecycle filters match
+on prefix only — a `"Prefix": "master/"` rule selects **zero objects** and archives nothing while showing a
+green, enabled rule in the console. The app tags masters at `CreateMultipartUpload` (`src/lib/s3.ts`,
+`ARCHIVE_TAG_KEY`/`ARCHIVE_TAG_VALUE`); only masters get the tag, so artwork, captions and screeners stay
+instant.
+
+This call **replaces the whole lifecycle configuration**, so the existing `abort-incomplete-multipart` rule
+from `asset-storage-setup.md` must be restated here or it is silently dropped.
+
 ```bash
 cat > /tmp/lifecycle.json <<JSON
-{ "Rules": [ {
-  "ID": "masters-to-glacier-90d",
-  "Status": "Enabled",
-  "Filter": { "Prefix": "master/" },
-  "Transitions": [ { "Days": 90, "StorageClass": "GLACIER" } ]
-} ] }
+{ "Rules": [
+  {
+    "ID": "abort-incomplete-multipart",
+    "Status": "Enabled",
+    "Filter": { "Prefix": "" },
+    "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+  },
+  {
+    "ID": "masters-to-glacier-90d",
+    "Status": "Enabled",
+    "Filter": { "Tag": { "Key": "gc-archive", "Value": "master" } },
+    "Transitions": [ { "Days": 90, "StorageClass": "GLACIER" } ]
+  }
+] }
 JSON
 aws s3api put-bucket-lifecycle-configuration --bucket "$BUCKET" --lifecycle-configuration file:///tmp/lifecycle.json
-# verify:
+# verify BOTH rules came back:
 aws s3api get-bucket-lifecycle-configuration --bucket "$BUCKET"
 ```
-> The S3 key scheme is `orgs/<org>/titles/<title>/<kind>/...`, so the `master/` prefix must match how keys are
-> laid out. **Verify the real prefix** with `aws s3 ls s3://$BUCKET/ --recursive | head` and adjust the
-> `Prefix` if masters aren't top-level `master/` (an object-tag filter is the robust alternative). This is the
-> one value that couldn't be confirmed from the repo.
 
-## STEP 2 — IAM: add `s3:RestoreObject` (keep everything else; still no Delete)
+**Confirm the rule can actually see a master** — an enabled rule matching nothing looks identical to a working
+one, so check a real object carries the tag:
+
+```bash
+KEY=$(aws s3api list-objects-v2 --bucket "$BUCKET" --query \
+  "Contents[?contains(Key, '/master/')]|[0].Key" --output text)
+aws s3api get-object-tagging --bucket "$BUCKET" --key "$KEY"   # expect gc-archive=master
+```
+
+> **Backfill:** masters uploaded before the tagging commit (`111fbbe`) have no tag and will never transition.
+> Tag them once — this is additive, it writes no new objects and deletes nothing:
+> ```bash
+> aws s3api list-objects-v2 --bucket "$BUCKET" --query "Contents[?contains(Key, '/master/')].Key" \
+>   --output text | tr '\t' '\n' | while read -r k; do
+>     aws s3api put-object-tagging --bucket "$BUCKET" --key "$k" \
+>       --tagging 'TagSet=[{Key=gc-archive,Value=master}]'
+>   done
+> ```
+> Requires `s3:PutObjectTagging` (STEP 2) on whichever principal you run it as.
+
+## STEP 2 — IAM: add `s3:RestoreObject` + `s3:PutObjectTagging` (keep everything else; still no Delete)
+`PutObjectTagging` is required because the app now sets the archive tag on upload — without it, master uploads
+fail outright. `GetObjectTagging` is included so the verification step above works as the app user.
+
 ```bash
 cat > /tmp/gc-assets-s3.json <<JSON
 { "Version": "2012-10-17", "Statement": [ {
   "Effect": "Allow",
-  "Action": ["s3:PutObject","s3:GetObject","s3:ListMultipartUploadParts","s3:AbortMultipartUpload","s3:RestoreObject"],
+  "Action": ["s3:PutObject","s3:GetObject","s3:ListMultipartUploadParts","s3:AbortMultipartUpload","s3:RestoreObject","s3:PutObjectTagging","s3:GetObjectTagging"],
   "Resource": "arn:aws:s3:::$BUCKET/*"
 } ] }
 JSON
 aws iam put-user-policy --user-name gc-assets-app --policy-name gc-assets-s3 --policy-document file:///tmp/gc-assets-s3.json
-aws iam get-user-policy --user-name gc-assets-app --policy-name gc-assets-s3   # verify RestoreObject present, no DeleteObject
+# verify RestoreObject + PutObjectTagging present, no DeleteObject:
+aws iam get-user-policy --user-name gc-assets-app --policy-name gc-assets-s3
 ```
 
 ## STEP 3 — ACM certificate for the portal subdomain (us-east-1)
