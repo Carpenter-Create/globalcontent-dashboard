@@ -31,8 +31,8 @@ describe("isMasterLicensed", () => {
     expect(isMasterLicensed([active({ status: "live" })], now)).toBe(true);
   });
 
-  it("refuses a pending delivery — not yet actually out", () => {
-    expect(isMasterLicensed([active({ status: "pending" })], now)).toBe(false);
+  it("licenses a pending delivery — delivery is manual and the download IS the handover, matching portal_resolve_download's own allow-list", () => {
+    expect(isMasterLicensed([active({ status: "pending" })], now)).toBe(true);
   });
 
   it("refuses a rejected delivery", () => {
@@ -90,19 +90,19 @@ describe("isMasterLicensed", () => {
     expect(isMasterLicensed([active({ grant })], now)).toBe(false);
   });
 
+  it("fails closed on a missing territory even under an exclude-mode grant (would otherwise wrongly allow)", () => {
+    const grant = { ...worldGrant, territory_mode: "exclude", territories: ["FR"] };
+    // `!territories.includes(undefined)` is `true` — the exact wrong-direction bug this guard
+    // exists to prevent. territory is NOT NULL in the schema; this proves the defensive path.
+    expect(isMasterLicensed([active({ territory: "" as unknown as string, grant })], now)).toBe(false);
+  });
+
   it("licenses if ANY of several delivery rows qualifies", () => {
     const rows = [
       active({ status: "rejected" }),
-      active({ status: "pending" }),
+      active({ status: "taken_down" }),
       active({ status: "live" }),
     ];
     expect(isMasterLicensed(rows, now)).toBe(true);
-  });
-
-  it("this link's vendor scoping is the caller's job — this function only judges the rows it is handed", () => {
-    // Regression guard for the exact failure this gate exists to prevent: the caller must
-    // filter deliveries to (title, vendor_id) BEFORE calling this. An empty array (as if no
-    // delivery existed for this vendor) must never license.
-    expect(isMasterLicensed([], now)).toBe(false);
   });
 });

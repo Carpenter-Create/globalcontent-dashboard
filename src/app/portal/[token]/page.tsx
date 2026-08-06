@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hashToken, PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { assetViewUrl } from "@/lib/asset-url";
 import { buyerActionsFor } from "@/lib/buyer-page";
+import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
 import { Card, CardBody } from "@/components/ui/card";
 import { PortalFlow } from "./portal-flow";
 
@@ -35,12 +36,13 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
   if (link.purpose === "screener_view" && link.title_id) {
     const titleId = link.title_id;
     // Curated title info for display only — not authz. The actual stream is re-resolved
-    // session-side by portal_resolve_screener (service-role, no rule-12 gate: pitch view).
-    // Four independent reads, one Promise.all — the licence check is skipped entirely
-    // (Promise.resolve, not a query) when the link has no vendor attached yet: an
-    // unattached link can never have a matching delivery row, so asking is a pointless
-    // round-trip on every single page load.
-    const [{ data: titleRow }, { data: metaRow }, { data: titleAssets }, { data: delivery }] =
+    // session-side by portal_resolve_screener (service-role, no rule-12 gate: pitch view),
+    // and the master download re-resolves `licensed` all over again itself (never trusts this
+    // render — see master-download/route.ts). Four independent reads, one Promise.all — the
+    // delivery query is skipped entirely (Promise.resolve, not a query) when the link has no
+    // vendor attached yet: an unattached link can never have a matching delivery row, so
+    // asking is a pointless round-trip on every single page load.
+    const [{ data: titleRow }, { data: metaRow }, { data: titleAssets }, { data: deliveryRows }] =
       await Promise.all([
         admin
           .from("titles")
@@ -52,12 +54,11 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
         link.vendor_id
           ? admin
               .from("deliveries")
-              .select("id")
+              .select(
+                "status, territory, rights_grants(effective_to, window_start, window_end, territory_mode, territories)",
+              )
               .eq("title_id", titleId)
               .eq("vendor_id", link.vendor_id)
-              .in("status", ["delivered", "live"])
-              .limit(1)
-              .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
 
@@ -106,12 +107,28 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
 
     // Which asset IS the screener depends on the title's source setting — the same split
     // /api/portal/screener already makes.
-    const screenerKind = titleRow?.screener_source === "dedicated" ? "screener" : "master";
+    const screenerIsDedicated = titleRow?.screener_source === "dedicated";
+    const screenerKind = screenerIsDedicated ? "screener" : "master";
+
+    // ONE rule, two callers (fix round 1, task 9, item 3): this must be the exact same
+    // isMasterLicensed the master-download route calls, on the exact same shape of rows —
+    // not a cheaper `Boolean(delivery)` stand-in. That stand-in only checked delivery status
+    // and skipped the grant entirely, so a `live` delivery under an EXPIRED grant rendered
+    // the "Download master" button and then 403'd, which the page shows as "this link has
+    // expired or been withdrawn" — telling a still-licensed buyer their access was pulled.
+    const deliveries: DeliveryForLicenceCheck[] = (deliveryRows ?? []).map((d) => ({
+      status: d.status,
+      territory: d.territory,
+      grant: d.rights_grants as DeliveryForLicenceCheck["grant"],
+    }));
+    const licensed = isMasterLicensed(deliveries);
+
     const actions = buyerActionsFor({
       titleStatus: titleRow?.status ?? null,
       hasScreenerAsset: assetList.some((a) => a.kind === screenerKind),
       hasTrailer: assetList.some((a) => a.kind === "trailer"),
-      licensed: Boolean(delivery),
+      licensed,
+      screenerIsDedicated,
     });
 
     return (

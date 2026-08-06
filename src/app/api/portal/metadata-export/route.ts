@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     admin.from("titles").select("catalog_id, title").eq("id", link.titleId).maybeSingle(),
     admin.from("title_metadata").select("data").eq("title_id", link.titleId).maybeSingle(),
     link.vendorId
-      ? admin.from("vendors").select("export_format_spec").eq("id", link.vendorId).maybeSingle()
+      ? admin.from("vendors").select("name, export_format_spec").eq("id", link.vendorId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   if (!titleRow) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
@@ -58,11 +58,17 @@ export async function POST(req: Request) {
     },
   ]);
   const buf = await toXlsx(headers, rows, spec.sheet_name ?? "Title");
+  // Fix round 1, task 9, item 4: the filename recipient must be the VENDOR's own canonical
+  // name, never link.recipientName. That field is the CLIENT's internal tracking label
+  // ("tubi - dave", "Roku (2nd attempt)") — Task 8 established it must never reach the buyer,
+  // and this file is downloaded and kept by exactly that buyer. Falls back to the
+  // "global_content" default (via buildExportFilename's own null handling) when the link
+  // has no vendor attached yet, same as the GC-side export route falls back to its own name.
   const filename = buildExportFilename({
     catalogId: titleRow.catalog_id ?? "",
     title: titleRow.title,
     date: new Date(),
-    recipient: link.recipientName,
+    recipient: vendorResult.data?.name ?? null,
   });
 
   // Provenance record for this recipient's access (rule 5), same fail-closed shape as the

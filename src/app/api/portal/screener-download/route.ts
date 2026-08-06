@@ -36,15 +36,36 @@ export async function POST(req: Request) {
   // A successful resolve already proves a screener-kind asset exists (the RPC raises
   // otherwise), so hasScreenerAsset is true by construction here. hasTrailer/licensed don't
   // feed canDownloadScreener; they're passed as safe defaults rather than left undefined.
-  const { data: titleRow } = await admin.from("titles").select("status").eq("id", row.title_id).maybeSingle();
+  const { data: titleRow } = await admin
+    .from("titles")
+    .select("status, screener_source")
+    .eq("id", row.title_id)
+    .maybeSingle();
   const actions = buyerActionsFor({
     titleStatus: titleRow?.status ?? null,
     hasScreenerAsset: true,
     hasTrailer: false,
     licensed: false,
+    screenerIsDedicated: titleRow?.screener_source === "dedicated",
   });
   if (!actions.canDownloadScreener) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    // Distinct from "Not authorized", and honest about WHY: on the (current, default)
+    // screener_source = 'master' setting, portal_resolve_screener above just handed us the
+    // MASTER's own storage key — "the screener" is byte-for-byte the master (lib/assets.ts
+    // screenerKindFor's comment says so outright). Watching it in-room is fine, same as any
+    // other pitch view, but a one-click DOWNLOAD of that same file would hand the
+    // unwatermarked deliverable to any prospect holding this link, bypassing the licence
+    // gate the master route exists to enforce entirely. Only a dedicated, purpose-made
+    // screener asset is safe to hand over as a file. Founder-approved interim fix (fix round
+    // 1, task 9) — once every title has a real screener-proxy asset (a later, separate
+    // change), screener_source is always 'dedicated' and this refusal stops firing on its
+    // own. (A title that also fails the approval gate falls into this same branch — the
+    // message is still honest, just not maximally specific, and specificity here would leak
+    // status information to an unauthenticated caller for no benefit.)
+    return NextResponse.json(
+      { error: "This file is available to watch but not to download for this title." },
+      { status: 403 },
+    );
   }
 
   // Glacier gate: a master-source screener may be in cold storage. resolveOrRestore HEADs
@@ -74,9 +95,13 @@ export async function POST(req: Request) {
     // Single-GET download TTL, not the streaming TTL: this is a file download, not a
     // <video> issuing byte-range requests across a whole playback session.
     url = await assetViewUrl(row.storage_key, PORTAL.signedUrlTtlSeconds);
-  } catch {
-    // Signing misconfig (env) — graceful; the Glacier case is handled above.
-    return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
+  } catch (err) {
+    // A signing failure here is a CONFIG problem (missing/misconfigured CloudFront env), not
+    // "still restoring" — the Glacier case is handled above and never reaches this catch.
+    // Masquerading it as 409 would render the page's cold-storage copy ("usually takes 3 to
+    // 5 hours") over what is actually a deploy-config bug that will never resolve on its own.
+    console.error("[portal:screener-download] signing failed", err);
+    return NextResponse.json({ error: "Could not prepare download" }, { status: 500 });
   }
 
   // The download event is part of THE provenance record (rule 5). If we can't record it,

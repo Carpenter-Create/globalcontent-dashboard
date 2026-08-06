@@ -31,15 +31,26 @@ export type DeliveryForLicenceCheck = {
   } | null;
 };
 
-// Master download is only for a licensed placement that is still active — same allow-list
-// portal_resolve_download uses. 'pending' is excluded on purpose: a delivery that hasn't
-// actually gone out yet is not "licensed" from the buyer's side of the table, whatever its
-// paperwork says. Rejected/taken_down are excluded because the deal is off or pulled.
-const ACTIVE_DELIVERY_STATUSES = new Set(["delivered", "live"]);
+// Same allow-list as portal_resolve_download's own status check, 20260720000100_portal_gate.sql
+// line 176 (`if v_deliv.status not in ('pending','delivered','live') then raise exception...`).
+// 'pending' IS included, deliberately matching that line rather than a narrower "already
+// live" reading: delivery here is entirely manual, and in the buyer portal THIS DOWNLOAD IS
+// THE HANDOVER — a delivery is created 'pending' and stays that way until a person marks it
+// delivered, so the row is still 'pending' at exactly the moment the buyer needs the file. A
+// narrower list would refuse the very licensed buyer this route exists to serve. Rejected/
+// taken_down are excluded because the deal is off or pulled.
+const ACTIVE_DELIVERY_STATUSES = new Set(["pending", "delivered", "live"]);
 
 export function isMasterLicensed(deliveries: DeliveryForLicenceCheck[], now: Date = new Date()): boolean {
   return deliveries.some((d) => {
     if (!ACTIVE_DELIVERY_STATUSES.has(d.status)) return false;
+
+    // NOT NULL + CHECKed to ISO alpha-2 in the schema, so this is unreachable today — but a
+    // defensive read must fail closed here rather than let a missing territory fall through
+    // to `!territories.includes(undefined)`, which is `true` and would WRONGLY ALLOW under
+    // exclude-mode. The SQL this mirrors is null-propagating (`not (null = any(...))` is
+    // NULL, not TRUE, so the enclosing `exists` refuses) — this matches that direction.
+    if (!d.territory) return false;
 
     const g = d.grant;
     if (!g) return false; // no grant on record — refuse, never assume coverage

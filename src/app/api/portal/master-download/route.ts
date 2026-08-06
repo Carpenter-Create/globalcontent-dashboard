@@ -64,6 +64,7 @@ export async function POST(req: Request) {
     hasScreenerAsset: false, // irrelevant to canDownloadMaster — not worth a second query here
     hasTrailer: false,
     licensed,
+    screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
   });
   if (!actions.canDownloadMaster) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
@@ -109,9 +110,13 @@ export async function POST(req: Request) {
     // Single-GET download TTL, not the streaming TTL — a master download is one GET that
     // must start within the window, not a <video> re-validating across a whole playback.
     url = await assetViewUrl(masterAsset.storage_key, PORTAL.signedUrlTtlSeconds);
-  } catch {
-    // Signing misconfig (env) — graceful; the Glacier case is handled above.
-    return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
+  } catch (err) {
+    // A signing failure here is a CONFIG problem (missing/misconfigured CloudFront env), not
+    // "still restoring" — the Glacier case is handled above and never reaches this catch.
+    // Masquerading it as 409 would render the page's cold-storage copy ("usually takes 3 to
+    // 5 hours") over what is actually a deploy-config bug that will never resolve on its own.
+    console.error("[portal:master-download] signing failed", err);
+    return NextResponse.json({ error: "Could not prepare download" }, { status: 500 });
   }
 
   // The download event is THE provenance record for "who downloaded the master" (rule 5).

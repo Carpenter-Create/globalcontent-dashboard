@@ -6,6 +6,7 @@ const base: BuyerPageState = {
   hasScreenerAsset: true,
   hasTrailer: true,
   licensed: false,
+  screenerIsDedicated: true,
 };
 
 describe("buyerActionsFor", () => {
@@ -38,13 +39,33 @@ describe("buyerActionsFor", () => {
 
   it("still offers metadata on an unapproved title with no assets", () => {
     expect(
-      buyerActionsFor({ titleStatus: "draft", hasScreenerAsset: false, hasTrailer: false, licensed: false })
-        .canDownloadMetadata,
+      buyerActionsFor({
+        titleStatus: "draft",
+        hasScreenerAsset: false,
+        hasTrailer: false,
+        licensed: false,
+        screenerIsDedicated: false,
+      }).canDownloadMetadata,
     ).toBe(true);
   });
 
   it("fails closed on an unknown status", () => {
     const a = buyerActionsFor({ ...base, titleStatus: "some_future_status" });
     expect(a.canDownloadScreener).toBe(false);
+  });
+
+  // Fix round 1, task 9, item 1: on the default screener_source = 'master', "the screener" IS
+  // the master byte-for-byte (lib/assets.ts). Watching stays open; a one-click DOWNLOAD of
+  // that same file must not be — it would hand the unwatermarked deliverable to any prospect
+  // holding the link, bypassing the licence gate the master route enforces.
+  it("withholds the screener DOWNLOAD when the title's screener is master-sourced, even though watching is fine", () => {
+    const a = buyerActionsFor({ ...base, screenerIsDedicated: false });
+    expect(a.canWatchScreener).toBe(true);
+    expect(a.canDownloadScreener).toBe(false);
+    expect(a.canDownloadMetadata).toBe(true);
+  });
+
+  it("offers the screener download once the title has a real dedicated screener asset", () => {
+    expect(buyerActionsFor({ ...base, screenerIsDedicated: true }).canDownloadScreener).toBe(true);
   });
 });
