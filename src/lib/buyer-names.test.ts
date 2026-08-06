@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buyerNameMatches, escapeIlikePattern, normaliseBuyerName } from "./buyer-names";
 
-// These cases are the ones that break in production: a naive `===` on the raw strings misses
-// case and whitespace, and a naive ILIKE call without escaping mismatches (or crashes) on `%`
-// and `_`. Each is a distinct way the app-side collision check could disagree with the RPC's
-// own `lower(btrim(...))` rule and either miss a real collision or manufacture a fake one.
+// The case/whitespace cases here are the ones that break in production for a naive `===` on
+// the raw strings: 'Tubi' and ' tubi ' are the same buyer under the RPC's rule but not under
+// plain equality. The `%`/`_` cases below only confirm plain-string equality is unaffected by
+// those characters — they say NOTHING about ILIKE escaping (buyerNameMatches never builds a
+// SQL pattern). The escaping hazard — a literal `%` or `_` turning into a wildcard — is real
+// but lives entirely in escapeIlikePattern, tested in its own block further down.
 describe("buyerNameMatches", () => {
   it("matches an exact match", () => {
     expect(buyerNameMatches("Tubi", "Tubi")).toBe(true);
