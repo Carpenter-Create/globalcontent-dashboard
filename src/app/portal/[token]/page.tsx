@@ -76,25 +76,33 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
 
     const posterKey = latestKeyOf("poster");
     const bannerKey = latestKeyOf("banner");
-    // Trailer rides the same artwork TTL as poster/banner, not the master's short download
-    // TTL or the screener's session-gated stream: it is promotional material the client
-    // supplied (assets.ts), same sensitivity class as poster/banner, and the title-page hero
-    // plays it inline with no OTP-session round trip. The asset list above already carries
-    // the trailer row (unfiltered by kind), so this needs no new query — only a sign.
+    // The asset list above already carries the trailer row (unfiltered by kind), so this
+    // needs no new query — only a sign.
     const trailerKey = latestKeyOf("trailer");
     // Artwork TTL, not the download TTL (see the comment on PORTAL.artworkTtlSeconds) — this
     // page can stay open far longer than a single GET. stableWindow matches artwork.ts so the
     // browser caches the image across the hour instead of re-fetching on every navigation.
     // Signing depends on the asset list above, so it cannot join the first Promise.all — but
-    // the three signs are still parallel, and a signing failure degrades to null (placeholder
-    // or a hidden trailer), never a crashed page: artwork is decoration, not data.
-    const [posterUrl, bannerUrl, trailerUrl] = await Promise.all(
-      [posterKey, bannerKey, trailerKey].map((key) =>
-        key
-          ? assetViewUrl(key, PORTAL.artworkTtlSeconds, { stableWindow: true }).catch(() => null)
-          : Promise.resolve(null),
-      ),
-    );
+    // the signs are still parallel, and a signing failure degrades to null (placeholder or a
+    // hidden trailer), never a crashed page: artwork is decoration, not data.
+    //
+    // Trailer gets the SCREENER's TTL, not the artwork TTL — this is mechanical, not about
+    // sensitivity. A <video> issues byte-range GETs across the whole runtime and CloudFront
+    // re-validates the signed URL on every one of them (see the comment on
+    // screenerStreamTtlSeconds), so the TTL must outlive playback-plus-pauses, not just an
+    // initial fetch the way an <img> only needs. A buyer who reads the spec sheet for an hour
+    // before pressing play must not get a trailer that dies mid-request.
+    const [posterUrl, bannerUrl, trailerUrl] = await Promise.all([
+      posterKey
+        ? assetViewUrl(posterKey, PORTAL.artworkTtlSeconds, { stableWindow: true }).catch(() => null)
+        : Promise.resolve(null),
+      bannerKey
+        ? assetViewUrl(bannerKey, PORTAL.artworkTtlSeconds, { stableWindow: true }).catch(() => null)
+        : Promise.resolve(null),
+      trailerKey
+        ? assetViewUrl(trailerKey, PORTAL.screenerStreamTtlSeconds, { stableWindow: true }).catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
     // Which asset IS the screener depends on the title's source setting — the same split
     // /api/portal/screener already makes.

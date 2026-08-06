@@ -6,17 +6,27 @@ import { Card, CardBody, CardHeader, CardTitle, CardDescription } from "@/compon
 import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { Artwork } from "@/components/layout/artwork";
-import { METADATA_FIELDS, GENRES } from "@/lib/metadata";
+import { METADATA_FIELDS, GENRES, type FieldDef } from "@/lib/metadata";
 import { PORTAL_COPY } from "@/lib/portal";
 import { ScreenerRoom } from "./screener-room";
 import type { ReadyView } from "./portal-flow";
 
 type ScreenerReady = Extract<ReadyView, { mode: "screener" }>;
 
+// A `select` field stores its vocabulary's slug (e.g. genre's "sci_fi"), not its label — the
+// grid must resolve it the same way the key-facts line does, or the same value reads two
+// different ways on one screen (fix round 1, task 8). Every `select` field with a `vocab`
+// gets this, not just genre: rating, primary_language, country_of_origin all have the
+// identical slug-vs-label shape.
+function displayValue(field: FieldDef, value: unknown): unknown {
+  if (field.type !== "select" || !field.vocab || typeof value !== "string") return value;
+  return field.vocab.find((v) => v.value === value)?.label ?? value;
+}
+
 // Iterates the canonical field registry, never a page-local list, so a new metadata field
-// shows up here the moment it's added to lib/metadata.ts. Verbatim from the task brief.
+// shows up here the moment it's added to lib/metadata.ts.
 function MetadataGrid({ data }: { data: Record<string, unknown> }) {
-  const rows = METADATA_FIELDS.map((f) => ({ label: f.label, value: data[f.key] }))
+  const rows = METADATA_FIELDS.map((f) => ({ label: f.label, value: displayValue(f, data[f.key]) }))
     // Omitted, not blanked — a half-filled sheet reads as neglect.
     .filter((r) => r.value !== null && r.value !== undefined && r.value !== ""
                    && !(Array.isArray(r.value) && r.value.length === 0));
