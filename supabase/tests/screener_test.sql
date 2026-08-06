@@ -6,7 +6,7 @@
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
 
 begin;
-select plan(43);
+select plan(46);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -116,6 +116,20 @@ select is(
   (select count(*) from public.portal_links
      where title_id = current_setting('t.title_c')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
   2, 'each side keeps its own single active link');
+
+-- One link per buyer: replacing one recipient's link must not revoke another's. Still the
+-- t.owner (client) identity from the block above, on the same title_c.
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
+         current_setting('t.title_c'), 'tok_buyer_a', 'share_a', 'Tubi'),
+  'client creates a link for buyer A');
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
+         current_setting('t.title_c'), 'tok_buyer_b', 'share_b', 'Roku'),
+  'client creates a link for buyer B on the same title');
+select is(
+  (select revoked_at from public.portal_links where token_hash = 'tok_buyer_a'),
+  null, 'buyer B''s link does not revoke buyer A''s');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);

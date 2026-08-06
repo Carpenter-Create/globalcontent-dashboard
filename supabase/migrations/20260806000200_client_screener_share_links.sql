@@ -43,17 +43,42 @@
 -- GC-authored, and 'operate' on the owning title's org. A client cannot revoke a
 -- master_download link or GC's screener link by guessing an id.
 --
--- DESTRUCTIVE OPS (approved before apply): CREATE OR REPLACE of two existing functions (same
--- names and argument lists, so no overloads are created and no grants change), and DROP +
--- CREATE of policy portal_links_select. No table altered, no row deleted. Forward-only. To
--- roll back, re-apply the three definitions from 20260727000100_gc_role_separation.sql
--- (create_screener_link :372, revoke_portal_link :581, policy :199).
+-- DESTRUCTIVE OPS (approved before apply): CREATE OR REPLACE of revoke_portal_link (same name
+-- and argument list, so no overload and no grant change), DROP + CREATE of policy
+-- portal_links_select, and DROP + CREATE OR REPLACE of create_screener_link — that one DOES
+-- change argument list (4 args -> 5, adding p_recipient_name) and therefore its grants, covered
+-- below. ALTER TABLE adds two nullable columns (vendor_id, recipient_name) plus an index — both
+-- additive, no backfill, no row rewritten with a default. No row deleted. Forward-only. To roll
+-- back the function/policy definitions, re-apply the three from 20260727000100_gc_role_separation.sql
+-- (create_screener_link :372, revoke_portal_link :581, policy :199); to roll back the columns,
+-- drop portal_links_title_recipient_idx and the two columns.
+--
+-- ONE LINK PER BUYER, NOT PER TITLE. A title-scoped single-active-link model cannot safely be
+-- extended to offer the master itself: the moment any buyer licenses the title, every other
+-- prospect still holding a "share the master" link for that title would qualify too. Scoping
+-- the link — and its revoke — to (title, recipient, side) means a client pitching five buyers
+-- holds five independent links; replacing one buyer's link never touches another's. vendor_id
+-- stays null until GC attaches the vendor at deal time (vendors are GC-only, so a client cannot
+-- pick one from their side of this RPC).
+alter table public.portal_links
+  add column if not exists vendor_id      uuid references public.vendors(id) on delete restrict,
+  add column if not exists recipient_name text;
+
+create index if not exists portal_links_title_recipient_idx
+  on public.portal_links (title_id, recipient_name);
+
+-- The 4-arg signature is being replaced by a 5-arg one (p_recipient_name added). A plain CREATE
+-- OR REPLACE with a different argument list creates a SECOND overload instead of replacing the
+-- first, leaving the old 4-arg function callable (and its grants intact) alongside the new one —
+-- this mirrors the create_title pattern already used in this repo.
+drop function if exists public.create_screener_link(uuid, text, timestamptz, text);
 
 create or replace function public.create_screener_link(
-  p_title_id    uuid,
-  p_token_hash  text,
-  p_expires_at  timestamptz default null,
-  p_share_token text default null
+  p_title_id       uuid,
+  p_token_hash     text,
+  p_expires_at     timestamptz default null,
+  p_share_token    text default null,
+  p_recipient_name text default null
 ) returns uuid language plpgsql security definer set search_path = public as $$
 declare
   v_source public.screener_source;
@@ -96,24 +121,29 @@ begin
     raise exception 'expires_at must be in the future';
   end if;
 
-  -- Single active link per title PER SIDE. Revoking only the caller's own side is what stops
-  -- a client reset from killing GC's outstanding vendor link (see header).
+  -- Single active link per (title, recipient, side). Replacing Tubi's link must not touch
+  -- Roku's, and neither may touch GC's outstanding vendor link. `is not distinct from` is
+  -- required, not cosmetic: in SQL's three-valued logic `null = null` evaluates to null (not
+  -- true), so a plain `=` would never match two of GC's unnamed links to each other and they
+  -- would accumulate forever instead of single-active resetting.
   update public.portal_links
      set revoked_at = now()
    where title_id = p_title_id
      and purpose = 'screener_view'
      and revoked_at is null
-     and public.is_gc_staff(created_by) = v_is_gc;
+     and public.is_gc_staff(created_by) = v_is_gc
+     and recipient_name is not distinct from nullif(btrim(p_recipient_name), '');
 
-  insert into public.portal_links (purpose, title_id, token_hash, share_token, created_by, expires_at)
+  insert into public.portal_links
+    (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
   values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
-          coalesce(p_expires_at, now() + interval '14 days'))
+          coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
   returning id into v_id;
   return v_id;
 end; $$;
 
-revoke execute on function public.create_screener_link(uuid, text, timestamptz, text) from public, anon;
-grant  execute on function public.create_screener_link(uuid, text, timestamptz, text) to authenticated;
+revoke execute on function public.create_screener_link(uuid, text, timestamptz, text, text) from public, anon;
+grant  execute on function public.create_screener_link(uuid, text, timestamptz, text, text) to authenticated;
 
 -- ---- revoke: same widening, re-derived from the link id (see header) -------------------
 create or replace function public.revoke_portal_link(p_link_id uuid)
