@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef } from "react";
 import { Inbox, Store, type LucideIcon } from "lucide-react";
 
 import { NAV } from "@/lib/nav";
@@ -27,6 +28,14 @@ export function SideNav({
 }) {
   const pathname = usePathname();
 
+  const router = useRouter();
+  const warmed = useRef<Set<string>>(new Set());
+  const warm = (href: string) => {
+    if (warmed.current.has(href)) return;
+    warmed.current.add(href);
+    router.prefetch(href);
+  };
+
   const row = (
     item: { label: string; href: string; icon: LucideIcon; exact?: boolean },
     unread = 0,
@@ -37,12 +46,16 @@ export function SideNav({
       <Link
         key={item.href}
         href={item.href}
-        // prefetch=false: the sidebar renders on EVERY page, so viewport prefetch fired a
-        // full uncached render of every destination on every navigation — measured at ~400
-        // server invocations across a short clicking session, each doing its own
-        // getOrgContext DB work and contending with the navigation actually in flight.
-        // loading.tsx still gives instant feedback on click; the render is only ~180ms.
+        // VIEWPORT prefetch off, HOVER prefetch on. The sidebar renders on every page, so
+        // viewport prefetch fired a full uncached render of EVERY destination on EVERY
+        // navigation — ~400 invocations in one short session, all contending with the
+        // navigation actually in flight. Hovering is a statement of intent: it warms the one
+        // destination you are about to click, so the click lands on data already fetched
+        // instead of paying ~360ms (network + render) with a skeleton in the meantime.
+        // Deduped per href so re-hovering does not re-fire.
         prefetch={false}
+        onMouseEnter={() => warm(item.href)}
+        onFocus={() => warm(item.href)}
         title={collapsed ? item.label : undefined}
         aria-label={collapsed ? item.label : undefined}
         className={cn(

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Artwork } from "./artwork";
 import { StatusChip } from "./status-chip";
@@ -19,9 +22,17 @@ export function PosterCard({
   status?: { label: string; tone?: "neutral" | "active" | "muted" };
   meta?: React.ReactNode;
 }) {
+  const router = useRouter();
   return (
     // prefetch=false: a catalog grid is N links; viewport prefetch means N full renders.
-    <Link href={href} prefetch={false} className="group flex flex-col gap-2.5">
+    <Link
+      href={href}
+      // Viewport prefetch off (a grid is N links = N renders); hover warms just
+      // the one the pointer is on.
+      prefetch={false}
+      onMouseEnter={() => router.prefetch(href)}
+      className="group flex flex-col gap-2.5"
+    >
       <Artwork
         src={posterUrl}
         title={title}
