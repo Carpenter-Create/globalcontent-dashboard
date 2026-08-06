@@ -218,7 +218,11 @@ describe("buildExportRows", () => {
     expect(rows[0][0]).toBe("Monarch");
   });
 
-  it("does not warn 'blank' for a title source, even alongside a genuinely blank field", () => {
+  it("does not warn 'blank' for a blank title, only for the blank field beside it", () => {
+    // Both columns are blank here. If the blank-warning gate ever widened to include
+    // "title" alongside "field", this would produce two warnings instead of one — a
+    // title fixture with a non-blank value can't catch that, since the blank-check
+    // inside the gate would stay false for it regardless of which kinds are gated.
     const spec: ExportFormatSpec = {
       format: "xlsx",
       columns: [
@@ -226,7 +230,7 @@ describe("buildExportRows", () => {
         { header: "Director", source: { kind: "field", key: "director" } },
       ],
     };
-    const { warnings } = buildExportRows(spec, [title({ title: "Monarch", metadata: {} })]);
+    const { warnings } = buildExportRows(spec, [title({ title: "", metadata: {} })]);
     expect(warnings).toEqual([`GC-0000001: "Director" is blank`]);
   });
 });
