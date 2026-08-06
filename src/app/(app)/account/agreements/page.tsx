@@ -5,6 +5,7 @@ import { getOrgContext } from "@/lib/supabase/context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardBody } from "@/components/ui/card";
 import { TIER_META, type Tier } from "@/lib/agreements";
+import { DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
 
 // §5 "show your work": every agreement the org has accepted, kept exactly as shown
 // (the immutable source document), viewable + downloadable forever.
@@ -22,7 +23,8 @@ export default async function AgreementsPage() {
     .from("contract_assents")
     .select("id, terms_version, agreed_at, source_document_id, source_documents(raw)")
     .eq("org_id", activeOrg.id)
-    .order("agreed_at", { ascending: false });
+    .order("agreed_at", { ascending: false })
+    .range(...rangeFor(DETAIL_LIST));
 
   const fmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
   const list = assents ?? [];

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody } from "@/components/ui/card";
 import { VendorForm } from "./vendor-form";
+import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
 const MODE_LABELS: Record<"portal_upload" | "email", string> = {
   portal_upload: "Portal upload",
@@ -14,7 +15,8 @@ export default async function GcVendorsPage() {
   const { data: vendors } = await supabase
     .from("vendors")
     .select("id, name, delivery_mode, active")
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .range(...rangeFor(UNPAGINATED_MAX));
   const list = vendors ?? [];
 
   return (

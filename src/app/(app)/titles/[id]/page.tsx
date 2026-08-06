@@ -23,6 +23,7 @@ import { ScreenerWatchButton } from "./screener-watch-button";
 import { AssetDownloadButton } from "./asset-download-button";
 import { SubmitButton } from "./submit-button";
 import { titleDisplayStatus, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from "@/lib/titles";
+import { DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
 
 const ASSET_KIND_LABELS: Record<"master" | "caption" | "artwork" | "poster" | "banner" | "screener", string> = {
   master: "Master",
@@ -73,14 +74,16 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .select("id, rights_type, territory_mode, territories, exclusive, window_start, window_end")
     .eq("title_id", id)
     .is("effective_to", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(...rangeFor(DETAIL_LIST));
   const list = grants ?? [];
 
   const { data: assets } = await supabase
     .from("assets")
     .select("id, kind, original_filename, bytes, received_at")
     .eq("title_id", id)
-    .order("received_at", { ascending: false });
+    .order("received_at", { ascending: false })
+    .range(...rangeFor(DETAIL_LIST));
   const assetList = assets ?? [];
 
   const { data: metaRow } = await supabase
@@ -111,7 +114,8 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
     .eq("entity_type", "title")
     .eq("entity_id", id)
     .eq("status", "open")
-    .order("severity", { ascending: true });
+    .order("severity", { ascending: true })
+    .range(...rangeFor(DETAIL_LIST));
 
   const art = (await titleArtworkUrls(supabase, [id])).get(id) ?? { poster: null, banner: null };
 
