@@ -129,9 +129,10 @@ async function describeDownloadFailure(r: Response): Promise<string> {
 // (hero, trailer, screener) and information (spec sheet) carry equal visual weight, side by
 // side at `lg:` and above; below that they stack, viewing first.
 //
-// `company` is the buyer's OWN typed input from the identity gate (portal-flow.tsx), not
-// `ready.recipientName` — that field is the link's internal client-side tracking label and
-// must never render on this external page (see the "Prepared for" usage below).
+// `company` is the buyer's OWN typed input from the identity gate (portal-flow.tsx). `ready`
+// carries no recipient-name field at all — the link's internal client-side tracking label
+// ("tubi - dave") must never render on this external page, so it is never even loaded into
+// `ready` (see portal-flow.tsx's ReadyView and page.tsx) — see the "Prepared for" usage below.
 export function TitlePage({ ready, company }: { ready: ScreenerReady; company: string }) {
   const [watching, setWatching] = useState(false);
   const [pending, setPending] = useState<null | "screener" | "metadata" | "master">(null);

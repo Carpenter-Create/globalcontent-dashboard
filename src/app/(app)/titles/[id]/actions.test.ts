@@ -14,21 +14,38 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { createBuyerScreenerLink } from "./actions";
 
-type Candidate = { recipient_name: string };
+type Candidate = { recipient_name: string; expires_at?: string };
 
-// A chainable stand-in for the PostgREST query builder: every filter method returns the same
-// object, and awaiting it (Promise.all does this via `.then`) resolves to the fixed result —
-// exactly the shape `.select().eq().eq().is().ilike().limit()` needs without a real client.
-function fakeQuery<T>(data: T, error: { message: string } | null = null) {
+// A chainable stand-in for the PostgREST query builder: every passthrough filter method returns
+// the same object, and awaiting it (Promise.all does this via `.then`) resolves to the
+// (possibly `.gt()`-narrowed) result — the shape
+// `.select().eq().eq().is().gt().ilike().limit()` needs without a real client.
+//
+// `.gt()` actually filters, unlike the other methods: it's the one fix round 3, item 7 added
+// (excluding expired links from the collision check), so it's the one worth proving actually
+// narrows the candidate set rather than trusting the call happened.
+function fakeQuery(rows: Candidate[], error: { message: string } | null = null) {
+  let result = rows;
   const builder: Record<string, unknown> = {};
   for (const method of ["select", "eq", "is", "ilike", "limit", "order"]) {
     builder[method] = vi.fn(() => builder);
   }
-  builder.maybeSingle = vi.fn(async () => ({ data, error }));
+  builder.gt = vi.fn((col: string, val: string) => {
+    result = result.filter((r) => {
+      const v = (r as unknown as Record<string, unknown>)[col];
+      // A fixture with no expires_at at all is the common case for tests that aren't about
+      // expiry — treat it as "still live" so those tests don't have to set a far-future
+      // timestamp just to avoid being filtered out here.
+      if (v === undefined) return true;
+      return typeof v === "string" && v > val;
+    });
+    return builder;
+  });
+  builder.maybeSingle = vi.fn(async () => ({ data: result[0] ?? null, error }));
   builder.then = (
-    resolve: (v: { data: T; error: typeof error }) => void,
+    resolve: (v: { data: Candidate[]; error: typeof error }) => void,
     reject: (e: unknown) => void,
-  ) => Promise.resolve({ data, error }).then(resolve, reject);
+  ) => Promise.resolve({ data: result, error }).then(resolve, reject);
   return builder;
 }
 
@@ -90,6 +107,24 @@ describe("createBuyerScreenerLink — collision branching", () => {
     vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
 
     const res = await createBuyerScreenerLink({ titleId: "t1", recipientName: "Roku" });
+
+    expect(res.error).toBeUndefined();
+    expect(res.url).toContain("/portal/");
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  // Fix round 3, item 7: the collision check used to filter only `revoked_at is null`, ignoring
+  // expiry — so an EXPIRED (but never revoked) link for "Tubi" blocked a fresh create behind an
+  // unnecessary "Use Replace link" warning, even though the old URL is already dead to the
+  // buyer and create_screener_link's own match predicate would have replaced it with no live
+  // link actually being destroyed.
+  it("an EXPIRED candidate does not count as a collision — the RPC runs directly", async () => {
+    const supabase = fakeSupabase({
+      candidates: [{ recipient_name: "Tubi", expires_at: "2020-01-01T00:00:00.000Z" }],
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+    const res = await createBuyerScreenerLink({ titleId: "t1", recipientName: "Tubi" });
 
     expect(res.error).toBeUndefined();
     expect(res.url).toContain("/portal/");

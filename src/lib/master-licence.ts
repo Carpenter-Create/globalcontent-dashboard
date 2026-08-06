@@ -32,14 +32,25 @@ export type DeliveryForLicenceCheck = {
 };
 
 // Same allow-list as portal_resolve_download's own status check, 20260720000100_portal_gate.sql
-// line 176 (`if v_deliv.status not in ('pending','delivered','live') then raise exception...`).
-// 'pending' IS included, deliberately matching that line rather than a narrower "already
-// live" reading: delivery here is entirely manual, and in the buyer portal THIS DOWNLOAD IS
-// THE HANDOVER — a delivery is created 'pending' and stays that way until a person marks it
-// delivered, so the row is still 'pending' at exactly the moment the buyer needs the file. A
-// narrower list would refuse the very licensed buyer this route exists to serve. Rejected/
-// taken_down are excluded because the deal is off or pulled.
-const ACTIVE_DELIVERY_STATUSES = new Set(["pending", "delivered", "live"]);
+// line 176 (`if v_deliv.status not in ('pending','delivered','live') then raise exception...`)
+// AND title_vendor_licensed's (20260806000400_attach_link_vendor.sql,
+// `d.status in ('pending', 'delivered', 'live')`). 'pending' IS included, deliberately matching
+// those lines rather than a narrower "already live" reading: delivery here is entirely manual,
+// and in the buyer portal THIS DOWNLOAD IS THE HANDOVER — a delivery is created 'pending' and
+// stays that way until a person marks it delivered, so the row is still 'pending' at exactly
+// the moment the buyer needs the file. A narrower list would refuse the very licensed buyer
+// this route exists to serve. Rejected/taken_down are excluded because the deal is off or
+// pulled.
+//
+// Exported (fix round 3, item 6) so master-licence.test.ts can pin the exact list, not just
+// this function's behaviour on a few sample statuses — this predicate already drifted once
+// (the 'pending' status), and it is duplicated a THIRD time in SQL by title_vendor_licensed,
+// with no shared source and no test tying the three together. A pgTAP test on the SQL side
+// (master_licence_status_parity_test.sql) asserts portal_resolve_download and
+// title_vendor_licensed agree with EACH OTHER and with this exact list; a one-sided edit to
+// any of the three copies now fails a test instead of waiting for a bug report.
+export const ACTIVE_DELIVERY_STATUSES_LIST = ["pending", "delivered", "live"] as const;
+const ACTIVE_DELIVERY_STATUSES = new Set<string>(ACTIVE_DELIVERY_STATUSES_LIST);
 
 export function isMasterLicensed(deliveries: DeliveryForLicenceCheck[], now: Date = new Date()): boolean {
   return deliveries.some((d) => {

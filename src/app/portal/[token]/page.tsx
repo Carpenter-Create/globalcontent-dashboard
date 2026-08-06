@@ -47,11 +47,18 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       await Promise.all([
         admin
           .from("titles")
-          .select("title, catalog_id, status, org_id, screener_source")
+          .select("title, catalog_id, status, screener_source")
           .eq("id", titleId)
           .maybeSingle(),
         admin.from("title_metadata").select("data").eq("title_id", titleId).maybeSingle(),
-        admin.from("assets").select("kind, storage_key, created_at").eq("title_id", titleId),
+        admin
+          .from("assets")
+          .select("kind, storage_key, created_at")
+          .eq("title_id", titleId)
+          // Bounded per list-bounds.ts convention — feeds hasMasterAsset, hasScreenerAsset, and
+          // poster/banner/trailer resolution below, so silent truncation here would silently
+          // change authorization inputs, not just drop a row from a display list.
+          .limit(DETAIL_LIST),
         link.vendor_id
           ? admin
               .from("deliveries")
@@ -139,7 +146,6 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
     const actions = buyerActionsFor({
       titleStatus: titleRow?.status ?? null,
       hasScreenerAsset: assetList.some((a) => a.kind === screenerKind),
-      hasTrailer: assetList.some((a) => a.kind === "trailer"),
       licensed,
       screenerIsDedicated,
       hasMasterAsset,
@@ -158,7 +164,6 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
           posterUrl,
           bannerUrl,
           trailerUrl,
-          recipientName: link.recipient_name ?? null,
           actions,
         }}
       />

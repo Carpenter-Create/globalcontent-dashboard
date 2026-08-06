@@ -12,7 +12,11 @@ import {
 // the whole matrix.
 describe("screenerKindFor", () => {
   const PRE_APPROVAL = ["draft", "submitted", "in_review"];
-  const POST_APPROVAL = ["in_delivery", "live", "takedown_requested", "taken_down"];
+  // POST_APPROVAL_TITLE_STATUSES minus 'taken_down'. 'taken_down' is still a member of that
+  // exported list (other consumers need "was this title ever approved" to stay true for it —
+  // see ScreenerSourceControl's isPostApproval prop), but it is no longer expected to behave
+  // like the others HERE: fix round 3, item 2 pulled it out into its own case below.
+  const POST_APPROVAL_STILL_ACTIVE = ["in_delivery", "live", "takedown_requested"];
 
   it("refuses a client on a title GC has not approved yet", () => {
     for (const status of PRE_APPROVAL) {
@@ -21,8 +25,8 @@ describe("screenerKindFor", () => {
     }
   });
 
-  it("serves a client on an approved title, whatever the source", () => {
-    for (const status of POST_APPROVAL) {
+  it("serves a client on an approved, still-active title, whatever the source", () => {
+    for (const status of POST_APPROVAL_STILL_ACTIVE) {
       expect(screenerKindFor("dedicated", false, status)).toBe("screener");
       // The master fallback for clients is the 2026-08-06 founder decision — a rights
       // holder must be able to watch their own approved title. If this flips back to null,
@@ -31,8 +35,16 @@ describe("screenerKindFor", () => {
     }
   });
 
-  it("serves staff at any status, including pre-approval review", () => {
-    for (const status of [...PRE_APPROVAL, ...POST_APPROVAL]) {
+  // Fix round 3, item 2 (CLAUDE.md rule 11 — enforce at the point of action, not just at
+  // mint). create_screener_link already refuses to MINT a new link for a taken_down title;
+  // this is what makes that refusal mean anything for a link minted BEFORE the takedown.
+  it("refuses a client once the title is taken_down, even though it's a POST_APPROVAL_TITLE_STATUS", () => {
+    expect(screenerKindFor("dedicated", false, "taken_down")).toBeNull();
+    expect(screenerKindFor("master", false, "taken_down")).toBeNull();
+  });
+
+  it("serves staff at any status, including taken_down and pre-approval review", () => {
+    for (const status of [...PRE_APPROVAL, ...POST_APPROVAL_STILL_ACTIVE, "taken_down"]) {
       expect(screenerKindFor("master", true, status)).toBe("master");
       expect(screenerKindFor("dedicated", true, status)).toBe("screener");
     }
@@ -54,6 +66,14 @@ describe("isPostApprovalTitleStatus", () => {
     expect(isPostApprovalTitleStatus("in_review")).toBe(false);
     expect(isPostApprovalTitleStatus("in_delivery")).toBe(true);
     expect(isPostApprovalTitleStatus(null)).toBe(false);
+  });
+
+  // Deliberately still true (fix round 3, item 2): this list answers "was this title ever
+  // approved," which other consumers (e.g. ScreenerSourceControl's isPostApproval prop) still
+  // need. The client-facing takedown gate is a SEPARATE, additional check layered on top in
+  // screenerKindFor and buyerActionsFor — not a change to this list's own meaning.
+  it("still counts taken_down as post-approval — that fact hasn't changed, only who else gates on it", () => {
+    expect(isPostApprovalTitleStatus("taken_down")).toBe(true);
   });
 });
 

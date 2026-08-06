@@ -23,7 +23,6 @@ export type ResolvedBuyerLink = {
   sessionId: string;
   titleId: string;
   vendorId: string | null;
-  recipientName: string | null;
 };
 
 export async function resolveBuyerLink(rawSessionToken: string): Promise<ResolvedBuyerLink | null> {
@@ -38,7 +37,7 @@ export async function resolveBuyerLink(rawSessionToken: string): Promise<Resolve
 
   const { data: link } = await admin
     .from("portal_links")
-    .select("id, purpose, title_id, vendor_id, recipient_name, expires_at, revoked_at")
+    .select("id, purpose, title_id, vendor_id, expires_at, revoked_at")
     .eq("id", session.link_id)
     .maybeSingle();
   if (!link || link.purpose !== "screener_view" || !link.title_id) return null;
@@ -49,6 +48,5 @@ export async function resolveBuyerLink(rawSessionToken: string): Promise<Resolve
     sessionId: session.id,
     titleId: link.title_id,
     vendorId: link.vendor_id,
-    recipientName: link.recipient_name,
   };
 }

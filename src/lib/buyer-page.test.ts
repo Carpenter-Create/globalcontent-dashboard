@@ -4,7 +4,6 @@ import { buyerActionsFor, type BuyerPageState } from "@/lib/buyer-page";
 const base: BuyerPageState = {
   titleStatus: "in_delivery",
   hasScreenerAsset: true,
-  hasTrailer: true,
   licensed: false,
   screenerIsDedicated: true,
   hasMasterAsset: true,
@@ -53,7 +52,6 @@ describe("buyerActionsFor", () => {
       buyerActionsFor({
         titleStatus: "draft",
         hasScreenerAsset: false,
-        hasTrailer: false,
         licensed: false,
         screenerIsDedicated: false,
         hasMasterAsset: false,
@@ -79,5 +77,27 @@ describe("buyerActionsFor", () => {
 
   it("offers the screener download once the title has a real dedicated screener asset", () => {
     expect(buyerActionsFor({ ...base, screenerIsDedicated: true }).canDownloadScreener).toBe(true);
+  });
+
+  // Fix round 3, item 2 (CLAUDE.md rule 11 — enforce at the point of action, not just at
+  // mint). create_screener_link refuses to MINT a new link for a taken_down title, but a link
+  // minted before the takedown re-resolves this function on every later visit — so a
+  // taken_down title must stop offering screener access here too, or the mint-time refusal
+  // protects nothing once a single link already exists.
+  it("withdraws BOTH watching and downloading the screener once the title is taken_down", () => {
+    const a = buyerActionsFor({ ...base, titleStatus: "taken_down" });
+    expect(a.canWatchScreener).toBe(false);
+    expect(a.canDownloadScreener).toBe(false);
+    // Metadata is pitch material regardless of status (unchanged) — see the "still offers
+    // metadata on an unapproved title" case above.
+    expect(a.canDownloadMetadata).toBe(true);
+  });
+
+  // The master is NOT gated on `withdrawn`: an already-licensed, already-delivered master is
+  // existing state, not a future pitch action — rule 11's own "never retroactively destroy"
+  // exception. It stays gated entirely by the delivery's own status (already excludes
+  // 'taken_down' — see master-licence.test.ts).
+  it("does not withdraw an already-licensed master when the title is taken_down", () => {
+    expect(buyerActionsFor({ ...base, titleStatus: "taken_down", licensed: true }).canDownloadMaster).toBe(true);
   });
 });

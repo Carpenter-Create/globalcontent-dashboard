@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
+import { isMasterLicensed, ACTIVE_DELIVERY_STATUSES_LIST, type DeliveryForLicenceCheck } from "@/lib/master-licence";
 
 const now = new Date("2026-08-06T12:00:00Z");
 
@@ -104,5 +104,20 @@ describe("isMasterLicensed", () => {
       active({ status: "live" }),
     ];
     expect(isMasterLicensed(rows, now)).toBe(true);
+  });
+});
+
+// Fix round 3, item 6: this predicate is duplicated a THIRD time in SQL (title_vendor_licensed,
+// 20260806000400_attach_link_vendor.sql) on top of portal_resolve_download
+// (20260720000100_portal_gate.sql) — and it already drifted once on 'pending'. Pinning the
+// exact list here, by value, means a future one-sided edit to this array fails a test
+// immediately instead of silently disagreeing with the two SQL copies. The SQL side is pinned
+// separately by supabase/tests/master_licence_status_parity_test.sql (pgTAP), which asserts
+// portal_resolve_download and title_vendor_licensed agree with each other across every
+// delivery_status value — this test and that one are the two halves of "assert it identically
+// in both languages."
+describe("ACTIVE_DELIVERY_STATUSES_LIST", () => {
+  it("is exactly pending/delivered/live, matching both SQL copies of this predicate", () => {
+    expect([...ACTIVE_DELIVERY_STATUSES_LIST].sort()).toEqual(["delivered", "live", "pending"]);
   });
 });

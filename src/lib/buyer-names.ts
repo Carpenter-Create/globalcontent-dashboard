@@ -1,27 +1,18 @@
-// Buyer-name normalisation for screener share links (create_screener_link, Task 4/5).
+// ILIKE escaping for the screener share-link collision check (create_screener_link, Task 4/5).
 //
 // The RPC matches an existing live link with
 // `lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''))`
 // (20260806000300, unchanged from 20260806000200 — only the author partition around it was
-// removed) — and replaces it, silently, by design, from the DB's point of view.
-// Note what that actually trims: only the INCOMING `p_recipient_name`. The stored
-// `recipient_name` column is never btrim'd by the SQL itself; it relies on every writer
-// having already trimmed before insert (this repo's action does, via `.trim()`). The app-side
-// collision check has to agree with the RPC's real behaviour, not an idealised symmetric one,
-// or a client could see "no collision" in the UI while the RPC quietly kills a URL already
-// emailed to that buyer (or the reverse: a false collision warning for a name that wouldn't
-// actually replace anything). Both sides of that check live here so there is exactly one
-// definition of "the same buyer".
-
-/** Trim, then case-fold. Nothing else — no unicode normalisation, no collapsing internal
- * whitespace. This is stricter than the RPC's own SQL (which only trims its input parameter,
- * trusting the stored column to already be trimmed) — trimming both sides here is a defensive
- * choice so this comparison doesn't depend on that invariant holding for every historical row,
- * not a claim that the SQL does the same. Adding more than trim+case-fold would risk this and
- * the RPC disagreeing about what counts as the same buyer. */
-export function normaliseBuyerName(name: string): string {
-  return name.trim().toLowerCase();
-}
+// removed) — and replaces it, silently, by design, from the DB's point of view. The app-side
+// collision check (createBuyerScreenerLink, actions.ts) uses a DB-side `.ilike()` against that
+// same recipient_name column rather than fetching every candidate and comparing in TS — which
+// is why the only thing this file still needs to own is making that ILIKE pattern behave like
+// a literal string, not a wildcard search.
+//
+// (Fix round 3, item 7: this file used to also export normaliseBuyerName/buyerNameMatches, a
+// TS-side "same buyer" comparison from before the collision check moved to DB-side ilike. They
+// had no production caller left — only their own tests — so they were deleted rather than kept
+// as an unused second definition of "the same buyer" alongside the DB's real one below.)
 
 /**
  * Postgres ILIKE treats `%` (any run of characters) and `_` (any single character) as
@@ -29,12 +20,18 @@ export function normaliseBuyerName(name: string): string {
  * "A_B Studios" would otherwise turn into a wildcard pattern and the collision check could
  * match — or fail to match — the wrong rows. Escaping makes ILIKE treat the value as a
  * literal (still case-insensitive) string.
+ *
+ * `*` needs the same treatment for a different reason: PostgREST itself (not Postgres) maps
+ * an unescaped `*` to `%` in a `like`/`ilike` filter value before it ever reaches the
+ * database — a documented convenience so a URL doesn't have to percent-encode `%25`. A buyer
+ * named "A*B" would otherwise act as "A" + any run of characters + "B" in the collision check
+ * this escapes for (createBuyerScreenerLink's `.ilike()` call). `\*` is how PostgREST spells a
+ * literal asterisk, so the escape output must produce that, not a bare `*`.
  */
 export function escapeIlikePattern(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-}
-
-/** True when two buyer names are "the same buyer" under the DB's own matching rule. */
-export function buyerNameMatches(a: string, b: string): boolean {
-  return normaliseBuyerName(a) === normaliseBuyerName(b);
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_")
+    .replace(/\*/g, "\\*");
 }

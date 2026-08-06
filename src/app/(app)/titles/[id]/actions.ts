@@ -181,6 +181,12 @@ export async function createBuyerScreenerLink(input: {
       .eq("title_id", input.titleId)
       .eq("purpose", "screener_view")
       .is("revoked_at", null)
+      // Fix round 3, item 7: an EXPIRED link is already dead to the buyer — the RPC's own
+      // match predicate (20260806000300) only checks revoked_at is null, so calling create
+      // again for that name silently revokes-and-replaces it with no live URL actually being
+      // killed. Warning here anyway would block the ordinary "their old link lapsed, send a
+      // new one" case behind an unnecessary confirmation click.
+      .gt("expires_at", new Date().toISOString())
       .ilike("recipient_name", escapeIlikePattern(recipient))
       // At most one live row can match a given name (the RPC enforces that), so 1 would
       // suffice; 5 is a small defensive margin, not a real list — this is an existence check,

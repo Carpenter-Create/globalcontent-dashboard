@@ -19,11 +19,17 @@ type Stage = "identity" | "code" | "ready";
 // seam Task 5 branches on rather than duplicating the gate in a second component.
 //
 // The screener variant carries more than ScreenerRoom currently reads (catalogId, metadata,
-// posterUrl, bannerUrl, trailerUrl, recipientName, actions) — that's deliberate. Task 7 (this
-// file's page.tsx) loads it; TitlePage (title-page.tsx) is the consumer that renders the rest.
+// posterUrl, bannerUrl, trailerUrl, actions) — that's deliberate. Task 7 (this file's
+// page.tsx) loads it; TitlePage (title-page.tsx) is the consumer that renders the rest.
 // trailerUrl is signed the same way as posterUrl/bannerUrl (see page.tsx) — the trailer is
 // promotional material, same sensitivity class as artwork, not gated behind the OTP session
 // like the screener/master.
+//
+// Deliberately NO recipientName field. The link's recipient_name is the client's own internal
+// tracking label ("tubi - dave") — it must never reach the buyer's browser at all, so it is
+// not read out of the DB row into this payload in the first place (page.tsx never selects it
+// into `ready`). `company`, passed alongside `ready` to TitlePage, is what actually renders —
+// the buyer's own typed input at the identity gate, not this link's internal label.
 export type ReadyView =
   | { mode: "download"; filename: string; bytes: number }
   | {
@@ -36,7 +42,6 @@ export type ReadyView =
       posterUrl: string | null;
       bannerUrl: string | null;
       trailerUrl: string | null;
-      recipientName: string | null;
       actions: BuyerActions;
     };
 
@@ -118,11 +123,11 @@ export function PortalFlow({
   // uses. It also owns its own error surface, since its actions (watch, three downloads)
   // outnumber the single error slot the card stages share.
   if (stage === "ready" && ready.mode === "screener") {
-    // `company` (not `ready.recipientName`) is what the "Prepared for" line renders: the
-    // link's recipient_name is the CLIENT's own internal tracking label ("tubi - dave",
-    // "Roku (2nd attempt)") and must never reach an external buyer. `company` is what the
-    // buyer themselves just typed at the identity gate — already local state here, already
-    // required, so no extra query is needed.
+    // `company` is what the "Prepared for" line renders — `ready` carries no recipient-name
+    // field at all (see ReadyView above): the link's recipient_name is the CLIENT's own
+    // internal tracking label ("tubi - dave", "Roku (2nd attempt)") and must never reach an
+    // external buyer. `company` is what the buyer themselves just typed at the identity gate —
+    // already local state here, already required, so no extra query is needed.
     return <TitlePage ready={ready} company={company} />;
   }
 

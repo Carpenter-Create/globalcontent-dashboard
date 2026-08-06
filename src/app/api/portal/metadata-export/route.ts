@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PORTAL } from "@/lib/portal";
+import { PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { resolveBuyerLink } from "@/lib/portal-session";
 import { parseExportSpec, BUYER_EXPORT_TEMPLATE } from "@/lib/export-spec";
 import { buildExportRows, toXlsx } from "@/lib/export-engine";
@@ -17,8 +17,12 @@ export async function POST(req: Request) {
   const raw = (await cookies()).get(PORTAL.sessionCookie)?.value;
   if (!raw) return NextResponse.json({ error: "No session" }, { status: 401 });
 
+  // Same reasoning as master-download/route.ts: resolveBuyerLink collapses session-revoked,
+  // session-expired, link-revoked and link-expired into one null, and none of those four is a
+  // genuine authorization refusal — route them to the expired-link copy rather than a bare
+  // "Not authorized" that would surface verbatim through downloadFailureMessage's 403 branch.
   const link = await resolveBuyerLink(raw);
-  if (!link) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  if (!link) return NextResponse.json({ error: PORTAL_COPY.errorExpired }, { status: 403 });
 
   const admin = createAdminClient();
 

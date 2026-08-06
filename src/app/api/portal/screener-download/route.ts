@@ -34,8 +34,8 @@ export async function POST(req: Request) {
   if (error || !row) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   // A successful resolve already proves a screener-kind asset exists (the RPC raises
-  // otherwise), so hasScreenerAsset is true by construction here. hasTrailer/licensed don't
-  // feed canDownloadScreener; they're passed as safe defaults rather than left undefined.
+  // otherwise), so hasScreenerAsset is true by construction here. `licensed` doesn't feed
+  // canDownloadScreener; it's passed as a safe default rather than left undefined.
   const { data: titleRow } = await admin
     .from("titles")
     .select("status, screener_source")
@@ -44,7 +44,6 @@ export async function POST(req: Request) {
   const actions = buyerActionsFor({
     titleStatus: titleRow?.status ?? null,
     hasScreenerAsset: true,
-    hasTrailer: false,
     licensed: false,
     screenerIsDedicated: titleRow?.screener_source === "dedicated",
     hasMasterAsset: false, // irrelevant to canDownloadScreener — see buyer-page.ts

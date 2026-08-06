@@ -75,6 +75,16 @@ export function screenerKindFor(
   isGcStaff: boolean,
   titleStatus: string | null,
 ): AssetKind | null {
+  // Rule 11 (fix round 3, item 2): enforce at the point of action, not just at mint.
+  // 'taken_down' is deliberately still a member of POST_APPROVAL_TITLE_STATUSES — that list
+  // separately answers "was this title ever approved," which other consumers (e.g.
+  // ScreenerSourceControl's isPostApproval prop) need to keep reading true for a taken-down
+  // title. But a title that has been WITHDRAWN must not keep handing its screener (or, on the
+  // master-source default, the master itself) to a client just because it once cleared
+  // approval — that would leave create_screener_link's mint-time takedown refusal
+  // (20260806000200) enforcing nothing for every link minted before the takedown. GC staff are
+  // exempt: reviewing/auditing a taken-down title is exactly why staff can screen any status.
+  if (!isGcStaff && titleStatus === "taken_down") return null;
   if (!isGcStaff && !isPostApprovalTitleStatus(titleStatus)) return null;
   return screenerSource === "dedicated" ? "screener" : "master";
 }

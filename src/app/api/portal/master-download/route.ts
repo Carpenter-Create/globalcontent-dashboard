@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PORTAL } from "@/lib/portal";
+import { PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { assetViewUrl } from "@/lib/asset-url";
 import { resolveOrRestore } from "@/lib/s3";
 import { resolveBuyerLink } from "@/lib/portal-session";
@@ -22,8 +22,14 @@ export async function POST(req: Request) {
   const raw = (await cookies()).get(PORTAL.sessionCookie)?.value;
   if (!raw) return NextResponse.json({ error: "No session" }, { status: 401 });
 
+  // resolveBuyerLink collapses four distinct states — session revoked, session expired, link
+  // revoked, link expired — into this one null (see its own docstring). All four are honestly
+  // "this link has lapsed," never a genuine authorization refusal, so route them to the same
+  // copy the expired-link card itself shows rather than a bare "Not authorized" that
+  // downloadFailureMessage's 403 branch would otherwise surface to the buyer verbatim. Keep
+  // the 403 — do not leak WHICH of the four states it was.
   const link = await resolveBuyerLink(raw);
-  if (!link) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  if (!link) return NextResponse.json({ error: PORTAL_COPY.errorExpired }, { status: 403 });
 
   // A link with no vendor attached can never reach the master — refuse before querying.
   // (Vendors are attached by GC at deal time, Task 10; a pitch-stage link has none yet.)
@@ -89,7 +95,6 @@ export async function POST(req: Request) {
   const actions = buyerActionsFor({
     titleStatus: titleRow.status,
     hasScreenerAsset: false, // irrelevant to canDownloadMaster — not worth a second query here
-    hasTrailer: false,
     licensed,
     screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
     hasMasterAsset: Boolean(masterAsset),

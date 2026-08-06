@@ -9,7 +9,6 @@ import { isPostApprovalTitleStatus } from "@/lib/assets";
 export type BuyerPageState = {
   titleStatus: string | null;
   hasScreenerAsset: boolean;
-  hasTrailer: boolean;
   licensed: boolean;
   // Whether THIS title's screener_source is 'dedicated' — a purpose-made viewing copy, safe
   // to hand over as a file. On the (current, default) 'master' setting, "the screener" IS the
@@ -39,15 +38,29 @@ export type BuyerActions = {
 
 export function buyerActionsFor(state: BuyerPageState): BuyerActions {
   const approved = isPostApprovalTitleStatus(state.titleStatus);
+  // Rule 11 (fix round 3, item 2): enforce at the point of action, not just at mint.
+  // create_screener_link (20260806000200) refuses to MINT a new link for a taken_down title,
+  // but a link minted before the takedown re-resolves this function on every subsequent visit
+  // — so withdrawal has to be enforced here too, or the mint-time refusal protects nothing
+  // once a single link already exists. 'taken_down' stays IN isPostApprovalTitleStatus's list
+  // on purpose (it still answers "was this title ever approved" for other callers); this is a
+  // second, independent gate on top of it, not a replacement for it.
+  const withdrawn = state.titleStatus === "taken_down";
   return {
-    canWatchScreener: state.hasScreenerAsset,
+    // Watching a withdrawn title is still pitching it — same reasoning as the download gate
+    // below, just without the dedicated-source condition.
+    canWatchScreener: state.hasScreenerAsset && !withdrawn,
     // Watching is fine even on a master-sourced screener (see BuyerPageState's comment) — only
     // the one-click DOWNLOAD needs the dedicated-source gate, since a download hands over a
     // durable file rather than a re-validated stream.
-    canDownloadScreener: state.hasScreenerAsset && approved && state.screenerIsDedicated,
-    // Never inferred from the title alone: licensed means an active grant AND delivery for
-    // THIS recipient, resolved server-side. hasMasterAsset is the second, independent
-    // precondition the route itself enforces (there must be something to actually serve).
+    canDownloadScreener: state.hasScreenerAsset && approved && !withdrawn && state.screenerIsDedicated,
+    // Deliberately NOT gated on `withdrawn`: an already-licensed, already-delivered master is
+    // existing state, not a future action — rule 11's own exception ("never retroactively
+    // destroy existing state"). It is gated entirely by the delivery's own status, which
+    // already excludes 'taken_down' (master-licence.ts's ACTIVE_DELIVERY_STATUSES). Never
+    // inferred from the title alone: licensed means an active grant AND delivery for THIS
+    // recipient, resolved server-side. hasMasterAsset is the second, independent precondition
+    // the route itself enforces (there must be something to actually serve).
     canDownloadMaster: state.licensed && state.hasMasterAsset,
     canDownloadMetadata: true,
   };

@@ -19,7 +19,11 @@ import { PORTAL } from "@/lib/portal";
 import { POST } from "./route";
 
 const RAW_TOKEN = "raw-session-token";
-const RESOLVED_ROW = { storage_key: "orgs/o1/titles/t1/master/x/file.mov", link_id: "link-1", session_id: "session-1", title_id: "title-1" };
+// Fix round 3, item 7: this fixture backs the one green (200) path in the suite below, which
+// asserts `screener_source: "dedicated"` — a `/master/`-shaped key there was incoherent (the
+// one passing case claimed to be "dedicated source, master file"). A dedicated screener's
+// storage key lives under a `screener/` prefix, same convention as assetKey() (lib/assets.ts).
+const RESOLVED_ROW = { storage_key: "orgs/o1/titles/t1/screener/x/file.mov", link_id: "link-1", session_id: "session-1", title_id: "title-1" };
 
 function mockCookie() {
   vi.mocked(cookies).mockResolvedValue({

@@ -16,7 +16,7 @@ import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveOrRestore } from "@/lib/s3";
 import { assetViewUrl } from "@/lib/asset-url";
-import { PORTAL } from "@/lib/portal";
+import { PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { POST } from "./route";
 
 const FAR_FUTURE = new Date(Date.now() + 3_600_000).toISOString();
@@ -80,6 +80,24 @@ function fakeAdmin(handlers: Record<string, Handler>) {
 }
 
 describe("POST /api/portal/master-download", () => {
+  // Fix round 3, item 5: resolveBuyerLink collapses session-revoked, session-expired,
+  // link-revoked and link-expired into one null return. Before this fix the route turned
+  // that into a bare {"error":"Not authorized"} — which describeDownloadFailure/
+  // downloadFailureMessage's 403 branch then surfaced to the buyer VERBATIM, instead of the
+  // "contact your Global Content representative" copy an actually-lapsed link deserves.
+  it("routes a lapsed session to the expired-link copy, not a bare 'Not authorized'", async () => {
+    mockCookie();
+    fakeAdmin({
+      portal_sessions: () => ({ data: null, error: null }),
+    });
+
+    const res = await POST(new Request("http://test/", { method: "POST" }));
+    const body = (await res.json()) as { error?: string };
+
+    expect(res.status).toBe(403);
+    expect(body.error).toBe(PORTAL_COPY.errorExpired);
+  });
+
   it("refuses a link with no vendor_id WITHOUT ever querying deliveries", async () => {
     mockCookie();
     const admin = fakeAdmin({
