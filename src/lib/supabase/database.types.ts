@@ -1603,10 +1603,6 @@ export type Database = {
         Args: { p_tier: Database["public"]["Enums"]["tier_enum"] }
         Returns: number
       }
-      title_vendor_licensed: {
-        Args: { p_title_id: string; p_vendor_id: string }
-        Returns: boolean
-      }
     }
     Enums: {
       asset_kind:

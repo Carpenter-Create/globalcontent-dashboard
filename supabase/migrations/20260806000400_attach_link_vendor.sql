@@ -83,8 +83,9 @@
 -- org, so that claim was simply wrong, not a real constraint.
 --
 -- DESTRUCTIVE OPS (approved before apply): CREATE two new functions —
--- public.title_vendor_licensed(uuid, uuid) and public.attach_link_vendor(uuid, uuid, boolean) —
--- each with its own grant, no overloads. NO trigger of any kind is added to portal_links (the
+-- public.title_vendor_licensed(uuid, uuid), granted to NO ONE but its owner (fix round 2, item
+-- 2 — see its own header above), and public.attach_link_vendor(uuid, uuid, boolean), granted to
+-- authenticated — no overloads for either. NO trigger of any kind is added to portal_links (the
 -- fix-round-1 correction above). No table altered, no column added or dropped, no row deleted.
 -- Forward-only. To roll back: drop both functions — no other object depends on either.
 --
@@ -96,6 +97,17 @@
 --    own follow-up already named the right long-term fix — a shared
 --    portal_resolve_buyer_master RPC both sides call — as future work, not this migration's
 --    job); noted rather than silently repeated a third time without comment.
+--
+--    NOT granted to authenticated (fix round 2, item 2). It is SECURITY DEFINER, joins
+--    deliveries to rights_grants with RLS bypassed, and performs no member_can/is_gc_staff/org
+--    check of its own — that is fine for its only actual caller, attach_link_vendor, which is
+--    itself SECURITY DEFINER and resolves it in owner context regardless of any grant. Granting
+--    it to authenticated as well would turn it into a cross-tenant oracle any signed-in user
+--    (a client in a wholly different org) could call directly to learn whether ANY (title,
+--    vendor) pair anywhere has an active grant and delivery — this repo already rejected that
+--    exact shape for can_deliver (20260718000400: "Least privilege: no client caller for
+--    can_deliver yet (deliveries seam)."). Revoked from authenticated here for the same reason,
+--    mirroring how 20260726000800 also never grants tg_audit_portal_session to anyone.
 -- ============================================================================
 create or replace function public.title_vendor_licensed(p_title_id uuid, p_vendor_id uuid)
   returns boolean
@@ -120,8 +132,9 @@ as $$
   );
 $$;
 
-revoke execute on function public.title_vendor_licensed(uuid, uuid) from public, anon;
-grant  execute on function public.title_vendor_licensed(uuid, uuid) to authenticated;
+-- No grant to authenticated (see header) — attach_link_vendor resolves this in owner context
+-- as a SECURITY DEFINER function, regardless of any grant to the calling role.
+revoke execute on function public.title_vendor_licensed(uuid, uuid) from public, anon, authenticated;
 
 -- ============================================================================
 -- 2. attach_link_vendor — GC-operate only. See header for the judgement calls, detach, and audit.

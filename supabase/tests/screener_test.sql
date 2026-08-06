@@ -600,6 +600,12 @@ select throws_ok(
 -- so the first-attach licence guard does not fire here — that path is proven on link_v_amazon
 -- below. The audit row is checked for exact before/after AND for the absence of the fields a
 -- whole-row trigger would have leaked (fix round 1, item 1's regression test).
+--
+-- ROW COUNT CHECK (fix round 2, item 1): this is the FIRST attach_link_vendor call on link_v in
+-- the whole file — the two throws_ok calls just above raise before reaching the insert, so they
+-- write no row. Exactly ONE row matches (entity_id = link_v, action = 'attach_vendor') at this
+-- point; `order by at desc limit 1` needs no disambiguating predicate here. (It does two blocks
+-- down, once the reassignment adds a second row — see the note there.)
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select lives_ok(
@@ -646,6 +652,16 @@ select is(
 -- With p_force := true it succeeds — and the transition is captured in audit_log as a single
 -- vendor_id-only row (judgement call 1's other half: allowed, but never silent), which is
 -- checked below for the correct before/after AND for the absence of live-credential fields.
+--
+-- DISAMBIGUATION (fix round 2, item 1): two rows now match (entity_id = link_v, action =
+-- 'attach_vendor') — the first attach above and this reassignment — and `at` defaults to
+-- now(), i.e. transaction_timestamp(), which is IDENTICAL for every row in this file: the
+-- whole suite runs inside one begin/rollback. `order by at desc limit 1` has no tiebreak
+-- between equal timestamps, so which of the two rows a bounded top-N sort returns is not
+-- something this test may assume. Every query below that targets THIS reassignment's row
+-- additionally filters on `after->>'vendor_id' = t.vendor2`, which only the reassignment row
+-- satisfies (the first attach's `after` is t.vendor) — that predicate alone narrows the match
+-- to exactly one row; `order by ... limit 1` is kept only as defensive belt-and-braces.
 select lives_ok(
   format($$ select public.attach_link_vendor(%L, %L, true) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
   'forced reassignment to a different vendor succeeds');
@@ -655,29 +671,42 @@ select is(
 select is(
   (select (before->>'vendor_id')::uuid from public.audit_log
      where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+       and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
      order by at desc limit 1),
   current_setting('t.vendor')::uuid, 'the reassignment audits the OLD vendor_id as "before"');
 select is(
   (select (after->>'vendor_id')::uuid from public.audit_log
      where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+       and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
      order by at desc limit 1),
   current_setting('t.vendor2')::uuid, 'the reassignment audits the NEW vendor_id as "after"');
 
 -- REGRESSION GUARD for fix round 1, item 1: the whole reason a table-wide trigger was wrong.
 -- If a future change ever goes back to to_jsonb(row), these three fail immediately.
+--
+-- Same two rows match here as above (still entity_id = link_v, action = 'attach_vendor'), so
+-- the same disambiguating predicate is required — even though, AS WRITTEN TODAY, both rows
+-- would give the same true/false answer (neither ever carries these keys, by construction).
+-- Relying on that coincidence would be exactly the kind of test-theatre this repo has been
+-- burned by before (a bypass and a correct refusal returning the same observable result,
+-- masking the bypass — Task 9's fix-round-2 note): pin these to the SAME specific row the
+-- before/after assertions above just proved, not to "whichever of two rows happens to match."
 select is(
   (select (after ? 'share_token') from public.audit_log
      where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+       and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
      order by at desc limit 1),
   false, 'the audit row''s "after" never carries share_token (the live, un-hashed portal credential)');
 select is(
   (select (after ? 'token_hash') from public.audit_log
      where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+       and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
      order by at desc limit 1),
   false, 'the audit row''s "after" never carries token_hash');
 select is(
   (select (after ? 'recipient_name') from public.audit_log
      where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+       and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
      order by at desc limit 1),
   false, 'the audit row''s "after" never carries recipient_name (external-party PII)');
 
@@ -703,6 +732,11 @@ select is(
 -- DETACH (fix round 1, item 4): p_vendor_id passed as an explicit null removes the vendor. No
 -- force needed — the safe direction, the mirror image of judgement call 1 — and it is audited
 -- (action distinct from attach: 'detach_vendor') the same way any other genuine transition is.
+--
+-- ROW COUNT CHECK (fix round 2, item 1): action = 'detach_vendor' has never been inserted for
+-- link_v before this call (the two prior transitions on this link were both 'attach_vendor',
+-- a different action string, so they don't share this filter). Exactly ONE row matches below —
+-- no disambiguating predicate needed, unlike the 'attach_vendor' queries above.
 select lives_ok(
   format($$ select public.attach_link_vendor(%L, null) $$, current_setting('t.link_v')),
   'GC detaches the vendor from a buyer link');
