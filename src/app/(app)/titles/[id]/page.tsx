@@ -145,11 +145,19 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const portalBase = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
   // share_token is nullable in the schema but never null for a non-revoked row in practice;
   // filter defensively rather than risk building a /portal/null URL.
+  //
+  // recipient_name is passed through as-is (string | null), NOT coerced to a placeholder here.
+  // GC mints a screener link during chain-of-title review with no recipient at all, and since
+  // 20260806000300 that row is visible on this list too. Coercing null to a label string at
+  // this layer would make "no buyer attached" indistinguishable, by type, from a real typed
+  // name — which is exactly what let a stale build of this page pass a placeholder string into
+  // the "Replace link" action as if it were real recipient data. BuyerShareControl owns the
+  // null-aware label and gates the replace action on the real type, not string comparison.
   const buyerLinks = (shareLinks ?? [])
     .filter((l): l is typeof l & { share_token: string } => !!l.share_token)
     .map((l) => ({
       linkId: l.id,
-      recipientName: l.recipient_name ?? "Unnamed buyer",
+      recipientName: l.recipient_name,
       url: `${portalBase}/portal/${l.share_token}`,
       expiresAt: l.expires_at,
     }));

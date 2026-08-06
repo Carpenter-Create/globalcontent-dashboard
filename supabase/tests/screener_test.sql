@@ -9,10 +9,15 @@
 -- link per (title, recipient) now, full stop — GC and a client sharing with the same buyer
 -- collide on purpose, and a client can read (and revoke) a GC-authored screener_view row for
 -- their own org's title. The assertions below that used to prove the partition held now prove
--- the opposite on purpose; see the inline comments at each one.
+-- the opposite on purpose; see the inline comments at each one. Also covers the two gaps flagged
+-- in fix round 1: an explicit positive for the client-revokes-GC's-link grant (the single most
+-- consequential capability this migration adds — read-only visibility means nothing if the
+-- client can't act on it), and a second-org negative on the widened portal_links_select client
+-- branch (the one thing this migration actually widened, so it is exactly where a cross-tenant
+-- regression would hide).
 
 begin;
-select plan(53);
+select plan(57);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -67,6 +72,18 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
 insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes)
   values (gen_random_uuid(), current_setting('t.org')::uuid, current_setting('t.title_p')::uuid,
           'master', 'orgs/x/titles/p/master/film.mov', 'c0ffee02', 1000);
+
+-- A second, wholly separate org+member, for the cross-tenant negative on the widened
+-- portal_links_select client branch further down. Minimal on purpose: no title of its own is
+-- needed, since the assertion is that this member sees NONE of org A's rows, not that they see
+-- their own.
+select set_config('t.org_b',   gen_random_uuid()::text, false);
+select set_config('t.owner_b', gen_random_uuid()::text, false);
+insert into auth.users (id) values (current_setting('t.owner_b')::uuid);
+insert into public.organizations (id, name, status)
+  values (current_setting('t.org_b')::uuid, 'Org B', 'active');
+insert into public.memberships (user_id, org_id, role)
+  values (current_setting('t.owner_b')::uuid, current_setting('t.org_b')::uuid, 'account_owner');
 
 insert into public.rights_grants (id, org_id, title_id, rights_type, territory_mode, territories, effective_from)
   values (current_setting('t.grant')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
@@ -130,6 +147,32 @@ select is(
   (select count(*) from public.portal_links
      where title_id = current_setting('t.title_c')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
   1, 'exactly one active link remains for the shared recipient, regardless of who authored either side');
+
+-- THE headline grant of this migration, proven directly: a client with 'operate' on the title's
+-- org can revoke a screener_view link GC created, not merely read it. Read-only visibility of
+-- GC's outbound activity would be a half-measure — the founder's stated reason for removing the
+-- read partition (this is the client's title and their revenue) applies just as much to acting
+-- on it. Named 'Amazon' so its recipient doesn't match tok_c_gc/tok_c_client above (both
+-- unnamed — one already revoked, one still the client's own live link) or the Tubi/Roku
+-- fixtures created below, and so this revoke can't be mistaken for the recipient-collision
+-- revoke inside create_screener_link — this is exercising revoke_portal_link specifically.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_c'), 'tok_c_gc_amazon', 'Amazon'),
+  'GC creates a named screener link for the shared title');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.revoke_portal_link((select id from public.portal_links where token_hash = %L)) $$,
+         'tok_c_gc_amazon'),
+  'client with ''operate'' revokes a GC-authored screener link on their own org''s title');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select is(
+  (select revoked_at is not null from public.portal_links where token_hash = 'tok_c_gc_amazon'),
+  true, 'the client''s revoke actually took (checked as GC, which sees every row regardless of author)');
 
 -- Back to the client identity: everything from here through the case-insensitivity block
 -- below creates and inspects the CLIENT's own links, which requires 'operate' as t.owner, not
@@ -374,6 +417,17 @@ select is(
 select is(
   (select count(*) from public.portal_links where purpose = 'master_download')::int, 0,
   'client SELECT on master_download portal_links returns nothing (GC-only, unchanged)');
+
+-- Cross-tenant negative on the branch this migration actually widened. Widening
+-- portal_links_select's client branch is exactly the kind of change where a cross-org leak
+-- would hide — a member of a completely different org (t.org_b, no membership or relationship
+-- to t.org whatsoever) must see NONE of org A's title_c rows, screener_view or otherwise,
+-- despite that policy branch no longer caring about author within an org.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner_b'), 'role','authenticated')::text, true);
+select is(
+  (select count(*) from public.portal_links where title_id = current_setting('t.title_c')::uuid)::int, 0,
+  'a member of a different org sees zero portal_links rows for org A''s title (cross-tenant intact under the widened policy)');
 
 -- ============================================================================
 -- append-only: nobody can UPDATE/DELETE screener_view_events, incl. service_role

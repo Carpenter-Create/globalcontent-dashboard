@@ -67,7 +67,8 @@ export function isPostApprovalTitleStatus(status: string | null): boolean {
  *              dedicated-screener-only rule for clients.
  *
  * NOTE this governs WATCHING IN-APP only. Minting a shareable outside link is a separate
- * act with its own authorization (create_screener_link, still gc_staff-only).
+ * act with its own authorization (create_screener_link — GC or an operate-capable org member
+ * since 20260806000200; no longer gc_staff-only).
  */
 export function screenerKindFor(
   screenerSource: string | null,
