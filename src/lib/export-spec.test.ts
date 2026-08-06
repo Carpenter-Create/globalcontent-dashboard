@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseExportSpec, STANDARD_EXPORT_TEMPLATE, exportSpecSchema } from "@/lib/export-spec";
+import { parseExportSpec, STANDARD_EXPORT_TEMPLATE, BUYER_EXPORT_TEMPLATE, exportSpecSchema } from "@/lib/export-spec";
 
 describe("parseExportSpec", () => {
   it("accepts a well-formed spec covering every source kind and transform", () => {
@@ -134,5 +134,19 @@ describe("STANDARD_EXPORT_TEMPLATE", () => {
     // pins the intent so a future metadata.ts rename fails loudly here too.
     const fieldColumns = STANDARD_EXPORT_TEMPLATE.columns.filter((c) => c.source.kind === "field");
     expect(fieldColumns.length).toBeGreaterThan(0);
+  });
+});
+
+describe("BUYER_EXPORT_TEMPLATE", () => {
+  it("is a valid spec", () => {
+    expect(parseExportSpec(BUYER_EXPORT_TEMPLATE).ok).toBe(true);
+  });
+
+  it("omits Offer — a prospect has no offer, and showing rights granted elsewhere would be wrong", () => {
+    expect(BUYER_EXPORT_TEMPLATE.columns.some((c) => c.source.kind === "offer")).toBe(false);
+  });
+
+  it("leads with the real title", () => {
+    expect(BUYER_EXPORT_TEMPLATE.columns[0].source).toEqual({ kind: "title" });
   });
 });

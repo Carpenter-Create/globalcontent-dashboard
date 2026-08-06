@@ -60,3 +60,25 @@ export const STANDARD_EXPORT_TEMPLATE: ExportFormatSpec = {
     { header: "Offer", source: { kind: "offer" } },
   ],
 };
+
+// Buyer-facing sheet: the standard template minus Offer. A prospective buyer has no offer,
+// and listing rights already granted to other endpoints would be actively wrong.
+export const BUYER_EXPORT_TEMPLATE: ExportFormatSpec = {
+  format: "xlsx",
+  sheet_name: "Title",
+  columns: [
+    { header: "Title", source: { kind: "title" } },
+    { header: "Alternate Title", source: { kind: "field", key: "alternate_title" } },
+    { header: "Catalog ID", source: { kind: "catalog_id" } },
+    { header: "Synopsis", source: { kind: "field", key: "synopsis" } },
+    { header: "Runtime (min)", source: { kind: "field", key: "runtime_minutes" } },
+    { header: "Year", source: { kind: "field", key: "release_year" } },
+    { header: "Genre", source: { kind: "field", key: "genre" } },
+    { header: "Language", source: { kind: "field", key: "primary_language" } },
+    { header: "Country", source: { kind: "field", key: "country_of_origin" } },
+    { header: "Director", source: { kind: "field", key: "director" } },
+    { header: "Cast", source: { kind: "field", key: "cast" }, transform: { type: "list_join", delimiter: ", " } },
+    { header: "Rating", source: { kind: "field", key: "rating" } },
+    { header: "Production Company", source: { kind: "field", key: "production_company" } },
+  ],
+};
