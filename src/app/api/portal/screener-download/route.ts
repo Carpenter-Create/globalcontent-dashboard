@@ -47,6 +47,7 @@ export async function POST(req: Request) {
     licensed: false,
     screenerIsDedicated: titleRow?.screener_source === "dedicated",
     hasMasterAsset: false, // irrelevant to canDownloadScreener — see buyer-page.ts
+    hasRecipientName: false, // irrelevant to canDownloadScreener — see buyer-page.ts
   });
   if (!actions.canDownloadScreener) {
     // Distinct from "Not authorized", and honest about WHY: on the (current, default)

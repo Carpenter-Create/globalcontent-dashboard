@@ -182,6 +182,15 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const screenerKind = screenerKindFor(title.screener_source, ctx.isGcStaff, title.status);
   const screenerAvailable = screenerKind !== null && assetList.some((a) => a.kind === screenerKind);
 
+  // A BUYER link (one the client mints with a recipient's name) can only ever stream a
+  // dedicated screener — /api/portal/screener refuses the stream outright for a named
+  // recipient when screener_source is 'master' (see buyer-page.ts's hasRecipientName gate).
+  // GC's own operational link is exempt from that gate, but BuyerShareControl only ever mints
+  // buyer links, so the control needs the STRICTER of the two conditions, not screenerAvailable
+  // above (which also counts a master fallback that a buyer link cannot use).
+  const screenerReadyForBuyers =
+    title.screener_source === "dedicated" && assetList.some((a) => a.kind === "screener");
+
   return (
     <>
       <TitleHero
@@ -338,7 +347,11 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
                     hasDedicatedScreener={assetList.some((a) => a.kind === "screener")}
                   />
                   {canShareScreener ? (
-                    <BuyerShareControl titleId={title.id} links={buyerLinks} />
+                    <BuyerShareControl
+                      titleId={title.id}
+                      links={buyerLinks}
+                      screenerReadyForBuyers={screenerReadyForBuyers}
+                    />
                   ) : null}
                 </div>
               </CardBody>

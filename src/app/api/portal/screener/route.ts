@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashToken, PORTAL } from "@/lib/portal";
+import { hashToken, PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { assetViewUrl } from "@/lib/asset-url";
 import { resolveOrRestore } from "@/lib/s3";
 
@@ -12,6 +12,31 @@ export async function POST(req: Request) {
   const { data, error } = await admin.rpc("portal_resolve_screener", { p_session_token_hash: hashToken(raw) });
   const row = Array.isArray(data) ? data[0] : data;
   if (error || !row) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  // Buyer-link gate — THE authorization for this route (buyer-page.ts's canWatchScreener
+  // mirrors it so the UI doesn't offer the refused action, but that copy is not this check;
+  // this one is what actually stops the bytes). portal_resolve_screener above already
+  // resolved storage_key from the title's CURRENT screener_source, but it deliberately
+  // doesn't distinguish WHO the link is for (it also backs GC's own in-room reviewer flow,
+  // which must keep working on any status/source). recipient_name is that discriminator:
+  // non-null exactly for a client-minted buyer link (create_screener_link,
+  // 20260806000200/...300), null for GC's own operational link. On the 'master' default "the
+  // screener" IS the master byte-for-byte (screenerKindFor's comment, lib/assets.ts) — a
+  // <video> stream and a one-click download differ only in how many clicks it takes to walk
+  // off with an unwatermarked deliverable, so a buyer link gets the same refusal the download
+  // route already enforces. GC's own operational link is deliberately left unchanged: that
+  // risk predates this branch and is GC's own workflow to carry, not something to break today
+  // as collateral damage. Re-read fresh from the DB, never inferred from the page that
+  // rendered the Watch button — CLAUDE.md rule 10, never trust the client for this.
+  const [{ data: linkRow }, { data: titleRow }] = await Promise.all([
+    admin.from("portal_links").select("recipient_name").eq("id", row.link_id).maybeSingle(),
+    admin.from("titles").select("screener_source").eq("id", row.title_id).maybeSingle(),
+  ]);
+  const isBuyerLink = Boolean(linkRow?.recipient_name);
+  const screenerIsDedicated = titleRow?.screener_source === "dedicated";
+  if (isBuyerLink && !screenerIsDedicated) {
+    return NextResponse.json({ error: PORTAL_COPY.screenerStreamUnavailableNotice }, { status: 403 });
+  }
 
   // Glacier gate: a master-source screener may be in cold storage. resolveOrRestore HEADs the
   // object and auto-initiates a Standard restore on first hit; "restoring" → 409 "preparing".

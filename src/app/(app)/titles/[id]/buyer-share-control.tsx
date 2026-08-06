@@ -33,7 +33,23 @@ export type BuyerLink = {
 // create_screener_link revokes-then-creates by (title, recipient_name) case-insensitively, and
 // revoke_portal_link is capability-checked there too — so this component only renders the rows
 // the page already resolved and never re-derives who may act on them.
-export function BuyerShareControl({ titleId, links }: { titleId: string; links: BuyerLink[] }) {
+export function BuyerShareControl({
+  titleId,
+  links,
+  screenerReadyForBuyers,
+}: {
+  titleId: string;
+  links: BuyerLink[];
+  // Whether a buyer link minted right now would actually be watchable: screener_source is
+  // 'dedicated' AND a screener asset has been uploaded. /api/portal/screener refuses the
+  // STREAM (not just the download) for a named-recipient link on a master-sourced title — on
+  // that setting "the screener" IS the master byte for byte, and handing that to an unlicensed
+  // buyer over a shareable link is exactly the risk this control exists to avoid. This is a
+  // standing notice, not a one-time nudge: the source can be switched back to 'master' after a
+  // link already exists, so it has to be re-checked on every render, same as
+  // ScreenerSourceControl's own notice.
+  screenerReadyForBuyers: boolean;
+}) {
   const router = useRouter();
   const [recipient, setRecipient] = useState("");
   const [error, setError] = useState("");
@@ -76,6 +92,20 @@ export function BuyerShareControl({ titleId, links }: { titleId: string; links: 
   return (
     <div className="space-y-3">
       <p className="t-label text-ink-2">Share with a buyer</p>
+
+      {/* Notice, not a block (founder call) — the client may still want a link ready before
+          the screener is in place. Says what's wrong AND what to do, same "show the work"
+          standard as ScreenerSourceControl's own notice: silence here would be actively
+          misleading, not just uninformative — the description below this form still promises
+          "naming them lets you see who watched," which on a master-sourced title with no
+          dedicated screener is currently false: the buyer will be able to watch nothing. */}
+      {!screenerReadyForBuyers ? (
+        <InlineNotice tone="info">
+          A buyer link can only be watched once this title has a dedicated screener. Upload a
+          Screener asset above and set the source to &ldquo;Use a dedicated screener&rdquo; — until
+          then, a link created here won&rsquo;t play for its recipient.
+        </InlineNotice>
+      ) : null}
 
       {links.length > 0 ? (
         <div className="flex flex-col gap-3">

@@ -27,6 +27,17 @@ export type BuyerPageState = {
   // is an independent precondition with its own reason to be false, and collapsing them would
   // make a future "why is this button/error here" question unanswerable from the type alone.
   hasMasterAsset: boolean;
+  // Whether the link resolving THIS request names a recipient (`portal_links.recipient_name`
+  // is non-null). This is the discriminator between a client-minted BUYER link and GC's own
+  // operational screener link (minted with no recipient — chain-of-title review, a vendor
+  // reviewer, etc.). Required, not optional: 20260806000200 widened link-minting from
+  // GC-staff-only to every client account_owner/delivery_ops with no per-link limit, which
+  // means a master-sourced title's unwatermarked deliverable can now reach an unlicensed
+  // outsider through a buyer link — the same bytes GC's own workflow has always been trusted
+  // with. Making this field required (not `boolean | undefined`) forces every call site to
+  // state which kind of link it is rather than defaulting to "safe," so a caller that forgets
+  // it is a compile error, not a silently-open gate.
+  hasRecipientName: boolean;
 };
 
 export type BuyerActions = {
@@ -49,7 +60,19 @@ export function buyerActionsFor(state: BuyerPageState): BuyerActions {
   return {
     // Watching a withdrawn title is still pitching it — same reasoning as the download gate
     // below, just without the dedicated-source condition.
-    canWatchScreener: state.hasScreenerAsset && !withdrawn,
+    //
+    // The dedicated-source condition IS applied here, but only for a buyer link
+    // (hasRecipientName). On the 'master' default, "the screener" IS the master byte-for-byte
+    // (see BuyerPageState's comment on screenerIsDedicated) — a browser <video> stream and a
+    // one-click download differ only in how many clicks it takes a recipient to walk off with
+    // an unwatermarked deliverable; the earlier fix closed the download and left the stream
+    // open beside it. GC's own operational links (no recipient — chain-of-title review, a
+    // vendor reviewer under GC's own workflow) are deliberately NOT gated here: that risk
+    // predates this branch and is GC's to carry, and breaking a working internal flow today
+    // would be collateral damage, not a fix. Do not "tidy" this into a blanket
+    // `screenerIsDedicated` check — that would break GC's own screening of a title that has
+    // never had a dedicated screener uploaded.
+    canWatchScreener: state.hasScreenerAsset && !withdrawn && (!state.hasRecipientName || state.screenerIsDedicated),
     // Watching is fine even on a master-sourced screener (see BuyerPageState's comment) — only
     // the one-click DOWNLOAD needs the dedicated-source gate, since a download hands over a
     // durable file rather than a re-validated stream.

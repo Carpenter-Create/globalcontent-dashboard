@@ -97,6 +97,12 @@ export const PORTAL_COPY = {
   // item 3) — "show the work": silence where a download button would otherwise be reads as a
   // bug, not a deliberate state.
   screenerDownloadUnavailableNotice: "A downloadable screener isn't available for this title.",
+  // Buyer-link stream refusal (see /api/portal/screener/route.ts): a named-recipient link on a
+  // master-sourced title is refused the stream outright, not just the download — the page
+  // must say why rather than leave a dead player, same "show the work" reasoning as the
+  // download notice above it.
+  screenerStreamUnavailableNotice:
+    "This screener isn't available for this link yet. Contact your Global Content representative.",
   downloadMetadataButton: "Download metadata",
   downloadMasterHeading: "Licensed master",
   downloadMasterButton: "Download master",

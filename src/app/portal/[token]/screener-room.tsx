@@ -35,6 +35,12 @@ export function ScreenerRoom({
       const r = await fetch("/api/portal/screener", { method: "POST" });
       if (cancelled) return;
       if (r.status === 409) return setError(PORTAL_COPY.errorPreparing);
+      // The route's own buyer-link gate (screener/route.ts) — a race, not the common path:
+      // buyer-page.ts's canWatchScreener mirrors this same rule, so the Watch button (and
+      // thus this component) shouldn't normally mount when it would fire. It exists for the
+      // window between this page's render and the click landing (e.g. the client flips
+      // screener_source back to 'master' in between) — say why, don't leave a dead player.
+      if (r.status === 403) return setError(PORTAL_COPY.screenerStreamUnavailableNotice);
       if (!r.ok) return setError(PORTAL_COPY.errorExpired);
       const { url } = await r.json();
       setSrc(url);

@@ -98,6 +98,7 @@ export async function POST(req: Request) {
     licensed,
     screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
     hasMasterAsset: Boolean(masterAsset),
+    hasRecipientName: false, // irrelevant to canDownloadMaster — see buyer-page.ts
   });
   if (!actions.canDownloadMaster) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });

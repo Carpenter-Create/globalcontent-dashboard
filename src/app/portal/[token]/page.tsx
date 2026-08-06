@@ -149,6 +149,12 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       licensed,
       screenerIsDedicated,
       hasMasterAsset,
+      // `link` was already selected with recipient_name (the initial query above) to decide
+      // link validity — reused here rather than a second query. This is the same
+      // discriminator /api/portal/screener's own gate re-reads server-side (non-null =
+      // client-minted buyer link); passing it through here is what keeps the Watch button
+      // from being offered for a request that route would then refuse.
+      hasRecipientName: Boolean(link.recipient_name),
     });
 
     return (
