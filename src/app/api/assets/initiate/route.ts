@@ -29,7 +29,9 @@ export async function POST(req: Request) {
   const key = assetKey(op.orgId, titleId, kind, filename);
   let uploadId: string;
   try {
-    uploadId = await createMultipart(key, contentType);
+    // Only masters carry the archive tag. Artwork, captions and screeners stay in the
+    // instant tiers — they are small and user-facing.
+    uploadId = await createMultipart(key, contentType, { archivable: kind === "master" });
   } catch (e) {
     console.error(`[assets:initiate] ${e instanceof Error ? e.message : e}`);
     return NextResponse.json({ error: "Could not start upload. Please try again." }, { status: 502 });
