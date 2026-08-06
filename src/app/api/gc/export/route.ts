@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   const spec = parsed && parsed.ok ? parsed.spec : STANDARD_EXPORT_TEMPLATE;
 
   const { data: titleRows, error: titlesErr } = await supabase
-    .from("titles").select("id, catalog_id").in("id", titleIds).order("catalog_id");
+    .from("titles").select("id, catalog_id, title").in("id", titleIds).order("catalog_id");
   const { data: metaRows, error: metaErr } = await supabase
     .from("title_metadata").select("title_id, data").in("title_id", titleIds);
   const { data: dlvRows, error: dlvErr } = await supabase
@@ -89,6 +89,7 @@ export async function POST(req: Request) {
 
   const inputs: TitleExportInput[] = (titleRows ?? []).map((t) => ({
     catalogId: t.catalog_id ?? "",
+    title: t.title ?? "",
     metadata: metaByTitle.get(t.id) ?? {},
     offer: offerByTitle.get(t.id) ?? [],
   }));

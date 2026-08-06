@@ -64,6 +64,7 @@ describe("renderOffer", () => {
 function title(overrides: Partial<TitleExportInput> = {}): TitleExportInput {
   return {
     catalogId: "GC-0000001",
+    title: "Film Name",
     metadata: {},
     offer: [],
     ...overrides,
@@ -206,6 +207,24 @@ describe("buildExportRows", () => {
     };
     const { warnings } = buildExportRows(spec, [title({ offer: [] })]);
     expect(warnings).toEqual([]);
+  });
+
+  it("resolves the title source from the record, not from metadata", () => {
+    const spec: ExportFormatSpec = {
+      format: "xlsx",
+      columns: [{ header: "Title", source: { kind: "title" } }],
+    };
+    const { rows } = buildExportRows(spec, [title({ title: "Monarch" })]);
+    expect(rows[0][0]).toBe("Monarch");
+  });
+
+  it("does not warn 'blank' for a title source", () => {
+    const spec: ExportFormatSpec = {
+      format: "xlsx",
+      columns: [{ header: "Title", source: { kind: "title" } }],
+    };
+    const { warnings } = buildExportRows(spec, [title({ title: "Monarch" })]);
+    expect(warnings).toHaveLength(0);
   });
 });
 

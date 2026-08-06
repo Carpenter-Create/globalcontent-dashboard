@@ -15,6 +15,7 @@ const transform = z.discriminatedUnion("type", [
 const source = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("field"), key: z.enum(FIELD_KEYS) }),
   z.object({ kind: z.literal("catalog_id") }),
+  z.object({ kind: z.literal("title") }),
   z.object({ kind: z.literal("offer") }),
   z.object({ kind: z.literal("static"), value: z.string() }),
 ]);
@@ -45,7 +46,8 @@ export const STANDARD_EXPORT_TEMPLATE: ExportFormatSpec = {
   sheet_name: "Titles",
   columns: [
     { header: "Catalog ID", source: { kind: "catalog_id" } },
-    { header: "Title", source: { kind: "field", key: "alternate_title" } },
+    { header: "Title", source: { kind: "title" } },
+    { header: "Alternate Title", source: { kind: "field", key: "alternate_title" } },
     { header: "Synopsis", source: { kind: "field", key: "synopsis" } },
     { header: "Runtime (min)", source: { kind: "field", key: "runtime_minutes" } },
     { header: "Year", source: { kind: "field", key: "release_year" } },
