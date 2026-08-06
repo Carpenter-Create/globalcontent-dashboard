@@ -98,9 +98,25 @@ describe("POST /api/portal/master-download", () => {
 
   it("does not license a delivery that exists for a DIFFERENT vendor", async () => {
     mockCookie();
+    // Everything downstream of the licence check is deliberately made to SUCCEED here (a real
+    // master asset, an available restore, a working signer, a clean audit insert) so that 403
+    // can ONLY come from the licence gate itself. A version of this test that also lacked a
+    // master asset would still return 403 even if the vendor scope were silently dropped —
+    // masked by the separate "no master asset" gate rather than caught by this one. Confirmed
+    // by actually deleting `.eq("vendor_id", ...)` from the route: with a master asset present
+    // (as here), the test then fails with 200 instead of 403; with no master asset (the
+    // earlier version), it stayed green — see task-9-report.md, fix round 2.
+    vi.mocked(resolveOrRestore).mockResolvedValue({ status: "available" });
+    vi.mocked(assetViewUrl).mockResolvedValue("https://signed.example/master");
+
     // The only delivery in the world for this title is for vendor-OTHER, not this link's
-    // vendor-1. The handler applies the recorded .eq() filters the same way Postgres would —
-    // if the route ever dropped the vendor_id scope, this delivery would wrongly match.
+    // vendor-1. The handler applies ONLY the filters actually recorded: an absent filter key
+    // is PERMISSIVE, the way an omitted `.eq()` in a real query would be — so if the route
+    // ever dropped `.eq("vendor_id", ...)`, `filters` would have no "vendor_id" key, every()
+    // would pass on title_id alone, and this vendor-OTHER row would wrongly surface and
+    // license the buyer. (Comparing against `filters.vendor_id` directly, as an earlier
+    // version of this test did, is `undefined` when the filter is absent — exactly as
+    // "not equal" as a real mismatch, so that version could not tell the two cases apart.)
     const allDeliveries = [
       { title_id: "title-1", vendor_id: "vendor-OTHER", status: "live", territory: "US", rights_grants: WORLD_GRANT },
     ];
@@ -109,12 +125,13 @@ describe("POST /api/portal/master-download", () => {
       portal_links: () => ({ data: LINK_WITH_VENDOR, error: null }),
       titles: () => ({ data: { status: "live" }, error: null }),
       deliveries: (filters) => ({
-        data: allDeliveries.filter(
-          (d) => d.title_id === filters.title_id && d.vendor_id === filters.vendor_id,
+        data: allDeliveries.filter((d) =>
+          Object.entries(filters).every(([k, v]) => (d as Record<string, unknown>)[k] === v),
         ),
         error: null,
       }),
-      // No "assets" handler: canDownloadMaster must be false before the route ever gets there.
+      assets: () => ({ data: { storage_key: "orgs/o1/titles/title-1/master/x/file.mov" }, error: null }),
+      portal_access_events: () => ({ data: null, error: null }),
     });
 
     const res = await POST(new Request("http://test/", { method: "POST" }));
@@ -147,5 +164,30 @@ describe("POST /api/portal/master-download", () => {
 
     expect(res.status).toBe(500);
     expect(body.url).toBeUndefined();
+  });
+
+  // Fix round 2, item 5: a correctly-scoped, correctly-active delivery is not enough on its
+  // own — there must also be a `kind = 'master'` asset row to actually serve. Before this fix
+  // buyerActionsFor.canDownloadMaster was `licensed` alone, so page.tsx could render the
+  // button for exactly this state and the route would then fail it.
+  it("refuses a properly licensed delivery when no master asset exists yet", async () => {
+    mockCookie();
+    fakeAdmin({
+      portal_sessions: () => ({ data: VALID_SESSION, error: null }),
+      portal_links: () => ({ data: LINK_WITH_VENDOR, error: null }),
+      titles: () => ({ data: { status: "live" }, error: null }),
+      deliveries: (filters) => ({
+        data:
+          filters.title_id === "title-1" && filters.vendor_id === "vendor-1"
+            ? [{ status: "live", territory: "US", rights_grants: WORLD_GRANT }]
+            : [],
+        error: null,
+      }),
+      assets: () => ({ data: null, error: null }),
+    });
+
+    const res = await POST(new Request("http://test/", { method: "POST" }));
+
+    expect(res.status).toBe(403);
   });
 });

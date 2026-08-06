@@ -3,6 +3,7 @@ import { hashToken, PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { assetViewUrl } from "@/lib/asset-url";
 import { buyerActionsFor } from "@/lib/buyer-page";
 import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
+import { DETAIL_LIST } from "@/lib/list-bounds";
 import { Card, CardBody } from "@/components/ui/card";
 import { PortalFlow } from "./portal-flow";
 
@@ -59,6 +60,11 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
               )
               .eq("title_id", titleId)
               .eq("vendor_id", link.vendor_id)
+              // Bounded per list-bounds.ts convention (fix round 2, item 4) — this lost its
+              // bound when it became a full per-territory read instead of a `.limit(1)`
+              // existence check; DETAIL_LIST is generous for one title×vendor pair's delivery
+              // rows, but the rule is "no list read ships unbounded," not "unless it's small."
+              .limit(DETAIL_LIST)
           : Promise.resolve({ data: null }),
       ]);
 
@@ -123,12 +129,20 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
     }));
     const licensed = isMasterLicensed(deliveries);
 
+    // Fix round 2, item 5: `licensed` alone isn't enough to offer the master — the route also
+    // requires an actual `kind = 'master'` asset row to exist. assetList (above) already
+    // carries every asset for this title unfiltered by kind, so this reads off data already
+    // fetched rather than a fifth query. Without this, a licensed delivery with no master
+    // uploaded yet rendered the "Download master" card, and the route then 403'd it.
+    const hasMasterAsset = assetList.some((a) => a.kind === "master");
+
     const actions = buyerActionsFor({
       titleStatus: titleRow?.status ?? null,
       hasScreenerAsset: assetList.some((a) => a.kind === screenerKind),
       hasTrailer: assetList.some((a) => a.kind === "trailer"),
       licensed,
       screenerIsDedicated,
+      hasMasterAsset,
     });
 
     return (

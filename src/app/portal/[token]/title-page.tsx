@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { Artwork } from "@/components/layout/artwork";
 import { METADATA_FIELDS, GENRES, type FieldDef } from "@/lib/metadata";
-import { PORTAL_COPY } from "@/lib/portal";
+import { PORTAL_COPY, downloadFailureMessage } from "@/lib/portal";
 import { ScreenerRoom } from "./screener-room";
 import type { ReadyView } from "./portal-flow";
 
@@ -111,6 +111,19 @@ function filenameFromContentDisposition(header: string | null): string | null {
   return /filename="?([^";]+)"?/.exec(header)?.[1] ?? null;
 }
 
+// Fix round 2, item 2: reads the route's own 403 body (if any) before deciding what to tell
+// the buyer, rather than collapsing every non-409 failure into "this link has expired." Only
+// a 403 body is parsed — 409/5xx/other never carry a message worth reading, and parsing a
+// body that isn't there would be its own bug.
+async function describeDownloadFailure(r: Response): Promise<string> {
+  let bodyError: string | undefined;
+  if (r.status === 403) {
+    const body = (await r.json().catch(() => null)) as { error?: string } | null;
+    bodyError = body?.error;
+  }
+  return downloadFailureMessage(r.status, bodyError);
+}
+
 // The buyer title page: a share-link recipient's landing view once they've passed the
 // identity→OTP gate. "A clear mixture of utility meets film aesthetic" (founder) — viewing
 // (hero, trailer, screener) and information (spec sheet) carry equal visual weight, side by
@@ -144,10 +157,7 @@ export function TitlePage({ ready, company }: { ready: ScreenerReady; company: s
     setActionError(null);
     const r = await fetch(path, { method: "POST" });
     setPending(null);
-    // A 409 means the source is still restoring from Glacier — same signal the existing
-    // download and screener routes use, never a hard failure.
-    if (r.status === 409) return setActionError(PORTAL_COPY.errorPreparing);
-    if (!r.ok) return setActionError(PORTAL_COPY.errorExpired);
+    if (!r.ok) return setActionError(await describeDownloadFailure(r));
     const { url } = await r.json();
     window.location.href = url;
   }
@@ -157,8 +167,7 @@ export function TitlePage({ ready, company }: { ready: ScreenerReady; company: s
     setActionError(null);
     const r = await fetch("/api/portal/metadata-export", { method: "POST" });
     setPending(null);
-    if (r.status === 409) return setActionError(PORTAL_COPY.errorPreparing);
-    if (!r.ok) return setActionError(PORTAL_COPY.errorExpired);
+    if (!r.ok) return setActionError(await describeDownloadFailure(r));
     const blob = await r.blob();
     const filename = filenameFromContentDisposition(r.headers.get("content-disposition")) ?? `${ready.title}.xlsx`;
     const objectUrl = URL.createObjectURL(blob);
@@ -222,6 +231,13 @@ export function TitlePage({ ready, company }: { ready: ScreenerReady; company: s
             </Button>
           )}
         </div>
+
+        {/* "Show the work" (fix round 2, item 3): a title that can be watched but has nothing
+            to download is a real, intentional state — the button just silently not being
+            there reads as a bug to an external buyer, not a deliberate choice. */}
+        {ready.actions.canWatchScreener && !ready.actions.canDownloadScreener && (
+          <p className="t-body-sm text-ink-3">{PORTAL_COPY.screenerDownloadUnavailableNotice}</p>
+        )}
 
         {watching && ready.actions.canWatchScreener && (
           // Synopsis is already shown above, next to the hero — passing null here avoids

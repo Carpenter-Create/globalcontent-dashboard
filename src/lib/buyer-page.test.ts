@@ -7,6 +7,7 @@ const base: BuyerPageState = {
   hasTrailer: true,
   licensed: false,
   screenerIsDedicated: true,
+  hasMasterAsset: true,
 };
 
 describe("buyerActionsFor", () => {
@@ -20,8 +21,18 @@ describe("buyerActionsFor", () => {
     });
   });
 
-  it("releases the master once this recipient is licensed", () => {
+  it("releases the master once this recipient is licensed AND a master asset exists", () => {
     expect(buyerActionsFor({ ...base, licensed: true }).canDownloadMaster).toBe(true);
+  });
+
+  // Fix round 2, task 9, item 5: a licensed delivery with nothing uploaded yet must not offer
+  // a button that then fails — canDownloadMaster needs BOTH preconditions independently.
+  it("withholds the master when licensed but no master asset exists yet", () => {
+    expect(buyerActionsFor({ ...base, licensed: true, hasMasterAsset: false }).canDownloadMaster).toBe(false);
+  });
+
+  it("withholds the master when a master asset exists but the recipient isn't licensed", () => {
+    expect(buyerActionsFor({ ...base, licensed: false, hasMasterAsset: true }).canDownloadMaster).toBe(false);
   });
 
   it("withholds the screener download before GC approves the title", () => {
@@ -45,6 +56,7 @@ describe("buyerActionsFor", () => {
         hasTrailer: false,
         licensed: false,
         screenerIsDedicated: false,
+        hasMasterAsset: false,
       }).canDownloadMetadata,
     ).toBe(true);
   });

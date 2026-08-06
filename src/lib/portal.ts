@@ -78,6 +78,13 @@ export const PORTAL_COPY = {
   errorChallenge: "Verification failed. Please complete the challenge and try again.",
   errorTooManyRequests: "Too many requests. Please try again later.",
   errorPreparing: "We're retrieving this file from cold storage — this usually takes about 3 to 5 hours. Return to this link and it will be ready.",
+  // Neutral 403 fallback (fix round 2, item 2) — used only when a route's 403 body carries no
+  // message of its own. In practice every download route sends one, so this is a safety net,
+  // not the common path.
+  errorDownloadUnavailable: "This file isn't available to download for this title.",
+  // 5xx — a fault on GC's side, not a statement about the buyer's access. Reserving
+  // errorExpired for actual expiry/revocation means this must exist as its own, honest bucket.
+  errorServer: "Something went wrong on our side. Please try again.",
   unknownFilename: "the file",
   screenerHeading: "Screener room",
   screenerIntro: "Confirm your details to view this title.",
@@ -86,9 +93,33 @@ export const PORTAL_COPY = {
   unknownTitle: "this title",
   watchButton: "Watch screener",
   downloadScreenerButton: "Download screener",
+  // Shown beside Watch when a title can be screened but has nothing downloadable (fix round 2,
+  // item 3) — "show the work": silence where a download button would otherwise be reads as a
+  // bug, not a deliberate state.
+  screenerDownloadUnavailableNotice: "A downloadable screener isn't available for this title.",
   downloadMetadataButton: "Download metadata",
   downloadMasterHeading: "Licensed master",
   downloadMasterButton: "Download master",
   downloadMasterNotice: "The full-resolution deliverable for licensed distribution — not the evaluation screener.",
   specificationsHeading: "Specifications",
 } as const;
+
+// Fix round 2, task 9, item 2. title-page.tsx used to map EVERY non-409 failure to
+// `errorExpired` — "this link has expired or been withdrawn." That's false for a 403 (the
+// route's own honest reason, e.g. "available to watch but not to download") and false for a
+// 5xx (a server fault, not a statement about the buyer's access) — both are wrong things to
+// tell a legitimate buyer on a Tier-3 external surface. `errorExpired` is now reserved for
+// the case that's actually true: the session/link itself is gone (401, or any status this
+// function doesn't otherwise recognize).
+//
+// Pure and separately testable from the fetch/parsing plumbing that calls it — the plumbing
+// awaits the response body (I/O); this only decides what to SAY once that's in hand.
+export function downloadFailureMessage(status: number, bodyError?: string | null): string {
+  if (status === 409) return PORTAL_COPY.errorPreparing;
+  if (status >= 500) return PORTAL_COPY.errorServer;
+  if (status === 403) {
+    const trimmed = bodyError?.trim();
+    return trimmed ? trimmed : PORTAL_COPY.errorDownloadUnavailable;
+  }
+  return PORTAL_COPY.errorExpired;
+}

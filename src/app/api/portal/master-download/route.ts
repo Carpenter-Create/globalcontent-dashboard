@@ -7,6 +7,7 @@ import { resolveOrRestore } from "@/lib/s3";
 import { resolveBuyerLink } from "@/lib/portal-session";
 import { buyerActionsFor } from "@/lib/buyer-page";
 import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
+import { DETAIL_LIST } from "@/lib/list-bounds";
 
 // Buyer-portal MASTER download — the highest-risk route in this plan. It serves the
 // crown-jewel deliverable, unwatermarked, to an external party over the public internet.
@@ -33,13 +34,37 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
-  const [{ data: titleRow }, { data: deliveryRows }] = await Promise.all([
+  // All three reads are independent of each other, so one Promise.all (title status, the
+  // licence-check rows, and the master asset itself) rather than fetching the asset only
+  // after the licence check passes — cheaper, and it's what let item 5 below fold naturally
+  // into buyerActionsFor instead of a bolted-on second check.
+  //
+  // The deliveries read carries `.limit(DETAIL_LIST)` (fix round 2, item 4): it lost its
+  // bound when this route was built (was `.limit(1)` back when it only asked "does ANY
+  // delivery exist"; became a full per-territory list with no bound at all once the licence
+  // check needed every row). A title×vendor pair has one delivery row per territory it was
+  // sent to — DETAIL_LIST (200) is nowhere close for any real catalogue, but the convention
+  // (list-bounds.ts) is that no list read ships unbounded, full stop, after PostgREST's
+  // silent 1,000-row truncation bit this repo once already.
+  const [{ data: titleRow }, { data: deliveryRows }, { data: masterAsset }] = await Promise.all([
     admin.from("titles").select("status").eq("id", link.titleId).maybeSingle(),
     admin
       .from("deliveries")
       .select("status, territory, rights_grants(effective_to, window_start, window_end, territory_mode, territories)")
       .eq("title_id", link.titleId)
-      .eq("vendor_id", link.vendorId),
+      .eq("vendor_id", link.vendorId)
+      .limit(DETAIL_LIST),
+    // Latest master asset wins — same tie-break used elsewhere (page.tsx, screener
+    // resolution): a re-uploaded master must supersede the old one, never race it for which
+    // key gets served.
+    admin
+      .from("assets")
+      .select("storage_key")
+      .eq("title_id", link.titleId)
+      .eq("kind", "master")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (!titleRow) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
@@ -58,28 +83,23 @@ export async function POST(req: Request) {
 
   // Recompute buyerActionsFor server-side and refuse unless canDownloadMaster is true — the
   // ONE authorization check for this route, same predicate the page used to decide whether
-  // to render the button, now re-derived from data the client never touched.
+  // to render the button, now re-derived from data the client never touched. hasMasterAsset
+  // is fed from the same read above (fix round 2, item 5) so this and page.tsx can never
+  // disagree about whether there's actually something to serve.
   const actions = buyerActionsFor({
     titleStatus: titleRow.status,
     hasScreenerAsset: false, // irrelevant to canDownloadMaster — not worth a second query here
     hasTrailer: false,
     licensed,
     screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
+    hasMasterAsset: Boolean(masterAsset),
   });
   if (!actions.canDownloadMaster) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
-
-  // Latest master asset wins — same tie-break used elsewhere (page.tsx, screener resolution):
-  // a re-uploaded master must supersede the old one, never race it for which key gets served.
-  const { data: masterAsset } = await admin
-    .from("assets")
-    .select("storage_key")
-    .eq("title_id", link.titleId)
-    .eq("kind", "master")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // canDownloadMaster required hasMasterAsset above, so masterAsset is non-null here — this
+  // is a type-narrowing formality, not a second independent check, and cheap insurance if
+  // that invariant is ever changed without updating this call site too.
   if (!masterAsset) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
   // Glacier gate: a licensed master may be tiered to cold storage. resolveOrRestore HEADs
