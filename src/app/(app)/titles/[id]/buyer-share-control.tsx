@@ -42,10 +42,14 @@ export function BuyerShareControl({ titleId, links }: { titleId: string; links: 
     }
   }
 
-  async function create(recipientName: string) {
+  // `replace: true` is the deliberate, informed path from an existing row's "Replace link" —
+  // it skips the collision check server-side (see actions.ts) since the caller already knows
+  // exactly which buyer they're replacing. The create form below never passes it, so a
+  // colliding name there surfaces the warning instead of silently swapping the old link out.
+  async function create(recipientName: string, opts?: { replace?: boolean }) {
     setBusy(true);
     setError("");
-    const res = await createBuyerScreenerLink({ titleId, recipientName });
+    const res = await createBuyerScreenerLink({ titleId, recipientName, replace: opts?.replace });
     setBusy(false);
     if (res.error) return setError(res.error);
     setRecipient("");
@@ -90,7 +94,7 @@ export function BuyerShareControl({ titleId, links }: { titleId: string; links: 
               <div className="mt-1.5 flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => create(link.recipientName)}
+                  onClick={() => create(link.recipientName, { replace: true })}
                   disabled={busy}
                   className="t-body-sm text-ink-2 underline underline-offset-4 hover:text-ink disabled:opacity-50"
                 >

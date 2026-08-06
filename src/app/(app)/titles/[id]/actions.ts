@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { generateToken, hashToken } from "@/lib/portal";
+import { escapeIlikePattern } from "@/lib/buyer-names";
 import { resolveTerritories, type TerritoryMode } from "@/lib/territories";
 import type { RightsType } from "@/lib/rights";
 import { computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
@@ -147,15 +148,42 @@ export async function submitTitle(
 // case-insensitive in the DB but the casing the client types is what gets stored and shown, so
 // "tubi" and "Tubi" collide (replace, not two rows) — do not add client-side normalisation that
 // would contradict that.
+//
+// A collision is a SILENT, DESTRUCTIVE replace from the client's point of view: typing a name
+// that already has a live link kills the URL already emailed to that buyer with no signal that
+// just happened. So unless the caller has explicitly asked to replace (the "Replace link"
+// button on an existing row — a deliberate, informed action), check for a live link with the
+// same name first and refuse with a message rather than silently swapping it out. The check
+// uses `.ilike()` on the escaped, trimmed name so it matches the RPC's own
+// `lower(btrim(recipient_name)) = lower(btrim(...))` rule exactly — see lib/buyer-names.ts for
+// why the escaping matters (a name with a literal % or _ would otherwise become a wildcard).
 export async function createBuyerScreenerLink(input: {
   titleId: string;
   recipientName: string;
+  replace?: boolean;
 }): Promise<{ error?: string; url?: string }> {
   const supabase = await createClient();
   const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const recipient = input.recipientName.trim();
   if (!recipient) return { error: "Enter the buyer's name." };
+
+  if (!input.replace) {
+    const { data: existing } = await supabase
+      .from("portal_links")
+      .select("recipient_name")
+      .eq("title_id", input.titleId)
+      .eq("purpose", "screener_view")
+      .is("revoked_at", null)
+      .ilike("recipient_name", escapeIlikePattern(recipient))
+      .limit(1)
+      .maybeSingle();
+    if (existing?.recipient_name) {
+      return {
+        error: `A link for ${existing.recipient_name} already exists. Use Replace link on that buyer to send a new URL, or enter a different name.`,
+      };
+    }
+  }
 
   const token = generateToken();
   const { error } = await supabase.rpc("create_screener_link", {
