@@ -21,3 +21,4 @@ next-env.d.ts
 /vod_*.csv
 /vod_*.json
 .vercel
+.claude/worktrees/
