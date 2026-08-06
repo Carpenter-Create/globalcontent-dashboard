@@ -17,15 +17,24 @@
 -- regression would hide).
 --
 -- 20260806000400 adds attach_link_vendor (GC-operate only: a client cannot reach this RPC under
--- any role, since vendors is a GC-only roster) and the first-ever audit trigger on portal_links.
+-- any role, since vendors is a GC-only roster) and title_vendor_licensed, a small helper it
+-- uses to decide when a first attach needs confirmation. NO trigger is attached to portal_links
+-- (fix round 1: a table-wide tg_audit would have copied share_token — a live, un-hashed portal
+-- credential — and recipient_name into the append-only audit_log with no purge path; see the
+-- migration header, which mirrors 20260726000800's own reasoning for portal_sessions). Instead
+-- the RPC inserts one hand-built, vendor_id-only audit_log row per genuine transition.
 -- Covered below: a client and a read-only gc_legal staffer are both refused; GC with 'operate'
--- succeeds and vendor_id lands; re-attaching the same vendor is a no-op; reassigning to a
--- different vendor is blocked unless p_force is set, then succeeds and is captured in audit_log;
--- an inactive or nonexistent vendor is refused; a master_download link, a revoked link, an
--- expired link, and an unknown link id are all refused.
+-- succeeds and vendor_id lands, audited with the correct before/after and none of
+-- share_token/token_hash/recipient_name; re-attaching the same vendor is a no-op with no new
+-- audit row; reassigning to a different vendor is blocked unless p_force is set; a FIRST attach
+-- to a vendor that already has an active grant+delivery for the title is ALSO blocked unless
+-- forced (the higher-consequence transition — it releases the master immediately); detach
+-- (p_vendor_id = null) succeeds without force and is idempotent; an inactive or nonexistent
+-- vendor is refused; a master_download link, a revoked link (attach AND detach), an expired
+-- link (attach AND detach), and an unknown link id are all refused.
 
 begin;
-select plan(77);
+select plan(98);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -496,14 +505,19 @@ select is(
   1, 'exactly one active screener link remains per title');
 
 -- ============================================================================
--- attach_link_vendor (20260806000400): GC-operate only, dead-link refusal,
--- reassignment blocked unless forced, audited when it happens.
+-- attach_link_vendor (20260806000400): GC-operate only, dead-link refusal on both attach and
+-- detach, reassignment AND already-licensed first-attach both blocked unless forced, detach
+-- supported, and every genuine transition audited as one vendor_id-only row (never the whole
+-- portal_links row — see the migration header on why that distinction is the point).
 -- ============================================================================
 reset role;
 select set_config('t.title_v',    gen_random_uuid()::text, false);  -- isolated title for attach tests
 select set_config('t.gc_legal',   gen_random_uuid()::text, false);  -- gc_staff, read-only role
 select set_config('t.vendor2',    gen_random_uuid()::text, false);  -- second active vendor (reassign target)
+select set_config('t.vendor3',    gen_random_uuid()::text, false);  -- already-licensed vendor (first-attach guard)
 select set_config('t.vendor_bad', gen_random_uuid()::text, false);  -- inactive vendor
+select set_config('t.grant_v',    gen_random_uuid()::text, false);
+select set_config('t.deliv_v',    gen_random_uuid()::text, false);
 insert into auth.users (id) values (current_setting('t.gc_legal')::uuid);
 insert into public.gc_staff (user_id, role) values (current_setting('t.gc_legal')::uuid, 'gc_legal');
 insert into public.titles (id, org_id, title, status)
@@ -514,7 +528,18 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
 insert into public.vendors (id, name, delivery_mode, active)
   values (current_setting('t.vendor2')::uuid, 'Vendor Two', 'portal_upload', true);
 insert into public.vendors (id, name, delivery_mode, active)
+  values (current_setting('t.vendor3')::uuid, 'Vendor Three', 'portal_upload', true);
+insert into public.vendors (id, name, delivery_mode, active)
   values (current_setting('t.vendor_bad')::uuid, 'Vendor Inactive', 'portal_upload', false);
+
+-- Vendor Three already has an active world-mode grant and a 'delivered' delivery for title_v —
+-- the "would release the master right now" fixture for the first-attach guard below.
+insert into public.rights_grants (id, org_id, title_id, rights_type, territory_mode, territories, effective_from)
+  values (current_setting('t.grant_v')::uuid, current_setting('t.org')::uuid, current_setting('t.title_v')::uuid,
+          'svod', 'world', '{}', now() - interval '1 day');
+insert into public.deliveries (id, org_id, title_id, vendor_id, grant_id, territory, status)
+  values (current_setting('t.deliv_v')::uuid, current_setting('t.org')::uuid, current_setting('t.title_v')::uuid,
+          current_setting('t.vendor3')::uuid, current_setting('t.grant_v')::uuid, 'US', 'delivered');
 
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -525,16 +550,23 @@ select lives_ok(
   'client mints a buyer screener link on the isolated attach-test title');
 select set_config('t.link_v', (select id::text from public.portal_links where token_hash = 'tok_v_buyer'), false);
 
--- A second buyer link, revoked immediately, to prove attach refuses a dead link.
+-- A second buyer link, target of the first-attach-to-an-already-licensed-vendor guard below.
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_v'), 'tok_v_amazon', 'Amazon'),
+  'client mints a second buyer link, target of the first-attach licence guard');
+select set_config('t.link_v_amazon', (select id::text from public.portal_links where token_hash = 'tok_v_amazon'), false);
+
+-- A third buyer link, revoked immediately, to prove attach (and detach) refuse a dead link.
 select lives_ok(
   format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
          current_setting('t.title_v'), 'tok_v_revoked', 'Peacock'),
-  'client mints a second buyer link, to be revoked');
+  'client mints a third buyer link, to be revoked');
 reset role;
 update public.portal_links set revoked_at = now() where token_hash = 'tok_v_revoked';
 select set_config('t.link_v_revoked', (select id::text from public.portal_links where token_hash = 'tok_v_revoked'), false);
 
--- A third buyer link, fixture-expired (create_screener_link itself refuses a past expiry, so
+-- A fourth buyer link, fixture-expired (create_screener_link itself refuses a past expiry, so
 -- expiry has to be forced after the fact, same idiom used above for portal_resolve_screener).
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -542,7 +574,7 @@ select set_config('request.jwt.claims',
 select lives_ok(
   format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
          current_setting('t.title_v'), 'tok_v_expired', 'Hulu'),
-  'client mints a third buyer link, to be expired');
+  'client mints a fourth buyer link, to be expired');
 reset role;
 update public.portal_links set expires_at = now() - interval '1 hour' where token_hash = 'tok_v_expired';
 select set_config('t.link_v_expired', (select id::text from public.portal_links where token_hash = 'tok_v_expired'), false);
@@ -564,7 +596,10 @@ select throws_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
   'P0001', 'Not authorized', 'gc_legal (read-only GC role) cannot attach a vendor');
 
--- GC with 'operate' succeeds and vendor_id is set.
+-- GC with 'operate' succeeds and vendor_id is set. title_v has no grant/delivery for t.vendor,
+-- so the first-attach licence guard does not fire here — that path is proven on link_v_amazon
+-- below. The audit row is checked for exact before/after AND for the absence of the fields a
+-- whole-row trigger would have leaked (fix round 1, item 1's regression test).
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select lives_ok(
@@ -573,16 +608,33 @@ select lives_ok(
 select is(
   (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
   current_setting('t.vendor')::uuid, 'vendor_id is set to the attached vendor');
+select is(
+  (select (before->>'vendor_id') from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  null, 'the first attach audits a null "before" vendor_id');
+select is(
+  (select (after->>'vendor_id')::uuid from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  current_setting('t.vendor')::uuid, 'the first attach audits the new vendor_id as "after"');
 
--- Re-attaching the SAME vendor is an idempotent no-op — no force required.
+-- Re-attaching the SAME vendor is an idempotent no-op — no force required, and nothing new is
+-- audited (audit the transition, not the row: no transition, no row).
+select set_config('t.audit_before_noop',
+  (select count(*)::text from public.audit_log where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid),
+  false);
 select lives_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor')),
   'attaching the same vendor again is a no-op');
 select is(
   (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
   current_setting('t.vendor')::uuid, 'vendor_id is unchanged by the idempotent re-attach');
+select is(
+  (select count(*)::text from public.audit_log where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid),
+  current_setting('t.audit_before_noop'), 'the idempotent re-attach writes no additional audit row');
 
--- Reassigning to a DIFFERENT vendor is blocked unless p_force is passed (judgement call 1).
+-- Reassigning to a DIFFERENT vendor is blocked unless p_force is passed (judgement call 1a).
 select throws_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
   'P0001', 'Link already has a different vendor attached — pass force to reassign',
@@ -591,8 +643,9 @@ select is(
   (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
   current_setting('t.vendor')::uuid, 'vendor_id is untouched by the refused reassignment');
 
--- With p_force := true it succeeds — and the change is captured in audit_log (judgement call 1's
--- other half: allowed, but never silent).
+-- With p_force := true it succeeds — and the transition is captured in audit_log as a single
+-- vendor_id-only row (judgement call 1's other half: allowed, but never silent), which is
+-- checked below for the correct before/after AND for the absence of live-credential fields.
 select lives_ok(
   format($$ select public.attach_link_vendor(%L, %L, true) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
   'forced reassignment to a different vendor succeeds');
@@ -600,12 +653,88 @@ select is(
   (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
   current_setting('t.vendor2')::uuid, 'vendor_id reflects the forced reassignment');
 select is(
+  (select (before->>'vendor_id')::uuid from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  current_setting('t.vendor')::uuid, 'the reassignment audits the OLD vendor_id as "before"');
+select is(
   (select (after->>'vendor_id')::uuid from public.audit_log
-     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid
-       and action = 'update' and (after->>'vendor_id')::uuid = current_setting('t.vendor2')::uuid
-     order by created_at desc limit 1),
-  current_setting('t.vendor2')::uuid,
-  'the forced reassignment is captured in audit_log (portal_links now carries the audit trigger)');
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  current_setting('t.vendor2')::uuid, 'the reassignment audits the NEW vendor_id as "after"');
+
+-- REGRESSION GUARD for fix round 1, item 1: the whole reason a table-wide trigger was wrong.
+-- If a future change ever goes back to to_jsonb(row), these three fail immediately.
+select is(
+  (select (after ? 'share_token') from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  false, 'the audit row''s "after" never carries share_token (the live, un-hashed portal credential)');
+select is(
+  (select (after ? 'token_hash') from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  false, 'the audit row''s "after" never carries token_hash');
+select is(
+  (select (after ? 'recipient_name') from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'attach_vendor'
+     order by at desc limit 1),
+  false, 'the audit row''s "after" never carries recipient_name (external-party PII)');
+
+-- FIRST ATTACH to an ALREADY-LICENSED vendor (judgement call 1b, fix round 1 item 3): the
+-- higher-consequence transition. Vendor Three already has a 'delivered' delivery under an
+-- active world-mode grant for title_v, so attaching it to link_v_amazon (still vendor-less)
+-- would make the master reachable through that link immediately — blocked unless forced too.
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v_amazon'), current_setting('t.vendor3')),
+  'P0001',
+  'This vendor already has an active grant and delivery for this title — attaching releases the master immediately. Pass force to confirm.',
+  'first attach to an already-licensed vendor is refused without force');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v_amazon')::uuid),
+  null, 'vendor_id is untouched by the refused first attach');
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, %L, true) $$, current_setting('t.link_v_amazon'), current_setting('t.vendor3')),
+  'forced first attach to an already-licensed vendor succeeds');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v_amazon')::uuid),
+  current_setting('t.vendor3')::uuid, 'vendor_id reflects the forced first attach');
+
+-- DETACH (fix round 1, item 4): p_vendor_id passed as an explicit null removes the vendor. No
+-- force needed — the safe direction, the mirror image of judgement call 1 — and it is audited
+-- (action distinct from attach: 'detach_vendor') the same way any other genuine transition is.
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, null) $$, current_setting('t.link_v')),
+  'GC detaches the vendor from a buyer link');
+select is(
+  (select vendor_id from public.portal_links where id = current_setting('t.link_v')::uuid),
+  null, 'vendor_id is cleared by detach');
+select is(
+  (select (before->>'vendor_id')::uuid from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'detach_vendor'
+     order by at desc limit 1),
+  current_setting('t.vendor2')::uuid, 'the detach audits the OLD vendor_id as "before"');
+select is(
+  (select (after->>'vendor_id') from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'detach_vendor'
+     order by at desc limit 1),
+  null, 'the detach audits a null "after" vendor_id');
+
+-- Detaching an already-vendor-less link is an idempotent no-op — nothing audited a second time.
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, null) $$, current_setting('t.link_v')),
+  'detaching an already-vendor-less link is a no-op');
+select is(
+  (select count(*)::text from public.audit_log
+     where entity = 'portal_links' and entity_id = current_setting('t.link_v')::uuid and action = 'detach_vendor'),
+  '1', 'the idempotent re-detach writes no additional audit row');
+
+-- Re-attaching after a detach goes through the FIRST-ATTACH path again (vendor_id is null once
+-- more) and is unguarded here too — title_v has no grant/delivery for t.vendor2, so the licence
+-- guard correctly does not fire on every first attach, only on already-licensed pairs.
+select lives_ok(
+  format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v'), current_setting('t.vendor2')),
+  'attaching a vendor again after a detach succeeds without force');
 
 -- An inactive vendor is refused outright, regardless of the current attachment.
 select throws_ok(
@@ -624,13 +753,21 @@ select throws_ok(
   'P0001', 'Only a buyer screener link can carry a vendor',
   'a master_download link is refused (buyer links only)');
 
--- Dead links: revoked and expired are both refused, no force override (judgement call 2).
+-- Dead links: revoked and expired are both refused, no force override (judgement call 2) — on
+-- BOTH the attach and the detach path, since writing into a dead link either direction is
+-- equally pointless (nothing can ever resolve it again).
 select throws_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v_revoked'), current_setting('t.vendor')),
-  'P0001', 'Link has been revoked', 'a revoked buyer link is refused');
+  'P0001', 'Link has been revoked', 'a revoked buyer link refuses attach');
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, null) $$, current_setting('t.link_v_revoked')),
+  'P0001', 'Link has been revoked', 'a revoked buyer link refuses detach too');
 select throws_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, current_setting('t.link_v_expired'), current_setting('t.vendor')),
-  'P0001', 'Link has expired', 'an expired buyer link is refused');
+  'P0001', 'Link has expired', 'an expired buyer link refuses attach');
+select throws_ok(
+  format($$ select public.attach_link_vendor(%L, null) $$, current_setting('t.link_v_expired')),
+  'P0001', 'Link has expired', 'an expired buyer link refuses detach too');
 
 -- Unknown link id.
 select throws_ok(

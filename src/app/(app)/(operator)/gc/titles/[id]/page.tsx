@@ -16,7 +16,8 @@ import { LinkControls, type Suggestion } from "@/app/(app)/(operator)/gc/review/
 import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/(app)/(operator)/gc/review/screener-panel";
 import { GcAssets, type GcAsset } from "./gc-assets";
 import { BuyerLinks, type BuyerLink, type VendorOption } from "./buyer-links";
-import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
+import { UNPAGINATED_MAX, DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
+import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
 
 // The GC per-title detail = the internal review page (folds in /gc/review). Review actions
 // (approve/reject, same-work linking) show only while in_review; screener panel + metadata +
@@ -65,7 +66,12 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         .select("id, title_id, expires_at, revoked_at, created_at, share_token, recipient_name, vendor_id, vendors(name)")
         .eq("purpose", "screener_view")
         .eq("title_id", id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        // BOUNDED — a title-detail child collection (fix round 1, item 5): this query lost its
+        // bound when it was widened to also feed BuyerLinks; a real title's screener_view rows
+        // are naturally small in number, but "naturally small today" is exactly the assumption
+        // list-bounds.ts exists to stop anyone relying on silently.
+        .range(...rangeFor(DETAIL_LIST)),
       supabase.from("title_metadata").select("data").eq("title_id", id).maybeSingle(),
       supabase
         .from("findings")
@@ -78,11 +84,17 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         .select("id, kind, original_filename, bytes")
         .eq("title_id", id)
         .order("kind"),
+      // Also carries vendor_id + the joined grant fields now (fix round 1, item 3): the same
+      // rows that already power the read-only Deliveries card below are exactly what
+      // isMasterLicensed needs to compute, per vendor, "would attaching this one release the
+      // master right now" — one query, two views, same shape master-download/route.ts already
+      // reads for the identical check. BOUNDED like that route's own read of this table.
       supabase
         .from("deliveries")
-        .select("id, territory, status, vendors(name)")
+        .select("id, territory, status, vendor_id, vendors(name), rights_grants(effective_to, window_start, window_end, territory_mode, territories)")
         .eq("title_id", id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(DETAIL_LIST),
       // Attach-vendor control (Task 10): the roster a buyer link can be pointed at. Inactive
       // vendors are excluded here (not just refused by the RPC) so GC never even sees a dead
       // option in the picker.
@@ -126,7 +138,22 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
       vendorId: l.vendor_id,
       vendorName: l.vendors?.name ?? null,
     }));
-  const vendorOptions: VendorOption[] = activeVendors ?? [];
+  // Per-vendor "would attaching this one release the master right now" (fix round 1, item 3):
+  // grouped from the same deliveries read the read-only Deliveries card already uses, mirroring
+  // exactly what attach_link_vendor's own title_vendor_licensed check re-derives server-side —
+  // this is a rendering hint only (so the operator sees it BEFORE clicking Attach), never the
+  // authorization; the RPC re-checks independently and refuses regardless of what this said.
+  const deliveriesByVendor = new Map<string, DeliveryForLicenceCheck[]>();
+  for (const d of deliveries ?? []) {
+    const list = deliveriesByVendor.get(d.vendor_id) ?? [];
+    list.push({ status: d.status, territory: d.territory, grant: d.rights_grants as DeliveryForLicenceCheck["grant"] });
+    deliveriesByVendor.set(d.vendor_id, list);
+  }
+  const vendorOptions: VendorOption[] = (activeVendors ?? []).map((v) => ({
+    id: v.id,
+    name: v.name,
+    releasesMasterNow: isMasterLicensed(deliveriesByVendor.get(v.id) ?? []),
+  }));
 
   const meta = (metaRow?.data as Record<string, unknown>) ?? {};
   const inReview = t.status === "in_review";

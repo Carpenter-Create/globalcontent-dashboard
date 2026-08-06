@@ -1310,7 +1310,9 @@ export type Database = {
         Returns: string[]
       }
       attach_link_vendor: {
-        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string }
+        // p_vendor_id is required (no SQL DEFAULT) but explicitly nullable — passing null is
+        // how a caller detaches a vendor from a link, not an omitted argument.
+        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string | null }
         Returns: undefined
       }
       can_deliver: {
@@ -1600,6 +1602,10 @@ export type Database = {
       tier_revenue_share_bp: {
         Args: { p_tier: Database["public"]["Enums"]["tier_enum"] }
         Returns: number
+      }
+      title_vendor_licensed: {
+        Args: { p_title_id: string; p_vendor_id: string }
+        Returns: boolean
       }
     }
     Enums: {

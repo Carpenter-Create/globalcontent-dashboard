@@ -27,16 +27,18 @@ export async function setReleaseDate(input: {
   return {};
 }
 
-// GC attaches the vendor once a buyer's deal closes (attach_link_vendor, 20260806000400).
-// vendors is a GC-only roster, so a client can never do this themselves — a buyer's screener
-// link sits with vendor_id null until GC sets it, and the master stays unreachable through
-// that link until then (master-download re-resolves licensing from THIS link's vendor_id).
-// `force` reassigns a link that already carries a DIFFERENT vendor; omitted, the RPC blocks
-// that rather than silently moving the buyer's master access to another company.
+// GC attaches (or detaches) the vendor on a buyer's screener link (attach_link_vendor,
+// 20260806000400). vendors is a GC-only roster, so a client can never do this themselves — a
+// buyer's link sits with vendor_id null until GC sets it, and the master stays unreachable
+// through that link until then (master-download re-resolves licensing from THIS link's
+// vendor_id). `vendorId: null` detaches — the only way to undo a mis-attach without writing a
+// false fact via a forced reassignment. `force` confirms a reassignment to a DIFFERENT vendor,
+// or a first attach to a vendor that already has an active grant+delivery for this title (that
+// pair would release the master immediately) — omitted, the RPC blocks both.
 export async function attachLinkVendor(input: {
   titleId: string;
   linkId: string;
-  vendorId: string;
+  vendorId: string | null;
   force?: boolean;
 }): Promise<{ error?: string }> {
   const supabase = await createClient();
@@ -45,6 +47,9 @@ export async function attachLinkVendor(input: {
 
   const { error } = await supabase.rpc("attach_link_vendor", {
     p_link_id: input.linkId,
+    // Explicit null (detach) is a real, required value here — never coalesced to undefined,
+    // which would omit the key and hit the RPC's own `default null` in a way that reads as
+    // "not forcing" rather than "detach". Only `force` has an omit-vs-false distinction.
     p_vendor_id: input.vendorId,
     // undefined (not false) so an un-forced call takes the RPC's own `default null` ->
     // coalesce(...,false) path rather than us re-deciding what "not forcing" means here.

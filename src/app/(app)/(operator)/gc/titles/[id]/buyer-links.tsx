@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { attachLinkVendor } from "./actions";
 
@@ -14,7 +15,14 @@ export type BuyerLink = {
   vendorId: string | null;
   vendorName: string | null;
 };
-export type VendorOption = { id: string; name: string };
+export type VendorOption = {
+  id: string;
+  name: string;
+  // Would attaching THIS vendor to a still-vendor-less link release the master immediately —
+  // an active grant + delivery for (title, vendor) already exists. Rendering hint only; the
+  // RPC (title_vendor_licensed) re-derives this itself and is the actual authorization.
+  releasesMasterNow: boolean;
+};
 
 const sel =
   "rounded-[var(--radius-sm)] border border-hairline bg-surface px-2 py-1 t-body-sm text-ink";
@@ -27,9 +35,15 @@ const sel =
 // share link (recipient_name null, managed by ScreenerPanel above) and anything revoked or
 // expired, since attaching a vendor to a dead link is refused by the RPC anyway.
 //
-// Reassigning a link that already carries a DIFFERENT vendor is a deliberate, explicit second
-// step, mirroring "Replace link" on the client's own share control (buyer-share-control.tsx) —
-// never a silent swap from picking a new option in the select.
+// TWO transitions get the same explicit-confirmation treatment, mirroring "Replace link" on the
+// client's own share control (buyer-share-control.tsx) — never a silent action from picking a
+// new option in the select:
+//   1. Reassigning a link that already carries a DIFFERENT vendor.
+//   2. A FIRST attach (no vendor yet) to a vendor that already has an active grant + delivery
+//      for this title — that one click makes the master downloadable immediately, so it is the
+//      higher-consequence case, not (1).
+// Detach (the "No vendor" option) needs no confirmation — it only removes a link's ability to
+// resolve the master later, never destroys any grant, delivery, or title state.
 export function BuyerLinks({
   titleId,
   links,
@@ -45,9 +59,7 @@ export function BuyerLinks({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function attach(link: BuyerLink, force: boolean) {
-    const vendorId = choice[link.id];
-    if (!vendorId) return;
+  async function submit(link: BuyerLink, vendorId: string | null, force: boolean) {
     setBusyId(link.id);
     setError(null);
     const res = await attachLinkVendor({ titleId, linkId: link.id, vendorId, force });
@@ -63,11 +75,14 @@ export function BuyerLinks({
   function onAttachClick(link: BuyerLink) {
     const vendorId = choice[link.id];
     if (!vendorId) return;
-    if (link.vendorId && link.vendorId !== vendorId) {
-      setConfirming(link.id); // reassignment needs the explicit step below, not a silent swap
+    const vendor = vendors.find((v) => v.id === vendorId);
+    const isReassignment = Boolean(link.vendorId && link.vendorId !== vendorId);
+    const releasesNow = !link.vendorId && Boolean(vendor?.releasesMasterNow);
+    if (isReassignment || releasesNow) {
+      setConfirming(link.id); // needs the explicit step below, not a silent action
       return;
     }
-    void attach(link, false);
+    void submit(link, vendorId, false);
   }
 
   if (links.length === 0) {
@@ -77,7 +92,10 @@ export function BuyerLinks({
   return (
     <div className="flex flex-col gap-3">
       {links.map((link) => {
-        const pendingVendorName = vendors.find((v) => v.id === choice[link.id])?.name;
+        const pendingVendorId = choice[link.id] ?? "";
+        const pendingVendor = vendors.find((v) => v.id === pendingVendorId);
+        const isReassignment = Boolean(link.vendorId && pendingVendorId && link.vendorId !== pendingVendorId);
+        const labelId = `buyer-link-vendor-${link.id}`;
         return (
           <div key={link.id} className="flex flex-col gap-1.5 rounded-[var(--radius-sm)] border border-hairline p-3">
             <div className="flex items-center justify-between gap-4">
@@ -89,39 +107,62 @@ export function BuyerLinks({
             <span className="t-body-sm text-ink-3">
               {link.vendorName ? `Attached to ${link.vendorName}` : "No vendor attached — the master isn't reachable through this link yet"}
             </span>
-            <div className="flex items-center gap-2 pt-1">
-              <select
-                className={sel}
-                value={choice[link.id] ?? ""}
-                onChange={(e) => {
-                  setChoice((c) => ({ ...c, [link.id]: e.target.value }));
-                  setConfirming(null);
-                }}
-                disabled={busyId === link.id}
-              >
-                <option value="">Select vendor…</option>
-                {vendors.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                variant="secondary"
-                onClick={() => onAttachClick(link)}
-                disabled={busyId === link.id || !choice[link.id] || choice[link.id] === link.vendorId}
-              >
-                Attach
-              </Button>
+            <div className="flex flex-col gap-1 pt-1">
+              <Label htmlFor={labelId} className="sr-only">
+                Vendor for {link.recipientName}
+              </Label>
+              <div className="flex items-center gap-2">
+                <select
+                  id={labelId}
+                  className={sel}
+                  value={pendingVendorId}
+                  onChange={(e) => {
+                    setChoice((c) => ({ ...c, [link.id]: e.target.value }));
+                    setConfirming(null);
+                  }}
+                  disabled={busyId === link.id}
+                >
+                  <option value="">Select vendor…</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                      {!link.vendorId && v.releasesMasterNow ? " (releases master now)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="secondary"
+                  onClick={() => onAttachClick(link)}
+                  disabled={busyId === link.id || !pendingVendorId || pendingVendorId === link.vendorId}
+                >
+                  Attach
+                </Button>
+                {link.vendorId ? (
+                  <Button variant="ghost" onClick={() => submit(link, null, false)} disabled={busyId === link.id}>
+                    Detach
+                  </Button>
+                ) : null}
+              </div>
             </div>
             {confirming === link.id ? (
               <InlineNotice tone="info" className="flex flex-wrap items-center gap-2">
-                <span>
-                  Already attached to {link.vendorName}. Reassigning moves this buyer&apos;s master
-                  access to {pendingVendorName ?? "the new vendor"}.
-                </span>
-                <Button variant="secondary" onClick={() => attach(link, true)} disabled={busyId === link.id}>
-                  Reassign
+                {isReassignment ? (
+                  <span>
+                    Already attached to {link.vendorName}. Reassigning moves this buyer&apos;s master
+                    access to {pendingVendor?.name ?? "the new vendor"}.
+                  </span>
+                ) : (
+                  <span>
+                    {pendingVendor?.name ?? "This vendor"} already has an active grant and delivery
+                    for this title — attaching now releases the master to this link immediately.
+                  </span>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={() => submit(link, pendingVendorId, true)}
+                  disabled={busyId === link.id}
+                >
+                  {isReassignment ? "Reassign" : "Attach anyway"}
                 </Button>
                 <Button variant="ghost" onClick={() => setConfirming(null)} disabled={busyId === link.id}>
                   Cancel
