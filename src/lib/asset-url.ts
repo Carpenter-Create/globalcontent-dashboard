@@ -29,8 +29,9 @@ import { PORTAL } from "@/lib/portal";
 export async function assetViewUrl(
   storageKey: string,
   ttlSeconds: number = PORTAL.signedUrlTtlSeconds,
+  opts: { stableWindow?: boolean } = {},
 ): Promise<string> {
-  if (process.env.CLOUDFRONT_DOMAIN) return signAssetUrl(storageKey, ttlSeconds);
+  if (process.env.CLOUDFRONT_DOMAIN) return signAssetUrl(storageKey, ttlSeconds, opts);
 
   if (process.env.VERCEL_ENV === "production") {
     throw new Error(
@@ -44,5 +45,5 @@ export async function assetViewUrl(
   console.warn(
     `[asset-url] CLOUDFRONT_DOMAIN unset — presigning S3 directly (local/preview only): ${storageKey}`,
   );
-  return presignGetObject(storageKey, ttlSeconds);
+  return presignGetObject(storageKey, ttlSeconds, opts);
 }
