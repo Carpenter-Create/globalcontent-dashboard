@@ -30,6 +30,9 @@ export function BannerCard({
       // the one the pointer is on.
       prefetch={false}
       onMouseEnter={() => router.prefetch(href)}
+      // Keyboard users tab rather than hover; without this they pay the full
+      // navigation latency the hover warming was added to remove.
+      onFocus={() => router.prefetch(href)}
       className="group flex flex-col gap-3"
     >
       <Artwork
