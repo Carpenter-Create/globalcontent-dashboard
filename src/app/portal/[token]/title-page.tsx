@@ -115,7 +115,11 @@ function filenameFromContentDisposition(header: string | null): string | null {
 // identity→OTP gate. "A clear mixture of utility meets film aesthetic" (founder) — viewing
 // (hero, trailer, screener) and information (spec sheet) carry equal visual weight, side by
 // side at `lg:` and above; below that they stack, viewing first.
-export function TitlePage({ ready }: { ready: ScreenerReady }) {
+//
+// `company` is the buyer's OWN typed input from the identity gate (portal-flow.tsx), not
+// `ready.recipientName` — that field is the link's internal client-side tracking label and
+// must never render on this external page (see the "Prepared for" usage below).
+export function TitlePage({ ready, company }: { ready: ScreenerReady; company: string }) {
   const [watching, setWatching] = useState(false);
   const [pending, setPending] = useState<null | "screener" | "metadata" | "master">(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -170,9 +174,7 @@ export function TitlePage({ ready }: { ready: ScreenerReady }) {
       {/* Viewing — first in document order so it leads on the single-column (mobile) layout,
           per the brief's equal-weight principle. */}
       <div className="flex flex-col gap-4">
-        {ready.recipientName && (
-          <p className="t-label text-ink-3">Prepared for {ready.recipientName}</p>
-        )}
+        {company && <p className="t-label text-ink-3">Prepared for {company}</p>}
 
         <ArtworkHero
           title={ready.title}

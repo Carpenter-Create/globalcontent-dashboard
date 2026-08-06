@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hashToken, hashOtp, generateOtpCode, PORTAL, requestOtpBodySchema } from "@/lib/portal";
+import { hashToken, hashOtp, generateOtpCode, PORTAL } from "@/lib/portal";
 import { sendOtpEmail } from "@/lib/email";
 import { verifyTurnstile } from "@/lib/turnstile";
 
+const Body = z.object({
+  token: z.string().min(1).max(512),
+  name: z.string().min(1).max(200),
+  company: z.string().min(1).max(200),
+  email: z.string().email().max(320),
+  turnstileToken: z.string().min(1).max(4096),
+});
+
 export async function POST(req: Request) {
-  const parsed = requestOtpBodySchema.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { token, name, company } = parsed.data;
   // Normalize email so casing/whitespace can't split room_viewed dedup or break verify-otp matching.

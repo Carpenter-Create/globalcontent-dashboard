@@ -118,7 +118,12 @@ export function PortalFlow({
   // uses. It also owns its own error surface, since its actions (watch, three downloads)
   // outnumber the single error slot the card stages share.
   if (stage === "ready" && ready.mode === "screener") {
-    return <TitlePage ready={ready} />;
+    // `company` (not `ready.recipientName`) is what the "Prepared for" line renders: the
+    // link's recipient_name is the CLIENT's own internal tracking label ("tubi - dave",
+    // "Roku (2nd attempt)") and must never reach an external buyer. `company` is what the
+    // buyer themselves just typed at the identity gate — already local state here, already
+    // required, so no extra query is needed.
+    return <TitlePage ready={ready} company={company} />;
   }
 
   return (
@@ -138,24 +143,22 @@ export function PortalFlow({
             <p className="t-body-sm text-ink-2">
               {ready.mode === "screener" ? PORTAL_COPY.screenerIntro : PORTAL_COPY.roomIntro}
             </p>
-            {/* Name and company are optional: the link already names the buyer (the share
-                control captures this at creation), so these fields identify the PERSON at
-                that company, not the company itself. Only email is required — it's where the
-                OTP goes. */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="portal-name">Name (optional)</Label>
+              <Label htmlFor="portal-name">Name</Label>
               <Input
                 id="portal-name"
                 autoComplete="name"
+                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="portal-company">Company (optional)</Label>
+              <Label htmlFor="portal-company">Company</Label>
               <Input
                 id="portal-company"
                 autoComplete="organization"
+                required
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
               />

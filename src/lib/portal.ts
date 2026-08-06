@@ -1,5 +1,4 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { z } from "zod";
 
 export const PORTAL = {
   linkTtlDays: 14,
@@ -51,35 +50,6 @@ export function generateOtpCode(): string {
 export function hashOtp(code: string, linkId: string): string {
   return createHash("sha256").update(`${linkId}:${code}`).digest("hex");
 }
-
-// Blank/whitespace-only input collapses to null rather than an empty string. The client
-// always sends the key (React state defaults to ""), so `.optional()` alone isn't enough —
-// without the trim-to-null step a buyer who leaves the field blank would have "" written to
-// portal_access_events (nullable columns), which later renders as an empty label instead of
-// cleanly absent. Trimming a provided value also keeps " Jane " from being stored verbatim.
-function optionalIdentityField(max: number) {
-  return z
-    .string()
-    .max(max)
-    .optional()
-    .transform((v) => {
-      const trimmed = v?.trim();
-      return trimmed ? trimmed : null;
-    });
-}
-
-// The buyer-identity request body for /api/portal/request-otp. Extracted here (not inline in
-// the route) so the schema has direct unit coverage — a required-field regression here
-// previously shipped with a green suite, because nothing exercised this schema at all (fix
-// round 1, task 8). Email is the only required identity field: it's where the OTP goes, and
-// it's all verify-otp matches on. Name and company merely label who asked.
-export const requestOtpBodySchema = z.object({
-  token: z.string().min(1).max(512),
-  name: optionalIdentityField(200),
-  company: optionalIdentityField(200),
-  email: z.string().email().max(320),
-  turnstileToken: z.string().min(1).max(4096),
-});
 
 export function safeEqualHex(a: string, b: string): boolean {
   // Validate as even-length lowercase/uppercase hex BEFORE decoding: Buffer.from(s,"hex")
