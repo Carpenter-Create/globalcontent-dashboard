@@ -76,14 +76,20 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
 
     const posterKey = latestKeyOf("poster");
     const bannerKey = latestKeyOf("banner");
+    // Trailer rides the same artwork TTL as poster/banner, not the master's short download
+    // TTL or the screener's session-gated stream: it is promotional material the client
+    // supplied (assets.ts), same sensitivity class as poster/banner, and the title-page hero
+    // plays it inline with no OTP-session round trip. The asset list above already carries
+    // the trailer row (unfiltered by kind), so this needs no new query — only a sign.
+    const trailerKey = latestKeyOf("trailer");
     // Artwork TTL, not the download TTL (see the comment on PORTAL.artworkTtlSeconds) — this
     // page can stay open far longer than a single GET. stableWindow matches artwork.ts so the
     // browser caches the image across the hour instead of re-fetching on every navigation.
     // Signing depends on the asset list above, so it cannot join the first Promise.all — but
-    // the two signs are still parallel, and a signing failure degrades to null (placeholder),
-    // never a crashed page: artwork is decoration, not data.
-    const [posterUrl, bannerUrl] = await Promise.all(
-      [posterKey, bannerKey].map((key) =>
+    // the three signs are still parallel, and a signing failure degrades to null (placeholder
+    // or a hidden trailer), never a crashed page: artwork is decoration, not data.
+    const [posterUrl, bannerUrl, trailerUrl] = await Promise.all(
+      [posterKey, bannerKey, trailerKey].map((key) =>
         key
           ? assetViewUrl(key, PORTAL.artworkTtlSeconds, { stableWindow: true }).catch(() => null)
           : Promise.resolve(null),
@@ -112,7 +118,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
           metadata: meta,
           posterUrl,
           bannerUrl,
-          trailerAvailable: assetList.some((a) => a.kind === "trailer"),
+          trailerUrl,
           recipientName: link.recipient_name ?? null,
           actions,
         }}

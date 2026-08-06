@@ -84,4 +84,11 @@ export const PORTAL_COPY = {
   screenerLoading: "Preparing your screener.",
   screenerNotice: "This screening is for evaluation only.",
   unknownTitle: "this title",
+  watchButton: "Watch screener",
+  downloadScreenerButton: "Download screener",
+  downloadMetadataButton: "Download metadata",
+  downloadMasterHeading: "Licensed master",
+  downloadMasterButton: "Download master",
+  downloadMasterNotice: "The full-resolution deliverable for licensed distribution — not the evaluation screener.",
+  specificationsHeading: "Specifications",
 } as const;

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { PORTAL_COPY } from "@/lib/portal";
 import type { BuyerActions } from "@/lib/buyer-page";
-import { ScreenerRoom } from "./screener-room";
+import { TitlePage } from "./title-page";
 
 type Stage = "identity" | "code" | "ready";
 
@@ -19,10 +19,11 @@ type Stage = "identity" | "code" | "ready";
 // seam Task 5 branches on rather than duplicating the gate in a second component.
 //
 // The screener variant carries more than ScreenerRoom currently reads (catalogId, metadata,
-// posterUrl, bannerUrl, trailerAvailable, recipientName, actions) — that's deliberate. Task 7
-// (this file's page.tsx) loads it; the title-page component that renders it is a later task.
-// Widening the type here is the minimal seam so the loader and its future consumer agree on
-// shape without this component doing any new rendering.
+// posterUrl, bannerUrl, trailerUrl, recipientName, actions) — that's deliberate. Task 7 (this
+// file's page.tsx) loads it; TitlePage (title-page.tsx) is the consumer that renders the rest.
+// trailerUrl is signed the same way as posterUrl/bannerUrl (see page.tsx) — the trailer is
+// promotional material, same sensitivity class as artwork, not gated behind the OTP session
+// like the screener/master.
 export type ReadyView =
   | { mode: "download"; filename: string; bytes: number }
   | {
@@ -34,7 +35,7 @@ export type ReadyView =
       metadata: Record<string, unknown>;
       posterUrl: string | null;
       bannerUrl: string | null;
-      trailerAvailable: boolean;
+      trailerUrl: string | null;
       recipientName: string | null;
       actions: BuyerActions;
     };
@@ -111,8 +112,17 @@ export function PortalFlow({
     window.location.href = url;
   }
 
+  // The title page is the two-column "utility meets film aesthetic" layout (viewing and
+  // metadata carry equal weight — see title-page.tsx) and needs the full width the portal
+  // layout grants (portal/layout.tsx), not the narrow centered card every other stage below
+  // uses. It also owns its own error surface, since its actions (watch, three downloads)
+  // outnumber the single error slot the card stages share.
+  if (stage === "ready" && ready.mode === "screener") {
+    return <TitlePage ready={ready} />;
+  }
+
   return (
-    <Card>
+    <Card className="mx-auto max-w-md">
       <CardBody>
         <h1 className="t-subhead text-ink mb-1">
           {ready.mode === "screener" ? PORTAL_COPY.screenerHeading : PORTAL_COPY.roomTitle}
@@ -128,22 +138,24 @@ export function PortalFlow({
             <p className="t-body-sm text-ink-2">
               {ready.mode === "screener" ? PORTAL_COPY.screenerIntro : PORTAL_COPY.roomIntro}
             </p>
+            {/* Name and company are optional: the link already names the buyer (the share
+                control captures this at creation), so these fields identify the PERSON at
+                that company, not the company itself. Only email is required — it's where the
+                OTP goes. */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="portal-name">Name</Label>
+              <Label htmlFor="portal-name">Name (optional)</Label>
               <Input
                 id="portal-name"
                 autoComplete="name"
-                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="portal-company">Company</Label>
+              <Label htmlFor="portal-company">Company (optional)</Label>
               <Input
                 id="portal-company"
                 autoComplete="organization"
-                required
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
               />
@@ -203,16 +215,6 @@ export function PortalFlow({
             <Button onClick={download} disabled={busy} className="w-full">
               {PORTAL_COPY.downloadButton}
             </Button>
-          </div>
-        )}
-
-        {stage === "ready" && ready.mode === "screener" && (
-          <div className="mt-3">
-            <ScreenerRoom
-              title={ready.title}
-              synopsis={ready.synopsis}
-              runtimeMinutes={ready.runtimeMinutes}
-            />
           </div>
         )}
       </CardBody>
