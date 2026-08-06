@@ -50,8 +50,20 @@
 -- below. ALTER TABLE adds two nullable columns (vendor_id, recipient_name) plus an index — both
 -- additive, no backfill, no row rewritten with a default. No row deleted. Forward-only. To roll
 -- back the function/policy definitions, re-apply the three from 20260727000100_gc_role_separation.sql
--- (create_screener_link :372, revoke_portal_link :581, policy :199); to roll back the columns,
--- drop portal_links_title_recipient_idx and the two columns.
+-- (create_screener_link :372, revoke_portal_link :581, policy :199) — but drop the 5-arg
+-- create_screener_link FIRST. Re-applying the 4-arg definition without dropping the 5-arg one
+-- first creates a second overload rather than replacing it (the same hazard Step 4 below exists
+-- to avoid going forward): PostgREST resolves an `rpc('create_screener_link', {...})` call by
+-- matching named arguments, and a 4-arg/5-arg pair whose first four parameter names are
+-- identical is exactly the ambiguous case it cannot always disambiguate. To roll back the
+-- columns, drop portal_links_title_recipient_idx and the two columns.
+--
+-- portal_links_title_idx (title_id) — defined in 20260720000300 — is now a redundant left
+-- prefix of portal_links_title_recipient_idx (title_id, lower(recipient_name)): any plan that
+-- would use the single-column index can use the composite one instead. Left in place
+-- deliberately rather than dropped here — removing an existing index is its own decision
+-- (it could be relied on by a plan this migration's author hasn't traced), separate from this
+-- migration's purpose of adding buyer scoping. Founder call if it's worth a follow-up migration.
 --
 -- ONE LINK PER BUYER, NOT PER TITLE. A title-scoped single-active-link model cannot safely be
 -- extended to offer the master itself: the moment any buyer licenses the title, every other
@@ -60,12 +72,22 @@
 -- holds five independent links; replacing one buyer's link never touches another's. vendor_id
 -- stays null until GC attaches the vendor at deal time (vendors are GC-only, so a client cannot
 -- pick one from their side of this RPC).
+--
+-- CASE-INSENSITIVE MATCH, CASE-PRESERVING STORAGE. recipient_name is free text a GC or client
+-- user types (Task 5 puts it behind a plain input), so 'Tubi' and 'tubi' are the same buyer to
+-- a human retyping the name, not two. Matching exact-case would mean a client who re-types a
+-- name with different casing gets a SECOND live link instead of resetting the first — the
+-- already-emailed URL for the first stays resolvable indefinitely, which is precisely the
+-- leak single-active exists to prevent. The column stores the name AS TYPED (it is display
+-- text, shown back to the client), and only the revoke comparison folds case — see the
+-- `lower(...)` in the UPDATE below and in the index, which must match the comparison to stay
+-- usable for it.
 alter table public.portal_links
   add column if not exists vendor_id      uuid references public.vendors(id) on delete restrict,
   add column if not exists recipient_name text;
 
 create index if not exists portal_links_title_recipient_idx
-  on public.portal_links (title_id, recipient_name);
+  on public.portal_links (title_id, lower(recipient_name));
 
 -- The 4-arg signature is being replaced by a 5-arg one (p_recipient_name added). A plain CREATE
 -- OR REPLACE with a different argument list creates a SECOND overload instead of replacing the
@@ -125,14 +147,18 @@ begin
   -- Roku's, and neither may touch GC's outstanding vendor link. `is not distinct from` is
   -- required, not cosmetic: in SQL's three-valued logic `null = null` evaluates to null (not
   -- true), so a plain `=` would never match two of GC's unnamed links to each other and they
-  -- would accumulate forever instead of single-active resetting.
+  -- would accumulate forever instead of single-active resetting. `lower(...)` on both sides
+  -- makes the match case-insensitive — 'Tubi' and 'tubi' are the same buyer to whoever retyped
+  -- the name, and matching exact-case would leave the first casing's link live and resolvable
+  -- forever instead of resetting it (see header). The stored column itself keeps the case as
+  -- typed; only the comparison folds it.
   update public.portal_links
      set revoked_at = now()
    where title_id = p_title_id
      and purpose = 'screener_view'
      and revoked_at is null
      and public.is_gc_staff(created_by) = v_is_gc
-     and recipient_name is not distinct from nullif(btrim(p_recipient_name), '');
+     and lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''));
 
   insert into public.portal_links
     (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)

@@ -6,7 +6,7 @@
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
 
 begin;
-select plan(46);
+select plan(53);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -130,6 +130,31 @@ select lives_ok(
 select is(
   (select revoked_at from public.portal_links where token_hash = 'tok_buyer_a'),
   null, 'buyer B''s link does not revoke buyer A''s');
+
+-- Same-recipient revoke: recreating a link for the SAME buyer (same casing) must revoke the
+-- prior one. Buyer B's non-interference test above proves the predicate doesn't over-revoke;
+-- this proves it still under-revokes correctly for the one case the predicate exists for.
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
+         current_setting('t.title_c'), 'tok_buyer_a2', 'share_a2', 'Tubi'),
+  'client replaces buyer A''s link with a second one for the same recipient');
+select is(
+  (select revoked_at is not null from public.portal_links where token_hash = 'tok_buyer_a'),
+  true, 'recreating buyer A''s link revokes the prior one (single-active per recipient)');
+
+-- Case-insensitive match: a client retyping the same buyer's name with different casing must
+-- reset that buyer's existing link, not mint a second live one that leaves the first,
+-- already-emailed URL resolvable indefinitely.
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
+         current_setting('t.title_c'), 'tok_buyer_a3', 'share_a3', 'TUBI'),
+  'client re-shares with buyer A under different casing');
+select is(
+  (select revoked_at is not null from public.portal_links where token_hash = 'tok_buyer_a2'),
+  true, 'differently-cased recipient name still revokes the same buyer''s prior link');
+select is(
+  (select revoked_at from public.portal_links where token_hash = 'tok_buyer_b'),
+  null, 'buyer B''s link is untouched by buyer A''s casing change');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
@@ -305,12 +330,27 @@ select is(
   'client sees no engagement rows (GC-only gate inside the function)');
 
 -- ============================================================================
--- RLS: client denied SELECT on screener_view_events + screener-purpose portal_links
+-- RLS: client denied screener_view_events; screener-purpose portal_links widened, narrowly
 -- ============================================================================
 select is((select count(*) from public.screener_view_events)::int, 0,
-  'client SELECT on screener_view_events returns nothing (GC-only policy)');
-select is((select count(*) from public.portal_links where purpose = 'screener_view')::int, 0,
-  'client SELECT on screener portal_links returns nothing (GC-only policy)');
+  'client SELECT on screener_view_events returns nothing (GC-only policy, unchanged)');
+
+-- 20260806000200 widened portal_links_select so a client can re-copy the screener_view link
+-- they minted for their own org — that's what "0 screener_view rows visible" used to assert,
+-- and would now be wrong (tok_c_client, tok_buyer_* are all client-authored rows for t.owner's
+-- own org and correctly visible under the new policy). What must still hold: GC's own
+-- screener_view rows for that same title stay invisible to the client (the widening is
+-- one-directional), and master_download rows stay GC-only regardless of org, because a
+-- master_download token yields the master itself post-OTP and was never given a share_token.
+select is(
+  (select count(*) from public.portal_links where token_hash = 'tok_c_gc')::int, 0,
+  'client cannot see GC-authored screener_view rows for their own org''s title (still GC-only)');
+select is(
+  (select count(*) from public.portal_links where token_hash = 'tok_c_client')::int, 1,
+  'client CAN see their own org''s non-GC-authored screener_view rows (20260806000200 widening)');
+select is(
+  (select count(*) from public.portal_links where purpose = 'master_download')::int, 0,
+  'client SELECT on master_download portal_links returns nothing (GC-only, unchanged)');
 
 -- ============================================================================
 -- append-only: nobody can UPDATE/DELETE screener_view_events, incl. service_role
