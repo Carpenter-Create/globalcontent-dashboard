@@ -40,7 +40,12 @@ export async function titleArtworkUrls(
   const signed = await Promise.all(
     wanted.map(async (w) => {
       try {
-        return { ...w, url: await assetViewUrl(w.key, PORTAL.artworkTtlSeconds) };
+        // stableWindow: identical URL for the whole hour, so the browser caches the
+        // image instead of re-downloading 2.5-3 MB on every navigation.
+        return {
+          ...w,
+          url: await assetViewUrl(w.key, PORTAL.artworkTtlSeconds, { stableWindow: true }),
+        };
       } catch {
         return { ...w, url: null }; // unservable → placeholder. Intentional.
       }

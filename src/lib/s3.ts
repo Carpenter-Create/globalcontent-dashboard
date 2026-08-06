@@ -10,6 +10,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+import { stableSigningDate } from "@/lib/signing-window";
+
 // Server-only S3 client. Credentials come from AWS_ACCESS_KEY_ID /
 // AWS_SECRET_ACCESS_KEY / AWS_REGION in the environment (never NEXT_PUBLIC).
 const region = process.env.AWS_REGION!;
@@ -69,9 +71,17 @@ export async function completeMultipart(
 // this exists because the CloudFront distribution origins from the PROD bucket only, so a
 // dev-bucket key can never be served through it. Supports range requests, so video
 // scrubbing works. The caller decides when this is permissible, not this function.
-export async function presignGetObject(key: string, ttlSeconds: number): Promise<string> {
+export async function presignGetObject(
+  key: string,
+  ttlSeconds: number,
+  opts: { stableWindow?: boolean } = {},
+): Promise<string> {
+  // The S3 presigner takes a RELATIVE expiresIn, so pinning signingDate to the window
+  // start is what makes its output identical across the window — the same caching win as
+  // the CloudFront path.
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }), {
     expiresIn: ttlSeconds,
+    ...(opts.stableWindow ? { signingDate: stableSigningDate(ttlSeconds) } : {}),
   });
 }
 

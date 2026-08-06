@@ -54,6 +54,8 @@ export function TitleHero({
               src={posterUrl}
               title={title}
               className="aspect-[2/3] w-full border border-band-ink/10 shadow-lg"
+              sizes="(max-width: 640px) 96px, 112px"
+              priority
             />
           </div>
           <div className="flex flex-col gap-2 pb-1">
