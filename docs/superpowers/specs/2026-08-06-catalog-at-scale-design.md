@@ -147,10 +147,17 @@ No new tables. Indexes only, plus one extension:
 ```sql
 create extension if not exists pg_trgm;
 
--- Keyset sort paths (org-scoped; the leading org_id matches the RLS predicate).
+-- Keyset sort paths — org-scoped (client /titles; leading org_id matches the RLS predicate).
 create index if not exists titles_org_created_id_idx on public.titles (org_id, created_at desc, id desc);
 create index if not exists titles_org_title_id_idx   on public.titles (org_id, title, id);
 create index if not exists titles_org_release_id_idx on public.titles (org_id, release_date desc nulls last, id desc);
+
+-- Keyset sort paths — cross-org GC surfaces (/queue, /gc/deliveries). Those lists have no
+-- org_id predicate; a leading-org_id composite cannot serve ORDER BY created_at / status filters
+-- across all orgs. Column order must match the query's ORDER BY and cursor predicates.
+create index if not exists titles_created_id_idx on public.titles (created_at desc, id desc);
+create index if not exists titles_status_created_id_idx on public.titles (status, created_at desc, id desc);
+create index if not exists deliveries_created_id_idx on public.deliveries (created_at desc, id desc);
 
 -- Substring / fuzzy search on the title.
 create index if not exists titles_title_trgm_idx on public.titles using gin (title gin_trgm_ops);
