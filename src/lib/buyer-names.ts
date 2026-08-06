@@ -2,7 +2,8 @@
 //
 // The RPC matches an existing live link with
 // `lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''))`
-// (20260806000200:161) — and replaces it, silently, by design, from the DB's point of view.
+// (20260806000300, unchanged from 20260806000200 — only the author partition around it was
+// removed) — and replaces it, silently, by design, from the DB's point of view.
 // Note what that actually trims: only the INCOMING `p_recipient_name`. The stored
 // `recipient_name` column is never btrim'd by the SQL itself; it relies on every writer
 // having already trimmed before insert (this repo's action does, via `.trim()`). The app-side

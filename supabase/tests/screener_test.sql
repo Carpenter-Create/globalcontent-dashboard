@@ -4,6 +4,12 @@
 -- gate), screener_engagement (GC-only, watched_pct/completed/replays math), RLS on
 -- screener_view_events + screener-purpose portal_links, and confirmation that Portal-1's
 -- create_portal_link still satisfies the generalized portal_links_purpose_shape CHECK.
+--
+-- 20260806000300 removed the author partition 20260806000200 introduced: one active screener
+-- link per (title, recipient) now, full stop — GC and a client sharing with the same buyer
+-- collide on purpose, and a client can read (and revoke) a GC-authored screener_view row for
+-- their own org's title. The assertions below that used to prove the partition held now prove
+-- the opposite on purpose; see the inline comments at each one.
 
 begin;
 select plan(53);
@@ -93,8 +99,11 @@ select throws_ok(
   'P0001', 'A screener can be shared once GC has approved the title',
   'client cannot share a title GC has not approved');
 
--- The partition fix: a client minting a link must NOT revoke GC's outstanding vendor link
--- for the same title. Before the migration the revoke was unfiltered and did exactly that.
+-- Unification (20260806000300): same recipient, different authors, now collide on purpose.
+-- Neither create call below names a recipient, so both share the same (null) "buyer" under the
+-- RPC's `is not distinct from` match — exactly like two callers both typing "Tubi". The old
+-- author partition would have kept these on separate sides; it is gone, so the client's create
+-- must revoke GC's prior link for that same (unnamed) recipient, leaving exactly one live.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims',
@@ -108,24 +117,19 @@ select set_config('request.jwt.claims',
 select lives_ok(
   format($$ select public.create_screener_link(%L, %L) $$,
          current_setting('t.title_c'), 'tok_c_client'),
-  'account_owner creates a screener link on an approved title');
+  'account_owner creates a screener link on an approved title, revoking GC''s prior link for the same (unnamed) recipient');
 
--- Both assertions below must run as GC, not the client. Under the widened
--- portal_links_select policy the client (t.owner) can no longer see tok_c_gc at all — GC's row
--- is invisible to them by design (see policy header) — so checking these as t.owner would read
--- a NULL subselect / a truncated count and pass or fail for the wrong reason instead of
--- actually exercising the author-partitioned revoke, which is this migration's central safety
--- claim. gc_can(t.gc, 'view') is true for gc_delivery_ops, so GC sees every row regardless of
--- author, making both checks real.
+-- Checked as GC (gc_can(t.gc, 'view') sees every row regardless of author) so these read the
+-- true underlying state rather than whatever the client's own RLS view happens to allow.
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select is(
-  (select revoked_at from public.portal_links where token_hash = 'tok_c_gc'),
-  null, 'a client link does not revoke GC''s link for the same title');
+  (select revoked_at is not null from public.portal_links where token_hash = 'tok_c_gc'),
+  true, 'a same-recipient client link now revokes GC''s link for the same title (no author partition)');
 select is(
   (select count(*) from public.portal_links
      where title_id = current_setting('t.title_c')::uuid and purpose = 'screener_view' and revoked_at is null)::int,
-  2, 'each side keeps its own single active link');
+  1, 'exactly one active link remains for the shared recipient, regardless of who authored either side');
 
 -- Back to the client identity: everything from here through the case-insensitivity block
 -- below creates and inspects the CLIENT's own links, which requires 'operate' as t.owner, not
@@ -352,18 +356,21 @@ select is((select count(*) from public.screener_view_events)::int, 0,
   'client SELECT on screener_view_events returns nothing (GC-only policy, unchanged)');
 
 -- 20260806000200 widened portal_links_select so a client can re-copy the screener_view link
--- they minted for their own org — that's what "0 screener_view rows visible" used to assert,
--- and would now be wrong (tok_c_client, tok_buyer_* are all client-authored rows for t.owner's
--- own org and correctly visible under the new policy). What must still hold: GC's own
--- screener_view rows for that same title stay invisible to the client (the widening is
--- one-directional), and master_download rows stay GC-only regardless of org, because a
--- master_download token yields the master itself post-OTP and was never given a share_token.
+-- they minted for their own org — that's what "0 screener_view rows visible" used to assert, and
+-- was already wrong the moment that migration landed. 20260806000300 widens it further by
+-- deleting the author conjunct entirely: a client now sees EVERY screener_view row for their
+-- org's title, GC-authored included (tok_c_gc, revoked above, stays visible — RLS is not
+-- filtered by revoked_at). That inverts what this assertion used to prove; see the migration
+-- header for why hiding GC's outbound activity from the client stopped being defensible once the
+-- recipient key made the author partition unnecessary. What still holds unconditionally:
+-- master_download rows stay GC-only regardless of org, because a master_download token yields
+-- the master itself post-OTP and was never given a share_token.
 select is(
-  (select count(*) from public.portal_links where token_hash = 'tok_c_gc')::int, 0,
-  'client cannot see GC-authored screener_view rows for their own org''s title (still GC-only)');
+  (select count(*) from public.portal_links where token_hash = 'tok_c_gc')::int, 1,
+  'client CAN now see GC-authored screener_view rows for their own org''s title (author partition removed)');
 select is(
   (select count(*) from public.portal_links where token_hash = 'tok_c_client')::int, 1,
-  'client CAN see their own org''s non-GC-authored screener_view rows (20260806000200 widening)');
+  'client can see their own org''s non-GC-authored screener_view rows (unchanged)');
 select is(
   (select count(*) from public.portal_links where purpose = 'master_download')::int, 0,
   'client SELECT on master_download portal_links returns nothing (GC-only, unchanged)');

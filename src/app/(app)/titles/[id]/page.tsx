@@ -114,9 +114,11 @@ export default async function TitleDetailPage({ params }: { params: Promise<{ id
   const totalCount = titleDlv.length;
 
   // Parallel — two independent reads (the repo's easiest perf regression is awaiting these
-  // in sequence). Share links are RLS-scoped to this org's OWN screener links, so the list
-  // comes back empty for a role that may not share and for GC-authored links. Links are now
-  // per-buyer (Task 4), so this is a bounded list, not a single row.
+  // in sequence). Share links are RLS-scoped to this org's title, but since 20260806000300
+  // that includes GC-authored screener links too (the author partition was removed — one
+  // active link per (title, recipient), whoever created it). The list comes back empty only
+  // for a role that may not share at all. Links are per-buyer (Task 4), so this is a bounded
+  // list, not a single row.
   const [{ data: findings }, { data: shareLinks }] = await Promise.all([
     supabase
       .from("findings")

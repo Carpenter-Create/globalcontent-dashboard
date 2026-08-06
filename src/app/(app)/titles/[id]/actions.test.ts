@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { createBuyerScreenerLink } from "./actions";
 
-type Candidate = { recipient_name: string; created_by: string };
+type Candidate = { recipient_name: string };
 
 // A chainable stand-in for the PostgREST query builder: every filter method returns the same
 // object, and awaiting it (Promise.all does this via `.then`) resolves to the fixed result —
@@ -32,16 +32,14 @@ function fakeQuery<T>(data: T, error: { message: string } | null = null) {
   return builder;
 }
 
-function fakeSupabase(opts: {
-  gcStaffRow?: { user_id: string } | null;
-  candidates?: Candidate[];
-  rpcError?: string;
-}) {
+// Unification (20260806000300): the collision check no longer looks up gc_staff or narrows by
+// created_by — one active link per (title, recipient), whoever created it — so this fake only
+// ever needs to answer for "portal_links".
+function fakeSupabase(opts: { candidates?: Candidate[]; rpcError?: string }) {
   const rpc = vi.fn(async () =>
     opts.rpcError ? { data: null, error: { message: opts.rpcError } } : { data: "link-id", error: null },
   );
   const from = vi.fn((table: string) => {
-    if (table === "gc_staff") return fakeQuery(opts.gcStaffRow ?? null);
     if (table === "portal_links") return fakeQuery(opts.candidates ?? []);
     throw new Error(`fakeSupabase: unexpected table "${table}"`);
   });
@@ -60,7 +58,7 @@ describe("createBuyerScreenerLink — collision branching", () => {
   // kills the existing buyer's URL.
   it("collision, no replace: returns the warning and never calls the RPC", async () => {
     const supabase = fakeSupabase({
-      candidates: [{ recipient_name: "Tubi", created_by: "someone-else" }],
+      candidates: [{ recipient_name: "Tubi" }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
 
@@ -75,7 +73,7 @@ describe("createBuyerScreenerLink — collision branching", () => {
 
   it("collision, replace: true: skips the check and calls the RPC", async () => {
     const supabase = fakeSupabase({
-      candidates: [{ recipient_name: "Tubi", created_by: "someone-else" }],
+      candidates: [{ recipient_name: "Tubi" }],
     });
     vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
 
@@ -106,37 +104,6 @@ describe("createBuyerScreenerLink — collision branching", () => {
 
     expect(res.error).toBe("Enter the buyer's name.");
     expect(supabase.from).not.toHaveBeenCalled();
-    expect(supabase.rpc).not.toHaveBeenCalled();
-  });
-
-  // The author-partition fix (Finding 1): a GC-staff caller must not be blocked by a
-  // client-authored row with the same name, because the RPC would never have let that row
-  // collide with GC's own — they're on different sides of `is_gc_staff(created_by) = v_is_gc`.
-  // Not reachable today (BuyerShareControl never renders for GC), but the check must still
-  // agree with the RPC if something reaches it later.
-  it("GC caller: a candidate authored by someone else is NOT treated as a collision", async () => {
-    const supabase = fakeSupabase({
-      gcStaffRow: { user_id: USER.id },
-      candidates: [{ recipient_name: "Tubi", created_by: "a-client-user" }],
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
-
-    const res = await createBuyerScreenerLink({ titleId: "t1", recipientName: "Tubi" });
-
-    expect(res.error).toBeUndefined();
-    expect(supabase.rpc).toHaveBeenCalledTimes(1);
-  });
-
-  it("GC caller: a candidate authored by the SAME caller is treated as a collision", async () => {
-    const supabase = fakeSupabase({
-      gcStaffRow: { user_id: USER.id },
-      candidates: [{ recipient_name: "Tubi", created_by: USER.id }],
-    });
-    vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
-
-    const res = await createBuyerScreenerLink({ titleId: "t1", recipientName: "Tubi" });
-
-    expect(res.error).toContain("A link for Tubi already exists.");
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });
