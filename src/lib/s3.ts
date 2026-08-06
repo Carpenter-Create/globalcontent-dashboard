@@ -20,9 +20,34 @@ const s3 = new S3Client({ region });
 
 const PRESIGN_TTL = 900; // 15 minutes
 
-export async function createMultipart(key: string, contentType?: string): Promise<string> {
+// Objects are tagged at creation so the archival rule can select them.
+//
+// WHY A TAG AND NOT A PREFIX: assetKey() builds
+//   orgs/<org>/titles/<title>/<kind>/<uuid>/<file>
+// so "master" sits MID-KEY, and S3 lifecycle/tiering filters match on prefix only. The
+// runbook's "scope the rule to master/" instruction would match ZERO objects and archive
+// nothing, while showing a green enabled rule in the console. Tagging is the only way to
+// select by kind.
+//
+// Only masters are archived. Artwork stays instant — it is 2–3 MB, it is on every catalog
+// page, and a poster behind a 12-hour restore is a broken image for a trivial saving.
+export const ARCHIVE_TAG_KEY = "gc-archive";
+export const ARCHIVE_TAG_VALUE = "master";
+
+export async function createMultipart(
+  key: string,
+  contentType?: string,
+  opts: { archivable?: boolean } = {},
+): Promise<string> {
   const out = await s3.send(
-    new CreateMultipartUploadCommand({ Bucket: S3_BUCKET, Key: key, ContentType: contentType }),
+    new CreateMultipartUploadCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      ContentType: contentType,
+      // Set at creation rather than via a follow-up PutObjectTagging: one call, and no
+      // window where a master exists untagged and is therefore invisible to the rule.
+      ...(opts.archivable ? { Tagging: `${ARCHIVE_TAG_KEY}=${ARCHIVE_TAG_VALUE}` } : {}),
+    }),
   );
   if (!out.UploadId) throw new Error("S3 did not return an UploadId");
   return out.UploadId;
@@ -108,8 +133,20 @@ export type RestoreState = "none" | "restoring" | "available";
 export function parseRestore(
   restoreHeader: string | undefined,
   storageClass: string | undefined,
+  archiveStatus?: string,
 ): RestoreState {
-  const archived = storageClass === "GLACIER" || storageClass === "DEEP_ARCHIVE";
+  // INTELLIGENT_TIERING reports its class as INTELLIGENT_TIERING whatever tier the object
+  // is actually in; the tier lives in a SEPARATE x-amz-archive-status header. Testing
+  // storageClass alone would call an archived object "available", hand out a signed URL,
+  // and 403 the download. The two archive statuses are ARCHIVE_ACCESS and
+  // DEEP_ARCHIVE_ACCESS — the automatic Frequent/Infrequent/Archive-Instant tiers set no
+  // status at all and are genuinely instant.
+  const intelligentlyArchived =
+    storageClass === "INTELLIGENT_TIERING" &&
+    (archiveStatus === "ARCHIVE_ACCESS" || archiveStatus === "DEEP_ARCHIVE_ACCESS");
+  const archived =
+    storageClass === "GLACIER" || storageClass === "DEEP_ARCHIVE" || intelligentlyArchived;
+
   if (!archived) return "available";
   if (!restoreHeader) return "none";
   if (/ongoing-request="true"/.test(restoreHeader)) return "restoring";
@@ -119,7 +156,7 @@ export function parseRestore(
 
 export async function headObjectRestore(key: string): Promise<RestoreState> {
   const out = await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
-  return parseRestore(out.Restore, out.StorageClass);
+  return parseRestore(out.Restore, out.StorageClass, out.ArchiveStatus);
 }
 
 // Standard-tier restore, temp copy kept for `days`. Idempotent: a restore already in
