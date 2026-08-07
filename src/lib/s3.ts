@@ -6,6 +6,7 @@ import {
   CompleteMultipartUploadCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  HeadBucketCommand,
   RestoreObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -33,6 +34,40 @@ if (!rawBucket) throw new Error("S3_BUCKET environment variable is not set");
 const region: string = rawRegion;
 export const S3_BUCKET: string = rawBucket;
 const s3 = new S3Client({ region });
+
+// Fix round 2, item 3 — a SEPARATE client, deliberately, not a config change to `s3` above.
+// The SDK default is NO request timeout and 3 retry attempts with backoff: a single hanging
+// call had no ceiling at all, which meant the scheduled poll's between-batch time budget
+// (route.ts) could never actually bind — one stuck GetJob/HeadObject could carry an
+// invocation past `maxDuration`, at which point the platform kills it and the summary, the
+// stuck-jobs warning, and the deferred count are all lost, exactly what the budget exists to
+// prevent. A tight timeout is right for the poll's own calls but WRONG for `s3` above:
+// `completeMultipart` assembles a large multipart master upload server-side, which AWS
+// documents as potentially taking longer than a few seconds for very large objects with many
+// parts — a shared low `requestTimeout` would turn a slow-but-healthy large-file completion
+// into a spurious failure, a regression far worse than anything this fix round is trying to
+// close. So only the poll's own client gets the tight ceiling.
+//
+// `requestHandler` accepts a plain options object here (no need to construct a
+// NodeHttpHandler instance, and no new dependency: @smithy/node-http-handler is only a
+// TRANSITIVE dependency of @aws-sdk/client-s3 under pnpm's strict linking, not resolvable from
+// application code without adding it directly). `throwOnRequestTimeout: true` is required —
+// undocumented-until-you-hit-it SDK behavior is that `requestTimeout` ALONE only LOGS a
+// warning on breach, it does not throw. `maxAttempts: 2` bounds the SDK's own retry loop so a
+// single logical call can't silently re-stack its timeout budget. This is the FIRST line of
+// defense; route.ts's per-call race is the backstop in case any of this is ever misconfigured
+// or the hang isn't one the request/connection timeout actually covers.
+const POLL_REQUEST_TIMEOUT_MS = 6_000;
+const POLL_CONNECTION_TIMEOUT_MS = 3_000;
+const pollS3 = new S3Client({
+  region,
+  requestHandler: {
+    connectionTimeout: POLL_CONNECTION_TIMEOUT_MS,
+    requestTimeout: POLL_REQUEST_TIMEOUT_MS,
+    throwOnRequestTimeout: true,
+  },
+  maxAttempts: 2,
+});
 
 const PRESIGN_TTL = 900; // 15 minutes
 
@@ -178,40 +213,51 @@ export async function headObjectRestore(key: string): Promise<RestoreState> {
 // Used by the scheduled transcode poll to verify a MediaConvert-reported COMPLETE actually
 // produced an object before registering it as an asset.
 //
-// Returns null ONLY for the SDK's own modeled "NotFound" exception (HeadObject's 404), never
-// for any other failure. That distinction matters: a transient network blip, a throttle, or a
-// permissions problem must not be read as "the object doesn't exist," or the poll would fail
-// a job that may in fact be fine, on a truth it never actually established.
+// Returns null ONLY for a CONFIRMED-absent object, never for any other failure. That
+// distinction matters: a transient network blip, a throttle, or a permissions problem must
+// not be read as "the object doesn't exist," or the poll would fail a job that may in fact be
+// fine, on a truth it never actually established.
 //
 // Fix round 1, item 2 — narrowed from `name === "NotFound" || statusCode === 404` to
 // `name === "NotFound"` alone: a bare status-code check also matches any OTHER 404 the SDK
 // did not itself recognise as a modeled NotFound, which is exactly the failure-toward-"absent"
-// direction this function must not take. Anything that reaches this catch without the SDK's
-// own NotFound name now throws (treated as "could not tell"), narrowing what actually
-// short-circuits a job to permanently-failed.
+// direction this function must not take.
 //
-// HONEST LIMIT, not fully closed by the above: AWS's HeadObject returns an identical, bodyless
-// 404 whether the KEY is missing or the BUCKET itself is missing/misconfigured — there is no
-// response body on a HEAD request for the SDK to read a distinguishing error code from.
-// Verified against this SDK's own source (@aws-sdk/client-s3's waitUntilObjectExists AND
-// waitUntilBucketExists helpers both key their retry/success branches off nothing but
-// `exception.name === "NotFound"` for both HeadObjectCommand and HeadBucketCommand) — the SDK
-// itself cannot tell these apart, so no exception-shape check here can either. The mitigation
-// is upstream: S3_BUCKET is validated non-empty at module load (see above) so an UNSET bucket —
-// the concrete, likely failure mode (a missed env var on deploy) — can never reach this call as
-// `Bucket: undefined` in the first place. A bucket that is SET but wrong (renamed, typo'd to a
-// name that happens to exist or not) is not detectable from inside a single HeadObject call by
-// any means; that class of misconfiguration needs to show up as a fleet-wide anomaly (every job
-// failing) rather than a per-object check, which is what the stuck/error-rate signal in the
-// route is for.
+// Fix round 2, item 2 — CLOSES what fix round 1 documented as an honest, unresolved limit.
+// AWS's HeadObject returns an identical, bodyless 404 whether the KEY is missing or the
+// BUCKET itself is missing — there is no response body on a HEAD request for the SDK to read
+// a distinguishing code from, and no exception-shape check on HeadObject's own error can tell
+// these apart (verified against this SDK's waitUntilObjectExists/waitUntilBucketExists
+// helpers, which both key off nothing but `exception.name === "NotFound"`). But `HeadBucket`,
+// run against the BUCKET ALONE, distinguishes them definitively — and it needs exactly the
+// `s3:ListBucket` permission fix round 1 already added for this same function. So: on a
+// HeadObject NotFound ONLY (the rare path — most calls succeed), issue one extra HeadBucket
+// call. Bucket reachable → the KEY genuinely doesn't exist → confirmed absent, return null.
+// Bucket unreachable (missing, renamed, wrong account, access revoked) → this was never a
+// confirmed-absent KEY, it's a broken pointer — throw, so the caller treats it as "could not
+// tell" (errored, retried next tick) rather than permanently failing a job over a
+// configuration fault. This is why fix round 1's item 1 (the s3:ListBucket grant) MUST NOT
+// reach production before this function does: granting ListBucket without this check is what
+// turns a 403-forever-retry (wasteful, harmless) into a 404-fail-on-first-observation
+// (irreversible) — see route.ts's fleet-wide corroboration gate for the other half of that
+// fix.
 export async function headObjectMeta(key: string): Promise<{ bytes: number; etag: string } | null> {
   try {
-    const out = await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    const out = await pollS3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
     return { bytes: out.ContentLength ?? 0, etag: (out.ETag ?? "").replace(/"/g, "") };
   } catch (e) {
     const name = (e as { name?: string })?.name;
-    if (name === "NotFound") return null;
-    throw e;
+    if (name !== "NotFound") throw e;
+
+    try {
+      await pollS3.send(new HeadBucketCommand({ Bucket: S3_BUCKET }));
+    } catch (bucketError) {
+      throw new Error(
+        `S3 bucket "${S3_BUCKET}" is not accessible (cannot confirm object absence for ${key}): ` +
+          (bucketError instanceof Error ? bucketError.message : String(bucketError)),
+      );
+    }
+    return null; // Bucket confirmed reachable — the 404 was genuinely about the key.
   }
 }
 

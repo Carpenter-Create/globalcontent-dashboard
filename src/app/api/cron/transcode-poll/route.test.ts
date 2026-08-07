@@ -325,6 +325,13 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
   // The equivalent gap on the register path per the review: an overlapping run's idempotent
   // return used to be silently counted as `completed`, inflating the count with a
   // registration that didn't actually happen this tick.
+  //
+  // Fix round 2, item 1 restructured the route into phases so the fleet-wide corroboration
+  // gate can see EVERY complete job's object-check result before any of them are written —
+  // which means the peek now only happens at write time (performWrite), not before the
+  // object check. headObjectMeta IS called here (a cost accepted for the correctness the
+  // phase split buys); the safety property that matters — register_transcode_output is never
+  // called for an already-resolved job — still holds via the write-time peek.
   it("a job a concurrent run already completed on the COMPLETE path is a no-op — register_transcode_output is never called", async () => {
     const j = job({ id: "job-race-complete" });
     const supabase = fakeSupabase([j], { peekStatuses: { "job-race-complete": "complete" } });
@@ -338,8 +345,6 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(json.alreadyResolved).toBe(1);
     expect(json.completed).toBe(0);
     expect(supabase.rpc).not.toHaveBeenCalledWith("register_transcode_output", expect.anything());
-    // Never even HEAD'd the object — the peek short-circuits before that call.
-    expect(headObjectMeta).not.toHaveBeenCalled();
   });
 
   it("truncates the selection at the list-bounds ceiling and logs a warning", async () => {
@@ -382,19 +387,44 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
   });
 
   // Fix round 1, item 5: the one thing Vercel itself surfaces (the invocation's HTTP status)
-  // must not stay green through a total AWS outage.
-  it("returns a non-200 when every job in a non-empty run errored", async () => {
-    const j1 = job({ id: "job-outage-1", external_job_id: "aws-1" });
-    const j2 = job({ id: "job-outage-2", external_job_id: "aws-2" });
-    const supabase = fakeSupabase([j1, j2]);
+  // must not stay green through a total AWS outage. Fix round 2, item 4 added
+  // TOTAL_FAILURE_FLOOR (3) so this only fires on a real sample, not a single blip — this
+  // fixture uses 3 jobs specifically to clear that floor.
+  it("returns a non-200 when every job in a non-empty run of at least the failure floor errored", async () => {
+    const jobs = [
+      job({ id: "job-outage-1", external_job_id: "aws-1" }),
+      job({ id: "job-outage-2", external_job_id: "aws-2" }),
+      job({ id: "job-outage-3", external_job_id: "aws-3" }),
+    ];
+    const supabase = fakeSupabase(jobs);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockRejectedValue(new Error("MediaConvert unreachable"));
 
     const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
     const json = (await res.json()) as { errored: number };
 
-    expect(json.errored).toBe(2);
+    expect(json.errored).toBe(3);
     expect(res.status).not.toBe(200);
+  });
+
+  // Fix round 2, item 4 — the hair-trigger this floor exists to fix: below the floor, a
+  // transient blip on the only job (or one of only two) in flight must not trip the same
+  // alarm a genuine total outage does. The error is still counted and still visible in the
+  // JSON body — just not escalated to the one signal Vercel itself surfaces.
+  it("stays 200 when fewer than the failure floor are in flight, even if all of them errored", async () => {
+    const jobs = [
+      job({ id: "job-small-1", external_job_id: "aws-1" }),
+      job({ id: "job-small-2", external_job_id: "aws-2" }),
+    ];
+    const supabase = fakeSupabase(jobs);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockRejectedValue(new Error("transient blip"));
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { errored: number };
+
+    expect(json.errored).toBe(2);
+    expect(res.status).toBe(200);
   });
 
   it("stays 200 when jobs are a healthy mix, even if one errored", async () => {
@@ -413,6 +443,104 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(json.errored).toBe(1);
     expect(json.stillRunning).toBe(1);
     expect(res.status).toBe(200);
+  });
+
+  describe("fleet-wide corroboration gate (fix round 2, item 1)", () => {
+    // The core case the gate exists for: granting s3:ListBucket turned a missing object into
+    // a CONFIRMED absence, and fail_transcode_job is permanent. If every COMPLETE job this
+    // tick reports its output missing, that looks like a configuration fault, not N
+    // independent failures — none of them may be permanently failed on that basis.
+    it("more than one COMPLETE job, ALL missing: none are failed, held back, and the response is non-200", async () => {
+      const jobs = [
+        job({ id: "job-sys-1", external_job_id: "aws-1", expected_output_key: "orgs/o/titles/t/screener/u1/a.mp4" }),
+        job({ id: "job-sys-2", external_job_id: "aws-2", expected_output_key: "orgs/o/titles/t/screener/u2/b.mp4" }),
+        job({ id: "job-sys-3", external_job_id: "aws-3", expected_output_key: "orgs/o/titles/t/screener/u3/c.mp4" }),
+      ];
+      const supabase = fakeSupabase(jobs);
+      vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
+      vi.mocked(headObjectMeta).mockResolvedValue(null); // every single one reports missing
+
+      const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+      const json = (await res.json()) as { held: number; failed: number; completed: number };
+
+      expect(json.held).toBe(3);
+      expect(json.failed).toBe(0);
+      expect(json.completed).toBe(0);
+      expect(supabase.rpc).not.toHaveBeenCalledWith("fail_transcode_job", expect.anything());
+      expect(res.status).not.toBe(200);
+    });
+
+    // The other half of the same walk: if SOME of the complete jobs this tick found their
+    // object fine, the missing one(s) are NOT systemic — a sibling in the same tick proves
+    // the pipeline/bucket/permissions are working, so a genuinely individual failure is not
+    // suppressed.
+    it("more than one COMPLETE job, SOME missing: the missing ones still fail normally, the present ones still register", async () => {
+      const present = job({ id: "job-mix-present", external_job_id: "aws-present", expected_output_key: "orgs/o/titles/t/screener/u1/a.mp4" });
+      const missing = job({ id: "job-mix-missing", external_job_id: "aws-missing", expected_output_key: "orgs/o/titles/t/screener/u2/b.mp4" });
+      const rpc: RpcImpl = async (fn) => ({ data: fn === "register_transcode_output" ? "asset-1" : null, error: null });
+      const supabase = fakeSupabase([present, missing], { rpcImpl: rpc });
+      vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
+      vi.mocked(headObjectMeta).mockImplementation(async (key: string) =>
+        key.includes("u1") ? { bytes: 100, etag: "e" } : null,
+      );
+
+      const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+      const json = (await res.json()) as { held: number; failed: number; completed: number };
+
+      expect(json.held).toBe(0);
+      expect(json.failed).toBe(1);
+      expect(json.completed).toBe(1);
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        "fail_transcode_job",
+        expect.objectContaining({ p_job_id: "job-mix-missing" }),
+      );
+      expect(res.status).toBe(200);
+    });
+
+    // Fleet size of exactly one: nothing to corroborate against, so a single complete-but-
+    // missing job must still fail normally, exactly as it did before this fix round.
+    it("exactly ONE COMPLETE job missing: fails normally, not held (fleet size 1 has nothing to corroborate against)", async () => {
+      const j = job({ id: "job-solo-missing" });
+      const supabase = fakeSupabase([j]);
+      vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
+      vi.mocked(headObjectMeta).mockResolvedValue(null);
+
+      const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+      const json = (await res.json()) as { held: number; failed: number };
+
+      expect(json.held).toBe(0);
+      expect(json.failed).toBe(1);
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        "fail_transcode_job",
+        expect.objectContaining({ p_job_id: "job-solo-missing" }),
+      );
+    });
+  });
+
+  // Fix round 2, item 3: a hanging AWS call previously had no ceiling at all — the SDK
+  // default is no request timeout. Forcing a GetJob call that never resolves proves the
+  // application-level race actually bounds it, rather than relying solely on client
+  // configuration this test can't directly observe.
+  it("a GetJob call that never resolves is timed out rather than hanging the poll indefinitely", async () => {
+    vi.useFakeTimers();
+    try {
+      const j = job({ id: "job-hang", external_job_id: "aws-hang" });
+      const supabase = fakeSupabase([j]);
+      vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(getJob).mockReturnValue(new Promise(() => {})); // never settles
+
+      const resPromise = GET(req({ Authorization: `Bearer ${SECRET}` }));
+      await vi.advanceTimersByTimeAsync(15_000); // comfortably past the per-call ceiling
+      const res = await resPromise;
+      const json = (await res.json()) as { errored: number };
+
+      expect(json.errored).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Fix round 1, item 6: a serial loop with no deadline would run every selected job to

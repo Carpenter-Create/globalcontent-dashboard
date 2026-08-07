@@ -13,9 +13,25 @@ import { proxyOutputKey, buildProxyJobSettings } from "@/lib/mediaconvert-settin
 // documented in docs/infra/screener-proxy-setup.md. Without it the SDK would hit the
 // generic regional endpoint and every call would fail.
 const region = process.env.AWS_REGION!;
+
+// Fix round 2, item 3 (screener-proxy poll review): the SDK default is no request timeout and
+// 3 retry attempts — a hanging `GetJob` had no ceiling, which meant the scheduled poll's
+// between-batch time budget (route.ts) could never actually bind: one stuck call could carry
+// the invocation past `maxDuration`, losing the summary/stuck-warning/deferred-count the
+// budget exists to preserve. Safe to apply to BOTH calls this client makes — unlike
+// `completeMultipart` in `s3.ts` (which genuinely can take longer for a very large multipart
+// assembly, so it deliberately keeps an untimed client), `CreateJob` (submit) and `GetJob`
+// (poll) are both small, fast metadata calls with no legitimate reason to run long. This is
+// the FIRST line of defense; route.ts's per-call race is the backstop.
 const mediaconvert = new MediaConvertClient({
   region,
   endpoint: process.env.MEDIACONVERT_ENDPOINT,
+  requestHandler: {
+    connectionTimeout: 3_000,
+    requestTimeout: 6_000,
+    throwOnRequestTimeout: true,
+  },
+  maxAttempts: 2,
 });
 
 // Deliberately thin: all encoding and output-key logic lives in mediaconvert-settings.ts

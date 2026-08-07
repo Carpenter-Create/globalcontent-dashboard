@@ -251,3 +251,18 @@ restatements crowd out the section's purpose.
 
   Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
   `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
+
+- **`src/lib/s3.ts` throws at MODULE LOAD if `S3_BUCKET`/`AWS_REGION` are unset — and `next
+  build` evaluates route modules, so a missing var fails the BUILD, not just serving.** Over
+  20 modules import `@/lib/s3` (directly or transitively), including several route handlers,
+  so `pnpm build` in any environment missing either var fails at build time with a module-load
+  exception, before a single request is ever served. **CI does not catch this** — `.github/
+  workflows/ci.yml`'s `checks` job runs `pnpm typecheck` and `pnpm test`, never `pnpm build`;
+  only a real Vercel deployment attempt would surface it. Both vars must exist in **every**
+  Vercel environment this app is ever built in, **including preview** — a preview deploy
+  failing to build over a missing env var is this gotcha, not a code regression. (The guard
+  itself is intentional and correct — fix round 1 of the screener-proxy poll review added it
+  because an unset bucket silently became `Bucket: undefined`, which S3 answers with the same
+  404 a genuinely-missing object gets, misfiring `headObjectMeta`'s absence check. The
+  consequence — that this turns a runtime gap into a build-time one — just needs to be known
+  going in, not discovered via a failed deploy.)
