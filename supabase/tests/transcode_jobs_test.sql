@@ -99,9 +99,32 @@
 --     key -- proving the predicate widening that closes the success-path double-register
 --     fix round 2 missed.
 -- plan(61) -> plan(63): one assertion for each of the two items above.
+--
+-- FIX ROUND 4 additions (migration header, FIX ROUND 4, has the full reasoning):
+--   - the complete-job key-reuse assertion above was added under `service_role`, which has
+--     no execute grant on create_transcode_job at all -- it would have 42501'd before ever
+--     reaching the uniqueness constraint, testing nothing. Now switches to `authenticated`
+--     (matching Block F's existing pattern) for that one call, then switches straight back
+--     to `service_role`, since the audit_log reads and duplicate-completion call right
+--     after it still need that role. Re-checked every other function call in this file
+--     against the role active at that point; this was the only one running under a role
+--     that cannot execute what it calls (the several places `authenticated`/`service_role`
+--     deliberately call a function they're NOT granted, to assert 42501, are correct by
+--     design, not instances of this bug).
+--   - t.key_m/t.key_d/t.key_f/t.key_n now use `/screener/` as the kind segment, not
+--     `/proxy/` -- the scope check tightened in fix round 4 anchors on the 'screener' kind,
+--     matching the kind register_transcode_output actually inserts assets as.
+--   - A10c: a key correctly scoped to org/title but naming the 'master' kind segment
+--     instead of 'screener' is refused -- the new anchor this round adds.
+--   - the reachability comment above (and the migration header) corrected: a client
+--     RE-UPLOADING the same master does NOT reproduce the same key (assetKey() mints a
+--     fresh UUID per upload); the actual reachable path is a resubmission against the SAME
+--     assets row (Task 6 reconcile, Task 7 retry, or a duplicate Task 4 submission).
+-- plan(63) -> plan(64): one new assertion (A10c); the role-switch fix adds no new
+-- assertion, only corrects which role the existing one runs under.
 
 begin;
-select plan(63);
+select plan(64);
 
 -- ============================================================================
 -- fixtures (as superuser / owner)
@@ -154,21 +177,22 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
   (current_setting('t.asset_poster_m')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
    'poster', 'orgs/a/titles/m/poster/key.jpg', 'cccc3333', 500);
 
--- Fix round 3, finding 2: create_transcode_job now scope-checks expected_output_key against
--- the REAL org_id/title_id UUIDs (`orgs/<org>/titles/<title>/...`), so every key that must
--- pass through it below is precomputed here from the actual fixture UUIDs, not a
+-- Fix round 3, finding 2 (anchor tightened in fix round 4): create_transcode_job now
+-- scope-checks expected_output_key against the REAL org_id/title_id UUIDs AND the
+-- 'screener' kind segment (`orgs/<org>/titles/<title>/screener/...`), so every key that
+-- must pass through it below is precomputed here from the actual fixture UUIDs, not a
 -- human-readable shorthand -- unlike the asset storage_key fixtures above (e.g.
 -- 'orgs/a/titles/m/poster/key.jpg'), which never flow through that check and stay
 -- shorthand on purpose, for readability. Precomputed once so every later
 -- register_transcode_output call for the same job can reuse the identical value.
 select set_config('t.key_m',
-  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_m.mp4', false);
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/screener/out_m.mp4', false);
 select set_config('t.key_d',
-  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_d') || '/proxy/out_d.mp4', false);
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_d') || '/screener/out_d.mp4', false);
 select set_config('t.key_f',
-  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_f.mp4', false);
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/screener/out_f.mp4', false);
 select set_config('t.key_n',
-  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_n.mp4', false);
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/screener/out_n.mp4', false);
 
 -- ============================================================================
 -- A. create_transcode_job
@@ -261,9 +285,21 @@ select throws_ok(
 select throws_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
          current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
-         'orgs/' || current_setting('t.org_b') || '/titles/' || current_setting('t.title_b') || '/proxy/out_scope.mp4'),
+         'orgs/' || current_setting('t.org_b') || '/titles/' || current_setting('t.title_b') || '/screener/out_scope.mp4'),
   'P0001', 'expected_output_key is out of scope for this title',
   'a key naming a different org/title''s path is refused even though the title/asset checks pass');
+
+-- A10c (fix round 4): the scope check anchors on the 'screener' kind segment, not merely
+-- the title-level prefix. org/title/asset are all correct here (same as A10b's setup) --
+-- only the kind segment is wrong ('master' instead of 'screener'), which is exactly the
+-- hazard fix round 4 named: without this, an operate-capable member could name their OWN
+-- org's MASTER as the transcode output target and have MediaConvert overwrite it.
+select throws_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
+         'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/master/out_wrong_kind.mp4'),
+  'P0001', 'expected_output_key is out of scope for this title',
+  'a key correctly scoped to org/title but pointing at the master kind segment is refused');
 
 -- A11 (fix round 1, message split in fix round 2): source_asset_id must be kind = 'master'.
 -- asset_poster_m is a real asset on title_m, correctly org-scoped -- only its kind is
@@ -377,14 +413,31 @@ select is(
 -- Fix round 3, finding 1: job_m is now 'complete', and the partial index's predicate was
 -- widened to cover 'complete' as well as 'submitted'/'running' -- a completed job's key
 -- must stay reserved forever, since an immutable asset already exists at it. Without this
--- widening, a resubmission for the same source asset (Task 4 submits on every master
--- upload, so a client re-uploading the identical master reproduces this exact key) would
--- have been legal here and could register a SECOND asset at the same key -- the harm fix
--- round 2 closed from the failure direction, reachable from the success direction instead.
+-- widening, a resubmission against the SAME source asset (asset_m) -- e.g. Task 6's
+-- reconcile, or a duplicate Task 4 submission for this asset id; NOT a re-upload, since
+-- assetKey() mints a fresh UUID per upload and a second upload would never reproduce this
+-- key -- would have been legal here and could register a SECOND asset at the same key --
+-- the harm fix round 2 closed from the failure direction, reachable from the success
+-- direction instead.
+--
+-- Fix round 4: create_transcode_job is authenticated-only. The current role here is
+-- service_role (set for block B since B2), which has no execute grant on it at all -- a
+-- bare service_role call would 42501 before ever reaching the uniqueness constraint,
+-- testing nothing. Switch to authenticated (matching Block F's own pattern below) for this
+-- one call, then switch straight back, since the audit_log reads and the
+-- duplicate-completion register_transcode_output call right after this still need
+-- service_role.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select throws_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
          current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_m')),
   '23505', null, 'a second job cannot reuse a COMPLETE job''s expected_output_key either');
+
+reset role;
+set local role service_role;
 
 -- Audit: ids and a boolean only. entity_id = job_m + action = 'proxy_registered' matches
 -- exactly one row -- register_transcode_output writes it once, and the idempotent

@@ -202,11 +202,18 @@
 --   released a job's key the moment it went 'complete', which only closed HALF the
 --   double-register hazard. Walk the SUCCESS sequence fix round 2 didn't check: job1 (key K)
 --   completes — registers asset A1, flips screener_source, job1 → 'complete' → K is
---   released, because 'complete' was never in the predicate. A retry for the same source
---   asset (Task 4 submits on master-upload completion, so a client re-uploading the same
---   master reproduces the identical deterministic key; Task 6's reconcile can also
---   resubmit) recomputes the same key K. create_transcode_job succeeds — no ACTIVE row holds
---   K anymore. That job's own completion registers asset A2 at the SAME key. assets has no
+--   released, because 'complete' was never in the predicate. FIX ROUND 4 CORRECTED THE
+--   REACHABILITY STORY HERE: a re-UPLOAD does not reach this — assetKey() (src/lib/
+--   assets.ts) mints `orgs/<org>/titles/<title>/<kind>/${crypto.randomUUID()}/<file>` per
+--   upload, by the function's own comment specifically so "re-uploads never collide," so a
+--   second upload of the same master produces a different master key and therefore a
+--   different derived proxy key K' ≠ K — no collision, no 23505, this path is not
+--   reachable at all. What IS reachable: a resubmit against the SAME assets ROW rather than
+--   a new upload — Task 6's reconcile resubmitting a stuck/lost job for one source
+--   asset_id, Task 7's GC-triggered manual retry, or a duplicate Task 4 submission for the
+--   same asset_id. Same source_asset_id → the same deterministic key derived from it → the
+--   same K. create_transcode_job succeeds — no ACTIVE row holds K anymore. That job's own
+--   completion registers asset A2 at the SAME key. assets has no
 --   unique index on storage_key, so nothing stops the second insert. portal_resolve_screener
 --   resolves the latest by title (`order by created_at desc limit 1`), so a buyer is served
 --   A2 while A1 — immutable, never deleted — sits in the table forever describing an S3
@@ -246,6 +253,45 @@
 --   validated to exist and belong to each other by the checks above), so they can never
 --   themselves contain a LIKE wildcard (`%`/`_`) — only the trailing `%` this check adds
 --   intentionally is a wildcard, so no escaping is needed.
+--
+-- FIX ROUND 4 (final round — verdict APPLY; these three items fixed first) —
+--
+--   IMPORTANT: two of the three reachability passages above (this header and, separately,
+--   the test file and the task report) claimed a client RE-UPLOADING the same master
+--   reproduces the identical key. That is false and has been corrected above: assetKey()
+--   (src/lib/assets.ts) mints a fresh `crypto.randomUUID()` path segment on every upload —
+--   the function's own comment says this is specifically so "re-uploads never collide" — so
+--   a second upload of the same master produces a DIFFERENT master key and therefore a
+--   different derived proxy key. That path is not reachable at all. The real path is a
+--   resubmit against the SAME assets row (same source_asset_id) without a new upload:
+--   Task 6's reconcile, Task 7's GC-triggered retry, or a duplicate Task 4 submission for
+--   one asset id. This matters beyond wording — Task 6 and Task 7 will read this file and
+--   need to catch the 23505 this predicate produces and turn it into a stated refusal; if
+--   they were built believing a re-upload was the trigger, they would guard the wrong call
+--   site.
+--
+--   IMPORTANT: the scope check (just above) used `not like`, and `not like` on a NULL
+--   input is NULL, not true — `if NULL then` does not branch. It was safe only because the
+--   blank-key check immediately above it already raises on a NULL/blank key first, so
+--   execution never reaches the scope check with a NULL. That safety is ORDER-dependent,
+--   which is the identical bug CLASS the CRITICAL finding in fix round 1 was: a guard that
+--   is correct today only because of what happens to run before it, not because it defends
+--   itself. Fixed by folding the NULL case in directly: `coalesce(btrim(p_expected_output_
+--   key), '') not like ...` — now self-contained regardless of check ordering, present or
+--   future. The three-valued-logic sweep in FIX ROUND 1 enumerated `=`, `<>`, and `not in`
+--   as the operators to check against nullable inputs; `not like` belongs on that list too,
+--   noted here since the sweep itself is not being rewritten.
+--
+--   IMPORTANT: the scope check was a bare prefix match on `orgs/<org>/titles/<title>/`,
+--   which also matches `orgs/<org>/titles/<title>/master/<uuid>/film.mov` — an
+--   operate-capable member could name their OWN org's MASTER asset's key as the transcode
+--   OUTPUT target, and MediaConvert would overwrite it. Same-tenant, not cross-tenant, so
+--   not the forged-submission hazard this check exists for — but it violates rule 3
+--   (sources are immutable) by letting a client-controlled argument point the pipeline's
+--   write at a source object. Fixed by also requiring the kind segment: the pattern now
+--   anchors on `orgs/<org>/titles/<title>/screener/` rather than merely `orgs/<org>/titles/
+--   <title>/`, so the output must land under the kind this table's whole purpose is to
+--   produce, not merely somewhere under the right title.
 --
 -- IDEMPOTENCY. EventBridge (and SNS before it) is at-least-once delivery; a completion for
 -- the same job can arrive twice. register_transcode_output checks `status = 'complete'`
@@ -448,8 +494,17 @@ begin
   -- check below, which stops a forged completion EVENT against an already-recorded key (see
   -- migration intro). p_org_id/p_title_id are UUIDs already validated above, so they cannot
   -- themselves contain a LIKE wildcard; only the trailing `%` this pattern adds is one.
-  if btrim(p_expected_output_key) not like
-       'orgs/' || p_org_id::text || '/titles/' || p_title_id::text || '/%' then
+  --
+  -- Fix round 4: `coalesce(btrim(...), '')`, not a bare `btrim(...)` -- `not like` on NULL
+  -- is NULL, not true, so a NULL key would otherwise walk past this check exactly like the
+  -- CRITICAL fix round 1 NULL bug, safe today only because the blank-key check above
+  -- happens to raise first (order-dependent, the same flaw class). Also anchored on
+  -- `/screener/`, not merely `/titles/<title>/` -- a bare title-level prefix still matched
+  -- `orgs/<org>/titles/<title>/master/<uuid>/film.mov`, letting an operate-capable member
+  -- name their OWN org's MASTER as the transcode output target (same-tenant, but a client-
+  -- controlled argument pointing the pipeline's write at a source object -- rule 3).
+  if coalesce(btrim(p_expected_output_key), '') not like
+       'orgs/' || p_org_id::text || '/titles/' || p_title_id::text || '/screener/%' then
     raise exception 'expected_output_key is out of scope for this title';
   end if;
 
