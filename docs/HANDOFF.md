@@ -27,9 +27,11 @@ it accordingly.
 3. **`docs/superpowers/specs/2026-08-06-buyer-title-page-design.md`** and
    **`docs/superpowers/specs/2026-08-06-screener-proxy-design.md`** — the two features in flight.
 4. **`docs/superpowers/plans/2026-08-06-screener-proxy.md`** — the plan you are executing.
-5. **`.superpowers/sdd/2026-08-06-screener-proxy/progress.md`** — the execution ledger.
-   **This is the highest-value file in the repo for context.** There is a sibling ledger at
-   `.superpowers/sdd/2026-08-06-buyer-title-page/progress.md`.
+5. **`docs/superpowers/ledgers/2026-08-06-screener-proxy.md`** — the execution ledger.
+   **This is the highest-value file in the repo for context.** There is a sibling ledger,
+   `docs/superpowers/ledgers/2026-08-06-buyer-title-page.md`, covering the other branch.
+   (These were promoted out of a gitignored scratch workspace at `.superpowers/` precisely so
+   that a new reader actually receives them.)
 
 > **When something in the code looks like over-engineering, search the ledger before "simplifying"
 > it.** The pre-recorded output key, the partial unique index, the corroboration gate, the
