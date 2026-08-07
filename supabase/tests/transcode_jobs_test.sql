@@ -55,9 +55,21 @@
 -- at most once -- register_transcode_output's own idempotency guarantees that -- so
 -- entity_id + action always identifies at most one row here, with no need for
 -- order-by/limit disambiguation at all).
+--
+-- FIX ROUND 1 additions (migration header has the full reasoning for each):
+--   - t.job_n + a NULL p_storage_key call: the CRITICAL fix (`is distinct from`, not `<>`).
+--   - a second create_transcode_job call reusing job_m's own expected_output_key: the new
+--     UNIQUE constraint (23505).
+--   - t.asset_poster_m (kind='poster') as a source: the new `and a.kind = 'master'` guard.
+--   - direct INSERT/UPDATE/DELETE against transcode_jobs as `authenticated`: the table-grant
+--     regression this repo has a standing idiom for (assets_test.sql:47-50).
+--   - a bare SELECT as `anon`: proves the explicit `revoke all ... from anon` added in fix
+--     round 1 actually holds (this is exactly where a missing revoke hides on production,
+--     per the migration header -- silent on a from-scratch rebuild, present on prod).
+-- These add a fourth job (t.job_n) to org A, so block E's row counts move from 3 to 4.
 
 begin;
-select plan(44);
+select plan(53);
 
 -- ============================================================================
 -- fixtures (as superuser / owner)
@@ -102,6 +114,13 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
    'master', 'orgs/a/titles/m/master/film.mov', 'aaaa1111', 100000),
   (current_setting('t.asset_d')::uuid, current_setting('t.org')::uuid, current_setting('t.title_d')::uuid,
    'master', 'orgs/a/titles/d/master/film.mov', 'bbbb2222', 100000);
+
+-- Fix round 1: a non-master asset on title_m, to prove create_transcode_job's new
+-- `and a.kind = 'master'` guard actually excludes it as a transcode source.
+select set_config('t.asset_poster_m', gen_random_uuid()::text, false);
+insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash, bytes) values
+  (current_setting('t.asset_poster_m')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
+   'poster', 'orgs/a/titles/m/poster/key.jpg', 'cccc3333', 500);
 
 -- ============================================================================
 -- A. create_transcode_job
@@ -176,6 +195,45 @@ select lives_ok(
 select set_config('t.job_f',
   (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_f.mp4'), false);
 
+-- A10 (fix round 1): expected_output_key is now UNIQUE -- a second job cannot reuse job_m's
+-- own key, in any status, on any title.
+select throws_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_m.mp4'),
+  '23505', null, 'a second job cannot reuse an existing job''s expected_output_key');
+
+-- A11 (fix round 1): source_asset_id must be kind = 'master'. asset_poster_m is a real
+-- asset on title_m, correctly org-scoped -- only its kind is wrong, so this proves the new
+-- `and a.kind = 'master'` conjunct specifically, not the title/org checks above it.
+select throws_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_poster_m'), 'orgs/a/titles/m/proxy/bad3.mp4'),
+  'P0001', 'Source asset does not belong to this title',
+  'a non-master asset (poster) is refused as a transcode source');
+
+-- A12: a fourth job on title_m, left uncompleted, for the NULL-storage-key test in block B.
+select lives_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_n.mp4'),
+  'owner creates a fourth job, target of the NULL-storage-key test');
+select set_config('t.job_n',
+  (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_n.mp4'), false);
+
+-- A13 (fix round 1, test gap): direct writes are blocked at the table-grant level regardless
+-- of RLS -- mirrors assets_test.sql:47-50's idiom for the same class of check. Values are
+-- dummy/nonsensical on purpose: permission is checked before any constraint or row is
+-- evaluated, so these fail on the grant, never on a foreign key.
+select throws_ok(
+  $$ insert into public.transcode_jobs (org_id, title_id, source_asset_id, expected_output_key)
+     values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'direct-insert-attempt') $$,
+  '42501', null, 'authenticated cannot INSERT into transcode_jobs directly');
+select throws_ok(
+  $$ update public.transcode_jobs set status = 'failed' $$,
+  '42501', null, 'authenticated cannot UPDATE transcode_jobs directly');
+select throws_ok(
+  $$ delete from public.transcode_jobs $$,
+  '42501', null, 'authenticated cannot DELETE transcode_jobs directly');
+
 -- ============================================================================
 -- B. register_transcode_output
 -- ============================================================================
@@ -198,6 +256,18 @@ select throws_ok(
 select is(
   (select status::text from public.transcode_jobs where id = current_setting('t.job_m')::uuid),
   'submitted', 'job_m is untouched by the refused mismatched-key attempt');
+
+-- B3 (fix round 1, CRITICAL): a NULL storage_key must not walk past the authority check.
+-- `coalesce(btrim(NULL), '') is distinct from job_n.expected_output_key` -- '' is distinct
+-- from a real (non-blank) key -- correctly raises, where the old `btrim(NULL) <> key` was
+-- SQL NULL and `if NULL then` silently fell through to the insert. job_n is still
+-- 'submitted' at this point (created in A12, never touched since).
+select throws_ok(
+  format($$ select public.register_transcode_output(%L, NULL, 100, 'hash_n') $$, current_setting('t.job_n')),
+  'P0001', 'Output key does not match the job', 'a NULL storage_key is refused, not silently accepted');
+select is(
+  (select status::text from public.transcode_jobs where id = current_setting('t.job_n')::uuid),
+  'submitted', 'job_n is untouched by the refused null-key attempt');
 
 -- B4: the correct key succeeds. title_m starts at screener_source default 'master' (never
 -- set otherwise in this file), so this call also exercises the flip.
@@ -343,27 +413,42 @@ select throws_ok(
 --    isolation holds. (Also the regression guard for this migration's explicit
 --    `grant select ... to authenticated` -- see the file header.)
 -- ============================================================================
+
+-- Fix round 1 (finding 4's own test gap): anon must be unable to read this table at all --
+-- not "RLS returns zero rows" but a flat permission denial at the grant level, since anon
+-- now has NO grant whatsoever (`revoke all ... from anon` in the migration). This is
+-- exactly the check that would have caught the missing revoke: it is invisible on a
+-- from-scratch rebuild without it (anon still gets nothing there either, via whatever the
+-- ambient default happens to be) and only diverges on a production database that already
+-- carries the wider legacy default -- so this assertion is the one that actually pins the
+-- fix rather than merely being consistent with it.
+reset role;
+set local role anon;
+select throws_ok(
+  $$ select 1 from public.transcode_jobs limit 1 $$,
+  '42501', null, 'anon cannot SELECT transcode_jobs at all (no table grant)');
+
 reset role;
 set local role authenticated;
 
--- Three jobs exist for org A at this point: job_m, job_d, job_f.
+-- Four jobs exist for org A at this point: job_m, job_d, job_f, job_n.
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  3, 'account_owner sees all three of their org''s transcode jobs');
+  4, 'account_owner sees all four of their org''s transcode jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  3, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
+  4, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  3, 'GC (gc_can view) sees org A''s jobs too');
+  4, 'GC (gc_can view) sees org A''s jobs too');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner_b'), 'role','authenticated')::text, true);
