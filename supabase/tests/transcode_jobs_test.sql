@@ -478,7 +478,12 @@ select is(
   (select count(*) from public.assets where title_id = current_setting('t.title_m')::uuid and kind = 'screener')::int,
   1, 'a duplicate completion creates no second screener asset');
 select is(
-  (select bytes from public.assets where id = current_setting('t.output_asset_m')::uuid),
+  -- ::int on the left, not ::bigint on the right: pgTAP's is() is is(anyelement,
+  -- anyelement, text), so BOTH sides must resolve to the same type. assets.bytes is
+  -- bigint and an unadorned 1000 is integer, which matches no overload and aborts the
+  -- whole file at this statement. Every other count assertion here already casts ::int
+  -- for exactly this reason; this one was missed.
+  (select bytes from public.assets where id = current_setting('t.output_asset_m')::uuid)::int,
   1000, 'a duplicate completion does not overwrite the original asset''s bytes');
 select is(
   (select count(*) from public.audit_log
