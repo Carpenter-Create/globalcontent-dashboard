@@ -1213,6 +1213,80 @@ export type Database = {
           },
         ]
       }
+      transcode_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          expected_output_key: string
+          external_job_id: string | null
+          failure_reason: string | null
+          id: string
+          org_id: string
+          output_asset_id: string | null
+          source_asset_id: string
+          status: Database["public"]["Enums"]["transcode_status"]
+          title_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          expected_output_key: string
+          external_job_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          org_id: string
+          output_asset_id?: string | null
+          source_asset_id: string
+          status?: Database["public"]["Enums"]["transcode_status"]
+          title_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          expected_output_key?: string
+          external_job_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          org_id?: string
+          output_asset_id?: string | null
+          source_asset_id?: string
+          status?: Database["public"]["Enums"]["transcode_status"]
+          title_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcode_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transcode_jobs_output_asset_id_fkey"
+            columns: ["output_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transcode_jobs_source_asset_id_fkey"
+            columns: ["source_asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transcode_jobs_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           active: boolean
@@ -1310,9 +1384,11 @@ export type Database = {
         Returns: string[]
       }
       attach_link_vendor: {
-        // p_vendor_id is required (no SQL DEFAULT) but explicitly nullable — passing null is
-        // how a caller detaches a vendor from a link, not an omitted argument.
-        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string | null }
+        // p_vendor_id has `default null` in SQL (20260807000200) — omitting it (pass
+        // `undefined`) is how a caller detaches a vendor from a link. A nullable-but-required
+        // arg (`string | null` with no `?`) is not a shape this generator ever produces; if you
+        // see one here by hand, distrust it — it will not survive the next regeneration.
+        Args: { p_force?: boolean; p_link_id: string; p_vendor_id?: string }
         Returns: undefined
       }
       can_deliver: {
@@ -1384,6 +1460,20 @@ export type Database = {
           p_title: string
         }
         Returns: string
+      }
+      create_transcode_job: {
+        Args: {
+          p_expected_output_key: string
+          p_external_job_id?: string
+          p_org_id: string
+          p_source_asset_id: string
+          p_title_id: string
+        }
+        Returns: string
+      }
+      fail_transcode_job: {
+        Args: { p_job_id: string; p_reason?: string }
+        Returns: undefined
       }
       finalize_paid_signup: {
         Args: {
@@ -1506,6 +1596,15 @@ export type Database = {
         Args: { p_effective_from: string; p_org: string }
         Returns: string
       }
+      register_transcode_output: {
+        Args: {
+          p_bytes: number
+          p_content_hash: string
+          p_job_id: string
+          p_storage_key: string
+        }
+        Returns: string
+      }
       review_title: {
         Args: {
           p_decision: Database["public"]["Enums"]["review_decision"]
@@ -1603,6 +1702,10 @@ export type Database = {
         Args: { p_tier: Database["public"]["Enums"]["tier_enum"] }
         Returns: number
       }
+      title_vendor_licensed: {
+        Args: { p_title_id: string; p_vendor_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       asset_kind:
@@ -1694,6 +1797,12 @@ export type Database = {
         | "live"
         | "takedown_requested"
         | "taken_down"
+      transcode_status:
+        | "submitted"
+        | "running"
+        | "complete"
+        | "failed"
+        | "submit_failed"
       vendor_mode: "portal_upload" | "email"
     }
     CompositeTypes: {
@@ -1922,6 +2031,13 @@ export const Constants = {
         "live",
         "takedown_requested",
         "taken_down",
+      ],
+      transcode_status: [
+        "submitted",
+        "running",
+        "complete",
+        "failed",
+        "submit_failed",
       ],
       vendor_mode: ["portal_upload", "email"],
     },

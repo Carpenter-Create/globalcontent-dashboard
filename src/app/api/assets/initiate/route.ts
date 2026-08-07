@@ -7,7 +7,11 @@ import { resolveOperableTitle, assetKey, PART_SIZE } from "@/lib/assets";
 import { createMultipart } from "@/lib/s3";
 
 const Body = z.object({
-  titleId: z.string().uuid(),
+  // .toLowerCase(): see the identical comment in ../complete/route.ts. This route mints the
+  // master's S3 key from titleId (assetKey()) — normalizing here is what makes that key match
+  // the canonical-lowercase titleId Postgres will later compare it against in
+  // create_transcode_job's scope check.
+  titleId: z.string().uuid().transform((v) => v.toLowerCase()),
   kind: z.enum(["master", "caption", "poster", "banner", "screener", "trailer"]),
   filename: z.string().min(1).max(255),
   contentType: z.string().max(255).optional(),

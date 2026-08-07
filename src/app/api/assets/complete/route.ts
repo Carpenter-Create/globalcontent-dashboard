@@ -5,9 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { resolveOperableTitle } from "@/lib/assets";
 import { completeMultipart } from "@/lib/s3";
+import { submitProxyJob } from "@/lib/mediaconvert";
 
 const Body = z.object({
-  titleId: z.string().uuid(),
+  // .toLowerCase(): z.string().uuid() only validates the SHAPE, not the case — an uppercase
+  // UUID (RFC 4122 permits either) would flow into the S3 key verbatim while Postgres always
+  // renders p_title_id::text canonically lowercase. The LIKE scope-check in
+  // create_transcode_job would then miss on a case mismatch alone, raise 'out of scope', and
+  // (per Task 4's deliberate error-swallowing) silently leave that master without a proxy
+  // forever. Normalizing here, before titleId reaches assetKey() or any RPC, keeps every
+  // downstream comparison byte-for-byte consistent with Postgres's own canonical form.
+  titleId: z.string().uuid().transform((v) => v.toLowerCase()),
   kind: z.enum(["master", "caption", "poster", "banner", "screener", "trailer"]),
   key: z.string().min(1),
   uploadId: z.string().min(1),
@@ -54,6 +62,41 @@ export async function POST(req: Request) {
     p_original_filename: b.filename ?? undefined,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Best-effort. The master is already in S3 and the asset row is written above — a
+  // transcode failure (MediaConvert unreachable, a submit-time throw, or the RPC raising,
+  // including a 23505 unique-violation if an earlier job for this exact source already
+  // completed) must NEVER lose the client's upload. A missing proxy just degrades the buyer
+  // page to exactly what it does today: no regression, only a missing improvement. Submit
+  // BEFORE recording — if the submit throws there is no job to record; if the record throws
+  // (this RPC call fails or its own error is otherwise swallowed by the catch below), a job
+  // now exists in AWS with NOTHING tracking it here.
+  //
+  // CORRECTED (fix round 1, item 7's "also fix" list): an earlier version of this comment
+  // claimed the scheduled poll (`src/app/api/cron/transcode-poll`) would "find and pick back
+  // up" that orphan. That is false, and worth stating plainly so Task 6 is not designed around
+  // a mechanism that doesn't exist: the poll only ever reads `transcode_jobs` ROWS — it never
+  // calls MediaConvert's `ListJobs` to discover jobs AWS knows about that this table doesn't.
+  // An orphan created by this catch block is UNRECOVERABLE by any automated path today; the
+  // AWS job runs to completion (or failure) with nothing here ever noticing either outcome. The
+  // only recovery is a person noticing (no proxy ever appears for the title) and a GC-triggered
+  // manual retry creating a BRAND NEW job for the same source asset — a fresh submission, not a
+  // discovery of the orphaned one, which is left running dark in the MediaConvert queue.
+  if (b.kind === "master" && assetId) {
+    try {
+      const { externalJobId, expectedKey } = await submitProxyJob({ masterKey: b.key });
+      const { error: jobError } = await supabase.rpc("create_transcode_job", {
+        p_org_id: op.orgId,
+        p_title_id: b.titleId,
+        p_source_asset_id: assetId,
+        p_expected_output_key: expectedKey,
+        p_external_job_id: externalJobId,
+      });
+      if (jobError) console.error(`[transcode:record] ${jobError.message}`);
+    } catch (e) {
+      console.error(`[transcode:submit] ${e instanceof Error ? e.message : e}`);
+    }
+  }
 
   return NextResponse.json({ assetId });
 }

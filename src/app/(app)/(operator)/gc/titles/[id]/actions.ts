@@ -28,13 +28,15 @@ export async function setReleaseDate(input: {
 }
 
 // GC attaches (or detaches) the vendor on a buyer's screener link (attach_link_vendor,
-// 20260806000400). vendors is a GC-only roster, so a client can never do this themselves — a
-// buyer's link sits with vendor_id null until GC sets it, and the master stays unreachable
-// through that link until then (master-download re-resolves licensing from THIS link's
-// vendor_id). `vendorId: null` detaches — the only way to undo a mis-attach without writing a
-// false fact via a forced reassignment. `force` confirms a reassignment to a DIFFERENT vendor,
-// or a first attach to a vendor that already has an active grant+delivery for this title (that
-// pair would release the master immediately) — omitted, the RPC blocks both.
+// 20260806000400, default-null'd for p_vendor_id in 20260807000200). vendors is a GC-only
+// roster, so a client can never do this themselves — a buyer's link sits with vendor_id null
+// until GC sets it, and the master stays unreachable through that link until then
+// (master-download re-resolves licensing from THIS link's vendor_id). `vendorId: null` here at
+// the call-site boundary means detach — the only way to undo a mis-attach without writing a
+// false fact via a forced reassignment; see the RPC call below for how that becomes `undefined`
+// on the wire. `force` confirms a reassignment to a DIFFERENT vendor, or a first attach to a
+// vendor that already has an active grant+delivery for this title (that pair would release the
+// master immediately) — omitted, the RPC blocks both.
 export async function attachLinkVendor(input: {
   titleId: string;
   linkId: string;
@@ -47,10 +49,17 @@ export async function attachLinkVendor(input: {
 
   const { error } = await supabase.rpc("attach_link_vendor", {
     p_link_id: input.linkId,
-    // Explicit null (detach) is a real, required value here — never coalesced to undefined,
-    // which would omit the key and hit the RPC's own `default null` in a way that reads as
-    // "not forcing" rather than "detach". Only `force` has an omit-vs-false distinction.
-    p_vendor_id: input.vendorId,
+    // p_vendor_id now has `default null` (20260807000200) instead of being a nullable-but-
+    // required argument — a shape the Supabase type generator cannot express at all, which is
+    // why an earlier version of this file hand-edited generated types to fake it and a
+    // regeneration would have silently broken this call. Detach means OMITTING the argument:
+    // `undefined` drops the key from the RPC payload, PostgREST leaves it unset, and Postgres
+    // applies the SQL default (NULL) server-side — landing in the RPC's own
+    // `if p_vendor_id is null then ... -- DETACH` branch exactly as before. Coalescing
+    // `null` to `undefined` here IS the detach signal, not a "no value provided" no-op — do not
+    // "simplify" this to `input.vendorId` as-is; that reintroduces the `string | null` shape the
+    // generator refuses to produce.
+    p_vendor_id: input.vendorId ?? undefined,
     // undefined (not false) so an un-forced call takes the RPC's own `default null` ->
     // coalesce(...,false) path rather than us re-deciding what "not forcing" means here.
     p_force: input.force ? true : undefined,

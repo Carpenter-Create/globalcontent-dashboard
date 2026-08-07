@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/transcode-poll", "schedule": "*/5 * * * *" }
+  ]
+}

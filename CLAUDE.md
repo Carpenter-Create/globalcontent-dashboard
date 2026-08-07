@@ -217,9 +217,14 @@ restatements crowd out the section's purpose.
 - **Supabase `gen types` marks every RPC arg without a `DEFAULT` as required non-null.** So an
   optional param (one you want to pass `undefined`/omit from a `.rpc()` call) MUST be declared
   `… text default null` in the SQL, or TS rejects the call. Bake `DEFAULT null` into the param the
-  first time — don't ship required-arg RPCs and patch with a follow-up migration. (Bit us on
+  first time — don't ship required-arg RPCs and patch with a follow-up migration. The generator
+  can only emit required-non-null or optional-non-null, never required-nullable — hand-editing
+  `database.types.ts` to fake the nullable case doesn't survive the next regeneration, which
+  reverts it silently and points the resulting build error at the call site, not the function it
+  actually came from. Where the argument's meaning is "detach" (clear an existing value), spell
+  that as an **omitted (`undefined`) argument**, never an explicit `null`. (Bit us on
   `accept_terms` → `20260717000200`, `add_rights_grant` → `20260718000300`, `create_asset` →
-  `20260718000600`.)
+  `20260718000600`, `attach_link_vendor` → `20260806000400`, fixed in `20260807000200`.)
 
 - **Never call `supabase.auth.getUser()` in app code — use `getAuthUser()` / `getOrgContext()`
   from `lib/supabase`.** `getUser()` is a **network round-trip to the Auth server on every
@@ -246,3 +251,18 @@ restatements crowd out the section's purpose.
 
   Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
   `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
+
+- **`src/lib/s3.ts` throws at MODULE LOAD if `S3_BUCKET`/`AWS_REGION` are unset — and `next
+  build` evaluates route modules, so a missing var fails the BUILD, not just serving.** Over
+  20 modules import `@/lib/s3` (directly or transitively), including several route handlers,
+  so `pnpm build` in any environment missing either var fails at build time with a module-load
+  exception, before a single request is ever served. **CI does not catch this** — `.github/
+  workflows/ci.yml`'s `checks` job runs `pnpm typecheck` and `pnpm test`, never `pnpm build`;
+  only a real Vercel deployment attempt would surface it. Both vars must exist in **every**
+  Vercel environment this app is ever built in, **including preview** — a preview deploy
+  failing to build over a missing env var is this gotcha, not a code regression. (The guard
+  itself is intentional and correct — fix round 1 of the screener-proxy poll review added it
+  because an unset bucket silently became `Bucket: undefined`, which S3 answers with the same
+  404 a genuinely-missing object gets, misfiring `headObjectMeta`'s absence check. The
+  consequence — that this turns a runtime gap into a build-time one — just needs to be known
+  going in, not discovered via a failed deploy.)

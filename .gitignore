@@ -22,3 +22,7 @@ next-env.d.ts
 /vod_*.json
 .vercel
 .claude/worktrees/
+
+# Superpowers SDD scratch workspace (briefs, per-task reports, diffs).
+# The durable ledgers are copied into docs/superpowers/ledgers/ and tracked there.
+.superpowers/
