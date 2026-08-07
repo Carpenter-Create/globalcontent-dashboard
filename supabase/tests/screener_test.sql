@@ -32,9 +32,15 @@
 -- (p_vendor_id = null) succeeds without force and is idempotent; an inactive or nonexistent
 -- vendor is refused; a master_download link, a revoked link (attach AND detach), an expired
 -- link (attach AND detach), and an unknown link id are all refused.
+--
+-- 20260806000500 closes the last known hole: create_screener_link's client branch now requires
+-- a non-blank p_recipient_name (the app-layer guard in createBuyerScreenerLink was cheatable by
+-- calling the RPC directly). Covered below: a client omitting the name is refused; a client
+-- passing a whitespace-only name is refused (the same btrim fold that already governs storage
+-- and the revoke-match); GC's branch is untouched -- omitting the name still succeeds.
 
 begin;
-select plan(98);
+select plan(101);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -807,6 +813,38 @@ select throws_ok(
 select throws_ok(
   format($$ select public.attach_link_vendor(%L, %L) $$, gen_random_uuid()::text, current_setting('t.vendor')),
   'P0001', 'Link not found', 'an unknown link id is refused');
+
+-- ============================================================================
+-- create_screener_link (20260806000500): client branch requires a non-blank buyer name
+-- ============================================================================
+-- title_v: 'in_delivery' (client-approved) with a master asset, so both the status gate and
+-- the screenable-asset gate above are already satisfied here — isolating this block to the new
+-- guard alone, which fires before either of those would matter for this call. t.owner already
+-- holds 'operate' on t.org (fixtures at the top of the file).
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select throws_ok(
+  format($$ select public.create_screener_link(%L, %L) $$,
+         current_setting('t.title_v'), 'tok_v_noname'),
+  'P0001', 'A buyer name is required', 'a client caller omitting the recipient name is refused');
+
+-- Whitespace-only is not a name either -- the same btrim fold the RPC already applies before
+-- storing/matching recipient_name, checked explicitly so a caller can't dodge the guard above
+-- by sending spaces instead of nothing.
+select throws_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_v'), 'tok_v_blank', '   '),
+  'P0001', 'A buyer name is required', 'a client caller passing a whitespace-only recipient name is refused');
+
+-- GC's branch is untouched: the exemption in the buyer-link gate (recipient_name null = GC's
+-- own operational link) depends on GC still being able to omit the name entirely, exactly as
+-- gc/review/actions.ts's createScreenerLink does.
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L) $$,
+         current_setting('t.title_v'), 'tok_v_gc_noname'),
+  'GC omitting the recipient name still succeeds');
 
 reset role;
 select * from finish();

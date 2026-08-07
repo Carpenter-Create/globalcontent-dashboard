@@ -172,6 +172,12 @@ export async function createBuyerScreenerLink(input: {
   const user = await getAuthUser();
   if (!user) return { error: "Not authenticated." };
   const recipient = input.recipientName.trim();
+  // 20260806000500: create_screener_link's client branch now enforces this in the database too
+  // (raises "A buyer name is required") — that RPC guard, not this one, is what actually stops
+  // a client from minting an unnamed link (e.g. by calling the RPC directly from the browser),
+  // which the buyer-link gate would otherwise misclassify as GC's own operational link and
+  // stream the master. This check only exists to fail fast with a form-friendly message instead
+  // of a raw Postgres exception; keep its wording consistent with the RPC's, never contradictory.
   if (!recipient) return { error: "Enter the buyer's name." };
 
   if (!input.replace) {
