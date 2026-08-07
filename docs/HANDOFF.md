@@ -1,8 +1,9 @@
 # Handoff — globalcontent-dashboard
 
-**Written 2026-08-07.** Current branch `feat/screener-proxy`, HEAD `432ecbb`, working tree clean.
+**Written 2026-08-07.** Everything described here is merged to `main` (`12cadf1`). No feature
+branches remain. Work from `main`.
 
-You are taking over two in-progress feature branches. Read this whole file before touching anything.
+You are taking over a partly-built feature. Read this whole file before touching anything.
 
 ---
 
@@ -42,18 +43,19 @@ it accordingly.
 
 ## Git state
 
-Nothing is pushed. Both branches are local.
+All merged. PR #87 (buyer title page, complete) and PR #89 (screener proxy, 5 of 8 tasks) are both
+on `main`; both branches are deleted. #88 was auto-closed when its base branch was removed by the
+#87 merge and is superseded by #89 — ignore it.
 
-| Branch | State |
-|---|---|
-| `feat/buyer-title-page` | **35 commits ahead of `main`. Complete, reviewed, fully tested. Should be merged.** |
-| `feat/screener-proxy` | 20 commits beyond that. In progress — current branch. |
+Verified on `main`: typecheck clean, **286 Vitest tests**, **504 pgTAP assertions**, build compiles,
+`pnpm exec eslint src` reports 0 errors and exactly 5 pre-existing warnings. All migrations applied
+to the local database.
 
-Working tree clean. All migrations applied locally. **286 Vitest tests** and **504 pgTAP
-assertions** green. `pnpm exec eslint src` reports 0 errors and exactly 5 pre-existing warnings.
-
-Merging `feat/buyer-title-page` is the cheapest useful thing available and reduces rebase risk on
-20 commits of work stacked behind it.
+**CI on `main` is partly red, and it is not your doing.** The `checks` job fails on a dependency
+audit — `js-yaml` and `nanoid`, two high, both transitive under `next`/`postcss`. It predates this
+work, `main` fails it independently, and no branch here changed `package.json`. It is **not** a
+required status check; the only required one is `isolation`, which passes. Worth fixing on its own
+merits. Do not treat it as a regression you introduced.
 
 ---
 
@@ -100,6 +102,88 @@ AWS calls do. A hung Postgres query can still blow the function's deadline. It i
 heartbeat table yet, a persistently hung database presents as a silently absent cron. Two
 thresholds — a 50% mass-deferral trigger and a 3-job total-failure floor — are judgment calls with
 no production data behind them and should be revisited once there is any.
+
+---
+
+## Open security finding — founder decision, not yours to close alone
+
+A client can read the raw `share_token` of **GC's own unnamed screener link** on their title.
+Unification (`20260806000300`) deliberately removed the clause hiding GC-authored rows, on the
+founder's reasoning that it is the client's title and their revenue. Separately, the interim stream
+gate exempts unnamed links from the master-source refusal, so GC's operational review links keep
+working.
+
+Together: a client can lift GC's token, open the portal, pass the OTP with any email they control,
+and stream the master. That is the same bypass `20260806000500` closed on the *write* path (a client
+must name a buyer), reopened through the *read* path.
+
+**Severity:** it is their own title and their own master — they could already download it and hand
+it to anyone — so it is not an escalation of reachable data. It is a control that can be walked
+around, which tends to surface at the worst moment.
+
+**Likely fix:** stop exempting unnamed links once GC's review flow has a real dedicated screener,
+which the proxy work delivers anyway. Full write-up at the foot of
+`docs/superpowers/ledgers/2026-08-06-screener-proxy.md`.
+
+---
+
+## The B3 isolation harness was rewritten — do not "restore" it
+
+`scripts/security/b3-cross-org-isolation.mjs` is the required `isolation` CI check. It used to
+assert that `portal_links` was a GC-only table a client sees zero rows in. Unification repealed
+that rule, so the probes were rewritten to assert what is now true: a client sees **exactly** its
+own `screener_view` rows, **zero** `master_download` rows, and **zero** rows for any other org.
+
+That is strictly stronger than what it replaced. There is a `KNOWN_OPEN` baseline at the foot of
+that file — it is empty and must stay that way. Its own comment says a baseline is a list of known
+defects, not a place to park them. **Never add an entry to make CI green.**
+
+---
+
+## Every known open issue
+
+Complete as of 2026-08-07. Nothing here is a surprise waiting in the code — it is all either
+recorded in a ledger or visible in CI. Detail for each lives in
+`docs/superpowers/ledgers/`.
+
+**Needs a founder decision — do not close these alone**
+
+| Issue | Where |
+|---|---|
+| Unnamed-link master-stream bypass (see the section above) | screener-proxy ledger, foot |
+| `revoke_portal_link` has no status gate, while `create_screener_link` does. A client `account_owner` can revoke GC's chain-of-title review link on an `in_review` title, via the RPC though not the UI. Self-defeating rather than dangerous — GC can re-mint — so it was left open, but never actually decided | buyer-title-page ledger |
+| The ~$700 backfill (Task 8) spends real money and is founder-executed | plan, Task 8 |
+
+**Architectural debt with a known correct fix**
+
+| Issue | Note |
+|---|---|
+| The rule-12 licence check exists in **three** implementations — `portal_resolve_download` (SQL), `src/lib/master-licence.ts` (TS), `title_vendor_licensed` (SQL). They agree today and a parity test pins the status list, but they have already drifted once. Correct fix is a shared `portal_resolve_buyer_master` RPC | needs a migration |
+| `create_asset` lacks the key-scope check that `create_transcode_job` gained. Same shape of gap, standing repo-wide | needs a migration |
+| TOCTOU between `portal_resolve_screener` resolving a key and the route re-reading `screener_source`. Narrow; closed by having the RPC return the resolved asset's kind | needs a migration |
+| No heartbeat table, so **a stopped cron is invisible**. A count computed inside the poll cannot report the poll's own absence. Task 6's panel needs this; a proposed schema is in the screener-proxy ledger | needs a migration |
+
+**Poll robustness (all in `src/app/api/cron/transcode-poll/route.ts`)**
+
+- Supabase calls carry no timeout; only the AWS calls do. Data-safe, observability-unsafe.
+- Head-of-queue starvation: a permanently-erroring job at the head consumes the budget every tick while the tail defers forever.
+- The `allErrored` 503 is a hair trigger at low volume, and the 50% mass-deferral and 3-job floor thresholds are judgment calls with no production data behind them.
+- `src/lib/s3.ts` throws at module load if `S3_BUCKET`/`AWS_REGION` are unset. Twenty modules import it, and Next.js evaluates route modules during `next build` — so a Vercel environment missing either variable fails to **build**, not merely to serve. CI does not run `pnpm build`.
+- `rotate()` and the `withTimeout` around `headObjectMeta` have no test coverage — removing either leaves the suite green.
+
+**Test and doc quality, low risk**
+
+- `request-otp`'s zod schema is inlined and untested, so a re-introduced `.optional()` would not be caught.
+- `screener_test.sql:681` pins the same field its WHERE clause filters on, degenerating to an existence check.
+- Buyer-page `test 5` is not load-bearing; there is no `titleStatus: null` case.
+- `portal_links_purpose_shape` was not extended for the new `vendor_id`/`recipient_name` columns. Unreachable today — direct INSERT is revoked from `authenticated`.
+- Two-tab race: both tabs can pass the buyer-name collision check before either commits. Narrows the silent-replace window rather than closing it.
+- Filename slugs strip non-ASCII rather than transliterating, so international titles read poorly.
+- `20260806000500`'s header understates its own insertion size.
+
+**Pre-existing, not from this work**
+
+- `pnpm audit` reports 4 vulnerabilities (2 high) — `js-yaml`, `nanoid`, transitive under `next`/`postcss`. `main` fails the non-required `checks` job on this. No branch here changed `package.json`.
 
 ---
 
@@ -172,11 +256,21 @@ several tests in this repo were only proven meaningful that way, and two were fo
 Four reviewers read the buyer page and confirmed a private label was not rendered; it took loading
 the actual page to find it sitting in the payload where the buyer could read it.
 
+**The same trap catches your own tooling, not just the code.** Twice in this project a check was
+run against stale local state and reported what was asked rather than what was true — most
+expensively, `git merge-base --is-ancestor main <branch>` said a fast-forward was possible when the
+comparison was against a **local** `main` that had not been fetched. The remote had moved and the
+merge failed. Fetch before you compare; regenerate before you diff; re-run before you report.
+
+**Nothing in the transcoding pipeline has ever run against real AWS.** The runbook
+(`docs/infra/screener-proxy-setup.md`) has not been applied. Given the list above, treat one real
+master through the real pipeline as the gate before trusting any of it — not as a final polish step.
+
 ---
 
 ## Start here
 
-1. Read `.superpowers/sdd/2026-08-06-screener-proxy/progress.md` end to end.
+1. Read `docs/superpowers/ledgers/2026-08-06-screener-proxy.md` end to end.
 2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline.
 3. Review commit `432ecbb`.
 4. Then Task 6.

@@ -81,9 +81,9 @@ Task 5b: FOUNDER DECISION NEEDED — revoke_portal_link has no status gate while
   Self-defeating rather than a leak — GC can re-mint — so left ungated for now.
 Task 5b: fix round 1/5 (4 addressed, 0 open; commits 5e14e2a..b1893fa) plan(57)
 Task 5b: complete (commits a4f0a58..b1893fa, review clean)
-PENDING FOUNDER: migration 20260806000300_unify_screener_links.sql NOT applied.
-  Tasks 6-10 do not depend on it (the portal uses the admin client, so RLS is
-  bypassed there), so execution continues.
+APPLIED and merged 2026-08-07. (Was recorded here as pending; corrected at handoff.)
+  20260806000300_unify_screener_links.sql — one link per (title, recipient),
+  author partition removed.
 Task 6: complete (commits b1893fa..fe51d79, review clean)
 Task 6: minor (deferred): test 5 (metadata always true) is not load-bearing —
   passes against any implementation. No explicit titleStatus:null test; the
@@ -219,7 +219,13 @@ Fix wave applied (commit 6dc4f8c, 213 tests): recipient_name + org_id stripped
   and buyerActionsFor; assets read bounded; spec amended to match shipped rule;
   expiry copy restored; licence-status parity test added (TS + pgTAP); ilike `*`
   escaped; expired links no longer block a fresh create; dead code removed.
-CRITICAL C1 OPEN — FOUNDER DECISION REQUIRED. See below.
+CRITICAL C1 — RESOLVED 2026-08-07. (This line previously read "OPEN — see below"
+  with nothing below it; corrected at handoff.) C1 was the screener STREAM serving
+  the master on a master-source title while the download was refused. Closed by the
+  interim gate in 5892805: a buyer link (one naming a recipient) is refused the
+  stream unless screener_source = 'dedicated'. GC's unnamed operational links stay
+  exempt — which is what the OPEN SECURITY FINDING at the foot of the screener-proxy
+  ledger is about.
 Final re-review (opus) on ec16fd2..5892805: headline Critical genuinely closed
   (server-side, pre-signing, DB-read, three layers agree). 4 blockers found.
 Final blockers closed (commit 00b5688, 219 tests): gate no longer fails OPEN on a
@@ -229,8 +235,8 @@ Final blockers closed (commit 00b5688, 219 tests): gate no longer fails OPEN on 
   comment corrected; hasRecipientName no longer hardcoded permissive; expiry vs
   unavailable distinguished; route-level test for /api/portal/screener added and
   MUTATION-VERIFIED (gate removed -> 2 failures; restored -> 4/4).
-OPEN — FOUNDER DECISION (needs a migration, not app code):
-  create_screener_link takes p_recipient_name with DEFAULT null and no non-null
+RESOLVED 2026-08-07 by 20260806000500_require_buyer_name.sql (applied, merged).
+  Was: create_screener_link took p_recipient_name with DEFAULT null and no non-null
   requirement on the client branch. A seated client operator can call the RPC
   from the browser client, omit the name, and mint an UNNAMED link — which the
   new gate classifies as GC-operational and therefore exempt. Not cross-tenant
