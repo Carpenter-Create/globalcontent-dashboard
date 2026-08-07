@@ -140,6 +140,53 @@ defects, not a place to park them. **Never add an entry to make CI green.**
 
 ---
 
+## Every known open issue
+
+Complete as of 2026-08-07. Nothing here is a surprise waiting in the code — it is all either
+recorded in a ledger or visible in CI. Detail for each lives in
+`docs/superpowers/ledgers/`.
+
+**Needs a founder decision — do not close these alone**
+
+| Issue | Where |
+|---|---|
+| Unnamed-link master-stream bypass (see the section above) | screener-proxy ledger, foot |
+| `revoke_portal_link` has no status gate, while `create_screener_link` does. A client `account_owner` can revoke GC's chain-of-title review link on an `in_review` title, via the RPC though not the UI. Self-defeating rather than dangerous — GC can re-mint — so it was left open, but never actually decided | buyer-title-page ledger |
+| The ~$700 backfill (Task 8) spends real money and is founder-executed | plan, Task 8 |
+
+**Architectural debt with a known correct fix**
+
+| Issue | Note |
+|---|---|
+| The rule-12 licence check exists in **three** implementations — `portal_resolve_download` (SQL), `src/lib/master-licence.ts` (TS), `title_vendor_licensed` (SQL). They agree today and a parity test pins the status list, but they have already drifted once. Correct fix is a shared `portal_resolve_buyer_master` RPC | needs a migration |
+| `create_asset` lacks the key-scope check that `create_transcode_job` gained. Same shape of gap, standing repo-wide | needs a migration |
+| TOCTOU between `portal_resolve_screener` resolving a key and the route re-reading `screener_source`. Narrow; closed by having the RPC return the resolved asset's kind | needs a migration |
+| No heartbeat table, so **a stopped cron is invisible**. A count computed inside the poll cannot report the poll's own absence. Task 6's panel needs this; a proposed schema is in the screener-proxy ledger | needs a migration |
+
+**Poll robustness (all in `src/app/api/cron/transcode-poll/route.ts`)**
+
+- Supabase calls carry no timeout; only the AWS calls do. Data-safe, observability-unsafe.
+- Head-of-queue starvation: a permanently-erroring job at the head consumes the budget every tick while the tail defers forever.
+- The `allErrored` 503 is a hair trigger at low volume, and the 50% mass-deferral and 3-job floor thresholds are judgment calls with no production data behind them.
+- `src/lib/s3.ts` throws at module load if `S3_BUCKET`/`AWS_REGION` are unset. Twenty modules import it, and Next.js evaluates route modules during `next build` — so a Vercel environment missing either variable fails to **build**, not merely to serve. CI does not run `pnpm build`.
+- `rotate()` and the `withTimeout` around `headObjectMeta` have no test coverage — removing either leaves the suite green.
+
+**Test and doc quality, low risk**
+
+- `request-otp`'s zod schema is inlined and untested, so a re-introduced `.optional()` would not be caught.
+- `screener_test.sql:681` pins the same field its WHERE clause filters on, degenerating to an existence check.
+- Buyer-page `test 5` is not load-bearing; there is no `titleStatus: null` case.
+- `portal_links_purpose_shape` was not extended for the new `vendor_id`/`recipient_name` columns. Unreachable today — direct INSERT is revoked from `authenticated`.
+- Two-tab race: both tabs can pass the buyer-name collision check before either commits. Narrows the silent-replace window rather than closing it.
+- Filename slugs strip non-ASCII rather than transliterating, so international titles read poorly.
+- `20260806000500`'s header understates its own insertion size.
+
+**Pre-existing, not from this work**
+
+- `pnpm audit` reports 4 vulnerabilities (2 high) — `js-yaml`, `nanoid`, transitive under `next`/`postcss`. `main` fails the non-required `checks` job on this. No branch here changed `package.json`.
+
+---
+
 ## Hard rules you must not break
 
 - **Never run migrations, `psql`, `supabase db reset`, or `supabase db push`.** A `PreToolUse`
