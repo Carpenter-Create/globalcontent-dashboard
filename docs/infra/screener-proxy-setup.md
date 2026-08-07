@@ -184,6 +184,9 @@ JSON
 aws events put-rule --name gc-transcode-job-state \
   --event-pattern file:///tmp/mediaconvert-rule-pattern.json \
   --state ENABLED
+# rule ARNs on the default bus are deterministic — capture it now, STEP 5's invoke role trust
+# policy pins to this exact ARN so no other rule in the account can assume that role:
+export TRANSCODE_RULE_ARN="arn:aws:events:$AWS_REGION:$ACCOUNT_ID:rule/gc-transcode-job-state"
 ```
 
 **Verify the pattern actually selects the states it's supposed to — and rejects the ones it
@@ -239,10 +242,19 @@ aws events create-api-destination --name gc-transcode-callback \
 export API_DESTINATION_ARN=$(aws events describe-api-destination --name gc-transcode-callback \
   --query 'ApiDestinationArn' --output text)
 
-# EventBridge needs its OWN role to invoke an API destination on your behalf:
+# EventBridge needs its OWN role to invoke an API destination on your behalf. The trust policy is
+# scoped with aws:SourceArn (+ aws:SourceAccount as defense in depth) to THIS rule specifically —
+# EventBridge's confused-deputy pattern: a bare "Service": "events.amazonaws.com" principal with
+# no condition lets ANY rule ever created in this account (by anyone, for anything) assume this
+# role and invoke the API destination that writes screener assets. Pinning to the rule ARN means
+# only gc-transcode-job-state can use it.
 cat > /tmp/eb-invoke-trust.json <<JSON
 { "Version": "2012-10-17", "Statement": [ {
-  "Effect": "Allow", "Principal": { "Service": "events.amazonaws.com" }, "Action": "sts:AssumeRole"
+  "Effect": "Allow", "Principal": { "Service": "events.amazonaws.com" }, "Action": "sts:AssumeRole",
+  "Condition": {
+    "ArnLike": { "aws:SourceArn": "$TRANSCODE_RULE_ARN" },
+    "StringEquals": { "aws:SourceAccount": "$ACCOUNT_ID" }
+  }
 } ] }
 JSON
 aws iam create-role --role-name gc-eventbridge-invoke-role \
@@ -277,6 +289,22 @@ aws iam simulate-principal-policy --policy-source-arn "$EB_INVOKE_ROLE_ARN" \
   --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
 ```
 
+**Verify the confused-deputy condition is actually on the role, scoped to the right rule** — this
+one is an honest exception to "prove selection, not existence": IAM's policy simulator evaluates
+identity- and resource-based policies against an action/resource pair, but it does not model
+`sts:AssumeRole` trust-policy conditions the way a real cross-account/cross-rule attempt would, so
+there is no CLI call that behaviorally proves "a different rule cannot assume this." Proving that
+for real would mean standing up a second, throwaway EventBridge rule and attempting the exploit —
+disproportionate for a config check. So this check confirms the condition is present and pinned to
+the exact rule, which is the strongest available proof short of that:
+
+```bash
+aws iam get-role --role-name gc-eventbridge-invoke-role \
+  --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition'
+# expect ArnLike.aws:SourceArn to equal $TRANSCODE_RULE_ARN exactly (not a wildcard broader than
+# the one rule) and StringEquals.aws:SourceAccount to equal $ACCOUNT_ID
+```
+
 Actual end-to-end delivery (a request landing at `$APP_ORIGIN/api/transcode/callback`) can only be
 proven once a real job runs — see the end-to-end verification section below.
 
@@ -303,12 +331,20 @@ a fabricated completion event and register an arbitrary S3 object as the screene
 which is what the buyer page then serves. Treat it like a credential, not a config value.
 
 **Verify none leaked into the client bundle**, don't just eyeball the `vercel env ls` output —
-that only proves the var exists server-side, not that it's absent from what ships to browsers:
+that only proves the var exists server-side, not that it's absent from what ships to browsers.
+**Grep for the VALUES, never the variable names**: Next.js's build-time substitution replaces
+`process.env.NEXT_PUBLIC_X` with the literal string value at compile time — the name `X` never
+appears anywhere in the output bundle, only whatever it was set to. A name-based grep would print
+`clean` even if the secret itself were sitting in plain sight in a `.js` file, because the thing
+it's searching for was never going to be there regardless of whether the leak happened. Grep for
+the four actual captured values, which are still in shell scope from STEPS 1–5:
 
 ```bash
 pnpm build
-grep -R "TRANSCODE_CALLBACK_SECRET\|MEDIACONVERT_ROLE_ARN\|MEDIACONVERT_QUEUE_ARN\|MEDIACONVERT_ENDPOINT" \
-  .next/static 2>/dev/null && echo "LEAK FOUND — do not deploy" || echo "clean"
+for v in "$TRANSCODE_CALLBACK_SECRET" "$MEDIACONVERT_ROLE_ARN" "$MEDIACONVERT_QUEUE_ARN" "$MEDIACONVERT_ENDPOINT"; do
+  grep -R -F -q -- "$v" .next/static 2>/dev/null && echo "LEAK FOUND: $v — do not deploy"
+done
+echo "checked — no output above the 'checked' line means none of the four values are in the client bundle"
 ```
 
 ---
@@ -323,7 +359,12 @@ real path.
 
 1. **Submit one real job against a known master and confirm output lands where expected.**
    Until `buildProxyJobSettings` (a later task) exists, submit a minimal settings document by hand
-   so this pipeline is proven before any application code depends on it:
+   so this pipeline is proven before any application code depends on it. **`RateControlMode:
+   QVBR` requires its companion `QvbrSettings.QvbrQualityLevel`** — MediaConvert rejects the job
+   at submission with a `ValidationException` if it's absent, which means `TEST_JOB_ID` below
+   comes back empty and every check after it (output object, EventBridge match, invocation count,
+   tag check) has nothing to observe. `QvbrQualityLevel` is 1–10; `7` is a reasonable mid-high
+   default for a review proxy, not a tuned production value:
    ```bash
    MASTER_KEY=$(aws s3api list-objects-v2 --bucket "$BUCKET" --query \
      "Contents[?contains(Key, '/master/')]|[0].Key" --output text)
@@ -337,7 +378,8 @@ real path.
            "FileGroupSettings": { "Destination": "s3://$BUCKET/$OUTPUT_DEST" } },
          "Outputs": [ { "ContainerSettings": { "Container": "MP4", "Mp4Settings": { } },
            "VideoDescription": { "CodecSettings": { "Codec": "H_264",
-             "H264Settings": { "RateControlMode": "QVBR", "MaxBitrate": 2500000 } } },
+             "H264Settings": { "RateControlMode": "QVBR", "MaxBitrate": 2500000,
+               "QvbrSettings": { "QvbrQualityLevel": 7 } } } },
            "AudioDescriptions": [ { "CodecSettings": { "Codec": "AAC",
              "AacSettings": { "Bitrate": 128000, "CodingMode": "CODING_MODE_2_0", "SampleRate": 48000 } } } ],
            "NameModifier": "_screener" } ] } ] } }
@@ -345,6 +387,11 @@ real path.
    export TEST_JOB_ID=$(aws mediaconvert create-job --endpoint-url "$MEDIACONVERT_ENDPOINT" \
      --region "$AWS_REGION" --cli-input-json file:///tmp/test-job-settings.json \
      --query 'Job.Id' --output text)
+   # confirm the job was actually ACCEPTED before polling it — a rejected create-job call
+   # (a ValidationException, e.g. from a missing required companion field) still exits the
+   # CLI, and an empty/"None" TEST_JOB_ID would otherwise make every later check pass
+   # trivially by finding nothing to disagree with:
+   [ -n "$TEST_JOB_ID" ] && [ "$TEST_JOB_ID" != "None" ] || { echo "job submission failed — read the create-job error above, do not proceed"; }
    # poll until COMPLETE (minutes, depends on source length):
    aws mediaconvert get-job --endpoint-url "$MEDIACONVERT_ENDPOINT" --region "$AWS_REGION" \
      --id "$TEST_JOB_ID" --query 'Job.Status'
