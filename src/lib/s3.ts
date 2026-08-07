@@ -159,6 +159,27 @@ export async function headObjectRestore(key: string): Promise<RestoreState> {
   return parseRestore(out.Restore, out.StorageClass, out.ArchiveStatus);
 }
 
+// Used by the scheduled transcode poll to verify a MediaConvert-reported COMPLETE actually
+// produced an object before registering it as an asset.
+//
+// Returns null ONLY for a confirmed-absent object (S3's own "NotFound" — HeadObject's 404),
+// never for any other failure. That distinction matters: a transient network blip or a
+// throttled/misconfigured call must not be read as "the object doesn't exist," or the poll
+// would fail a job that may in fact be fine, on a truth it never actually established. Every
+// other error propagates so the caller can tell "confirmed absent" apart from "could not
+// tell" and only ever act on the former.
+export async function headObjectMeta(key: string): Promise<{ bytes: number; etag: string } | null> {
+  try {
+    const out = await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
+    return { bytes: out.ContentLength ?? 0, etag: (out.ETag ?? "").replace(/"/g, "") };
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    const statusCode = (e as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (name === "NotFound" || statusCode === 404) return null;
+    throw e;
+  }
+}
+
 // Standard-tier restore, temp copy kept for `days`. Idempotent: a restore already in
 // progress (or complete) is not an error for our purposes.
 export async function initiateRestore(key: string, days = 7): Promise<void> {

@@ -1,5 +1,5 @@
 import "server-only";
-import { MediaConvertClient, CreateJobCommand, type JobSettings } from "@aws-sdk/client-mediaconvert";
+import { MediaConvertClient, CreateJobCommand, GetJobCommand, type JobSettings } from "@aws-sdk/client-mediaconvert";
 
 import { S3_BUCKET } from "@/lib/s3";
 import { proxyOutputKey, buildProxyJobSettings } from "@/lib/mediaconvert-settings";
@@ -42,4 +42,18 @@ export async function submitProxyJob(input: {
   );
   if (!out.Job?.Id) throw new Error("MediaConvert did not return a job id");
   return { externalJobId: out.Job.Id, expectedKey: output.expectedKey };
+}
+
+// Used by the scheduled poll (src/app/api/cron/transcode-poll) to check on a submitted job.
+// Deliberately thin, same as submitProxyJob: this is the only place that touches the SDK for
+// a status check, so it stays untested-by-necessity while transcode-poll.ts's decision logic
+// (what a given status MEANS) stays pure and fully unit-tested.
+//
+// Throws on a genuine AWS/network failure — the caller (the route) must not mistake "we
+// could not reach MediaConvert" for "the transcode failed"; those are different outcomes
+// and only the route decides what to do with each.
+export async function getJob(externalJobId: string): Promise<{ status: string; errorMessage: string | null }> {
+  const out = await mediaconvert.send(new GetJobCommand({ Id: externalJobId }));
+  if (!out.Job?.Status) throw new Error("MediaConvert did not return a job status");
+  return { status: out.Job.Status, errorMessage: out.Job.ErrorMessage ?? null };
 }
