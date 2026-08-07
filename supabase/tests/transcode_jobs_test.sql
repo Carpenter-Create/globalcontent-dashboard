@@ -81,9 +81,27 @@
 --   - A11's expected message changes to the new, more specific 'Source asset must be a
 --     master asset' (previously the misleading 'does not belong to this title').
 -- Block F adds a fifth job (t.job_f_retry) to org A, so block E's row counts move from 4 to 5.
+--
+-- FIX ROUND 3 additions (migration header, FIX ROUND 3, has the full reasoning):
+--   - job_m/job_d/job_f/job_n's expected_output_key literals are now precomputed from the
+--     REAL org_id/title_id UUIDs (t.key_m/t.key_d/t.key_f/t.key_n), not the human-readable
+--     shorthand ('orgs/a/titles/m/...') used everywhere else in this file for asset
+--     storage_key fixtures. create_transcode_job now scope-checks its own
+--     p_expected_output_key argument against p_org_id/p_title_id, so every key that must
+--     pass through it (every successful create_transcode_job call, plus the matching
+--     register_transcode_output calls that reuse the same value) needs to actually satisfy
+--     that check. Keys used only where the function raises BEFORE reaching the scope check
+--     (A1/A2/A5/A6/A7/A11, and anything that bypasses the RPC entirely) are untouched.
+--   - A10b: a key naming a different org/title's path is refused even when the title/asset
+--     checks all pass -- the new scope check itself.
+--   - A new assertion after B4: job_m is 'complete', and the partial index now also covers
+--     'complete' (not just 'submitted'/'running'), so a second job still cannot reuse its
+--     key -- proving the predicate widening that closes the success-path double-register
+--     fix round 2 missed.
+-- plan(61) -> plan(63): one assertion for each of the two items above.
 
 begin;
-select plan(61);
+select plan(63);
 
 -- ============================================================================
 -- fixtures (as superuser / owner)
@@ -136,6 +154,22 @@ insert into public.assets (id, org_id, title_id, kind, storage_key, content_hash
   (current_setting('t.asset_poster_m')::uuid, current_setting('t.org')::uuid, current_setting('t.title_m')::uuid,
    'poster', 'orgs/a/titles/m/poster/key.jpg', 'cccc3333', 500);
 
+-- Fix round 3, finding 2: create_transcode_job now scope-checks expected_output_key against
+-- the REAL org_id/title_id UUIDs (`orgs/<org>/titles/<title>/...`), so every key that must
+-- pass through it below is precomputed here from the actual fixture UUIDs, not a
+-- human-readable shorthand -- unlike the asset storage_key fixtures above (e.g.
+-- 'orgs/a/titles/m/poster/key.jpg'), which never flow through that check and stay
+-- shorthand on purpose, for readability. Precomputed once so every later
+-- register_transcode_output call for the same job can reuse the identical value.
+select set_config('t.key_m',
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_m.mp4', false);
+select set_config('t.key_d',
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_d') || '/proxy/out_d.mp4', false);
+select set_config('t.key_f',
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_f.mp4', false);
+select set_config('t.key_n',
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') || '/proxy/out_n.mp4', false);
+
 -- ============================================================================
 -- A. create_transcode_job
 -- ============================================================================
@@ -164,10 +198,10 @@ select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select lives_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
-         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_m.mp4'),
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_m')),
   'operate-capable owner creates a transcode job for their own org');
 select set_config('t.job_m',
-  (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_m.mp4'), false);
+  (select id::text from public.transcode_jobs where expected_output_key = current_setting('t.key_m')), false);
 select is(
   (select status::text from public.transcode_jobs where id = current_setting('t.job_m')::uuid),
   'submitted', 'a freshly created job starts in status submitted');
@@ -196,27 +230,40 @@ select throws_ok(
 -- A8: a second, isolated job on the already-'dedicated' title_d, for block C below.
 select lives_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
-         current_setting('t.org'), current_setting('t.title_d'), current_setting('t.asset_d'), 'orgs/a/titles/d/proxy/out_d.mp4'),
+         current_setting('t.org'), current_setting('t.title_d'), current_setting('t.asset_d'), current_setting('t.key_d')),
   'owner creates a job for the already-dedicated title');
 select set_config('t.job_d',
-  (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/d/proxy/out_d.mp4'), false);
+  (select id::text from public.transcode_jobs where expected_output_key = current_setting('t.key_d')), false);
 
 -- A9: a third job on title_m, left uncompleted, for the fail_transcode_job block below.
 select lives_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
-         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_f.mp4'),
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_f')),
   'owner creates a third job, left uncompleted for the fail_transcode_job block');
 select set_config('t.job_f',
-  (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_f.mp4'), false);
+  (select id::text from public.transcode_jobs where expected_output_key = current_setting('t.key_f')), false);
 
--- A10 (fix round 2): expected_output_key's uniqueness is now a PARTIAL index (active
--- statuses only), not a flat one -- but job_m is still 'submitted' (active) at this point
--- in the file, so it still occupies its key and a second job cannot reuse it. (Block F,
--- after job_f fails, proves the other half: a FAILED job's key becomes reusable.)
+-- A10 (fix round 2): expected_output_key's uniqueness is now a PARTIAL index (submitted /
+-- running / complete, per fix round 3), not a flat one -- but job_m is still 'submitted'
+-- (covered by the index) at this point in the file, so it still occupies its key and a
+-- second job cannot reuse it. (Block F, after job_f fails, proves the other half: a FAILED
+-- job's key becomes reusable. The complete-job assertion after B4 below proves the third:
+-- a job's key stays reserved forever once it COMPLETES, not just while active.)
 select throws_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
-         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_m.mp4'),
-  '23505', null, 'a second job cannot reuse an ACTIVE job''s expected_output_key');
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_m')),
+  '23505', null, 'a second job cannot reuse a SUBMITTED job''s expected_output_key');
+
+-- A10b (fix round 3, finding 2): expected_output_key must be scoped to the SAME org/title
+-- the job is being created for. title_m/asset_m/org are all mutually consistent here (the
+-- checks above this one all pass), so this isolates the NEW scope check specifically: the
+-- key names org_b/title_b's path instead of org/title_m's.
+select throws_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
+         'orgs/' || current_setting('t.org_b') || '/titles/' || current_setting('t.title_b') || '/proxy/out_scope.mp4'),
+  'P0001', 'expected_output_key is out of scope for this title',
+  'a key naming a different org/title''s path is refused even though the title/asset checks pass');
 
 -- A11 (fix round 1, message split in fix round 2): source_asset_id must be kind = 'master'.
 -- asset_poster_m is a real asset on title_m, correctly org-scoped -- only its kind is
@@ -231,10 +278,10 @@ select throws_ok(
 -- A12: a fourth job on title_m, left uncompleted, for the NULL-storage-key test in block B.
 select lives_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
-         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_n.mp4'),
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_n')),
   'owner creates a fourth job, target of the NULL-storage-key test');
 select set_config('t.job_n',
-  (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_n.mp4'), false);
+  (select id::text from public.transcode_jobs where expected_output_key = current_setting('t.key_n')), false);
 
 -- A13 (fix round 1, test gap): direct writes are blocked at the table-grant level regardless
 -- of RLS -- mirrors assets_test.sql:47-50's idiom for the same class of check. Values are
@@ -284,7 +331,7 @@ select throws_ok(
 -- check. job_m is still 'submitted' at this point (only created, never registered).
 select throws_ok(
   format($$ select public.register_transcode_output(%L, %L, %L, %L) $$,
-         current_setting('t.job_m'), 'orgs/a/titles/m/proxy/WRONG.mp4', 1000, 'hash1'),
+         current_setting('t.job_m'), 'this-does-not-match-any-jobs-key.mp4', 1000, 'hash1'),
   'P0001', 'Output key does not match the job', 'a mismatched output key is refused');
 select is(
   (select status::text from public.transcode_jobs where id = current_setting('t.job_m')::uuid),
@@ -306,7 +353,7 @@ select is(
 -- set otherwise in this file), so this call also exercises the flip.
 select lives_ok(
   format($$ select public.register_transcode_output(%L, %L, %L, %L) $$,
-         current_setting('t.job_m'), 'orgs/a/titles/m/proxy/out_m.mp4', 1000, 'hash1'),
+         current_setting('t.job_m'), current_setting('t.key_m'), 1000, 'hash1'),
   'service_role registers job_m''s output');
 select set_config('t.output_asset_m',
   (select output_asset_id::text from public.transcode_jobs where id = current_setting('t.job_m')::uuid), false);
@@ -322,10 +369,22 @@ select is(
   'screener', 'the registered asset has kind screener');
 select is(
   (select storage_key from public.assets where id = current_setting('t.output_asset_m')::uuid),
-  'orgs/a/titles/m/proxy/out_m.mp4', 'the registered asset''s storage_key is the job''s expected_output_key');
+  current_setting('t.key_m'), 'the registered asset''s storage_key is the job''s expected_output_key');
 select is(
   (select count(*) from public.assets where title_id = current_setting('t.title_m')::uuid and kind = 'screener')::int,
   1, 'exactly one screener asset exists for title_m');
+
+-- Fix round 3, finding 1: job_m is now 'complete', and the partial index's predicate was
+-- widened to cover 'complete' as well as 'submitted'/'running' -- a completed job's key
+-- must stay reserved forever, since an immutable asset already exists at it. Without this
+-- widening, a resubmission for the same source asset (Task 4 submits on every master
+-- upload, so a client re-uploading the identical master reproduces this exact key) would
+-- have been legal here and could register a SECOND asset at the same key -- the harm fix
+-- round 2 closed from the failure direction, reachable from the success direction instead.
+select throws_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), current_setting('t.key_m')),
+  '23505', null, 'a second job cannot reuse a COMPLETE job''s expected_output_key either');
 
 -- Audit: ids and a boolean only. entity_id = job_m + action = 'proxy_registered' matches
 -- exactly one row -- register_transcode_output writes it once, and the idempotent
@@ -360,7 +419,7 @@ select is(
 -- no path from here to an exception.
 select is(
   (select public.register_transcode_output(current_setting('t.job_m')::uuid,
-     'orgs/a/titles/m/proxy/out_m.mp4', 999, 'hash2')::text),
+     current_setting('t.key_m'), 999, 'hash2')::text),
   current_setting('t.output_asset_m'), 'a duplicate completion returns the same asset id');
 select is(
   (select count(*) from public.assets where title_id = current_setting('t.title_m')::uuid and kind = 'screener')::int,
@@ -384,7 +443,7 @@ select throws_ok(
 -- ============================================================================
 select lives_ok(
   format($$ select public.register_transcode_output(%L, %L, %L, %L) $$,
-         current_setting('t.job_d'), 'orgs/a/titles/d/proxy/out_d.mp4', 500, 'hashD'),
+         current_setting('t.job_d'), current_setting('t.key_d'), 500, 'hashD'),
   'service_role registers job_d''s output on an already-dedicated title');
 select is(
   (select screener_source::text from public.titles where id = current_setting('t.title_d')::uuid),
@@ -443,7 +502,7 @@ select throws_ok(
 
 -- ============================================================================
 -- F. Retry after failure (fix round 2, finding 2). job_f is 'failed' from block D above
---    (key 'orgs/a/titles/m/proxy/out_f.mp4') and was never touched since. This proves the
+--    (key t.key_f) and was never touched since. This proves the
 --    exact three-step sequence the migration header walks through: (1) a retry reusing the
 --    failed job's key is legal, because a failed job no longer occupies the partial index;
 --    (2) the OLD failed job's own late/stale completion event is refused outright, not
@@ -457,11 +516,11 @@ select set_config('request.jwt.claims',
 select lives_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
          current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
-         'orgs/a/titles/m/proxy/out_f.mp4'),
+         current_setting('t.key_f')),
   'a retry may reuse a FAILED job''s expected_output_key -- the partial index only covers active jobs');
 select set_config('t.job_f_retry',
   (select id::text from public.transcode_jobs
-     where expected_output_key = 'orgs/a/titles/m/proxy/out_f.mp4' and id <> current_setting('t.job_f')::uuid), false);
+     where expected_output_key = current_setting('t.key_f') and id <> current_setting('t.job_f')::uuid), false);
 
 reset role;
 set local role service_role;
@@ -470,7 +529,7 @@ set local role service_role;
 -- reaches the key comparison at all, because job_f is no longer active.
 select throws_ok(
   format($$ select public.register_transcode_output(%L, %L, 100, 'hash_stale') $$,
-         current_setting('t.job_f'), 'orgs/a/titles/m/proxy/out_f.mp4'),
+         current_setting('t.job_f'), current_setting('t.key_f')),
   'P0001', 'Job is not active', 'a failed job''s stale completion event is refused, not re-registered');
 select is(
   (select status::text from public.transcode_jobs where id = current_setting('t.job_f')::uuid),
@@ -479,12 +538,12 @@ select is(
 -- The retry job's genuine completion registers normally.
 select lives_ok(
   format($$ select public.register_transcode_output(%L, %L, 200, 'hash_retry') $$,
-         current_setting('t.job_f_retry'), 'orgs/a/titles/m/proxy/out_f.mp4'),
+         current_setting('t.job_f_retry'), current_setting('t.key_f')),
   'the retry job''s genuine completion registers successfully');
 select is(
   (select count(*) from public.assets
      where title_id = current_setting('t.title_m')::uuid and kind = 'screener'
-       and storage_key = 'orgs/a/titles/m/proxy/out_f.mp4')::int,
+       and storage_key = current_setting('t.key_f'))::int,
   1, 'exactly one screener asset exists at the retried key');
 
 -- ============================================================================

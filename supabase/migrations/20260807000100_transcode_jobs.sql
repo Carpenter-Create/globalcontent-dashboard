@@ -7,14 +7,18 @@
 -- completion or failure event from that pipeline. Submission (T4) and the callback route
 -- (T5) are later slices; this is the record they write to and read from.
 --
--- THE OUTPUT KEY IS AUTHORITY, NOT A HINT. expected_output_key is decided and written at
--- SUBMIT time (create_transcode_job, called from the upload path, which already knows the
--- deterministic key MediaConvert will be told to render to). register_transcode_output
--- never learns a key from the inbound event beyond using it as a claim to verify — it
--- compares the claimed key against what THIS ROW already recorded, and refuses on any
--- mismatch. That single check is what stops a forged completion event (or a MediaConvert
--- account emitting for the wrong job) from registering an arbitrary S3 object as a screener
--- on any title. Nothing here takes the key from anywhere but the job row.
+-- THE OUTPUT KEY IS AUTHORITY, NOT A HINT — FOR THE COMPLETION EVENT. expected_output_key
+-- is decided and written at SUBMIT time (create_transcode_job, called from the upload
+-- path, which already knows the deterministic key MediaConvert will be told to render to).
+-- register_transcode_output never learns a key from the inbound event beyond using it as a
+-- claim to verify — it compares the claimed key against what THIS ROW already recorded, and
+-- refuses on any mismatch. That single check is what stops a forged completion EVENT (or a
+-- MediaConvert account emitting for the wrong job) from registering an arbitrary S3 object
+-- as a screener on any title. It is NOT, by itself, a guarantee about the SUBMISSION: until
+-- fix round 3 added a scope check (see below), nothing stopped an operate-capable caller of
+-- create_transcode_job from supplying a key belonging to a different org or title in the
+-- first place. Two different claims, two different checks — stated separately now rather
+-- than as one "the key is authority" sentence that only covered one of them.
 --
 -- FIX ROUND 1 (this section added; the checks below were not in the first draft) —
 --
@@ -162,6 +166,10 @@
 --         every check, registers normally. Exactly one asset. The double-register is closed
 --         AND the retry stays legal — the property (b) could not deliver.
 --
+--   That "exactly one asset" claim was true only for the FAILURE sequence walked above. Fix
+--   round 3 found the same hazard reachable from the SUCCESS sequence instead — see FIX
+--   ROUND 3 below for the completed walkthrough covering both.
+--
 --   Implemented as a SEPARATE `create unique index ... where status in (...)` statement
 --   AFTER the table, not inline in the column definition — see the next item for why.
 --
@@ -187,6 +195,57 @@
 --   actual defect, and misleading to whoever reads that error. Split into two checks: the
 --   existing message for a title/org mismatch, and a new 'Source asset must be a master
 --   asset' for a correctly-scoped asset of the wrong kind.
+--
+-- FIX ROUND 3 (round 2 verified closed; two more found, one of them one word) —
+--
+--   IMPORTANT: the partial index's predicate — `where status in ('submitted','running')` —
+--   released a job's key the moment it went 'complete', which only closed HALF the
+--   double-register hazard. Walk the SUCCESS sequence fix round 2 didn't check: job1 (key K)
+--   completes — registers asset A1, flips screener_source, job1 → 'complete' → K is
+--   released, because 'complete' was never in the predicate. A retry for the same source
+--   asset (Task 4 submits on master-upload completion, so a client re-uploading the same
+--   master reproduces the identical deterministic key; Task 6's reconcile can also
+--   resubmit) recomputes the same key K. create_transcode_job succeeds — no ACTIVE row holds
+--   K anymore. That job's own completion registers asset A2 at the SAME key. assets has no
+--   unique index on storage_key, so nothing stops the second insert. portal_resolve_screener
+--   resolves the latest by title (`order by created_at desc limit 1`), so a buyer is served
+--   A2 while A1 — immutable, never deleted — sits in the table forever describing an S3
+--   object MediaConvert has since overwritten: a stale content_hash/bytes pair with no
+--   corresponding reality. Exactly the harm fix round 2 named, reached from the opposite
+--   direction. Fixed by widening the predicate to `where status in ('submitted','running',
+--   'complete')`: a completed job now reserves its key PERMANENTLY, which is correct,
+--   because an immutable asset genuinely exists at it and always will. 'failed' and
+--   'submit_failed' are the only statuses NOT in the list, so they are still the only ones
+--   that release a key — the retry-after-FAILURE path fix round 2 built is untouched: job1
+--   fails, leaves the covered set, job2 legally reuses the key, job1's own stale event is
+--   still refused by the 'Job is not active' check (status = 'failed' is not in the
+--   predicate's list either). Re-verified against all 61 pre-existing assertions rather than
+--   assumed — see the task report for the row-by-row check. None change meaning: every
+--   assertion that exercises the uniqueness constraint does so while the relevant job is
+--   still 'submitted' (never 'complete') at that point in the file, and the one place a
+--   'complete' job's key is reused (Block F, job_f) relies on 'failed', not 'complete',
+--   which was never affected.
+--
+--   IMPORTANT: p_expected_output_key is client-supplied to create_transcode_job (granted to
+--   `authenticated`) and was accepted as any non-blank string. Nothing enforced the
+--   `orgs/<org>/titles/<title>/…` convention src/lib/assets.ts's key-building establishes,
+--   so an operate-capable member of org A could submit a job whose key names a DIFFERENT
+--   org's or title's master — a forged SUBMISSION, not a forged completion event (the
+--   distinction the migration intro now states explicitly). register_transcode_output would
+--   still only check the claimed key against what THIS ROW recorded, and this row could
+--   already be lying about which object it owns. create_asset has the identical gap and is
+--   not fixed here (out of this migration's scope, and a wider change) — but this file is
+--   still unapplied, so closing it here is nearly free. Fixed with a scope check in
+--   create_transcode_job, after the existing title/asset/blank-key checks (so a title/org
+--   mismatch or a blank key still raises its own, more specific message first):
+--     `if btrim(p_expected_output_key) not like
+--        'orgs/' || p_org_id::text || '/titles/' || p_title_id::text || '/%' then
+--        raise exception 'expected_output_key is out of scope for this title';
+--      end if;`
+--   p_org_id/p_org_id::text and p_title_id::text are both UUIDs at this point (already
+--   validated to exist and belong to each other by the checks above), so they can never
+--   themselves contain a LIKE wildcard (`%`/`_`) — only the trailing `%` this check adds
+--   intentionally is a wildcard, so no escaping is needed.
 --
 -- IDEMPOTENCY. EventBridge (and SNS before it) is at-least-once delivery; a completion for
 -- the same job can arrive twice. register_transcode_output checks `status = 'complete'`
@@ -249,16 +308,21 @@
 --
 -- DESTRUCTIVE OPS (approved before apply): CREATE TYPE public.transcode_status. CREATE
 -- TABLE public.transcode_jobs with three indexes, plus a separate partial UNIQUE INDEX on
--- expected_output_key (active statuses only — see FIX ROUND 2). ENABLE ROW LEVEL SECURITY
--- on it, one SELECT policy. REVOKE ALL on the table from anon, authenticated, AND
--- service_role, unconditionally, before granting anything back (all writes go through the
--- three functions below, none of which ever deletes). Explicit GRANT SELECT to
--- authenticated and to service_role — no other verb, to either. CREATE three functions —
--- create_transcode_job (granted to authenticated only), register_transcode_output and
--- fail_transcode_job (both revoked from public/anon/authenticated, granted to service_role
--- only — no client caller exists or ever should). No existing table, row, type, or function
--- is altered or dropped. Forward-only. To roll back: drop the three functions, drop the
--- table, drop the type — no other object depends on any of them.
+-- expected_output_key (submitted/running/complete — everything except the two failure
+-- statuses; see FIX ROUND 3). ENABLE ROW LEVEL SECURITY on it, one SELECT policy. REVOKE
+-- ALL on the table from anon, authenticated, AND service_role, unconditionally, before
+-- granting anything back (all writes go through the three functions below, none of which
+-- ever deletes). Explicit GRANT SELECT to authenticated and to service_role — no other
+-- verb, to either. CREATE three functions — create_transcode_job (granted to authenticated
+-- only; now also scope-checks its own p_expected_output_key argument against p_org_id/
+-- p_title_id — see FIX ROUND 3), register_transcode_output and fail_transcode_job (both
+-- revoked from public/anon/authenticated, granted to service_role only — no client caller
+-- exists or ever should). No existing table, row, type, or function is altered or dropped.
+-- Forward-only. NOTE: unlike every other statement in this migration, the unique index's
+-- predicate is not something that can be safely changed after the fact without downtime —
+-- altering it means dropping and recreating the index on a live table. Get the predicate
+-- right before this is ever applied; it is right as of fix round 3. To roll back: drop the
+-- three functions, drop the table, drop the type — no other object depends on any of them.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -277,8 +341,11 @@ create table if not exists public.transcode_jobs (
   output_asset_id     uuid references public.assets(id)                 on delete restrict,
   -- Decided at SUBMIT time and never taken from the completion event. The callback
   -- verifies an object exists HERE; it does not learn the key from AWS. That is what
-  -- stops a forged event registering an arbitrary S3 key as a screener. Uniqueness is
-  -- enforced by a separate partial index below (fix round 2), not inline here — see header.
+  -- stops a forged event registering an arbitrary S3 key as a screener (create_transcode_job
+  -- separately scope-checks the value itself against org_id/title_id — fix round 3 — since
+  -- this column has no defense of its own against a forged SUBMISSION). Uniqueness is
+  -- enforced by a separate partial index below (fix round 2, predicate widened in fix round
+  -- 3), not inline here — see header.
   expected_output_key text not null,
   external_job_id     text unique,
   status              public.transcode_status not null default 'submitted',
@@ -293,12 +360,20 @@ create index if not exists transcode_jobs_status_idx on public.transcode_jobs (s
 
 -- Fix round 2: a SEPARATE, idempotent statement — not inline in the table definition above
 -- — so it cannot be silently skipped if `create table if not exists` finds the table
--- already there from an earlier draft. Partial (active statuses only), not flat: see FIX
--- ROUND 2 for why a flat unique blocks the legitimate retry-after-failure path, and why
--- "active" here means the same thing register_transcode_output now checks explicitly.
+-- already there from an earlier draft. Partial, not flat: see FIX ROUND 2 for why a flat
+-- unique blocks the legitimate retry-after-failure path.
+--
+-- PREDICATE (fix round 3 widened this from 'submitted','running' to also include
+-- 'complete'): a job reserves its key for as long as that key legitimately describes real
+-- or eventual state — which is true while the job is in flight AND after it has completed,
+-- since an immutable asset now exists at that key and always will. Only 'failed' and
+-- 'submit_failed' release it, because those are the only two outcomes where no asset was
+-- ever created and the key is free to be tried again by a resubmission. The index name says
+-- "active" for historical reasons (fix round 2's original, narrower predicate); the
+-- predicate itself is the source of truth — read it, not the name.
 create unique index if not exists transcode_jobs_active_key_uidx
   on public.transcode_jobs (expected_output_key)
-  where status in ('submitted', 'running');
+  where status in ('submitted', 'running', 'complete');
 
 -- ----------------------------------------------------------------------------
 -- 2. TABLE GRANTS (fix round 2 — see header). Unconditional `revoke all` first, then grant
@@ -364,6 +439,20 @@ begin
     raise exception 'expected_output_key required';
   end if;
 
+  -- Fix round 3: the key is client-supplied and becomes the sole authority
+  -- register_transcode_output later trusts for what object to register. Without this,
+  -- an operate-capable member of org A could submit a job whose key names a DIFFERENT
+  -- org's or title's master (create_asset has the identical gap; not fixed there in this
+  -- migration, but this file is still unapplied and closing it here is nearly free). This
+  -- stops a forged SUBMISSION -- a different guarantee from register_transcode_output's own
+  -- check below, which stops a forged completion EVENT against an already-recorded key (see
+  -- migration intro). p_org_id/p_title_id are UUIDs already validated above, so they cannot
+  -- themselves contain a LIKE wildcard; only the trailing `%` this pattern adds is one.
+  if btrim(p_expected_output_key) not like
+       'orgs/' || p_org_id::text || '/titles/' || p_title_id::text || '/%' then
+    raise exception 'expected_output_key is out of scope for this title';
+  end if;
+
   insert into public.transcode_jobs
     (org_id, title_id, source_asset_id, expected_output_key, external_job_id, status)
   values (p_org_id, p_title_id, p_source_asset_id, btrim(p_expected_output_key),
@@ -402,10 +491,12 @@ begin
 
   -- Fix round 2: the only other terminal states are 'failed' and 'submit_failed' -- a job
   -- GC explicitly failed, or one AWS never even accepted, is genuinely done. Requiring the
-  -- job be ACTIVE here (not merely "not complete") is what makes the partial unique index
-  -- above safe: once a job leaves 'submitted'/'running', its key is free for a retry job to
-  -- reuse, and this check is what stops the ORIGINAL failed job's own late, stale
-  -- completion event from registering against that freed-up key after the fact.
+  -- job be ACTIVE here (not merely "not complete") is the other half of what makes the
+  -- partial unique index above safe: only 'failed'/'submit_failed' ever leave that index's
+  -- covered set (fix round 3 widened the predicate to also cover 'complete', since a
+  -- completed job's key must stay reserved forever -- an immutable asset already exists at
+  -- it), so this check is what stops a FAILED job's own late, stale completion event from
+  -- registering against a key its failure has freed up for a retry to legally reuse.
   if v_job.status not in ('submitted', 'running') then
     raise exception 'Job is not active';
   end if;
