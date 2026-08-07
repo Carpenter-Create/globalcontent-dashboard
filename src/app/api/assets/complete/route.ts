@@ -8,7 +8,14 @@ import { completeMultipart } from "@/lib/s3";
 import { submitProxyJob } from "@/lib/mediaconvert";
 
 const Body = z.object({
-  titleId: z.string().uuid(),
+  // .toLowerCase(): z.string().uuid() only validates the SHAPE, not the case — an uppercase
+  // UUID (RFC 4122 permits either) would flow into the S3 key verbatim while Postgres always
+  // renders p_title_id::text canonically lowercase. The LIKE scope-check in
+  // create_transcode_job would then miss on a case mismatch alone, raise 'out of scope', and
+  // (per Task 4's deliberate error-swallowing) silently leave that master without a proxy
+  // forever. Normalizing here, before titleId reaches assetKey() or any RPC, keeps every
+  // downstream comparison byte-for-byte consistent with Postgres's own canonical form.
+  titleId: z.string().uuid().transform((v) => v.toLowerCase()),
   kind: z.enum(["master", "caption", "poster", "banner", "screener", "trailer"]),
   key: z.string().min(1),
   uploadId: z.string().min(1),

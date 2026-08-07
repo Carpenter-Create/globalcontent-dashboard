@@ -24,8 +24,11 @@ const mediaconvert = new MediaConvertClient({
 export async function submitProxyJob(input: {
   masterKey: string;
 }): Promise<{ externalJobId: string; expectedKey: string }> {
-  const { expectedKey } = proxyOutputKey(input.masterKey);
-  const settings = buildProxyJobSettings({ masterKey: input.masterKey, bucket: S3_BUCKET });
+  // Derived exactly once: buildProxyJobSettings takes the result rather than re-deriving it
+  // from masterKey itself, so proxyOutputKey's parse/validation of masterKey runs a single
+  // time per job, not twice.
+  const output = proxyOutputKey(input.masterKey);
+  const settings = buildProxyJobSettings({ masterKey: input.masterKey, bucket: S3_BUCKET, output });
 
   const out = await mediaconvert.send(
     new CreateJobCommand({
@@ -38,5 +41,5 @@ export async function submitProxyJob(input: {
     }),
   );
   if (!out.Job?.Id) throw new Error("MediaConvert did not return a job id");
-  return { externalJobId: out.Job.Id, expectedKey };
+  return { externalJobId: out.Job.Id, expectedKey: output.expectedKey };
 }

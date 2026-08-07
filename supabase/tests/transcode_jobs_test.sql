@@ -122,9 +122,27 @@
 --     assets row (Task 6 reconcile, Task 7 retry, or a duplicate Task 4 submission).
 -- plan(63) -> plan(64): one new assertion (A10c); the role-switch fix adds no new
 -- assertion, only corrects which role the existing one runs under.
+--
+-- REVIEW FIX (screener-proxy review) additions:
+--   - A12b: every expected_output_key fixture in this file up to here (t.key_m/d/f/n) is
+--     `orgs/<org>/titles/<title>/screener/<filename>` -- flat, no extra path segment between
+--     `/screener/` and the filename. But src/lib/mediaconvert-settings.ts's proxyOutputKey()
+--     -- the actual TypeScript function whose output becomes this argument in production --
+--     always emits an EXTRA `<uuid>/` segment there: `.../screener/<uuid>/<name>_screener.mp4`.
+--     The SQL scope check is a LIKE prefix match ('orgs/<org>/titles/<title>/screener/%'), so
+--     it happens to accept both shapes -- but nothing in this file had actually PINNED the
+--     real one, only the flatter shorthand convenient to hand-write. This fixture uses a
+--     genuinely proxyOutputKey-shaped key (a fresh gen_random_uuid() segment, then a filename
+--     with the literal `_screener.mp4` suffix proxyOutputKey() produces) so the SQL side is
+--     pinned against the same shape the Vitest side pins in mediaconvert-settings.test.ts,
+--     not merely a shape that happens to satisfy the same LIKE pattern.
+--   - Block E's org-A job counts move from 5 to 6 (job_m, job_d, job_f, job_n, job_f_retry,
+--     job_shaped) to account for A12b's new job -- these are edits to existing assertions'
+--     expected values, not new assertions, so they don't affect the plan count.
+-- plan(64) -> plan(65): one new assertion (A12b's lives_ok).
 
 begin;
-select plan(64);
+select plan(65);
 
 -- ============================================================================
 -- fixtures (as superuser / owner)
@@ -318,6 +336,18 @@ select lives_ok(
   'owner creates a fourth job, target of the NULL-storage-key test');
 select set_config('t.job_n',
   (select id::text from public.transcode_jobs where expected_output_key = current_setting('t.key_n')), false);
+
+-- A12b (review fix): pin the SQL scope check against a genuinely proxyOutputKey()-shaped
+-- key -- with the extra <uuid>/ segment production actually produces, not the flatter
+-- shorthand (t.key_m/d/f/n) every other fixture in this file uses for readability.
+select set_config('t.key_shaped',
+  'orgs/' || current_setting('t.org') || '/titles/' || current_setting('t.title_m') ||
+  '/screener/' || gen_random_uuid()::text || '/My Film_screener.mp4', false);
+select lives_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
+         current_setting('t.key_shaped')),
+  'a proxyOutputKey-shaped key (with the extra <uuid>/ segment production actually emits) satisfies the scope check');
 
 -- A13 (fix round 1, test gap): direct writes are blocked at the table-grant level regardless
 -- of RLS -- mirrors assets_test.sql:47-50's idiom for the same class of check. Values are
@@ -627,24 +657,25 @@ select throws_ok(
 reset role;
 set local role authenticated;
 
--- Five jobs exist for org A at this point: job_m, job_d, job_f, job_n, job_f_retry.
+-- Six jobs exist for org A at this point: job_m, job_d, job_f, job_n, job_f_retry, and
+-- A12b's job_shaped.
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  5, 'account_owner sees all five of their org''s transcode jobs');
+  6, 'account_owner sees all six of their org''s transcode jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  5, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
+  6, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  5, 'GC (gc_can view) sees org A''s jobs too');
+  6, 'GC (gc_can view) sees org A''s jobs too');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner_b'), 'role','authenticated')::text, true);

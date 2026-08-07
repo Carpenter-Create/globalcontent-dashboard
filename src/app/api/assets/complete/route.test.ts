@@ -142,4 +142,69 @@ describe("POST /api/assets/complete — transcode submission on master completio
     expect(json.assetId).toBe("asset-4");
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("23505"));
   });
+
+  // Mutation-checked per the brief for the OTHER submitProxyJob failure mode: a rejecting
+  // fake (this one) is what actually exercises the try/catch's "RPC throws mid-call" branch —
+  // a fake that only ever returns { error } (like fakeSupabase above) can never reach it,
+  // since a returned error and a thrown rejection take different code paths in the route.
+  it("a create_transcode_job call that rejects outright (not merely returns an error) is still contained", async () => {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "create_asset") return { data: "asset-5", error: null };
+      if (fn === "create_transcode_job") throw new Error("connection reset mid-call");
+      return { data: null, error: { message: `no fixture for ${fn}` } };
+    });
+    vi.mocked(createClient).mockResolvedValue({ rpc } as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(submitProxyJob).mockResolvedValue({ externalJobId: "aws-job-5", expectedKey: EXPECTED_SCREENER_KEY });
+
+    const res = await POST(req(body({ kind: "master" })));
+    const json = (await res.json()) as { assetId?: string };
+
+    expect(res.status).toBe(200);
+    expect(json.assetId).toBe("asset-5");
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("connection reset mid-call"));
+  });
+
+  // Review finding: zod's z.string().uuid() accepts an uppercase UUID, but Postgres renders
+  // p_title_id::text canonically lowercase — so create_transcode_job's LIKE scope check would
+  // miss on a case mismatch alone, raise 'out of scope', and (per this route's own deliberate
+  // error-swallowing above) silently leave that master without a proxy, forever. The route
+  // must normalize titleId before it reaches the key-prefix check or any RPC.
+  it("lowercases an uppercase-cased titleId before it's used in the key check or any RPC call", async () => {
+    // Hex letters (a-f), not the digits-only fixture TITLE_ID uses above — toUpperCase() on
+    // an all-digits UUID is a no-op and would prove nothing.
+    const lowerTitleId = "aaaaaaaa-1111-4111-8111-111111111111";
+    const upperTitleId = lowerTitleId.toUpperCase();
+    const masterKey = `orgs/${ORG_ID}/titles/${lowerTitleId}/master/uuid-6/reel.mov`;
+    const expectedKey = `orgs/${ORG_ID}/titles/${lowerTitleId}/screener/uuid-6/reel_screener.mp4`;
+
+    const supabase = fakeSupabase({
+      create_asset: { data: "asset-6", error: null },
+      create_transcode_job: { data: "job-row-6", error: null },
+    });
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as Awaited<ReturnType<typeof createClient>>);
+    vi.mocked(submitProxyJob).mockResolvedValue({ externalJobId: "aws-job-6", expectedKey });
+
+    const res = await POST(
+      req({
+        titleId: upperTitleId,
+        kind: "master",
+        key: masterKey,
+        uploadId: "upload-1",
+        parts: [{ partNumber: 1, etag: "etag-1" }],
+        bytes: 1024,
+      }),
+    );
+    const json = (await res.json()) as { assetId?: string };
+
+    expect(res.status).toBe(200);
+    expect(json.assetId).toBe("asset-6");
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "create_asset",
+      expect.objectContaining({ p_title_id: lowerTitleId }),
+    );
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "create_transcode_job",
+      expect.objectContaining({ p_title_id: lowerTitleId }),
+    );
+  });
 });

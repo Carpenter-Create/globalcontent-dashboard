@@ -217,9 +217,14 @@ restatements crowd out the section's purpose.
 - **Supabase `gen types` marks every RPC arg without a `DEFAULT` as required non-null.** So an
   optional param (one you want to pass `undefined`/omit from a `.rpc()` call) MUST be declared
   `… text default null` in the SQL, or TS rejects the call. Bake `DEFAULT null` into the param the
-  first time — don't ship required-arg RPCs and patch with a follow-up migration. (Bit us on
+  first time — don't ship required-arg RPCs and patch with a follow-up migration. The generator
+  can only emit required-non-null or optional-non-null, never required-nullable — hand-editing
+  `database.types.ts` to fake the nullable case doesn't survive the next regeneration, which
+  reverts it silently and points the resulting build error at the call site, not the function it
+  actually came from. Where the argument's meaning is "detach" (clear an existing value), spell
+  that as an **omitted (`undefined`) argument**, never an explicit `null`. (Bit us on
   `accept_terms` → `20260717000200`, `add_rights_grant` → `20260718000300`, `create_asset` →
-  `20260718000600`.)
+  `20260718000600`, `attach_link_vendor` → `20260806000400`, fixed in `20260807000200`.)
 
 - **Never call `supabase.auth.getUser()` in app code — use `getAuthUser()` / `getOrgContext()`
   from `lib/supabase`.** `getUser()` is a **network round-trip to the Auth server on every
@@ -246,14 +251,3 @@ restatements crowd out the section's purpose.
 
   Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
   `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
-
-- **A nullable-but-required RPC arg is not expressible through `supabase gen types` — don't
-  hand-edit the generated type to fake one, add a SQL `DEFAULT null` instead.** `p_vendor_id` on
-  `attach_link_vendor` (`20260806000400`) had no default and an explicit null meant "detach"; the
-  generator can only emit required-non-null or optional-non-null, never required-nullable, so
-  someone hand-edited `database.types.ts` to `string | null` to make it compile. That edit doesn't
-  survive a regeneration — the generator reverts it silently, and the resulting build error points
-  at the call site, not at the function it actually came from. Fixed in `20260807000200` by adding
-  `default null` (same signature — Postgres identifies a function by argument types, not defaults,
-  so this is a replace, not a new overload) and moving "detach" from an explicit `null` to an
-  omitted (`undefined`) argument at the call site.

@@ -395,8 +395,20 @@ real path.
    # poll until COMPLETE (minutes, depends on source length):
    aws mediaconvert get-job --endpoint-url "$MEDIACONVERT_ENDPOINT" --region "$AWS_REGION" \
      --id "$TEST_JOB_ID" --query 'Job.Status'
-   # once COMPLETE, confirm an object actually landed under OUTPUT_DEST — not just that the job says so:
-   aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$OUTPUT_DEST"   # expect one object
+   # once COMPLETE, confirm the EXACT expected object NAME exists — not just that something
+   # landed under the prefix. The callback route will check register_transcode_output's
+   # p_storage_key against transcode_jobs.expected_output_key for an EXACT match (that's the
+   # single check stopping a forged event from registering an arbitrary S3 object as a
+   # screener), so "a file exists somewhere under this prefix" is not the contract that matters
+   # — "a file exists at exactly this key" is. Mirrors proxyOutputKey()'s own basename+suffix
+   # derivation (src/lib/mediaconvert-settings.ts): strip the master's extension, append the
+   # NameModifier, force .mp4.
+   MASTER_BASENAME=$(basename "$MASTER_KEY")
+   EXPECTED_OUTPUT_KEY="${OUTPUT_DEST}${MASTER_BASENAME%.*}_screener.mp4"
+   aws s3api head-object --bucket "$BUCKET" --key "$EXPECTED_OUTPUT_KEY" >/dev/null \
+     && echo "confirmed: object exists at the exact expected key ($EXPECTED_OUTPUT_KEY)" \
+     || echo "MISSING at the exact expected key ($EXPECTED_OUTPUT_KEY) — do not proceed; list-objects below to see what actually landed"
+   aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$OUTPUT_DEST"   # for comparison only
    ```
 
 2. **Confirm the EventBridge pattern matched the real job's completion**, not a hand-written stand-in.
