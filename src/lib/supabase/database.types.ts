@@ -1384,9 +1384,11 @@ export type Database = {
         Returns: string[]
       }
       attach_link_vendor: {
-        // p_vendor_id is required (no SQL DEFAULT) but explicitly nullable — passing null is
-        // how a caller detaches a vendor from a link, not an omitted argument.
-        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string | null }
+        // p_vendor_id has `default null` in SQL (20260807000200) — omitting it (pass
+        // `undefined`) is how a caller detaches a vendor from a link. A nullable-but-required
+        // arg (`string | null` with no `?`) is not a shape this generator ever produces; if you
+        // see one here by hand, distrust it — it will not survive the next regeneration.
+        Args: { p_force?: boolean; p_link_id: string; p_vendor_id?: string }
         Returns: undefined
       }
       can_deliver: {
@@ -1699,6 +1701,10 @@ export type Database = {
       tier_revenue_share_bp: {
         Args: { p_tier: Database["public"]["Enums"]["tier_enum"] }
         Returns: number
+      }
+      title_vendor_licensed: {
+        Args: { p_title_id: string; p_vendor_id: string }
+        Returns: boolean
       }
     }
     Enums: {

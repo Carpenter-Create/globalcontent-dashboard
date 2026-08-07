@@ -246,3 +246,14 @@ restatements crowd out the section's purpose.
 
   Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
   `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
+
+- **A nullable-but-required RPC arg is not expressible through `supabase gen types` — don't
+  hand-edit the generated type to fake one, add a SQL `DEFAULT null` instead.** `p_vendor_id` on
+  `attach_link_vendor` (`20260806000400`) had no default and an explicit null meant "detach"; the
+  generator can only emit required-non-null or optional-non-null, never required-nullable, so
+  someone hand-edited `database.types.ts` to `string | null` to make it compile. That edit doesn't
+  survive a regeneration — the generator reverts it silently, and the resulting build error points
+  at the call site, not at the function it actually came from. Fixed in `20260807000200` by adding
+  `default null` (same signature — Postgres identifies a function by argument types, not defaults,
+  so this is a replace, not a new overload) and moving "detach" from an explicit `null` to an
+  omitted (`undefined`) argument at the call site.
