@@ -3,6 +3,8 @@
 **Date:** 2026-08-06
 **Status:** approved in principle by the founder; two defaults marked **CONFIRM** below
 **Depends on:** `feat/buyer-title-page` (merged or merging)
+**Amended 2026-08-07:** the EventBridge push callback in the original §5–§7 is replaced by a
+scheduled poll. See the amendment note at the top of §5 for the decision and its accepted costs.
 
 ---
 
@@ -81,20 +83,56 @@ own.**
 
 ## 5. Architecture
 
+**Amendment — 2026-08-07: poll, not push.** The design below originally had MediaConvert push a
+completion event through EventBridge to an API destination with a shared secret, landing on a
+public `POST /api/transcode/callback` that registered the resulting asset. **The founder has
+chosen polling instead:** a scheduled job asks MediaConvert about in-flight jobs and registers the
+finished ones. Vercel Pro is confirmed, so minute-level cron is available. In the founder's
+priority order:
+
+1. **It removes a public write endpoint.** That endpoint would have registered an asset the
+   buyer-facing page then serves — the highest-risk component in the whole slice. Polling has no
+   inbound surface: nothing to authenticate, no forged events, no shared secret to leak, rotate,
+   or mis-scope.
+2. **It removes about half the AWS setup** — the EventBridge rule, the API destination, the
+   connection, the invoke role and its confused-deputy trust condition, and the callback secret.
+   This repo has already shipped an AWS configuration that showed green in the console and
+   selected zero objects (the lifecycle-tag defect logged in
+   `docs/infra/portal-go-live-runbook.md` STEP 1); every config not written is one that cannot do
+   that.
+3. **It is one mechanism, not two that must agree.** The push design still needed a reconcile job
+   for lost events — so it cost an endpoint *and* a scheduler. Polling **is** the reconcile; there
+   is no second mechanism that has to agree with the first.
+4. **It is testable.** An EventBridge callback cannot readily be received on localhost; a poll
+   runs locally against real AWS.
+
+**Accepted costs — written down, not glossed:**
+- A proxy appears within a poll interval rather than seconds after AWS finishes. The transcode
+  itself takes minutes, so the marginal delay is small — but real.
+- Progress depends on the scheduler running. If cron stops, nothing advances, and it fails
+  quietly — hence the stuck-jobs signal in §5's table and §6's row for it. This exposure existed
+  in the push design too, via its reconcile job; polling does not introduce it, it just remains
+  the only place the exposure lives.
+- **There is no cron infrastructure in this repo today** — no `vercel.json`, no `vercel.ts`, no
+  scheduled functions. `docs/scheduled/subscription-lifecycle.md` says so already, and notes that
+  the subscription-lapse job will need one too. This slice therefore introduces the **first**
+  scheduled job in the codebase, and must do so in a way the lapse job can reuse — not a
+  one-off wired just for this pipeline.
+
 ```
 complete master upload
   → submit MediaConvert job (input = master key, output = screener prefix)
   → job runs (minutes)
-  → MediaConvert emits COMPLETE / ERROR on EventBridge
-  → webhook/handler writes the screener asset row, flips screener_source if still default
+  → scheduled poll asks MediaConvert about jobs still in flight
+  → poll writes the screener asset row, flips screener_source if still default
 ```
 
 | Piece | Responsibility |
 | --- | --- |
-| `src/lib/mediaconvert.ts` (new) | Submit a job. Pure input→job-settings mapping kept separate and unit-tested. |
+| `src/lib/mediaconvert.ts` | Submit a job. Pure input→job-settings mapping kept separate and unit-tested. |
 | `src/app/api/assets/complete/route.ts` | On `kind === 'master'`, submit. Best-effort: **a submit failure must not fail the upload** — the master is already in S3 and the client's work must not be lost. |
-| `transcode_jobs` table (new) | One row per job: title, source asset, job id, status, timestamps, failure reason. This is the provenance record and the retry surface. |
-| `POST /api/transcode/callback` (new) | Receives job completion. **Must authenticate** — see §7. Writes the `screener` asset, updates the job row, conditionally flips `screener_source`. |
+| `transcode_jobs` table | One row per job: title, source asset, job id, status, timestamps, failure reason. This is the provenance record and the retry surface. |
+| `GET /api/cron/transcode-poll` (new) | The scheduled poll. Invocable only by Vercel's cron dispatcher — see §7. Selects in-flight jobs (bounded), asks MediaConvert about each, writes the `screener` asset, updates the job row, conditionally flips `screener_source`, and surfaces a stuck-jobs count. |
 | GC operator surface | Job status per title; a retry for failures. Without this a failed transcode is invisible. |
 
 **Why a table rather than inferring from the asset's existence:** a failed or in-flight job is a
@@ -108,23 +146,38 @@ difference.
 | --- | --- |
 | Job submit fails | Upload still succeeds. Job row `submit_failed`. Retryable from the GC surface. |
 | Job fails (bad input, unsupported codec) | Job row `failed` with the reason. Title behaves exactly as today — buyer sees the "no viewable screener" notice. **No regression, only a missing improvement.** |
-| Callback never arrives | Job row stays `running`. A reconcile pass queries MediaConvert for stale jobs. Without this, a lost event means a title silently never gets a proxy. |
-| Duplicate callback | Idempotent on job id — never register two screener assets for one job. |
+| The poll has not run yet | Job row stays `submitted`/`running` until the next scheduled tick. This is not a failure — it is the normal, expected state between AWS finishing and the poll noticing. The marginal wait is bounded by the cron interval. |
+| The scheduler stops | Nothing advances, for every in-flight job at once, and it fails quietly — no error, just jobs that never leave `running`. The poll route must count jobs stuck past a threshold and expose that count (log line at minimum; a GC-visible signal is better) so a stalled cron shows up rather than being discovered by a client asking why their screener never appeared. This exposure existed in the push design too, via its own reconcile job — polling does not add it, it is simply now the only mechanism, so its health is the whole pipeline's health. |
+| Overlapping poll runs (a slow run still in flight when the next tick fires) | Idempotent on job id — never register two screener assets for one job. A run that reaches a job already `complete` (because a previous, slower run finished it first) treats that as a no-op, not an error. |
 | Client uploads their own screener first | Generated proxy is still registered; `screener_source` is left at their choice. |
 | Master replaced by a re-upload | New job, new proxy. The old screener asset is superseded, not deleted (nothing is ever deleted). |
 
 ## 7. Security
 
-- **The callback endpoint is the attack surface.** It is public and it writes an asset row that the
-  buyer page will serve. It must verify the event genuinely came from AWS — EventBridge to an
-  authenticated internal route, or signature verification — and must derive the title and asset
-  from the **job record**, never from the request body. An unauthenticated callback that trusts its
-  payload lets anyone register an arbitrary S3 key as a screener on any title.
-- **Output keys must be server-derived** from the same `assetKey()` scheme, never from the event.
+The callback endpoint does not exist under this design. Removing it removes what most of this
+section used to protect: no public write endpoint, nothing to authenticate, no forged events, no
+shared secret to leak, rotate, or mis-scope. What remains is smaller and worth stating plainly:
+
+- **The cron route is the surface.** `GET /api/cron/transcode-poll` is invoked on a schedule by
+  Vercel, not by AWS and not by a browser. It must verify the bearer secret Vercel sends against
+  its own env var, timing-safely, and **refuse (401) if that env var is unset — never fail open**
+  into an unauthenticated trigger. There is no request body to distrust; there is only the
+  question of who is allowed to start a run.
+- **Output keys are still server-derived**, exactly as before: from `expected_output_key` on the
+  job row, written at submit time via the same `assetKey()` scheme, never from anything MediaConvert
+  returns beyond a job's status. A `HeadObject` on that recorded key supplies the real
+  `bytes`/`content_hash` used to register the asset — MediaConvert's response cannot cause an
+  asset to be registered at a key it wasn't asked to write to, and an absent object fails the job
+  rather than registering an asset for something that isn't there.
 - **The proxy carries no archive tag** — it must stay instantly available. Only masters are tagged
   (`ARCHIVE_TAG_KEY`, set at `CreateMultipartUpload`).
-- **The MediaConvert IAM role gets read on the master prefix and write on the screener prefix only.**
-  Not bucket-wide.
+- **The MediaConvert IAM role** — assumed by the MediaConvert *service* to run the job, unchanged
+  from the original design — **gets read on the master prefix and write on the screener prefix
+  only.** Not bucket-wide.
+- **The app's own IAM identity** (`gc-assets-app`, the same credentials `src/lib/mediaconvert.ts`
+  and `src/lib/s3.ts` already use) needs `mediaconvert:GetJob` and `mediaconvert:ListJobs` added —
+  nothing broader. `s3:GetObject`, already granted bucket-wide on that user, already covers the
+  `HeadObject` the poll performs; see `docs/infra/screener-proxy-setup.md`.
 - **No watermarking.** The proxy is still an untraceable copy once downloaded — that tradeoff was
   accepted for the buyer page and does not change here. Provenance remains the mitigation.
 
@@ -132,27 +185,31 @@ difference.
 
 | Layer | Coverage |
 | --- | --- |
-| Vitest | Job-settings mapping; output key derivation; the `screener_source` flip rule **including that it never overrides an explicit `dedicated`**; callback idempotency. |
-| Vitest | Callback authentication — an unsigned or forged event must be refused, and must not write an asset. Mutation-check this one. |
+| Vitest | Job-settings mapping; output key derivation; the `screener_source` flip rule **including that it never overrides an explicit `dedicated`**; poll idempotency across overlapping runs. |
+| Vitest | Cron-route authentication — a missing or wrong bearer secret must be refused, and must not run the poll; an unset env var must refuse rather than fail open. Mutation-check this one. |
 | pgTAP | `transcode_jobs` RLS; the asset write path; that a failed job leaves no screener asset. |
 | Manual | One real master through the real pipeline, end to end, before the backfill. |
 
 **The manual run is not optional.** This branch has now had three separate cases where code passed
-review and failed on first execution. A pipeline that touches AWS, EventBridge and S3 will not be
-correct on reading alone.
+review and failed on first execution. A pipeline that touches AWS and S3 will not be correct on
+reading alone.
 
 ## 9. Sequencing
 
-1. Infrastructure runbook — MediaConvert template, IAM role, EventBridge rule, output prefix.
-   Founder applies; this repo's runbooks have shipped a rule that matched zero objects before, so
-   it needs a verification step that proves selection, not just that the resource exists.
+1. Infrastructure runbook — MediaConvert IAM role, account endpoint, output prefix, and the app's
+   own `mediaconvert:GetJob`/`ListJobs` grant for the poll. No EventBridge, no API destination, no
+   callback secret. Founder applies; this repo's runbooks have shipped a rule that matched zero
+   objects before, so it needs a verification step that proves selection, not just that the
+   resource exists.
 2. `transcode_jobs` migration.
 3. Submit on master completion.
-4. Callback handler + asset registration + conditional flip.
+4. The scheduled poll — cron declaration, authenticated route, bounded job selection, asset
+   registration and conditional flip, stuck-jobs signal. This is the first scheduled job in the
+   codebase; the mechanism it introduces is meant to be reused by the subscription-lapse job
+   (`docs/scheduled/subscription-lifecycle.md`), not a one-off wired just for this pipeline.
 5. GC visibility and retry.
-6. Reconcile pass for lost events.
-7. One real title, manually verified.
-8. Backfill runbook — founder executes.
+6. One real title, manually verified.
+7. Backfill runbook — founder executes.
 
 ## 10. Out of scope
 

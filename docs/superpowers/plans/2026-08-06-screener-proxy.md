@@ -4,9 +4,11 @@
 
 **Goal:** Generate one small, web-playable screener proxy per uploaded master, so the buyer title page has something it can actually show.
 
-**Architecture:** Master upload completes → submit an AWS Elemental MediaConvert job whose output key is decided *at submit time* and recorded → MediaConvert emits completion on EventBridge → an authenticated callback route looks the job up by id, verifies the object at the recorded key, and registers it as a `screener` asset through a service-role RPC that also flips `screener_source` when it is still at its default. Nothing trusts the event payload except the job id.
+**Architecture:** Master upload completes → submit an AWS Elemental MediaConvert job whose output key is decided *at submit time* and recorded → a scheduled poll asks MediaConvert about jobs still in flight, looks each one up by id, verifies the object at the recorded key, and registers it as a `screener` asset through a service-role RPC that also flips `screener_source` when it is still at its default. Nothing is trusted from AWS beyond a job's id and terminal status; the output key, org, and title all come from the job row.
 
-**Tech Stack:** Next.js App Router (Node runtime), Supabase Postgres with SECURITY DEFINER RPCs, `@aws-sdk/client-mediaconvert` (new dependency), `@aws-sdk/client-s3` (existing), Vitest, pgTAP.
+**Amended 2026-08-07:** the original architecture here had MediaConvert push completion through EventBridge to a public, authenticated callback route. The founder chose a scheduled poll instead — no public write endpoint, roughly half the AWS setup removed, one mechanism instead of two, and testable locally. See `docs/superpowers/specs/2026-08-06-screener-proxy-design.md` §5 for the full reasoning and the accepted costs (poll-interval latency; dependence on the scheduler running, mitigated by the stuck-jobs signal in Task 5 below). This plan's Tasks 5 and 6 are merged into one task as a result.
+
+**Tech Stack:** Next.js App Router (Node runtime) with Vercel Cron, Supabase Postgres with SECURITY DEFINER RPCs, `@aws-sdk/client-mediaconvert` (new dependency), `@aws-sdk/client-s3` (existing), Vitest, pgTAP.
 
 ## Global Constraints
 
@@ -22,10 +24,11 @@
 - **Design tokens only** — never hardcode hex. **Banned copy words:** seamless, frictionless, white-glove, elevate, amplify, unleash, supercharge, best-in-class, effortless, unlock, game-changing.
 - **Verification per task:** `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build`. Baseline for clean: 0 eslint errors and exactly 5 pre-existing warnings in `src`. `pnpm lint` is red from `.claude/worktrees`; lint `src` only.
 
-## Two founder decisions, already made — implement exactly these
+## Three founder decisions, already made — implement exactly these
 
 1. **The `screener_source` flip applies ONLY when the current value is still `'master'`.** If a client has explicitly chosen `'dedicated'`, register the proxy but leave the setting alone. Never override an explicit choice.
 2. **The backfill runs in one pass over ~700 masters, and is a runbook the founder executes.** No task in this plan spends money or submits a bulk job.
+3. **Completion is discovered by a scheduled poll, not a pushed EventBridge callback.** No public write endpoint, no shared secret, no EventBridge rule or API destination. See the spec's §5 amendment for the reasoning and its accepted costs.
 
 ---
 
@@ -33,13 +36,14 @@
 
 | File | Responsibility |
 | --- | --- |
-| `docs/infra/screener-proxy-setup.md` (create) | Paste-able AWS runbook: IAM role, job template, EventBridge rule + API destination, verification. |
+| `docs/infra/screener-proxy-setup.md` (create) | Paste-able AWS runbook: MediaConvert IAM role, account endpoint, queue, the app's own `mediaconvert:GetJob`/`ListJobs` grant, verification. No EventBridge, no API destination, no callback secret. |
 | `supabase/migrations/20260807000100_transcode_jobs.sql` (create) | `transcode_jobs` table, RLS, and `register_transcode_output` / `fail_transcode_job` RPCs. |
 | `src/lib/mediaconvert-settings.ts` (create) | **Pure.** Output key derivation and job-settings construction. No AWS calls, fully unit-tested. |
 | `src/lib/mediaconvert.ts` (create) | The AWS client and `submitProxyJob`. Thin — all logic lives in the settings module. |
 | `src/app/api/assets/complete/route.ts` (modify) | Submit on `kind === 'master'`, best-effort. |
-| `src/app/api/transcode/callback/route.ts` (create) | Authenticated EventBridge receiver. |
-| `src/lib/transcode-callback.ts` (create) | **Pure.** Event parsing and the accept/reject decision, unit-tested apart from I/O. |
+| `vercel.json` (create) | Registers the scheduled poll with Vercel Cron — the first cron declaration in this repo, shaped so the subscription-lapse job (`docs/scheduled/subscription-lifecycle.md`) can add its own entry to the same `crons` array later. |
+| `src/app/api/cron/transcode-poll/route.ts` (create) | The scheduled poll. Authenticates the Vercel cron dispatcher, selects in-flight jobs (bounded), resolves each against MediaConvert, registers or fails, surfaces a stuck-jobs count. |
+| `src/lib/transcode-poll.ts` (create) | **Pure.** The accept/reject decision for a MediaConvert `GetJob` response — COMPLETE/ERROR/CANCELED mapping — unit-tested apart from I/O. |
 | `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx` (create) | GC job status + retry. |
 | `docs/domain-spec.md` (modify) | The §12 amendment. |
 | `docs/infra/screener-proxy-backfill.md` (create) | Backfill runbook. |
@@ -54,28 +58,26 @@ No application code. This is what the founder applies before anything else can w
 - Create: `docs/infra/screener-proxy-setup.md`
 
 **Interfaces:**
-- Produces: the env var names later tasks read — `MEDIACONVERT_ENDPOINT`, `MEDIACONVERT_ROLE_ARN`, `MEDIACONVERT_QUEUE_ARN`, `TRANSCODE_CALLBACK_SECRET`.
+- Produces: the env var names later tasks read — `MEDIACONVERT_ENDPOINT`, `MEDIACONVERT_ROLE_ARN`, `MEDIACONVERT_QUEUE_ARN`. No callback secret — completion is discovered by polling, not by a pushed event (founder decision 3 above).
 
 - [ ] **Step 1: Write the runbook**
 
 Follow the structure of `docs/infra/portal-go-live-runbook.md` — a fill-in-your-values block first, then numbered steps each with a **verify** command. Cover:
 
-1. **IAM role for MediaConvert.** Trust policy for `mediaconvert.amazonaws.com`. Permissions: `s3:GetObject` on `arn:aws:s3:::$BUCKET/orgs/*/master/*` and `s3:PutObject` on `arn:aws:s3:::$BUCKET/orgs/*/screener/*`. **Not bucket-wide** — the spec requires read on masters and write on screeners only.
+1. **IAM role for MediaConvert** (the role the MediaConvert *service* assumes to run a job). Trust policy for `mediaconvert.amazonaws.com`. Permissions: `s3:GetObject` on `arn:aws:s3:::$BUCKET/orgs/*/master/*` and `s3:PutObject` on `arn:aws:s3:::$BUCKET/orgs/*/screener/*`. **Not bucket-wide** — the spec requires read on masters and write on screeners only.
 2. **Account-specific MediaConvert endpoint.** `aws mediaconvert describe-endpoints --query "Endpoints[0].Url" --output text`. This is per-account and per-region; the SDK needs it.
 3. **No job template.** Encoding settings are submitted inline by `buildProxyJobSettings` (Task 3) so they live in version control and are unit-tested, rather than in console state nobody can diff. Say so explicitly in the runbook — otherwise someone will helpfully create one and the two will drift.
-4. **EventBridge rule** matching `source = aws.mediaconvert`, `detail-type = "MediaConvert Job State Change"`, `detail.status` in `["COMPLETE","ERROR","CANCELED"]`.
-5. **API destination + connection** with API-key auth so EventBridge injects a header. The header name and the secret become `TRANSCODE_CALLBACK_SECRET`. Point it at `$APP_ORIGIN/api/transcode/callback`.
-6. **Env vars** set locally and in Vercel: the four above. Note explicitly that `TRANSCODE_CALLBACK_SECRET` is server-only and must never be `NEXT_PUBLIC_`.
+4. **The app's own MediaConvert read access.** The poll (Task 5) calls `GetJobCommand`/`ListJobsCommand` using the same `gc-assets-app` IAM user credentials `src/lib/mediaconvert.ts` and `src/lib/s3.ts` already use — not the role from bullet 1, which MediaConvert assumes, never the app. Add `mediaconvert:GetJob` and `mediaconvert:ListJobs` to that user's policy. Check what it already grants before adding anything: it already has `s3:GetObject` bucket-wide (`asset-storage-setup.md` / `portal-go-live-runbook.md` STEP 2), which already covers the `HeadObject` the poll performs on the screener prefix — don't duplicate it.
+5. **Env vars** set locally and in Vercel: the three above, plus `CRON_SECRET` (Vercel sends this as a bearer token when it invokes a cron route — see Task 5). Note explicitly they are server-only and must never be `NEXT_PUBLIC_`.
 
 - [ ] **Step 2: Write the verification section — this is the part that matters**
 
-A green console does not mean a working pipeline. Each verify must prove *selection and delivery*, not existence:
+A green console does not mean a working pipeline. Each verify must prove *selection*, not existence:
 
 - Submit one real job from the CLI against a known master key and confirm an output object appears at the expected prefix.
-- Confirm the EventBridge rule actually matched: `aws events test-event-pattern` with a sample MediaConvert COMPLETE event, expecting `true`.
-- Confirm the API destination delivered: check the rule's invocation metrics, or send a test event and observe a request reaching the app.
+- **Confirm the app's IAM user can actually call `GetJob`/`ListJobs`** against that test job id — an `AccessDenied` here means the poll will run forever finding nothing, silently, which is exactly the "green console, no effect" failure this runbook exists to catch.
 - **Confirm the proxy is NOT archive-tagged.** `aws s3api get-object-tagging` on the produced output must come back with no `gc-archive` tag. Masters are tagged at `CreateMultipartUpload` and the Glacier lifecycle rule selects on that tag, so a MediaConvert-written object is untagged and stays instant *by default* — but the whole point of this slice is a screener that never goes cold, and "correct by accident" is worth one command to confirm.
-- State plainly that a rule which matches nothing looks identical to a rule that works.
+- State plainly that a permission grant which resolves to `implicitDeny` on the one action that matters looks identical, in the console, to one that works.
 
 - [ ] **Step 3: Commit**
 
@@ -376,7 +378,9 @@ After the existing `create_asset` call succeeds, and only when `b.kind === "mast
   }
 ```
 
-**Order matters:** submit first, then record. If the submit throws there is no job to record; if the record throws we log a job that exists in AWS but not in our table, which the reconcile pass in Task 6 is designed to find.
+**Order matters:** submit first, then record. If the submit throws there is no job to record; if the record throws we log a job that exists in AWS but not in our table, which the poll in Task 5 is designed to find.
+
+> **Note on the shipped code:** `src/app/api/assets/complete/route.ts`'s comment on this path currently reads "which Task 6's reconcile pass is designed to find and pick back up" — written when the callback design still had a separate reconcile task. That comment is now off by one task number and describes a "reconcile pass" that this replan folds into the poll itself; harmless but stale. Update it the next time this file is touched for an unrelated reason, rather than as a docs-only edit.
 
 - [ ] **Step 4: Write the tests**
 
@@ -397,87 +401,130 @@ git commit -m "feat(transcode): submit a proxy job when a master lands"
 
 ---
 
-### Task 5: The authenticated callback
+### Task 5: The scheduled poll
 
-This is the highest-risk task in the plan. The route is public and it registers an asset the buyer page will serve.
+This is the highest-risk task in the plan. It is the only place completion gets discovered at
+all, and it is the first scheduled job in this codebase — `docs/scheduled/subscription-lifecycle.md`
+has no cron infrastructure to point to, so the cron declaration and the auth pattern built here
+are what the subscription-lapse job will reuse. Get the shape right once.
 
 **Files:**
-- Create: `src/lib/transcode-callback.ts`
-- Create: `src/lib/transcode-callback.test.ts`
-- Create: `src/app/api/transcode/callback/route.ts`
-- Create: `src/app/api/transcode/callback/route.test.ts`
+- Create: `vercel.json`
+- Create: `src/lib/transcode-poll.ts`
+- Create: `src/lib/transcode-poll.test.ts`
+- Create: `src/app/api/cron/transcode-poll/route.ts`
+- Create: `src/app/api/cron/transcode-poll/route.test.ts`
 
 **Interfaces:**
-- Consumes: `register_transcode_output`, `fail_transcode_job` (Task 2)
-- Produces: `parseTranscodeEvent(body: unknown): { externalJobId: string; status: "complete" | "failed"; reason?: string } | null`
+- Consumes: `register_transcode_output`, `fail_transcode_job` (Task 2); `@/lib/list-bounds`
+- Produces: `resolveJobOutcome(status: "COMPLETE" | "ERROR" | "CANCELED" | string): "complete" | "failed" | null` — pure, unrecognised statuses (e.g. `PROGRESSING`) map to `null` and are left alone.
 
-- [ ] **Step 1: Write the pure parser and its tests first**
+- [ ] **Step 1: Declare the cron in `vercel.json`**
 
-`parseTranscodeEvent` validates with zod and returns `null` for anything unrecognised. It reads ONLY `detail.jobId` and `detail.status`, mapping `COMPLETE` → `complete` and `ERROR`/`CANCELED` → `failed`. **It must not read any key, bucket, title or org from the event** — those come from the job row. Test that a payload containing an `outputKey` or `titleId` field is ignored entirely.
+This repo has no `vercel.json` today — this is the first entry in it. Keep the array shaped so
+the lapse job can add its own entry beside this one rather than inventing a second scheduling
+mechanism:
 
-- [ ] **Step 2: Write the route**
+```json
+{
+  "crons": [
+    { "path": "/api/cron/transcode-poll", "schedule": "*/5 * * * *" }
+  ]
+}
+```
+
+Every 5 minutes, not every 1: a transcode already takes minutes, so 5 is a small addition to that
+— and it keeps `ListJobs`/`GetJob` call volume proportionate. Vercel Pro allows tighter, but there
+is no product reason to poll faster than the latency it is bounding.
+
+- [ ] **Step 2: Write the pure outcome mapper and its tests first**
+
+```ts
+import { describe, expect, it } from "vitest";
+import { resolveJobOutcome } from "@/lib/transcode-poll";
+
+describe("resolveJobOutcome", () => {
+  it("maps MediaConvert's terminal states", () => {
+    expect(resolveJobOutcome("COMPLETE")).toBe("complete");
+    expect(resolveJobOutcome("ERROR")).toBe("failed");
+    expect(resolveJobOutcome("CANCELED")).toBe("failed");
+  });
+
+  it("leaves non-terminal or unrecognised states alone", () => {
+    expect(resolveJobOutcome("PROGRESSING")).toBeNull();
+    expect(resolveJobOutcome("SUBMITTED")).toBeNull();
+    expect(resolveJobOutcome("something-unexpected")).toBeNull();
+  });
+});
+```
+
+Implement `resolveJobOutcome` to satisfy it. Keep it a plain string mapping — no AWS SDK import,
+no I/O — so the decision the route makes is unit-tested apart from the network calls that surround
+it.
+
+- [ ] **Step 3: Write the route**
 
 In order, refusing at each step:
 
-1. **Authenticate.** Read the shared-secret header set by the EventBridge API destination and compare with `safeEqualHex`-style timing-safe equality against `process.env.TRANSCODE_CALLBACK_SECRET`. Missing or wrong → **401**, and log nothing that echoes the supplied value. If the env var is unset, refuse — never fail open.
-2. **Parse.** `parseTranscodeEvent` → null means **400**.
-3. **Resolve the job** by `external_job_id` using the admin client. Not found → **404**. Everything downstream uses this row.
-4. **On `failed`:** call `fail_transcode_job` and return 200.
-5. **On `complete`:** `HeadObject` the job's `expected_output_key` to obtain real `bytes` and the ETag as `content_hash`. If the object is absent, call `fail_transcode_job` with that reason and return 200 — do not register an asset for an object that is not there.
-6. Call `register_transcode_output(jobId, expectedKey, bytes, contentHash)`. Return 200.
+1. **Authenticate.** Vercel invokes cron routes with `Authorization: Bearer $CRON_SECRET`. Compare
+   the header against `process.env.CRON_SECRET` with a timing-safe equality check (equal-length
+   buffers, `crypto.timingSafeEqual` — a `!==` string compare leaks length and content via timing).
+   Missing or wrong → **401**. **If `CRON_SECRET` is unset, refuse — never fail open** into a poll
+   anyone can trigger by hitting the route with no header at all.
+2. **Select in-flight jobs.** `transcode_jobs` rows with `status in ('submitted', 'running')`,
+   bounded via `@/lib/list-bounds` (`probeRange`/`splitProbe`, the same pattern every other list
+   read in this repo uses since `a092250`). Log a warning if the result was truncated — a poll
+   that silently only ever sees the first page of a growing backlog is the same failure class as
+   the truncation bug that pattern exists to catch.
+3. **For each job, call `GetJobCommand`** against MediaConvert using the job's `external_job_id`.
+4. **Resolve the outcome** with `resolveJobOutcome(job.Status)`. `null` (still in progress) → skip,
+   leave the row alone.
+5. **On `"failed"`:** call `fail_transcode_job`. Continue to the next job.
+6. **On `"complete"`:** `HeadObject` the job's `expected_output_key` to obtain the real `bytes` and
+   the ETag as `content_hash`. **If the object is absent, call `fail_transcode_job` with that
+   reason instead — do not register an asset for something that is not there.** Otherwise call
+   `register_transcode_output(jobId, expectedKey, bytes, contentHash)`.
+7. **Idempotency across overlapping runs.** A poll can still be running when the next scheduled
+   tick fires (a large in-flight batch, a slow AWS response). `register_transcode_output` and
+   `fail_transcode_job` are both already idempotent on job id at the RPC layer (Task 2's row lock
+   and status check) — the route does not need its own lock, but must not treat "job already
+   `complete`" as an error when a concurrent run got there first. Log it as a no-op, not a failure.
+8. **Stuck-jobs signal.** Among the jobs selected in step 2, count those with `created_at` older
+   than a threshold (e.g. 60 minutes — comfortably longer than any real transcode plus several
+   missed ticks) still `submitted`/`running` after this run. Log it at `warn` when non-zero
+   (`[transcode:stuck] N job(s) older than 60m still in flight`) and include the count in the
+   route's JSON response, so a health check or the GC panel (Task 6) can surface it rather than a
+   client discovering a missing proxy first.
 
-Never derive anything from the request body beyond the job id and the status.
+Never derive the output key, org, or title from anything MediaConvert returns beyond the job's
+status — they come from the job row, exactly as the callback design required.
 
-- [ ] **Step 3: Write the route tests, and mutation-check the authentication**
+- [ ] **Step 4: Write the route tests, and mutation-check the authentication**
 
-Assert: no header → 401 and **no RPC called**; wrong header → 401 and no RPC; valid header + unknown job → 404; `ERROR` status → `fail_transcode_job`, no asset; `COMPLETE` with a missing object → `fail_transcode_job`, no asset; `COMPLETE` with the object present → `register_transcode_output` with the key **from the job row**, not from the body; a body carrying a different `outputKey` is ignored.
+Assert: no header → 401 and **no MediaConvert call, no RPC called**; wrong header → 401 and
+nothing called; unset `CRON_SECRET` → 401 even with a header present; valid header selects only
+`submitted`/`running` jobs; `ERROR`/`CANCELED` → `fail_transcode_job`, no asset; `COMPLETE` with a
+missing object → `fail_transcode_job`, no asset; `COMPLETE` with the object present →
+`register_transcode_output` with the key **from the job row**; a job already `complete` when the
+poll reaches it is a no-op, not an error; a job whose `created_at` is old enough contributes to the
+stuck-jobs count and a fresh one does not; the selection query is bounded and a truncated result
+logs a warning.
 
-**Mutation-check:** delete the auth check, confirm the first two tests fail, restore, confirm green. Report the observed output — do not reason about it.
+**Mutation-check:** delete the auth check, confirm the "no header" and "wrong header" tests fail,
+restore, confirm green. Report the observed output — do not reason about it.
 
-- [ ] **Step 4: Verify and commit**
+- [ ] **Step 5: Verify and commit**
 
 Run: `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build`
 
 ```bash
-git add src/lib/transcode-callback.ts src/lib/transcode-callback.test.ts src/app/api/transcode
-git commit -m "feat(transcode): authenticated completion callback"
+git add vercel.json src/lib/transcode-poll.ts src/lib/transcode-poll.test.ts src/app/api/cron/transcode-poll
+git commit -m "feat(transcode): scheduled poll replaces the EventBridge callback"
 ```
 
 ---
 
-### Task 6: Reconcile lost events
-
-Without this, a dropped EventBridge delivery means a title silently never gets a proxy — and nothing surfaces it.
-
-**Files:**
-- Create: `src/app/api/cron/transcode-reconcile/route.ts`
-- Test: `src/app/api/cron/transcode-reconcile/route.test.ts`
-
-**Interfaces:**
-- Consumes: `submitProxyJob`'s client (Task 4), `register_transcode_output` / `fail_transcode_job` (Task 2)
-
-- [ ] **Step 1: Look at how this repo already schedules work**
-
-Read `docs/scheduled/subscription-lifecycle.md` and follow whatever authentication and scheduling pattern it establishes for cron routes. Do not invent a second one.
-
-- [ ] **Step 2: Implement**
-
-Select `transcode_jobs` rows in `submitted` or `running` older than 30 minutes, bounded via `@/lib/list-bounds`. For each, `GetJobCommand` against MediaConvert and resolve to the same two outcomes as the callback — complete registers, error fails. Reuse the callback's logic rather than duplicating the decision.
-
-- [ ] **Step 3: Test**
-
-A stale `submitted` job whose AWS state is COMPLETE gets registered; one that is ERROR gets failed; a fresh job is left alone; a job already `complete` is skipped.
-
-- [ ] **Step 4: Verify and commit**
-
-```bash
-git add src/app/api/cron/transcode-reconcile
-git commit -m "feat(transcode): reconcile jobs whose completion event never arrived"
-```
-
----
-
-### Task 7: GC visibility and retry
+### Task 6: GC visibility and retry
 
 A failed transcode that nobody can see is the same as no pipeline.
 
@@ -503,7 +550,7 @@ git commit -m "feat(gc): transcode job status and retry"
 
 ---
 
-### Task 8: The domain-spec amendment
+### Task 7: The domain-spec amendment
 
 **Files:**
 - Modify: `docs/domain-spec.md` §12
@@ -529,7 +576,7 @@ git commit -m "docs(spec): §12 exception for internal viewing proxies"
 
 ---
 
-### Task 9: The backfill runbook
+### Task 8: The backfill runbook
 
 **Files:**
 - Create: `docs/infra/screener-proxy-backfill.md`
