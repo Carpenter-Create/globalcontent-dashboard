@@ -38,21 +38,39 @@ import { resolveJobOutcome } from "@/lib/transcode-poll";
 // two sequential AWS round-trips, run on a 5-minute schedule with no deadline or per-call
 // ceiling would eventually get killed mid-invocation by the platform's own function timeout —
 // silently dropping the summary log, the stuck-jobs warning, and the deferred count.
-// `maxDuration` gives the platform ceiling; POLL_TIME_BUDGET_MS is checked BETWEEN batches so
-// the route can stop ITSELF cleanly; PER_CALL_TIMEOUT_MS (below, applied via `withTimeout`) is
-// what makes that between-batch check actually able to bind — a between-batch check alone
-// cannot stop a single hanging call from carrying the whole invocation past `maxDuration`, so
-// every AWS call this route makes is raced against its own ceiling independently of whatever
-// the SDK clients are configured to do internally (see s3.ts/mediaconvert.ts for the
-// client-level timeouts, which are the first line of defense; this is the backstop).
+// `maxDuration` gives the platform ceiling; the two budgets below are checked BETWEEN batches
+// so the route can stop ITSELF cleanly; PER_CALL_TIMEOUT_MS (applied via `withTimeout`) is what
+// makes those between-batch checks actually able to bind — a between-batch check alone cannot
+// stop a single hanging call from carrying the invocation past `maxDuration`.
+//
+// Fix round 3, item 1: CHECK_BUDGET_MS and WRITE_BUDGET_MS are SEPARATE, not one shared clock.
+// The checking phases (A: GetJob: C1: HeadObject) can legitimately eat their entire budget on
+// a large or slow backlog — that's fine, unresolved jobs just defer to the next tick. But
+// writes for work ALREADY VERIFIED this tick (a confirmed present object, an AWS-attested
+// failure) must never be starved by how long checking took, or a consistently busy tick makes
+// literally zero database progress, forever, while reporting 200. WRITE_BUDGET_MS is a
+// RESERVED slice computed from the same start time, not "whatever's left after checking" — so
+// even if phases A and C1 burn their full budget, phase B/C3 still gets its own guaranteed
+// window. 35s (checks) + 20s (writes) = 55s, leaving 5s of the 60s `maxDuration` for response
+// serialization and the final bookkeeping below.
 export const maxDuration = 60;
-const POLL_TIME_BUDGET_MS = 35_000;
+const CHECK_BUDGET_MS = 35_000;
+const WRITE_BUDGET_MS = 20_000;
 const PER_CALL_TIMEOUT_MS = 10_000;
 
 // Bounded concurrency, not strictly serial: GetJob/HeadObject are I/O-bound round-trips, and
 // running a handful at once is what actually keeps a real backlog inside the time budget
 // above. Small on purpose — this is a background job against two AWS services with their own
 // throttling, not a place to maximize throughput.
+//
+// Fix round 3, item 2: this constant is NOT load-bearing for the corroboration gate's
+// correctness — see the gate's own comment below. It used to be, silently: `runBatched` only
+// ever returns 0, a multiple of CONCURRENCY, or everything, so a truncated cohort could never
+// land on exactly 1 as long as CONCURRENCY stayed above 1. Someone lowering this to 1 in
+// response to S3 throttling — a plausible, reasonable tuning change — would have made a
+// truncated systemic-fault cohort look like a single individual failure and defeated the gate.
+// Fixed at the gate itself, not by pinning this constant; verified by temporarily setting it
+// to 1 and re-running the systemic-fault test (see the task report).
 const CONCURRENCY = 10;
 
 // Fix round 2, item 4 (head-of-queue starvation): the DB read below still orders by
@@ -70,8 +88,10 @@ const TICK_INTERVAL_MS = 5 * 60 * 1000;
 // Takes `now` as a parameter rather than calling Date.now() itself: the caller already takes
 // one wall-clock reading to compute the shared deadline, and reusing it here (a) keeps
 // rotation and the deadline computed from the SAME instant rather than two independently
-// racy reads, and (b) keeps this function a pure, directly testable one.
-function rotate<T>(items: T[], now: number): T[] {
+// racy reads, and (b) keeps this function a pure, directly testable one. Exported (fix round
+// 3, item 4) so it can be unit-tested directly — it previously had zero coverage, and removing
+// the call to it left every other test green.
+export function rotate<T>(items: T[], now: number): T[] {
   if (items.length === 0) return items;
   const epoch = Math.floor(now / TICK_INTERVAL_MS);
   const offset = epoch % items.length;
@@ -99,8 +119,16 @@ const STUCK_THRESHOLD_MS = 60 * 60 * 1000;
 // returning 503 for what is statistically noise, not a signal. Require a minimum sample
 // before treating "every job errored" as a total-outage alarm rather than an individual blip
 // — below this floor, the per-job errors are still logged and still visible in the JSON body,
-// just not escalated to the one signal Vercel itself surfaces (the HTTP status).
+// just not escalated to the one signal Vercel itself surfaces (the HTTP status). Reused as the
+// sample floor for mass-deferral below too.
 const TOTAL_FAILURE_FLOOR = 3;
+
+// Fix round 3, item 1: a tick that defers most of its selected jobs — even if every write it
+// DID manage to make succeeded — is worth surfacing loudly. A high deferral rate usually means
+// the backlog has outgrown the current budget/concurrency tuning, or a subset of calls are
+// hanging long enough to burn through batches without resolving. That is operationally
+// significant even when it isn't "zero progress."
+const MASS_DEFERRAL_RATIO = 0.5;
 
 function isAuthorized(req: Request): boolean {
   // Refuse outright if the secret isn't configured — never fail open into a poll anyone can
@@ -123,11 +151,21 @@ function isAuthorized(req: Request): boolean {
 
 // Races an AWS call against its own ceiling so a single hang can never consume more than
 // PER_CALL_TIMEOUT_MS of the shared budget, independent of whatever the SDK client's own
-// requestHandler/maxAttempts configuration does underneath (see s3.ts/mediaconvert.ts). This
-// does not cancel the underlying network call — Node has no way to abort a bare Promise — it
-// only stops THIS invocation from waiting on it further; the abandoned call resolves or
-// rejects later into nothing, which is safe here because no write happens until a result is
-// in hand.
+// requestHandler/maxAttempts configuration does underneath. This does not cancel the
+// underlying network call — Node has no way to abort a bare Promise — it only stops THIS
+// invocation from waiting on it further; the abandoned call resolves or rejects later into
+// nothing, which is safe here because no write happens until a result is in hand.
+//
+// Fix round 3, item 4 (correcting a fix round 2 characterization): the client-level
+// requestHandler config (s3.ts/mediaconvert.ts) is NOT strictly "the first line of defense"
+// in every case. A single attempt's `requestTimeout` (6s) is tighter than this function's
+// ceiling and does fire first for a single hang. But `maxAttempts: 2` means a call that keeps
+// timing out gets retried internally before the SDK itself ever rejects to the caller — two
+// attempts at ~6s plus backoff is looser than this function's flat 10s, so for a call that
+// keeps failing and retrying, THIS race is what actually determines when the caller sees a
+// rejection, not the client config. The client config's real value is bounding each
+// individual attempt quickly; this function is the outer ceiling regardless of how the SDK
+// retries underneath it.
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms`)), ms);
@@ -156,7 +194,9 @@ type JobOutcome = "completed" | "failed" | "alreadyResolved" | "errored";
 
 // Generic bounded-concurrency, time-budgeted batch runner shared by every phase below (AWS
 // status checks, object-presence checks, and DB writes alike) so the deadline and concurrency
-// behavior is defined exactly once rather than reimplemented per phase.
+// behavior is defined exactly once rather than reimplemented per phase. Each phase passes its
+// OWN deadline — see the write phase below, which gets a separately reserved one rather than
+// inheriting whatever the checking phases used.
 async function runBatched<T, R>(
   items: T[],
   worker: (item: T) => Promise<R>,
@@ -239,10 +279,18 @@ async function resolveAwsPhase(job: InFlightJob): Promise<AwsPhaseResult> {
 // PHASE C1 — verify the output object for every AWS-reported COMPLETE job. No writes here
 // either: the fleet-wide corroboration gate needs to see every result before any of them are
 // acted on.
+//
+// Fix round 3, item 3: "absent" (a confirmed-missing object) and "empty" (a 0-byte object)
+// are DISTINCT kinds, not folded into one "missing". A 0-byte object is evidence the bucket is
+// reachable and the key is exactly right — it DISPROVES a configuration fault rather than
+// supporting one. Folding it in previously meant two genuine 0-byte encodes in the same tick
+// could trip the corroboration gate and hold both forever (re-observed, re-held, every tick,
+// with no resolution path) for a failure that was never ambiguous in the first place.
 // ---------------------------------------------------------------------------------------
 type ObjectCheckResult =
   | { kind: "present"; job: InFlightJob; meta: { bytes: number; etag: string } }
-  | { kind: "missing"; job: InFlightJob; reason: string }
+  | { kind: "absent"; job: InFlightJob }
+  | { kind: "empty"; job: InFlightJob }
   | { kind: "erroredChecking" };
 
 async function checkObject(job: InFlightJob): Promise<ObjectCheckResult> {
@@ -256,15 +304,8 @@ async function checkObject(job: InFlightJob): Promise<ObjectCheckResult> {
     console.error(`[transcode:poll] HeadObject failed for ${job.id}: ${e instanceof Error ? e.message : e}`);
     return { kind: "erroredChecking" };
   }
-
-  // Fix round 1, item 7: a 0-byte object is not a viewable screener — treated identically to
-  // a missing one.
-  if (!meta || meta.bytes === 0) {
-    const reason = !meta
-      ? "MediaConvert reported COMPLETE but the output object was not found in S3"
-      : "MediaConvert reported COMPLETE but the output object is 0 bytes";
-    return { kind: "missing", job, reason };
-  }
+  if (!meta) return { kind: "absent", job };
+  if (meta.bytes === 0) return { kind: "empty", job };
   return { kind: "present", job, meta };
 }
 
@@ -343,21 +384,27 @@ export async function GET(req: Request) {
   let errored = 0;
   let alreadyResolved = 0;
   let deferred = 0;
-  // Fix round 2, item 1: jobs a COMPLETE-but-missing-object outcome would otherwise have
-  // permanently failed, HELD BACK because the absence looked fleet-wide rather than
-  // individual this tick. Never written to; they stay exactly as open as before.
+  // Fix round 2, item 1: jobs a COMPLETE-but-absent-object outcome would otherwise have
+  // permanently failed, HELD BACK because the absence looked fleet-wide (or uncorroborated —
+  // fix round 3, item 2) rather than individually confirmed this tick. Never written to; they
+  // stay exactly as open as before.
   let held = 0;
 
   const stillOpen = new Set(jobs.map((j) => j.id));
   const now = Date.now();
-  const deadline = now + POLL_TIME_BUDGET_MS;
+  // Fix round 3, item 1: two SEPARATE deadlines, both anchored to the same `now`. Checking
+  // (phases A + C1) gets CHECK_BUDGET_MS; writes (phase B/C3) get their OWN reserved
+  // WRITE_BUDGET_MS regardless of how much of the checking budget got used — see the constant
+  // comments above for why sharing one clock let a busy tick make zero progress.
+  const checkDeadline = now + CHECK_BUDGET_MS;
+  const writeDeadline = now + CHECK_BUDGET_MS + WRITE_BUDGET_MS;
 
   // ---- PHASE A: ask MediaConvert about every rotated, in-flight job -------------------
   const rotatedJobs = rotate(jobs, now);
   const { results: awsResults, deferred: deferredA } = await runBatched(
     rotatedJobs,
     resolveAwsPhase,
-    deadline,
+    checkDeadline,
     "phase A (GetJob)",
   );
   deferred += deferredA.length;
@@ -375,20 +422,22 @@ export async function GET(req: Request) {
   const { results: checkResults, deferred: deferredC1 } = await runBatched(
     awsCompleteJobs,
     checkObject,
-    deadline,
+    checkDeadline,
     "phase C1 (HeadObject)",
   );
   deferred += deferredC1.length;
 
   const presentResults: { job: InFlightJob; meta: { bytes: number; etag: string } }[] = [];
-  const missingResults: { job: InFlightJob; reason: string }[] = [];
+  const absentResults: { job: InFlightJob }[] = [];
+  const emptyResults: { job: InFlightJob }[] = [];
   for (const r of checkResults) {
     if (r.kind === "erroredChecking") errored++;
     else if (r.kind === "present") presentResults.push({ job: r.job, meta: r.meta });
-    else missingResults.push({ job: r.job, reason: r.reason });
+    else if (r.kind === "absent") absentResults.push({ job: r.job });
+    else emptyResults.push({ job: r.job });
   }
 
-  // ---- FLEET-WIDE CORROBORATION GATE (fix round 2, item 1) ----------------------------
+  // ---- FLEET-WIDE CORROBORATION GATE (fix round 2, item 1; corrected fix round 3, item 2) ----
   // Granting s3:ListBucket (fix round 1, item 1) means a missing output object now resolves
   // as a confirmed 404, not an ambiguous 403 — and fail_transcode_job is permanent and
   // irreversible (rule 2: no deletes; register_transcode_output refuses a non-active job).
@@ -398,37 +447,73 @@ export async function GET(req: Request) {
   // CHOSEN APPROACH: corroboration within the tick, not a persisted grace window. A grace
   // window needs somewhere to record "first observed missing at T" that survives across
   // invocations, and every column on transcode_jobs that could hold that is already spoken
-  // for (status transitions immediately; there is no schema change available this round to
-  // add one). Within-tick corroboration needs no new state at all: if MORE THAN ONE job
-  // resolved to AWS-COMPLETE this tick and EVERY one of them reports its output missing, that
-  // is a configuration fault, not N independent transcode failures, and none of them are
-  // permanently failed on that basis — held back instead, for the next tick to re-evaluate
-  // fresh. A SINGLE complete-but-missing job (nothing to corroborate against) still fails
-  // normally, exactly as before this fix round.
-  const completeTotal = presentResults.length + missingResults.length;
-  const systemicAbsence = completeTotal > 1 && missingResults.length === completeTotal;
+  // for; there is no schema change available this round to add one.
+  //
+  // THE REAL INVARIANT (fix round 3, item 3 corrected an inverted version of this reasoning
+  // in the prior report): holding is the SAFE direction — it withholds an irreversible write
+  // when the evidence is ambiguous. Firing LESS often is therefore the UNSAFE direction, not
+  // the safe one. The gate must hold whenever it cannot rule out a systemic cause, not merely
+  // when the observed cohort happens to look uniformly bad. Two ways the cohort can fail to be
+  // trustworthy, both handled explicitly:
+  //   (a) corroborationIncomplete — phase C1 itself was truncated by the time budget. The
+  //       checked subset might be an arbitrary, unrepresentative slice of the real cohort (at
+  //       the extreme, CONCURRENCY=1 — a plausible response to S3 throttling — makes every
+  //       truncation exactly one job; relying on "the checked cohort is more than one" to
+  //       imply full visibility was itself the bug this round fixes). If ANY work was
+  //       deferred out of this phase, we do not have the full picture, so any absence found
+  //       is held rather than trusted as representative.
+  //   (b) allCheckedAreAbsent — everything phase C1 DID manage to check (present + absent +
+  //       empty) came back absent, with nothing to contradict it. A present or empty result
+  //       in the SAME tick is positive evidence the bucket/key/permissions path works, which
+  //       makes a coexisting absence more likely a genuine individual failure — so those are
+  //       NOT held.
+  // Only true absences ever feed this gate. A 0-byte object (`emptyResults`) is excluded
+  // entirely (fix round 3, item 3) — it PROVES the bucket is reachable and the key is exactly
+  // right, which is evidence AGAINST a configuration fault, and it always fails normally,
+  // gate or no gate.
+  const corroborationIncomplete = deferredC1.length > 0;
+  const allCheckedAreAbsent = absentResults.length > 1 && presentResults.length === 0 && emptyResults.length === 0;
+  const systemicAbsence = absentResults.length > 0 && (corroborationIncomplete || allCheckedAreAbsent);
 
   if (systemicAbsence) {
-    held += missingResults.length;
+    held += absentResults.length;
     console.error(
-      `[transcode:poll] SYSTEMIC ABSENCE — all ${missingResults.length} COMPLETE job(s) checked this tick ` +
-        `reported a missing/empty output object. Refusing to permanently fail any of them — this looks like ` +
-        `a configuration fault (S3_BUCKET, proxyOutputKey drift, a bucket rename), not independent transcode ` +
-        `failures. Held job ids: ${missingResults.map((r) => r.job.id).join(", ")}`,
+      `[transcode:poll] SYSTEMIC ABSENCE (${corroborationIncomplete ? "corroboration incomplete" : "all checked jobs absent"}) — ` +
+        `${absentResults.length} COMPLETE job(s) this tick reported a missing output object with nothing to contradict it. ` +
+        `Refusing to permanently fail any of them — this looks like a configuration fault (S3_BUCKET, proxyOutputKey ` +
+        `drift, a bucket rename) or incomplete information, not independent transcode failures. ` +
+        `Held job ids: ${absentResults.map((r) => r.job.id).join(", ")}`,
     );
   }
 
-  // ---- PHASE B / C3: the only writes in this route ------------------------------------
+  // ---- PHASE B / C3: the only writes in this route. Reserved WRITE_BUDGET_MS (see above),
+  // not the checking phases' deadline — verified work must not starve behind a busy backlog.
   const writeTasks: WriteTask[] = [
     ...awsFailedJobs.map(({ job, reason }): WriteTask => ({ action: "fail", job, reason })),
     ...presentResults.map(({ job, meta }): WriteTask => ({ action: "register", job, meta })),
-    ...(systemicAbsence ? [] : missingResults.map(({ job, reason }): WriteTask => ({ action: "fail", job, reason }))),
+    // 0-byte always fails, unconditionally — never subject to the corroboration gate.
+    ...emptyResults.map(
+      ({ job }): WriteTask => ({
+        action: "fail",
+        job,
+        reason: "MediaConvert reported COMPLETE but the output object is 0 bytes",
+      }),
+    ),
+    ...(systemicAbsence
+      ? []
+      : absentResults.map(
+          ({ job }): WriteTask => ({
+            action: "fail",
+            job,
+            reason: "MediaConvert reported COMPLETE but the output object was not found in S3",
+          }),
+        )),
   ];
 
   const { results: writeResults, deferred: deferredWrites } = await runBatched(
     writeTasks,
     (task) => performWrite(supabase, task),
-    deadline,
+    writeDeadline,
     "phase B/C3 (writes)",
   );
   deferred += deferredWrites.length;
@@ -459,14 +544,16 @@ export async function GET(req: Request) {
     console.warn(`[transcode:stuck] ${stuck} job(s) older than 60m still in flight`);
   }
 
-  // Fix round 1, item 5 / fix round 2, item 4: the one thing Vercel itself surfaces (an
-  // invocation's HTTP status) must not stay green through a total AWS outage, but a single
-  // job's transient blip must not trip it either — TOTAL_FAILURE_FLOOR requires a real sample
-  // before "every job errored" is escalated. A fleet-wide absence hold is ALWAYS surfaced
-  // regardless of sample size — it's a definite finding (every complete job this tick was
-  // missing its output), not a noisy rate.
+  // Fix round 1, item 5 / fix round 2, item 4 / fix round 3, item 1: the one thing Vercel
+  // itself surfaces (an invocation's HTTP status) must not stay green through a total AWS
+  // outage, a fleet-wide absence, OR a tick that deferred most of its work — but a single
+  // job's transient blip must not trip it either. TOTAL_FAILURE_FLOOR requires a real sample
+  // before "every job errored" is escalated, and is reused as the sample floor for mass
+  // deferral. A fleet-wide absence hold is ALWAYS surfaced regardless of sample size — it's a
+  // definite finding, not a noisy rate.
   const allErrored = jobs.length >= TOTAL_FAILURE_FLOOR && errored === jobs.length;
-  const unhealthy = allErrored || held > 0;
+  const massDeferral = jobs.length >= TOTAL_FAILURE_FLOOR && deferred / jobs.length >= MASS_DEFERRAL_RATIO;
+  const unhealthy = allErrored || held > 0 || massDeferral;
 
   return NextResponse.json(
     {

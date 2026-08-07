@@ -21,8 +21,18 @@ const region = process.env.AWS_REGION!;
 // budget exists to preserve. Safe to apply to BOTH calls this client makes — unlike
 // `completeMultipart` in `s3.ts` (which genuinely can take longer for a very large multipart
 // assembly, so it deliberately keeps an untimed client), `CreateJob` (submit) and `GetJob`
-// (poll) are both small, fast metadata calls with no legitimate reason to run long. This is
-// the FIRST line of defense; route.ts's per-call race is the backstop.
+// (poll) are both small, fast metadata calls with no legitimate reason to run long.
+// `throwOnRequestTimeout: true` is required alongside `requestTimeout` — this IS documented
+// (@smithy/types' NodeHttpHandlerOptions), just easy to miss: without it, a breach only logs a
+// warning and never throws.
+//
+// NOT strictly "the first line of defense" in every case (corrected fix round 3, item 4): this
+// config's 6s per-attempt timeout is tighter than route.ts's 10s withTimeout race for a SINGLE
+// hang, but `maxAttempts: 2` retries internally before the SDK ever rejects to the caller — two
+// attempts at ~6s plus backoff (~12s+) is looser than route.ts's flat 10s. So for a call that
+// keeps timing out and retrying, route.ts's race is what actually determines when the caller
+// sees a rejection, not this config — this config's value is bounding each attempt quickly;
+// route.ts's race is the outer ceiling regardless of how the SDK retries underneath it.
 const mediaconvert = new MediaConvertClient({
   region,
   endpoint: process.env.MEDIACONVERT_ENDPOINT,

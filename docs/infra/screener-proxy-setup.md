@@ -202,6 +202,15 @@ before adding anything, so this doesn't duplicate a permission that's already th
   for — the poll logs it as "could not tell" and retries the SAME job forever, two AWS calls
   every five minutes, with nothing but a slowly rising stuck-jobs count to show for it. Granted
   below, alongside the MediaConvert actions.
+  **This grant is load-bearing for a SECOND reason as of fix round 2, and a future reader
+  trimming this policy needs both, not just the first**: on the rare `NotFound` path,
+  `headObjectMeta` now issues a `HeadBucketCommand` against the bucket alone, to tell a
+  genuinely-missing KEY apart from a missing/inaccessible BUCKET (`HeadObject`'s 404 is
+  identical either way — see `s3.ts`'s own comment). `HeadBucket` requires exactly this same
+  `s3:ListBucket` permission. Revoking it would silently break BOTH the 404-vs-403 behavior
+  above AND that disambiguation — the second failure is quieter, since it degrades to "every
+  bucket-level fault is treated as an ordinary confirmed-absent key" rather than an outright
+  error, so it would not announce itself the way the first one does.
 - **No MediaConvert permission of any kind is granted yet, for submit or poll.** That includes
   `mediaconvert:CreateJob` — the action `submitProxyJob` calls on every master upload. Without it,
   every single upload's transcode submission fails with `AccessDenied` — silently, because

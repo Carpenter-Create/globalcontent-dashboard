@@ -52,11 +52,19 @@ const s3 = new S3Client({ region });
 // NodeHttpHandler instance, and no new dependency: @smithy/node-http-handler is only a
 // TRANSITIVE dependency of @aws-sdk/client-s3 under pnpm's strict linking, not resolvable from
 // application code without adding it directly). `throwOnRequestTimeout: true` is required —
-// undocumented-until-you-hit-it SDK behavior is that `requestTimeout` ALONE only LOGS a
-// warning on breach, it does not throw. `maxAttempts: 2` bounds the SDK's own retry loop so a
-// single logical call can't silently re-stack its timeout budget. This is the FIRST line of
-// defense; route.ts's per-call race is the backstop in case any of this is ever misconfigured
-// or the hang isn't one the request/connection timeout actually covers.
+// this behavior IS documented, just easy to miss: @smithy/types' NodeHttpHandlerOptions says
+// `requestTimeout` alone only logs a warning on breach and needs this flag to actually throw.
+// `maxAttempts: 2` bounds the SDK's own retry loop so a single logical call can't silently
+// re-stack its timeout budget.
+//
+// NOT strictly "the first line of defense" in every case (corrected fix round 3, item 4): a
+// SINGLE attempt's requestTimeout (6s) is tighter than route.ts's withTimeout race (10s) and
+// does fire first for a single hang. But maxAttempts: 2 means a call that keeps timing out is
+// retried internally before the SDK rejects to the caller at all — two attempts at ~6s plus
+// backoff (~12s+) is LOOSER than route.ts's flat 10s ceiling. So for a call that keeps failing
+// and retrying, route.ts's race is what actually determines when the caller sees a rejection,
+// not this config. This config's real value is bounding each individual attempt quickly; the
+// route's race is the outer ceiling regardless of how the SDK retries underneath it.
 const POLL_REQUEST_TIMEOUT_MS = 6_000;
 const POLL_CONNECTION_TIMEOUT_MS = 3_000;
 const pollS3 = new S3Client({
