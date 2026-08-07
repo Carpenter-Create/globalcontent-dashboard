@@ -68,9 +68,20 @@ export async function POST(req: Request) {
   // including a 23505 unique-violation if an earlier job for this exact source already
   // completed) must NEVER lose the client's upload. A missing proxy just degrades the buyer
   // page to exactly what it does today: no regression, only a missing improvement. Submit
-  // BEFORE recording — if the submit throws there is no job to record; if the record throws,
-  // a job now exists in AWS with nothing tracking it here, which the scheduled poll (Task 5,
-  // src/app/api/cron/transcode-poll) is designed to find and pick back up.
+  // BEFORE recording — if the submit throws there is no job to record; if the record throws
+  // (this RPC call fails or its own error is otherwise swallowed by the catch below), a job
+  // now exists in AWS with NOTHING tracking it here.
+  //
+  // CORRECTED (fix round 1, item 7's "also fix" list): an earlier version of this comment
+  // claimed the scheduled poll (`src/app/api/cron/transcode-poll`) would "find and pick back
+  // up" that orphan. That is false, and worth stating plainly so Task 6 is not designed around
+  // a mechanism that doesn't exist: the poll only ever reads `transcode_jobs` ROWS — it never
+  // calls MediaConvert's `ListJobs` to discover jobs AWS knows about that this table doesn't.
+  // An orphan created by this catch block is UNRECOVERABLE by any automated path today; the
+  // AWS job runs to completion (or failure) with nothing here ever noticing either outcome. The
+  // only recovery is a person noticing (no proxy ever appears for the title) and a GC-triggered
+  // manual retry creating a BRAND NEW job for the same source asset — a fresh submission, not a
+  // discovery of the orphaned one, which is left running dark in the MediaConvert queue.
   if (b.kind === "master" && assetId) {
     try {
       const { externalJobId, expectedKey } = await submitProxyJob({ masterKey: b.key });

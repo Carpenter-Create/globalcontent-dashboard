@@ -14,8 +14,24 @@ import { stableSigningDate } from "@/lib/signing-window";
 
 // Server-only S3 client. Credentials come from AWS_ACCESS_KEY_ID /
 // AWS_SECRET_ACCESS_KEY / AWS_REGION in the environment (never NEXT_PUBLIC).
-const region = process.env.AWS_REGION!;
-export const S3_BUCKET = process.env.S3_BUCKET!;
+//
+// Fix round 1 (screener-proxy poll review), item 2: `process.env.X!` is a TypeScript-only
+// cast — at runtime an unset var is simply `undefined`, and nothing here used to notice.
+// headObjectMeta() below treats a confirmed-absent object as "the transcode failed" and
+// permanently fails the job (an irreversible, no-delete row). An unset S3_BUCKET would have
+// sent `Bucket: undefined` into every HeadObject call, which S3 answers with the same 404 a
+// genuinely missing key gets — so a bad deploy (env var never set, or a typo'd project
+// linking) would have looked identical to "every transcode failed," permanently, for every
+// job. Failing loudly at import time — before any request is ever served — turns that into an
+// immediate, obvious deploy failure instead of a slow-burning data-integrity incident.
+const rawRegion = process.env.AWS_REGION;
+const rawBucket = process.env.S3_BUCKET;
+if (!rawRegion) throw new Error("AWS_REGION environment variable is not set");
+if (!rawBucket) throw new Error("S3_BUCKET environment variable is not set");
+// Narrowed to `string` (not `string | undefined`) by the checks above, so every call site
+// below keeps exactly the type contract the old non-null assertion claimed but never verified.
+const region: string = rawRegion;
+export const S3_BUCKET: string = rawBucket;
 const s3 = new S3Client({ region });
 
 const PRESIGN_TTL = 900; // 15 minutes
@@ -162,20 +178,39 @@ export async function headObjectRestore(key: string): Promise<RestoreState> {
 // Used by the scheduled transcode poll to verify a MediaConvert-reported COMPLETE actually
 // produced an object before registering it as an asset.
 //
-// Returns null ONLY for a confirmed-absent object (S3's own "NotFound" — HeadObject's 404),
-// never for any other failure. That distinction matters: a transient network blip or a
-// throttled/misconfigured call must not be read as "the object doesn't exist," or the poll
-// would fail a job that may in fact be fine, on a truth it never actually established. Every
-// other error propagates so the caller can tell "confirmed absent" apart from "could not
-// tell" and only ever act on the former.
+// Returns null ONLY for the SDK's own modeled "NotFound" exception (HeadObject's 404), never
+// for any other failure. That distinction matters: a transient network blip, a throttle, or a
+// permissions problem must not be read as "the object doesn't exist," or the poll would fail
+// a job that may in fact be fine, on a truth it never actually established.
+//
+// Fix round 1, item 2 — narrowed from `name === "NotFound" || statusCode === 404` to
+// `name === "NotFound"` alone: a bare status-code check also matches any OTHER 404 the SDK
+// did not itself recognise as a modeled NotFound, which is exactly the failure-toward-"absent"
+// direction this function must not take. Anything that reaches this catch without the SDK's
+// own NotFound name now throws (treated as "could not tell"), narrowing what actually
+// short-circuits a job to permanently-failed.
+//
+// HONEST LIMIT, not fully closed by the above: AWS's HeadObject returns an identical, bodyless
+// 404 whether the KEY is missing or the BUCKET itself is missing/misconfigured — there is no
+// response body on a HEAD request for the SDK to read a distinguishing error code from.
+// Verified against this SDK's own source (@aws-sdk/client-s3's waitUntilObjectExists AND
+// waitUntilBucketExists helpers both key their retry/success branches off nothing but
+// `exception.name === "NotFound"` for both HeadObjectCommand and HeadBucketCommand) — the SDK
+// itself cannot tell these apart, so no exception-shape check here can either. The mitigation
+// is upstream: S3_BUCKET is validated non-empty at module load (see above) so an UNSET bucket —
+// the concrete, likely failure mode (a missed env var on deploy) — can never reach this call as
+// `Bucket: undefined` in the first place. A bucket that is SET but wrong (renamed, typo'd to a
+// name that happens to exist or not) is not detectable from inside a single HeadObject call by
+// any means; that class of misconfiguration needs to show up as a fleet-wide anomaly (every job
+// failing) rather than a per-object check, which is what the stuck/error-rate signal in the
+// route is for.
 export async function headObjectMeta(key: string): Promise<{ bytes: number; etag: string } | null> {
   try {
     const out = await s3.send(new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key }));
     return { bytes: out.ContentLength ?? 0, etag: (out.ETag ?? "").replace(/"/g, "") };
   } catch (e) {
     const name = (e as { name?: string })?.name;
-    const statusCode = (e as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
-    if (name === "NotFound" || statusCode === 404) return null;
+    if (name === "NotFound") return null;
     throw e;
   }
 }

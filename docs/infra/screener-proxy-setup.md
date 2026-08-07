@@ -189,8 +189,19 @@ path — already committed code, so this is not optional) and **poll** it (a lat
 MediaConvert about job status, then read the finished output object). Check what it already grants
 before adding anything, so this doesn't duplicate a permission that's already there:
 
-- **`s3:GetObject`, bucket-wide, is already granted** (`portal-go-live-runbook.md` STEP 2). The
-  poll's `HeadObject` on a screener output key needs exactly this — nothing to add.
+- **`s3:GetObject`, bucket-wide, is already granted** (`portal-go-live-runbook.md` STEP 2), but
+  that alone is NOT enough for what the poll needs from `HeadObject`, and this was found and
+  fixed only in review (fix round 1, item 1) — record it here so it isn't lost again:
+  **`HeadObject` on a key that does not exist returns `404 Not Found` only if the caller ALSO
+  holds `s3:ListBucket` on the bucket. Without it, S3 returns `403 Forbidden` instead** — a
+  deliberate anti-enumeration behavior, so a caller who can't list the bucket can't use HEAD to
+  probe which keys exist by reading the status code. `gc-assets-app`'s existing S3 policy
+  (`portal-go-live-runbook.md` STEP 2) grants `GetObject`/`PutObject`/etc. but **not**
+  `ListBucket`. Without it, a MediaConvert `COMPLETE` whose output object is genuinely missing
+  throws `Forbidden`, not the `NotFound` `src/lib/s3.ts`'s `headObjectMeta` explicitly checks
+  for — the poll logs it as "could not tell" and retries the SAME job forever, two AWS calls
+  every five minutes, with nothing but a slowly rising stuck-jobs count to show for it. Granted
+  below, alongside the MediaConvert actions.
 - **No MediaConvert permission of any kind is granted yet, for submit or poll.** That includes
   `mediaconvert:CreateJob` — the action `submitProxyJob` calls on every master upload. Without it,
   every single upload's transcode submission fails with `AccessDenied` — silently, because
@@ -214,12 +225,30 @@ cat > /tmp/gc-assets-mediaconvert.json <<JSON
     "Resource": "arn:aws:mediaconvert:$AWS_REGION:$ACCOUNT_ID:jobs/*" },
   { "Effect": "Allow", "Action": "iam:PassRole",
     "Resource": "$MEDIACONVERT_ROLE_ARN",
-    "Condition": { "StringEquals": { "iam:PassedToService": "mediaconvert.amazonaws.com" } } }
+    "Condition": { "StringEquals": { "iam:PassedToService": "mediaconvert.amazonaws.com" } } },
+  { "Effect": "Allow", "Action": "s3:ListBucket",
+    "Resource": "arn:aws:s3:::$BUCKET" }
 ] }
 JSON
 aws iam put-user-policy --user-name gc-assets-app \
   --policy-name gc-assets-mediaconvert --policy-document file:///tmp/gc-assets-mediaconvert.json
 ```
+
+**`s3:ListBucket` is a BUCKET-level action, not an object one** — its `Resource` is the bucket
+ARN itself (`arn:aws:s3:::$BUCKET`), never `$BUCKET/*`. That's a different shape from every
+other statement in this document (and from `gc-assets-s3` in `portal-go-live-runbook.md`, which
+is entirely object-level), and an easy copy-paste mistake to make if this is ever hand-edited —
+`arn:aws:s3:::$BUCKET/*` on `ListBucket` is accepted by IAM (it doesn't reject the ARN shape)
+but grants nothing, since `ListBucket`'s resource type is the bucket, not an object path. This
+statement is deliberately UNSCOPED beyond the bucket itself (no `s3:prefix` condition): it only
+grants the ability to ask "does this key exist," not to read or enumerate contents beyond what
+that yes/no already reveals, and `GetObject` (already scoped nowhere near this tightly, per
+`portal-go-live-runbook.md` STEP 2's bucket-wide grant) is the one that actually returns data.
+
+This is the SAME policy name, `gc-assets-mediaconvert`, that already carries four other
+statements — restated in full above, not appended-only, for the reason stated below the
+`put-user-policy` call two paragraphs down: a `put-user-policy` that names only the new
+statement silently drops the other four.
 
 Two things about that document that are easy to get wrong:
 
@@ -232,10 +261,10 @@ Two things about that document that are easy to get wrong:
   intro). `gc-assets-mediaconvert` is its own policy name, separate from `gc-assets-s3` — restating
   it here does not touch `gc-assets-s3` (STEP 2 of `portal-go-live-runbook.md`) — but if `GetJob`/
   `ListJobs` were already granted under this same policy name from an earlier partial run, this
-  document restates them too rather than replacing them with only the two new statements. If you
-  are hand-editing this JSON later, keep all four actions (`CreateJob`, `ListJobs`, `GetJob`,
-  `PassRole`) in one document — a `put-user-policy` call with only the new ones silently deletes
-  the old ones.
+  document restates them too rather than replacing them with only the new statements. If you
+  are hand-editing this JSON later, keep all FIVE actions (`CreateJob`, `ListJobs`, `GetJob`,
+  `PassRole`, and now `s3:ListBucket`) in one document — a `put-user-policy` call with only the
+  new ones silently deletes the rest.
 
 **Why the `iam:PassedToService` condition, given the `Resource` is already the one specific role
 ARN:** the resource scoping alone stops `gc-assets-app` from passing *some other* role, but says
@@ -248,7 +277,7 @@ negative control below proves it's load-bearing rather than assumed.
 
 **Verify the grant actually resolves, not just that the policy parses** — the same
 `simulate-principal-policy` proof used in STEP 1, this time against `gc-assets-app`, covering all
-four actions plus two negative controls:
+five actions plus two negative controls:
 
 ```bash
 export GC_ASSETS_APP_ARN=$(aws iam get-user --user-name gc-assets-app --query 'User.Arn' --output text)
@@ -276,6 +305,13 @@ aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
   --action-names mediaconvert:ListJobs --resource-arns "*" \
   --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
 
+# ListBucket — the addition from fix round 1, item 1. Resource is the BUCKET ARN, not
+# "$BUCKET/*" — a ListBucket check against the object-style ARN would evaluate against the
+# wrong resource type and could pass or fail for the wrong reason:
+aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
+  --action-names s3:ListBucket --resource-arns "arn:aws:s3:::$BUCKET" \
+  --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
+
 # Negative control 1 — PassRole must be denied for a DIFFERENT role ARN, proving the Resource
 # really is the one specific role and not accidentally "*":
 aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
@@ -298,14 +334,35 @@ master upload would submit, `completeMultipart` and `create_asset` would both su
 catch block — logged, swallowed, and never surfaced to a client or GC user, because that
 swallow exists precisely so a transcode problem never breaks an upload. No screener would ever be
 produced, for any title, and nothing short of reading server logs would show it. An `implicitDeny`
-on `GetJob`/`ListJobs` means the poll (once built) will run on schedule forever, call `GetJob`, get
-an `AccessDenied`, and silently never register a proxy — the stuck-jobs signal the poll itself
-produces (a later task) would eventually surface that, but catching either failure here is one
-command instead of a production incident.
+on `GetJob`/`ListJobs` means the poll (built: `src/app/api/cron/transcode-poll`) will run on
+schedule forever, call `GetJob`, get an `AccessDenied`, and silently never register a proxy — the
+stuck-jobs signal the poll itself produces would eventually surface that, but catching either
+failure here is one command instead of a production incident.
+
+An `implicitDeny` on `s3:ListBucket` is quieter than either of those and easy to mistake for
+something else entirely: `HeadObject` on a genuinely-missing key returns `403 Forbidden` instead
+of `404 Not Found` without it (see the bullet above), which `src/lib/s3.ts`'s `headObjectMeta`
+treats as "could not tell" rather than "confirmed absent" — so a MediaConvert job whose output
+really is missing gets re-checked every five minutes, forever, two AWS calls a tick, and the only
+externally visible symptom is a stuck-jobs count that climbs without ever explaining why.
 
 ---
 
 ## STEP 5 — Env vars: local and Vercel, all server-only
+
+**Two platform facts about `vercel.json`'s `crons` array, worth recording beside it rather than
+only in code comments, because they change what "the poll never ran" means when diagnosing an
+incident:**
+
+1. **`*/5 * * * *` (minute-level granularity) requires Vercel Pro or above.** Hobby-tier crons
+   are limited to once per day. If this schedule is ever silently downgraded to daily, that's a
+   plan change, not a code regression — check the account tier before assuming the code broke.
+2. **Vercel invokes crons only against PRODUCTION deployments — never preview.** There is no
+   preview equivalent to repeat env vars into for the cron ITSELF to fire on preview; setting
+   `CRON_SECRET`/the `MEDIACONVERT_*` vars under `preview` (below) only means the route would
+   *authenticate correctly if something else called it* on a preview deploy — Vercel's own
+   dispatcher still won't. A preview that "looks fine" proves nothing about whether the cron is
+   wired up at all; only a production deploy does.
 
 ```bash
 printf '%s' "$MEDIACONVERT_ENDPOINT"        | vercel env add MEDIACONVERT_ENDPOINT production
@@ -313,7 +370,9 @@ printf '%s' "$MEDIACONVERT_ROLE_ARN"        | vercel env add MEDIACONVERT_ROLE_A
 printf '%s' "$MEDIACONVERT_QUEUE_ARN"       | vercel env add MEDIACONVERT_QUEUE_ARN production
 export CRON_SECRET=$(openssl rand -hex 32)
 printf '%s' "$CRON_SECRET"                  | vercel env add CRON_SECRET production
-# repeat each for `preview` if the poll should also run against preview deploys.
+# repeat each for `preview` only if something OTHER than Vercel's own cron dispatcher (e.g. a
+# manual curl during testing) needs to authenticate against a preview deploy — see the two
+# platform facts above.
 vercel env ls | grep -Ei 'mediaconvert|cron_secret'   # verify all four, and NONE prefixed NEXT_PUBLIC_
 # mirror the same 4 into .env.local for local testing (never commit that file).
 vercel --prod        # redeploy so the new env takes effect, and vercel.json's cron registers

@@ -10,12 +10,14 @@ vi.mock("@/lib/s3", () => ({ headObjectMeta: vi.fn() }));
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getJob } from "@/lib/mediaconvert";
 import { headObjectMeta } from "@/lib/s3";
+import { probeRange, UNPAGINATED_MAX } from "@/lib/list-bounds";
 import { GET } from "./route";
 
 const SECRET = "test-cron-secret-value";
 
 type Job = { id: string; external_job_id: string | null; expected_output_key: string; created_at: string };
 type RpcResult = { data: unknown; error: { message: string } | null };
+type RpcImpl = (fn: string, args: Record<string, unknown>) => Promise<RpcResult>;
 
 function req(headers: Record<string, string> = {}) {
   return new Request("http://test/api/cron/transcode-poll", { headers });
@@ -35,24 +37,46 @@ function job(overrides: Partial<Job> = {}): Job {
   };
 }
 
-// A chainable stand-in for the PostgREST query builder — select/in/order/range all
-// pass through, and awaiting the builder (the route's `await ... .range(from, to)`) resolves
-// to { data: jobs, error: null }, mirroring the fakeQuery pattern in actions.test.ts.
-function fakeSupabase(jobs: Job[], rpcImpl?: (fn: string, args: Record<string, unknown>) => Promise<RpcResult>) {
-  const builder: Record<string, unknown> = {};
-  for (const method of ["select", "in", "order"]) builder[method] = vi.fn(() => builder);
-  builder.range = vi.fn(() => builder);
-  builder.then = (
-    resolve: (v: { data: Job[]; error: null }) => void,
-    reject: (e: unknown) => void,
-  ) => Promise.resolve({ data: jobs, error: null }).then(resolve, reject);
+// A chainable stand-in for the PostgREST query builder. `from("transcode_jobs")` is called
+// once for the bulk in-flight read AND, per terminal-outcome job, once more by the route's
+// `alreadyTerminal` peek (`select("status").eq("id", ...).maybeSingle()`) — so this returns a
+// FRESH builder per call (tracked in `builders`, in call order) rather than one shared object,
+// and that builder answers whichever of the two shapes is used against it.
+//
+// `peekStatuses` controls what `alreadyTerminal` sees for a given job id — defaulting to
+// "submitted" (still active) for any id not listed, so every existing fixture that doesn't
+// care about the peek behaves as if no concurrent run touched it.
+function fakeSupabase(
+  jobs: Job[],
+  opts: { rpcImpl?: RpcImpl; peekStatuses?: Record<string, string> } = {},
+) {
+  const peekStatuses = opts.peekStatuses ?? {};
+  const builders: Record<string, unknown>[] = [];
 
   const from = vi.fn((table: string) => {
-    if (table === "transcode_jobs") return builder;
-    throw new Error(`fakeSupabase: unexpected table "${table}"`);
+    if (table !== "transcode_jobs") throw new Error(`fakeSupabase: unexpected table "${table}"`);
+    const builder: Record<string, unknown> = {};
+    let eqId: string | undefined;
+    for (const method of ["select", "in", "order"]) builder[method] = vi.fn(() => builder);
+    builder.range = vi.fn(() => builder);
+    builder.eq = vi.fn((col: string, val: string) => {
+      if (col === "id") eqId = val;
+      return builder;
+    });
+    builder.maybeSingle = vi.fn(async () => ({
+      data: { status: eqId !== undefined ? (peekStatuses[eqId] ?? "submitted") : null },
+      error: null,
+    }));
+    builder.then = (
+      resolve: (v: { data: Job[]; error: null }) => void,
+      reject: (e: unknown) => void,
+    ) => Promise.resolve({ data: jobs, error: null }).then(resolve, reject);
+    builders.push(builder);
+    return builder;
   });
-  const rpc = vi.fn(rpcImpl ?? (async () => ({ data: null, error: null })));
-  return { from, rpc };
+
+  const rpc = vi.fn(opts.rpcImpl ?? (async () => ({ data: null, error: null })));
+  return { from, rpc, builders };
 }
 
 beforeEach(() => {
@@ -105,22 +129,30 @@ describe("GET /api/cron/transcode-poll — authentication", () => {
 });
 
 describe("GET /api/cron/transcode-poll — job resolution", () => {
-  it("selects only submitted/running jobs, bounded", async () => {
+  // Fix round 1, item 4: the previous version of this test asserted only
+  // `from` was called with "transcode_jobs" — true even against a route that dropped the
+  // status filter or the range bound entirely, since the fake builder returns itself from
+  // every method regardless of what's actually called. Pin the REAL calls instead.
+  it("selects only submitted/running jobs, bounded via list-bounds", async () => {
     const supabase = fakeSupabase([]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
 
     await GET(req({ Authorization: `Bearer ${SECRET}` }));
 
     expect(supabase.from).toHaveBeenCalledWith("transcode_jobs");
+    const [bulkBuilder] = supabase.builders; // the only from() call when there are zero jobs
+    expect(bulkBuilder.in).toHaveBeenCalledWith("status", ["submitted", "running"]);
+    const [from, to] = probeRange(UNPAGINATED_MAX);
+    expect(bulkBuilder.range).toHaveBeenCalledWith(from, to);
   });
 
   it("a COMPLETE job with the object present registers with the job's OWN recorded key", async () => {
     const j = job({ id: "job-complete", expected_output_key: "orgs/o/titles/t/screener/u/x_screener.mp4" });
-    const rpc = vi.fn(async (fn: string) => ({
+    const rpc: RpcImpl = async (fn) => ({
       data: fn === "register_transcode_output" ? "asset-1" : null,
       error: null,
-    }));
-    const supabase = fakeSupabase([j], rpc);
+    });
+    const supabase = fakeSupabase([j], { rpcImpl: rpc });
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
     vi.mocked(headObjectMeta).mockResolvedValue({ bytes: 12345, etag: "abc123" });
@@ -141,8 +173,7 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
 
   it("a COMPLETE job with the object missing fails the job and registers nothing", async () => {
     const j = job({ id: "job-missing-object" });
-    const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const supabase = fakeSupabase([j], rpc);
+    const supabase = fakeSupabase([j]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
     vi.mocked(headObjectMeta).mockResolvedValue(null);
@@ -159,10 +190,29 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(json.failed).toBe(1);
   });
 
+  // Fix round 1, item 7: a 0-byte object is not a viewable screener and must be treated the
+  // same as an absent one, not registered.
+  it("a COMPLETE job whose object is 0 bytes fails the job and registers nothing", async () => {
+    const j = job({ id: "job-zero-bytes" });
+    const supabase = fakeSupabase([j]);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
+    vi.mocked(headObjectMeta).mockResolvedValue({ bytes: 0, etag: "empty" });
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { failed: number };
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "fail_transcode_job",
+      expect.objectContaining({ p_job_id: "job-zero-bytes", p_reason: expect.stringContaining("0 bytes") }),
+    );
+    expect(supabase.rpc).not.toHaveBeenCalledWith("register_transcode_output", expect.anything());
+    expect(json.failed).toBe(1);
+  });
+
   it("an ERROR job fails via fail_transcode_job with AWS's own reason", async () => {
     const j = job({ id: "job-error" });
-    const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const supabase = fakeSupabase([j], rpc);
+    const supabase = fakeSupabase([j]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "ERROR", errorMessage: "codec unsupported" });
 
@@ -179,8 +229,7 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
 
   it("a CANCELED job also fails via fail_transcode_job", async () => {
     const j = job({ id: "job-canceled" });
-    const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const supabase = fakeSupabase([j], rpc);
+    const supabase = fakeSupabase([j]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "CANCELED", errorMessage: null });
 
@@ -214,11 +263,11 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
       external_job_id: "aws-fine",
       expected_output_key: "orgs/o/titles/t/screener/u2/y_screener.mp4",
     });
-    const rpc = vi.fn(async (fn: string) => ({
+    const rpc: RpcImpl = async (fn) => ({
       data: fn === "register_transcode_output" ? "asset-fine" : null,
       error: null,
-    }));
-    const supabase = fakeSupabase([j1, j2], rpc);
+    });
+    const supabase = fakeSupabase([j1, j2], { rpcImpl: rpc });
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockImplementation(async (id: string) => {
       if (id === "aws-throws") throw new Error("network blip");
@@ -239,8 +288,7 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
 
   it("a HeadObject failure that is not 'confirmed absent' does not fail the job (AWS-errored, not transcode-failed)", async () => {
     const j = job({ id: "job-head-throws" });
-    const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const supabase = fakeSupabase([j], rpc);
+    const supabase = fakeSupabase([j]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
     vi.mocked(headObjectMeta).mockRejectedValue(new Error("S3 throttled"));
@@ -254,13 +302,14 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(json.failed).toBe(0);
   });
 
-  it("a job resolved 'already complete' by a concurrent run is a no-op, not an error", async () => {
-    const j = job({ id: "job-race" });
-    const rpc = vi.fn(async (fn: string) => {
-      if (fn === "fail_transcode_job") return { data: null, error: { message: "Job not found or already complete" } };
-      return { data: null, error: null };
-    });
-    const supabase = fakeSupabase([j], rpc);
+  // Fix round 1, items 5/7: replaced the old regex-on-error-text detection (which could not
+  // tell "already complete" apart from "not found" — the RPC raises the identical message for
+  // both) with a peek at the row's actual current status immediately before writing. A
+  // concurrent run that already completed the job is now detected BEFORE fail_transcode_job
+  // is even called, not inferred from its error afterwards.
+  it("a job a concurrent run already completed is a no-op, not an error — and fail_transcode_job is never called", async () => {
+    const j = job({ id: "job-race-fail" });
+    const supabase = fakeSupabase([j], { peekStatuses: { "job-race-fail": "complete" } });
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
     vi.mocked(getJob).mockResolvedValue({ status: "ERROR", errorMessage: "stale event" });
 
@@ -270,6 +319,27 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(json.alreadyResolved).toBe(1);
     expect(json.errored).toBe(0);
     expect(json.failed).toBe(0);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("fail_transcode_job", expect.anything());
+  });
+
+  // The equivalent gap on the register path per the review: an overlapping run's idempotent
+  // return used to be silently counted as `completed`, inflating the count with a
+  // registration that didn't actually happen this tick.
+  it("a job a concurrent run already completed on the COMPLETE path is a no-op — register_transcode_output is never called", async () => {
+    const j = job({ id: "job-race-complete" });
+    const supabase = fakeSupabase([j], { peekStatuses: { "job-race-complete": "complete" } });
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockResolvedValue({ status: "COMPLETE", errorMessage: null });
+    vi.mocked(headObjectMeta).mockResolvedValue({ bytes: 123, etag: "e" });
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { alreadyResolved: number; completed: number };
+
+    expect(json.alreadyResolved).toBe(1);
+    expect(json.completed).toBe(0);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("register_transcode_output", expect.anything());
+    // Never even HEAD'd the object — the peek short-circuits before that call.
+    expect(headObjectMeta).not.toHaveBeenCalled();
   });
 
   it("truncates the selection at the list-bounds ceiling and logs a warning", async () => {
@@ -285,20 +355,90 @@ describe("GET /api/cron/transcode-poll — job resolution", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("truncated"));
   });
 
+  // Fix round 1, item 7: the previous fixtures used `external_job_id: null` for both jobs —
+  // a state no real "stuck in MediaConvert" job can be in (that shape means the SUBMIT itself
+  // never got an id back, not that a real job is taking a long time). Real fixtures: both have
+  // an external id, MediaConvert genuinely reports a non-terminal status, and the route
+  // actually calls GetJob for each.
   it("an old still-open job contributes to the stuck count and a fresh one does not", async () => {
     const old = job({
       id: "job-old",
-      external_job_id: null,
+      external_job_id: "aws-old",
       created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     });
-    const fresh = job({ id: "job-fresh", external_job_id: null, created_at: new Date().toISOString() });
+    const fresh = job({ id: "job-fresh", external_job_id: "aws-fresh", created_at: new Date().toISOString() });
     const supabase = fakeSupabase([old, fresh]);
     vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockResolvedValue({ status: "PROGRESSING", errorMessage: null });
 
     const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
-    const json = (await res.json()) as { stuck: number };
+    const json = (await res.json()) as { stuck: number; stillRunning: number };
 
+    expect(getJob).toHaveBeenCalledWith("aws-old");
+    expect(getJob).toHaveBeenCalledWith("aws-fresh");
+    expect(json.stillRunning).toBe(2);
     expect(json.stuck).toBe(1);
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("[transcode:stuck] 1 job"));
+  });
+
+  // Fix round 1, item 5: the one thing Vercel itself surfaces (the invocation's HTTP status)
+  // must not stay green through a total AWS outage.
+  it("returns a non-200 when every job in a non-empty run errored", async () => {
+    const j1 = job({ id: "job-outage-1", external_job_id: "aws-1" });
+    const j2 = job({ id: "job-outage-2", external_job_id: "aws-2" });
+    const supabase = fakeSupabase([j1, j2]);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockRejectedValue(new Error("MediaConvert unreachable"));
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { errored: number };
+
+    expect(json.errored).toBe(2);
+    expect(res.status).not.toBe(200);
+  });
+
+  it("stays 200 when jobs are a healthy mix, even if one errored", async () => {
+    const ok = job({ id: "job-ok", external_job_id: "aws-ok" });
+    const bad = job({ id: "job-bad", external_job_id: "aws-bad" });
+    const supabase = fakeSupabase([ok, bad]);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+    vi.mocked(getJob).mockImplementation(async (id: string) => {
+      if (id === "aws-bad") throw new Error("transient");
+      return { status: "PROGRESSING", errorMessage: null };
+    });
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { errored: number; stillRunning: number };
+
+    expect(json.errored).toBe(1);
+    expect(json.stillRunning).toBe(1);
+    expect(res.status).toBe(200);
+  });
+
+  // Fix round 1, item 6: a serial loop with no deadline would run every selected job to
+  // completion (or timeout) regardless of how long that takes. Forcing Date.now() past the
+  // internal budget after the first batch proves the route stops itself and reports the
+  // remainder as deferred, rather than either hanging or silently dropping them.
+  it("defers jobs to the next tick once the internal time budget is exceeded", async () => {
+    const jobs = Array.from({ length: 25 }, (_, i) => job({ id: `job-${i}`, external_job_id: null }));
+    const supabase = fakeSupabase(jobs);
+    vi.mocked(createAdminClient).mockReturnValue(supabase as unknown as ReturnType<typeof createAdminClient>);
+
+    const base = 1_700_000_000_000;
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValueOnce(base); // the deadline computation
+    nowSpy.mockReturnValueOnce(base); // first batch's budget check — not yet exceeded
+    nowSpy.mockReturnValue(base + 999_999); // every check after: budget blown
+
+    const res = await GET(req({ Authorization: `Bearer ${SECRET}` }));
+    const json = (await res.json()) as { checked: number; deferred: number; stillRunning: number };
+
+    nowSpy.mockRestore();
+
+    expect(json.checked).toBe(25);
+    expect(json.deferred).toBeGreaterThan(0);
+    expect(json.deferred).toBeLessThan(25);
+    expect(json.deferred + json.stillRunning).toBe(25);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("time budget exceeded"));
   });
 });
