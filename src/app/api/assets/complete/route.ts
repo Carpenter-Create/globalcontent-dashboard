@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
 import { resolveOperableTitle } from "@/lib/assets";
 import { completeMultipart } from "@/lib/s3";
+import { submitProxyJob } from "@/lib/mediaconvert";
 
 const Body = z.object({
   titleId: z.string().uuid(),
@@ -54,6 +55,30 @@ export async function POST(req: Request) {
     p_original_filename: b.filename ?? undefined,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+  // Best-effort. The master is already in S3 and the asset row is written above — a
+  // transcode failure (MediaConvert unreachable, a submit-time throw, or the RPC raising,
+  // including a 23505 unique-violation if an earlier job for this exact source already
+  // completed) must NEVER lose the client's upload. A missing proxy just degrades the buyer
+  // page to exactly what it does today: no regression, only a missing improvement. Submit
+  // BEFORE recording — if the submit throws there is no job to record; if the record throws,
+  // a job now exists in AWS with nothing tracking it here, which Task 6's reconcile pass is
+  // designed to find and pick back up.
+  if (b.kind === "master" && assetId) {
+    try {
+      const { externalJobId, expectedKey } = await submitProxyJob({ masterKey: b.key });
+      const { error: jobError } = await supabase.rpc("create_transcode_job", {
+        p_org_id: op.orgId,
+        p_title_id: b.titleId,
+        p_source_asset_id: assetId,
+        p_expected_output_key: expectedKey,
+        p_external_job_id: externalJobId,
+      });
+      if (jobError) console.error(`[transcode:record] ${jobError.message}`);
+    } catch (e) {
+      console.error(`[transcode:submit] ${e instanceof Error ? e.message : e}`);
+    }
+  }
 
   return NextResponse.json({ assetId });
 }
