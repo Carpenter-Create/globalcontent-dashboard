@@ -72,7 +72,8 @@
 --   after it. That table's own grants section states the fix explicitly: `revoke all on
 --   ... from anon`. This migration was missing that revoke, and never revoked DELETE from
 --   service_role at all, contradicting its own claim that nothing here is ever deleted.
---   Both fixed below.
+--   Both fixed below. (Fix round 2 replaced this per-verb patch with an unconditional
+--   `revoke all` — see FIX ROUND 2.)
 --
 --   IMPORTANT: p_content_hash and p_bytes were written unvalidated. create_asset refuses an
 --   empty content_hash and btrims it before storing; this function did neither, so an empty
@@ -84,29 +85,13 @@
 --   and a retry feature is planned, so a resubmit could produce a second job row carrying
 --   the identical key, and both rows could independently register — two "immutable" assets
 --   for one real S3 object, one of them describing something that was overwritten or never
---   existed under that description.
---
---   TWO WAYS TO CLOSE IT WERE CONSIDERED. (a) a partial unique index on title_id where
---   status in ('submitted','running') — one active job per title. (b) a plain unique
---   constraint on expected_output_key itself. (a) was rejected on inspection: it only
---   blocks two rows from being ACTIVE at once for the same title. register_transcode_output
---   still only excludes status = 'complete', not any terminal state — so a 'failed' job's
---   late, stale completion event stays completable. Sequence: job1 (key K) fails; a new
---   job2 (key K, same title) is created — legal under (a), since job1 is no longer active;
---   job1's stale event finally arrives, job1.status still isn't 'complete', the key still
---   matches K, so it registers; job2's own genuine completion event later arrives and
---   registers too — two assets, key K, exactly the hazard this finding named, and (a) never
---   stopped it. (b), a flat `unique` on expected_output_key, closes it unconditionally: no
---   two rows, in any status, ever share a key, full stop. Chosen. The cost is that a retry
---   which deliberately reuses an old, deterministically-identical key is rejected outright
---   (23505) rather than silently accepted — the correct failure mode for "this key is
---   already spoken for," and it pushes any future retry feature toward minting a fresh key
---   per job (the same shape assetKey() already uses elsewhere in this app — a UUID path
---   segment per upload — per 111fbbe), rather than reusing one a DB constraint has to keep
---   arbitrating.
+--   existed under that description. (Fix round 1's chosen mitigation — a flat UNIQUE — was
+--   itself replaced in fix round 2; see FIX ROUND 2 for the corrected three-option analysis
+--   and why a flat unique was wrong.)
 --
 --   ALSO FIXED: create_transcode_job's source-asset check didn't verify `kind = 'master'` —
---   a poster or caption could be submitted as a transcode source. Added.
+--   a poster or caption could be submitted as a transcode source. Added. (Fix round 2 split
+--   this into its own check with its own message — see FIX ROUND 2.)
 --
 --   ALSO CORRECTED (report, not code): the original report claimed transcode_jobs was "the
 --   first table created since 20260726000600," found by grepping migration filenames dated
@@ -126,6 +111,82 @@
 --   hazard 20260806000400 documented for portal_links.share_token: a storage key alone is
 --   not a bearer credential — it grants nothing without an app-issued signed URL. Noted so
 --   the header states what is actually delivered rather than overclaiming.
+--
+-- FIX ROUND 2 (round 1 survived review; these two items and three smaller ones did not) —
+--
+--   IMPORTANT: finding 3 (service_role SELECT-only) was NOT actually closed by round 1.
+--   Round 1 removed the explicit `grant insert, update ... to service_role` — that removes
+--   the EXPLICIT grant, not the IMPLICIT one. Round 1's own header (the TABLE GRANTS note
+--   above) already argued correctly that on the founder's production database a new
+--   `postgres`-created table arrives with SELECT+INSERT+UPDATE+DELETE for every role,
+--   because 20260726000300 subtracted only TRUNCATE/REFERENCES/TRIGGER/MAINTAIN — and then
+--   only revoked DELETE from service_role, leaving INSERT and UPDATE untouched. service_role
+--   is BYPASSRLS, so the SELECT-only policy does nothing to stop it: on production,
+--   service_role kept the ability to `update transcode_jobs set status='complete',
+--   output_asset_id='<any asset>'` directly, skipping register_transcode_output's key check
+--   entirely — verbatim the threat this migration exists to close. Fixed below by revoking
+--   ALL privileges from all three roles UP FRONT, unconditionally, rather than reasoning
+--   about which default privilege set the table happened to inherit: `revoke all on
+--   public.transcode_jobs from anon, authenticated, service_role;` before any grant. That is
+--   deterministic on both platform images — nothing left to guess about — where round 1's
+--   per-verb REVOKE list depended on correctly enumerating every verb the ambient default
+--   might have handed out, and missed two.
+--
+--   IMPORTANT: the flat UNIQUE on expected_output_key (fix round 1's choice) was itself
+--   wrong — it breaks the retry feature this same plan specifies (Task 7 Step 2). The
+--   output key is a pure function of the source master's key (T3 asserts that determinism),
+--   so a retry after a failure necessarily recomputes the IDENTICAL key, and a flat unique
+--   constraint makes every retry 23505 forever, since the failed job's row is never deleted
+--   (rule 2). Round 1's rejection of the OTHER earlier option — a partial unique on
+--   `title_id` where status in ('submitted','running') — was correct on its own terms (it
+--   only blocks two ACTIVE rows for the same title; a 'failed' job's late, stale event still
+--   registers because register_transcode_output only ever excluded `status = 'complete'`,
+--   not any terminal state), but round 1 stopped at two options when a third closes both
+--   problems at once:
+--
+--     (a) partial unique on title_id, active statuses only — rejected (round 1): does not
+--         stop a failed job's stale event from still registering.
+--     (b) flat unique on expected_output_key — rejected (round 2, this pass): stops the
+--         double-register, but also permanently blocks any legitimate retry of a failed job,
+--         since the row (and its key) is retained forever.
+--     (c) partial unique on expected_output_key, active statuses only, COMBINED with
+--         tightening register_transcode_output to require the job be ACTIVE
+--         (status in ('submitted','running')) rather than merely `status <> 'complete'` —
+--         CHOSEN. Walk the exact hazard sequence against it: job1 (key K) fails — its status
+--         leaves the partial index's covered set, so it no longer reserves K. A retry, job2
+--         (key K, same title), is created — legal, since job1 is not active. job1's stale
+--         completion event finally arrives; job1.status is 'failed', which is not in
+--         ('submitted','running'), so register_transcode_output now raises 'Job is not
+--         active' before ever reaching the key comparison — refused, not registered. job2's
+--         own genuine completion event arrives later; job2 is 'submitted' (active), passes
+--         every check, registers normally. Exactly one asset. The double-register is closed
+--         AND the retry stays legal — the property (b) could not deliver.
+--
+--   Implemented as a SEPARATE `create unique index ... where status in (...)` statement
+--   AFTER the table, not inline in the column definition — see the next item for why.
+--
+--   Also, register_transcode_output's terminal handling is now explicit rather than
+--   incidental: `status = 'complete'` still returns the existing asset id (idempotent);
+--   anything else NOT in ('submitted','running') — i.e. 'failed' or 'submit_failed' — now
+--   raises 'Job is not active' rather than silently falling through to the key check. A job
+--   GC has explicitly failed, or that AWS itself failed to even submit, is genuinely done;
+--   nothing can complete it after the fact except by creating a new job row.
+--
+--   ALSO: the UNIQUE in fix round 1 was written inline in `create table if not exists
+--   public.transcode_jobs (...)`. On any database where an earlier draft of this migration
+--   already created the table without it, `if not exists` skips table creation entirely —
+--   the constraint is silently never added, while the migration still reports success. Every
+--   other statement in this file is its own idempotent `if not exists` / `create or replace`
+--   / `drop ... if exists`; this was the one that could land half-applied. The partial index
+--   is now its own `create unique index if not exists ...` statement, independent of whether
+--   the table already existed.
+--
+--   ALSO: create_transcode_job's source-asset check folded "wrong title" and "wrong kind"
+--   into one EXISTS with one message. A poster that genuinely belongs to the right title hit
+--   'Source asset does not belong to this title' — true of the row's title, false of the
+--   actual defect, and misleading to whoever reads that error. Split into two checks: the
+--   existing message for a title/org mismatch, and a new 'Source asset must be a master
+--   asset' for a correctly-scoped asset of the wrong kind.
 --
 -- IDEMPOTENCY. EventBridge (and SNS before it) is at-least-once delivery; a completion for
 -- the same job can arrive twice. register_transcode_output checks `status = 'complete'`
@@ -177,24 +238,27 @@
 -- of the 26 tables that existed at that point needed an explicit GRANT restored, or
 -- `authenticated` 403s on every read regardless of RLS. 20260726000900's
 -- organization_payout_details — created after it, on the same day — states and follows the
--- identical rule for a brand-new table (`revoke all ... from anon; grant select ... to
--- authenticated; grant select, insert, update ... to service_role;`), which is the
--- confirmation that this is a settled house convention, not a one-off. This migration
--- follows the same shape, except service_role gets SELECT only (see FIX ROUND 1 above for
--- why a write grant there would undermine the whole point of routing writes through
--- register_transcode_output/fail_transcode_job).
+-- identical rule for a brand-new table, which is the confirmation that this is a settled
+-- house convention, not a one-off. This migration goes one step further than either
+-- precedent (see FIX ROUND 2): rather than granting the assumed-needed verbs and revoking
+-- the assumed-unneeded ones per role — which is only as complete as the list of verbs
+-- someone thought to enumerate, and round 1 missed two on service_role — it revokes
+-- EVERYTHING from every role first, unconditionally, then grants back exactly SELECT to
+-- `authenticated` and `service_role`. Deterministic regardless of which default privilege
+-- set the table happened to inherit at creation time.
 --
 -- DESTRUCTIVE OPS (approved before apply): CREATE TYPE public.transcode_status. CREATE
--- TABLE public.transcode_jobs (expected_output_key UNIQUE) with three indexes. ENABLE ROW
--- LEVEL SECURITY on it, one SELECT policy. REVOKE ALL from anon; REVOKE INSERT/UPDATE/DELETE
--- from authenticated; REVOKE DELETE from service_role (all writes go through the three
--- functions below, none of which ever deletes). Explicit GRANT SELECT to authenticated and
--- to service_role. CREATE three functions — create_transcode_job (granted to authenticated
--- only), register_transcode_output and fail_transcode_job (both revoked from
--- public/anon/authenticated, granted to service_role only — no client caller exists or ever
--- should). No existing table, row, type, or function is altered or dropped. Forward-only. To
--- roll back: drop the three functions, drop the table, drop the type — no other object
--- depends on any of them.
+-- TABLE public.transcode_jobs with three indexes, plus a separate partial UNIQUE INDEX on
+-- expected_output_key (active statuses only — see FIX ROUND 2). ENABLE ROW LEVEL SECURITY
+-- on it, one SELECT policy. REVOKE ALL on the table from anon, authenticated, AND
+-- service_role, unconditionally, before granting anything back (all writes go through the
+-- three functions below, none of which ever deletes). Explicit GRANT SELECT to
+-- authenticated and to service_role — no other verb, to either. CREATE three functions —
+-- create_transcode_job (granted to authenticated only), register_transcode_output and
+-- fail_transcode_job (both revoked from public/anon/authenticated, granted to service_role
+-- only — no client caller exists or ever should). No existing table, row, type, or function
+-- is altered or dropped. Forward-only. To roll back: drop the three functions, drop the
+-- table, drop the type — no other object depends on any of them.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -213,9 +277,9 @@ create table if not exists public.transcode_jobs (
   output_asset_id     uuid references public.assets(id)                 on delete restrict,
   -- Decided at SUBMIT time and never taken from the completion event. The callback
   -- verifies an object exists HERE; it does not learn the key from AWS. That is what
-  -- stops a forged event registering an arbitrary S3 key as a screener. UNIQUE (fix round
-  -- 1): no two job rows, in any status, may ever share a destination key — see header.
-  expected_output_key text not null unique,
+  -- stops a forged event registering an arbitrary S3 key as a screener. Uniqueness is
+  -- enforced by a separate partial index below (fix round 2), not inline here — see header.
+  expected_output_key text not null,
   external_job_id     text unique,
   status              public.transcode_status not null default 'submitted',
   failure_reason      text,
@@ -227,24 +291,33 @@ create index if not exists transcode_jobs_org_idx    on public.transcode_jobs (o
 create index if not exists transcode_jobs_title_idx  on public.transcode_jobs (title_id);
 create index if not exists transcode_jobs_status_idx on public.transcode_jobs (status, created_at);
 
+-- Fix round 2: a SEPARATE, idempotent statement — not inline in the table definition above
+-- — so it cannot be silently skipped if `create table if not exists` finds the table
+-- already there from an earlier draft. Partial (active statuses only), not flat: see FIX
+-- ROUND 2 for why a flat unique blocks the legitimate retry-after-failure path, and why
+-- "active" here means the same thing register_transcode_output now checks explicitly.
+create unique index if not exists transcode_jobs_active_key_uidx
+  on public.transcode_jobs (expected_output_key)
+  where status in ('submitted', 'running');
+
 -- ----------------------------------------------------------------------------
--- 2. TABLE GRANTS (fix round 1 — see header). anon gets nothing at all. service_role gets
---    SELECT only: both RPCs below are SECURITY DEFINER and run as their owner, so no table-
---    level write grant is needed for either to function, and granting one anyway would let
---    a direct write bypass register_transcode_output's key check entirely.
+-- 2. TABLE GRANTS (fix round 2 — see header). Unconditional `revoke all` first, then grant
+--    back exactly SELECT to authenticated and service_role. anon gets nothing at all.
+--    service_role gets SELECT only: both RPCs below are SECURITY DEFINER and run as their
+--    owner, so no table-level write grant is needed for either to function, and granting
+--    one anyway — explicitly or by leaving an implicit one in place, round 1's mistake —
+--    would let a direct write bypass register_transcode_output's key check entirely.
 -- ----------------------------------------------------------------------------
-revoke all on public.transcode_jobs from anon;
+revoke all on public.transcode_jobs from anon, authenticated, service_role;
 grant select on public.transcode_jobs to authenticated;
 grant select on public.transcode_jobs to service_role;
 
 -- ----------------------------------------------------------------------------
--- 3. RLS — read for the owning org and GC, no client writes. All mutation is via RPC.
---    DELETE is revoked from every role, including service_role (fix round 1): rule 2,
---    nothing here is ever deleted.
+-- 3. RLS — read for the owning org and GC, no client writes. All mutation is via RPC. No
+--    role holds INSERT/UPDATE/DELETE on this table at all (see grants above), so there is
+--    nothing further to revoke here.
 -- ----------------------------------------------------------------------------
 alter table public.transcode_jobs enable row level security;
-revoke insert, update, delete on public.transcode_jobs from authenticated, anon;
-revoke delete on public.transcode_jobs from service_role;
 
 drop policy if exists transcode_jobs_select on public.transcode_jobs;
 create policy transcode_jobs_select on public.transcode_jobs for select to authenticated
@@ -277,9 +350,14 @@ begin
   if not exists (
     select 1 from public.assets a
     where a.id = p_source_asset_id and a.org_id = p_org_id and a.title_id = p_title_id
-      and a.kind = 'master'
   ) then
     raise exception 'Source asset does not belong to this title';
+  end if;
+  -- Fix round 2: a SEPARATE check with its own message. Folded into the check above, a
+  -- poster or caption that genuinely belongs to the right title would have raised "does not
+  -- belong to this title" -- true of the row, false of the actual defect (wrong kind).
+  if not exists (select 1 from public.assets a where a.id = p_source_asset_id and a.kind = 'master') then
+    raise exception 'Source asset must be a master asset';
   end if;
 
   if coalesce(btrim(p_expected_output_key), '') = '' then
@@ -321,6 +399,16 @@ begin
 
   -- Idempotent: a duplicate EventBridge delivery must not register a second asset.
   if v_job.status = 'complete' then return v_job.output_asset_id; end if;
+
+  -- Fix round 2: the only other terminal states are 'failed' and 'submit_failed' -- a job
+  -- GC explicitly failed, or one AWS never even accepted, is genuinely done. Requiring the
+  -- job be ACTIVE here (not merely "not complete") is what makes the partial unique index
+  -- above safe: once a job leaves 'submitted'/'running', its key is free for a retry job to
+  -- reuse, and this check is what stops the ORIGINAL failed job's own late, stale
+  -- completion event from registering against that freed-up key after the fact.
+  if v_job.status not in ('submitted', 'running') then
+    raise exception 'Job is not active';
+  end if;
 
   -- The key is NOT taken on trust. It must equal what we recorded at submit time.
   -- `is distinct from` (fix round 1 — CRITICAL), not `<>`: p_storage_key can arrive as SQL

@@ -58,18 +58,32 @@
 --
 -- FIX ROUND 1 additions (migration header has the full reasoning for each):
 --   - t.job_n + a NULL p_storage_key call: the CRITICAL fix (`is distinct from`, not `<>`).
---   - a second create_transcode_job call reusing job_m's own expected_output_key: the new
---     UNIQUE constraint (23505).
---   - t.asset_poster_m (kind='poster') as a source: the new `and a.kind = 'master'` guard.
+--   - a second create_transcode_job call reusing job_m's own expected_output_key: the
+--     uniqueness constraint (23505; partial as of round 2 -- see below).
+--   - t.asset_poster_m (kind='poster') as a source: the new kind check.
 --   - direct INSERT/UPDATE/DELETE against transcode_jobs as `authenticated`: the table-grant
 --     regression this repo has a standing idiom for (assets_test.sql:47-50).
---   - a bare SELECT as `anon`: proves the explicit `revoke all ... from anon` added in fix
---     round 1 actually holds (this is exactly where a missing revoke hides on production,
---     per the migration header -- silent on a from-scratch rebuild, present on prod).
--- These add a fourth job (t.job_n) to org A, so block E's row counts move from 3 to 4.
+--   - a bare SELECT as `anon`: proves the explicit `revoke all ... from anon` holds (this is
+--     exactly where a missing revoke hides on production -- silent on a from-scratch
+--     rebuild, present on prod).
+--
+-- FIX ROUND 2 additions (migration header, FIX ROUND 2, has the full reasoning):
+--   - service_role direct INSERT/UPDATE/DELETE against transcode_jobs, alongside the
+--     existing `authenticated` version: round 1's per-verb revoke missed INSERT/UPDATE on
+--     service_role on an image where CREATE TABLE hands out the full set by default (the
+--     founder's production database) -- service_role is BYPASSRLS, so this is the one role
+--     where a missed revoke is a live bypass of the whole migration's point, not a no-op.
+--   - block F: job_f (block D) fails, then a NEW job legally reuses its key (the partial
+--     index only covers active statuses), the OLD failed job's own late/stale completion is
+--     refused ('Job is not active'), and the retry's genuine completion registers once. This
+--     is the retry-after-failure path the flat unique (round 1) would have made permanently
+--     23505 -- Task 7 Step 2 of this plan depends on it staying legal.
+--   - A11's expected message changes to the new, more specific 'Source asset must be a
+--     master asset' (previously the misleading 'does not belong to this title').
+-- Block F adds a fifth job (t.job_f_retry) to org A, so block E's row counts move from 4 to 5.
 
 begin;
-select plan(53);
+select plan(61);
 
 -- ============================================================================
 -- fixtures (as superuser / owner)
@@ -195,21 +209,24 @@ select lives_ok(
 select set_config('t.job_f',
   (select id::text from public.transcode_jobs where expected_output_key = 'orgs/a/titles/m/proxy/out_f.mp4'), false);
 
--- A10 (fix round 1): expected_output_key is now UNIQUE -- a second job cannot reuse job_m's
--- own key, in any status, on any title.
+-- A10 (fix round 2): expected_output_key's uniqueness is now a PARTIAL index (active
+-- statuses only), not a flat one -- but job_m is still 'submitted' (active) at this point
+-- in the file, so it still occupies its key and a second job cannot reuse it. (Block F,
+-- after job_f fails, proves the other half: a FAILED job's key becomes reusable.)
 select throws_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
          current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'), 'orgs/a/titles/m/proxy/out_m.mp4'),
-  '23505', null, 'a second job cannot reuse an existing job''s expected_output_key');
+  '23505', null, 'a second job cannot reuse an ACTIVE job''s expected_output_key');
 
--- A11 (fix round 1): source_asset_id must be kind = 'master'. asset_poster_m is a real
--- asset on title_m, correctly org-scoped -- only its kind is wrong, so this proves the new
--- `and a.kind = 'master'` conjunct specifically, not the title/org checks above it.
+-- A11 (fix round 1, message split in fix round 2): source_asset_id must be kind = 'master'.
+-- asset_poster_m is a real asset on title_m, correctly org-scoped -- only its kind is
+-- wrong, so this proves the dedicated kind check and its own distinct message, not the
+-- title/org check above it (which would misleadingly claim the asset "doesn't belong").
 select throws_ok(
   format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
          current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_poster_m'), 'orgs/a/titles/m/proxy/bad3.mp4'),
-  'P0001', 'Source asset does not belong to this title',
-  'a non-master asset (poster) is refused as a transcode source');
+  'P0001', 'Source asset must be a master asset',
+  'a non-master asset (poster) is refused as a transcode source, with its own message');
 
 -- A12: a fourth job on title_m, left uncompleted, for the NULL-storage-key test in block B.
 select lives_ok(
@@ -246,6 +263,22 @@ select throws_ok(
 
 reset role;
 set local role service_role;
+
+-- Fix round 2, finding 1: service_role must be equally unable to write this table directly
+-- -- round 1's per-verb revoke missed INSERT/UPDATE on this role on an image where CREATE
+-- TABLE hands out the full privilege set by default (the founder's production database).
+-- The migration now revokes ALL from every role up front and grants back SELECT only, so
+-- this holds regardless of which default privilege set the table happened to inherit.
+select throws_ok(
+  $$ insert into public.transcode_jobs (org_id, title_id, source_asset_id, expected_output_key)
+     values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'service-role-direct-insert') $$,
+  '42501', null, 'service_role cannot INSERT into transcode_jobs directly');
+select throws_ok(
+  $$ update public.transcode_jobs set status = 'failed' $$,
+  '42501', null, 'service_role cannot UPDATE transcode_jobs directly (the exact path that would have let a direct write skip the key check)');
+select throws_ok(
+  $$ delete from public.transcode_jobs $$,
+  '42501', null, 'service_role cannot DELETE transcode_jobs directly');
 
 -- B2: the claimed key does not equal job_m's own expected_output_key -- the authority
 -- check. job_m is still 'submitted' at this point (only created, never registered).
@@ -409,6 +442,52 @@ select throws_ok(
   'P0001', 'Job not found or already complete', 'failing an unknown job id is refused');
 
 -- ============================================================================
+-- F. Retry after failure (fix round 2, finding 2). job_f is 'failed' from block D above
+--    (key 'orgs/a/titles/m/proxy/out_f.mp4') and was never touched since. This proves the
+--    exact three-step sequence the migration header walks through: (1) a retry reusing the
+--    failed job's key is legal, because a failed job no longer occupies the partial index;
+--    (2) the OLD failed job's own late/stale completion event is refused outright, not
+--    silently re-registered, now that register_transcode_output requires an ACTIVE job;
+--    (3) the retry's own genuine completion registers exactly once.
+-- ============================================================================
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_transcode_job(%L, %L, %L, %L) $$,
+         current_setting('t.org'), current_setting('t.title_m'), current_setting('t.asset_m'),
+         'orgs/a/titles/m/proxy/out_f.mp4'),
+  'a retry may reuse a FAILED job''s expected_output_key -- the partial index only covers active jobs');
+select set_config('t.job_f_retry',
+  (select id::text from public.transcode_jobs
+     where expected_output_key = 'orgs/a/titles/m/proxy/out_f.mp4' and id <> current_setting('t.job_f')::uuid), false);
+
+reset role;
+set local role service_role;
+
+-- The OLD failed job's stale completion event must be refused outright now -- it never
+-- reaches the key comparison at all, because job_f is no longer active.
+select throws_ok(
+  format($$ select public.register_transcode_output(%L, %L, 100, 'hash_stale') $$,
+         current_setting('t.job_f'), 'orgs/a/titles/m/proxy/out_f.mp4'),
+  'P0001', 'Job is not active', 'a failed job''s stale completion event is refused, not re-registered');
+select is(
+  (select status::text from public.transcode_jobs where id = current_setting('t.job_f')::uuid),
+  'failed', 'the old failed job is untouched by its own refused stale event');
+
+-- The retry job's genuine completion registers normally.
+select lives_ok(
+  format($$ select public.register_transcode_output(%L, %L, 200, 'hash_retry') $$,
+         current_setting('t.job_f_retry'), 'orgs/a/titles/m/proxy/out_f.mp4'),
+  'the retry job''s genuine completion registers successfully');
+select is(
+  (select count(*) from public.assets
+     where title_id = current_setting('t.title_m')::uuid and kind = 'screener'
+       and storage_key = 'orgs/a/titles/m/proxy/out_f.mp4')::int,
+  1, 'exactly one screener asset exists at the retried key');
+
+-- ============================================================================
 -- E. RLS -- own-org read for every view-capable role, GC sees across orgs, cross-tenant
 --    isolation holds. (Also the regression guard for this migration's explicit
 --    `grant select ... to authenticated` -- see the file header.)
@@ -431,24 +510,24 @@ select throws_ok(
 reset role;
 set local role authenticated;
 
--- Four jobs exist for org A at this point: job_m, job_d, job_f, job_n.
+-- Five jobs exist for org A at this point: job_m, job_d, job_f, job_n, job_f_retry.
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  4, 'account_owner sees all four of their org''s transcode jobs');
+  5, 'account_owner sees all five of their org''s transcode jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.viewer'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  4, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
+  5, 'a bare viewer (view-capable, not operate-capable) can still read the org''s jobs');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select is(
   (select count(*) from public.transcode_jobs where org_id = current_setting('t.org')::uuid)::int,
-  4, 'GC (gc_can view) sees org A''s jobs too');
+  5, 'GC (gc_can view) sees org A''s jobs too');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner_b'), 'role','authenticated')::text, true);
