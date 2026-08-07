@@ -1,7 +1,7 @@
 # Handoff — globalcontent-dashboard
 
-**Written 2026-08-07.** Everything described here is merged to `main` (`12cadf1`). No feature
-branches remain. Work from `main`.
+**Written 2026-08-07.** Everything described here is merged to `main`. No feature branches remain.
+Work from `main`, and `git pull` before you trust any state described below.
 
 You are taking over a partly-built feature. Read this whole file before touching anything.
 
