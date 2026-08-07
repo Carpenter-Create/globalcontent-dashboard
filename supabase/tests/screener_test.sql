@@ -140,24 +140,27 @@ select throws_ok(
   'client cannot share a title GC has not approved');
 
 -- Unification (20260806000300): same recipient, different authors, now collide on purpose.
--- Neither create call below names a recipient, so both share the same (null) "buyer" under the
--- RPC's `is not distinct from` match — exactly like two callers both typing "Tubi". The old
--- author partition would have kept these on separate sides; it is gone, so the client's create
--- must revoke GC's prior link for that same (unnamed) recipient, leaving exactly one live.
+-- Both create calls below name the SAME recipient ('Vudu'), so they share one "buyer" under the
+-- RPC's `is not distinct from` match. (Prior to 20260806000500 this was expressed with two
+-- UNNAMED calls instead, since both branches could omit the name back then — the property under
+-- test is unchanged, but a client caller can no longer create an unnamed link at all, so the
+-- collision now has to be expressed with a named recipient on both sides.) The old author
+-- partition would have kept these on separate sides; it is gone, so the client's create must
+-- revoke GC's prior link for that same recipient, leaving exactly one live.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select lives_ok(
-  format($$ select public.create_screener_link(%L, %L) $$,
-         current_setting('t.title_c'), 'tok_c_gc'),
-  'GC creates its own screener link for the shared title');
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_c'), 'tok_c_gc', 'Vudu'),
+  'GC creates its own named screener link for the shared title');
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select lives_ok(
-  format($$ select public.create_screener_link(%L, %L) $$,
-         current_setting('t.title_c'), 'tok_c_client'),
-  'account_owner creates a screener link on an approved title, revoking GC''s prior link for the same (unnamed) recipient');
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, null, %L) $$,
+         current_setting('t.title_c'), 'tok_c_client', 'Vudu'),
+  'account_owner creates a screener link for the same named recipient, revoking GC''s prior link (no author partition)');
 
 -- Checked as GC (gc_can(t.gc, 'view') sees every row regardless of author) so these read the
 -- true underlying state rather than whatever the client's own RLS view happens to allow.
@@ -175,8 +178,8 @@ select is(
 -- org can revoke a screener_view link GC created, not merely read it. Read-only visibility of
 -- GC's outbound activity would be a half-measure — the founder's stated reason for removing the
 -- read partition (this is the client's title and their revenue) applies just as much to acting
--- on it. Named 'Amazon' so its recipient doesn't match tok_c_gc/tok_c_client above (both
--- unnamed — one already revoked, one still the client's own live link) or the Tubi/Roku
+-- on it. Named 'Amazon' so its recipient doesn't match tok_c_gc/tok_c_client above (both named
+-- 'Vudu' — one already revoked, one still the client's own live link) or the Tubi/Roku
 -- fixtures created below, and so this revoke can't be mistaken for the recipient-collision
 -- revoke inside create_screener_link — this is exercising revoke_portal_link specifically.
 select set_config('request.jwt.claims',
