@@ -1,0 +1,164 @@
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { PORTAL, PORTAL_COPY } from "@/lib/portal";
+import { assetViewUrl } from "@/lib/asset-url";
+import { resolveOrRestore } from "@/lib/s3";
+import { resolveBuyerLink } from "@/lib/portal-session";
+import { buyerActionsFor } from "@/lib/buyer-page";
+import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
+import { DETAIL_LIST } from "@/lib/list-bounds";
+
+// Buyer-portal MASTER download — the highest-risk route in this plan. It serves the
+// crown-jewel deliverable, unwatermarked, to an external party over the public internet.
+// Modeled directly on src/app/api/portal/download/route.ts (GC's vendor master-download
+// route): same Glacier gate, same audit-before-return ordering, same fail-closed reasoning.
+//
+// NEVER TRUST THE PAGE. The "Download master" button's presence on title-page.tsx is a
+// rendering decision made from data the client could not tamper with — but this route is
+// the actual authorization, and it re-derives its own answer from freshly-read state on
+// every request, ignoring whatever the client believes.
+export async function POST(req: Request) {
+  const raw = (await cookies()).get(PORTAL.sessionCookie)?.value;
+  if (!raw) return NextResponse.json({ error: "No session" }, { status: 401 });
+
+  // resolveBuyerLink collapses four distinct states — session revoked, session expired, link
+  // revoked, link expired — into this one null (see its own docstring). All four are honestly
+  // "this link has lapsed," never a genuine authorization refusal, so route them to the same
+  // copy the expired-link card itself shows rather than a bare "Not authorized" that
+  // downloadFailureMessage's 403 branch would otherwise surface to the buyer verbatim. Keep
+  // the 403 — do not leak WHICH of the four states it was.
+  const link = await resolveBuyerLink(raw);
+  if (!link) return NextResponse.json({ error: PORTAL_COPY.errorExpired }, { status: 403 });
+
+  // A link with no vendor attached can never reach the master — refuse before querying.
+  // (Vendors are attached by GC at deal time, Task 10; a pitch-stage link has none yet.)
+  // Querying deliveries with vendor_id = null would find nothing anyway since deliveries.
+  // vendor_id is NOT NULL, but this makes the refusal explicit rather than relying on that
+  // schema fact holding forever.
+  if (!link.vendorId) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  const admin = createAdminClient();
+
+  // All three reads are independent of each other, so one Promise.all (title status, the
+  // licence-check rows, and the master asset itself) rather than fetching the asset only
+  // after the licence check passes — cheaper, and it's what let item 5 below fold naturally
+  // into buyerActionsFor instead of a bolted-on second check.
+  //
+  // The deliveries read carries `.limit(DETAIL_LIST)` (fix round 2, item 4): it lost its
+  // bound when this route was built (was `.limit(1)` back when it only asked "does ANY
+  // delivery exist"; became a full per-territory list with no bound at all once the licence
+  // check needed every row). A title×vendor pair has one delivery row per territory it was
+  // sent to — DETAIL_LIST (200) is nowhere close for any real catalogue, but the convention
+  // (list-bounds.ts) is that no list read ships unbounded, full stop, after PostgREST's
+  // silent 1,000-row truncation bit this repo once already.
+  const [{ data: titleRow }, { data: deliveryRows }, { data: masterAsset }] = await Promise.all([
+    admin.from("titles").select("status").eq("id", link.titleId).maybeSingle(),
+    admin
+      .from("deliveries")
+      .select("status, territory, rights_grants(effective_to, window_start, window_end, territory_mode, territories)")
+      .eq("title_id", link.titleId)
+      .eq("vendor_id", link.vendorId)
+      .limit(DETAIL_LIST),
+    // Latest master asset wins — same tie-break used elsewhere (page.tsx, screener
+    // resolution): a re-uploaded master must supersede the old one, never race it for which
+    // key gets served.
+    admin
+      .from("assets")
+      .select("storage_key")
+      .eq("title_id", link.titleId)
+      .eq("kind", "master")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (!titleRow) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  // `licensed` is re-resolved HERE, from an active grant + delivery for THIS link's vendor
+  // and THIS title — never carried in from the client, and never inferred from the title
+  // alone. This is the entire reason links are scoped to (title, recipient): if this check
+  // were keyed on the title only, the moment ANY vendor licensed the title, every OTHER
+  // prospect still holding a screener_view link for it would qualify for the master too.
+  // See lib/master-licence.ts for the gate itself and its rationale.
+  const deliveries: DeliveryForLicenceCheck[] = (deliveryRows ?? []).map((d) => ({
+    status: d.status,
+    territory: d.territory,
+    grant: d.rights_grants as DeliveryForLicenceCheck["grant"],
+  }));
+  const licensed = isMasterLicensed(deliveries);
+
+  // Recompute buyerActionsFor server-side and refuse unless canDownloadMaster is true — the
+  // ONE authorization check for this route, same predicate the page used to decide whether
+  // to render the button, now re-derived from data the client never touched. hasMasterAsset
+  // is fed from the same read above (fix round 2, item 5) so this and page.tsx can never
+  // disagree about whether there's actually something to serve.
+  const actions = buyerActionsFor({
+    titleStatus: titleRow.status,
+    hasScreenerAsset: false, // irrelevant to canDownloadMaster — not worth a second query here
+    licensed,
+    screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
+    hasMasterAsset: Boolean(masterAsset),
+    // Irrelevant to canDownloadMaster today, but wired to the real value (not the permissive
+    // `false` default) rather than assumed safe — resolveBuyerLink already resolved it, so
+    // there's no excuse for a stale placeholder that would fail open the day some other
+    // predicate here starts reading it.
+    hasRecipientName: Boolean(link.recipientName),
+  });
+  if (!actions.canDownloadMaster) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+  // canDownloadMaster required hasMasterAsset above, so masterAsset is non-null here — this
+  // is a type-narrowing formality, not a second independent check, and cheap insurance if
+  // that invariant is ever changed without updating this call site too.
+  if (!masterAsset) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+  // Glacier gate: a licensed master may be tiered to cold storage. resolveOrRestore HEADs
+  // the object (source of truth) and auto-initiates a Standard restore on first hit.
+  // "restoring" → 409 "preparing"; the page maps 409 to the cold-storage message and the
+  // recipient returns to the same link once it completes.
+  const restore = await resolveOrRestore(masterAsset.storage_key);
+  if (restore.status === "restoring") {
+    if (restore.justInitiated) {
+      // best-effort provenance — a log failure (error OR thrown) must NOT turn "preparing"
+      // into an error; the restore has already been initiated.
+      try {
+        await admin.from("portal_access_events").insert({
+          link_id: link.linkId,
+          session_id: link.sessionId,
+          event_type: "restore_requested",
+          user_agent: req.headers.get("user-agent") ?? null,
+        });
+      } catch {
+        /* swallow — provenance is best-effort here */
+      }
+    }
+    return NextResponse.json({ error: "File is being prepared" }, { status: 409 });
+  }
+
+  let url: string;
+  try {
+    // Single-GET download TTL, not the streaming TTL — a master download is one GET that
+    // must start within the window, not a <video> re-validating across a whole playback.
+    url = await assetViewUrl(masterAsset.storage_key, PORTAL.signedUrlTtlSeconds);
+  } catch (err) {
+    // A signing failure here is a CONFIG problem (missing/misconfigured CloudFront env), not
+    // "still restoring" — the Glacier case is handled above and never reaches this catch.
+    // Masquerading it as 409 would render the page's cold-storage copy ("usually takes 3 to
+    // 5 hours") over what is actually a deploy-config bug that will never resolve on its own.
+    console.error("[portal:master-download] signing failed", err);
+    return NextResponse.json({ error: "Could not prepare download" }, { status: 500 });
+  }
+
+  // The download event is THE provenance record for "who downloaded the master" (rule 5).
+  // If we can't record it, fail closed rather than serve an unauditable master — the client
+  // never receives the (as-yet-unused) signed URL, so no untraceable download can occur.
+  const { error: logErr } = await admin.from("portal_access_events").insert({
+    link_id: link.linkId,
+    session_id: link.sessionId,
+    event_type: "download",
+    user_agent: req.headers.get("user-agent") ?? null,
+  });
+  if (logErr) return NextResponse.json({ error: "Could not record access" }, { status: 500 });
+
+  return NextResponse.json({ type: "progressive", url });
+}

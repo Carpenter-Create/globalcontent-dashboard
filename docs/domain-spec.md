@@ -613,6 +613,40 @@ back catalog — those files require a **5–12 hour bulk restore before a downl
 > or you're mailing links that 404. Others work on GC's clock, so the wait is acceptable — but
 > the system must model it.
 
+### Buyer links → vendor attachment (post-pitch handoff)
+
+A client pitches a title to a buyer via a named `screener_view` portal link ("Tubi"). When the
+deal closes, the buyer needs the master, which is gated on that link's `vendor_id` pointing at a
+vendor with an active grant and delivery for the title. **A client can never set `vendor_id`
+themselves** — `vendors` is a GC-only roster, and exposing it to every client would reveal GC's
+whole distribution network. **GC attaches the vendor** (`attach_link_vendor` RPC,
+`20260806000400`) once the deal is confirmed.
+
+- **First attach vs. reassignment are not the same risk.** Reassigning a link that already
+  carries a different vendor is blocked unless the caller passes an explicit force flag — it
+  would otherwise silently move a buyer's pitch (and master access, once licensed) to another
+  company. A **first** attach (no vendor yet) gets the *same* explicit-confirmation treatment
+  when the chosen `(title, vendor)` pair **already has an active grant and delivery on record**
+  — that one click makes the unwatermarked master downloadable immediately, which is the
+  higher-consequence transition of the two, not the reassignment.
+- **Detach is unguarded.** Setting `vendor_id` back to null removes a link's ability to resolve
+  the master on its next read; it touches no grant, delivery, or title state, so it needs no
+  confirmation — the safe direction, matching rule 11 ("gate future actions, never retroactively
+  destroy state").
+- **Dead links (revoked or expired) refuse attach AND detach outright**, no force override —
+  neither can ever be resolved by a buyer again, so writing into one is pointless in either
+  direction.
+- **Audit approach:** the RPC does **not** use a whole-row audit trigger. `portal_links` carries
+  `share_token` (the live, un-hashed portal URL a buyer holds) and `recipient_name` (external-
+  party PII); a generic trigger would copy both into the append-only `audit_log`, which has
+  UPDATE/DELETE revoked at the permission level — permanently, with no purge path (the same
+  failure mode §18's `audit_log` already accepted once for `portal_sessions.token_hash`, and
+  fixed the same way). Instead, `attach_link_vendor` inserts exactly one hand-built row per
+  genuine transition — `entity = 'portal_links'`, `before`/`after` carrying `{"vendor_id": ...}`
+  only, `org_id` resolved via the link's own title (a one-hop lookup — the link itself has no
+  `org_id` column, but its title always belongs to one). No transition, no row: an idempotent
+  same-vendor re-attach or re-detach writes nothing.
+
 ---
 
 ## 14. Revenue — single-vendor basis
@@ -758,8 +792,16 @@ and an audit log added in month eight has no history for months one through seve
 Never store a derived number without both. **The health score is a derived number (§19).**
 
 **Audit layer (append-only):** `audit_log` — `id`, `entity`, `entity_id`, `action`, `actor`, `at`,
-`before` (jsonb), `after` (jsonb). Trigger-populated. **UPDATE and DELETE revoked at the
-permission level.**
+`before` (jsonb), `after` (jsonb). Trigger-populated **by default** — but **not every table should
+get the generic whole-row trigger.** `before`/`after` are `to_jsonb()` of the row, and
+UPDATE/DELETE are revoked on `audit_log` itself, so anything written there is permanent with no
+purge path. `portal_sessions.token_hash` and `portal_links.share_token`/`recipient_name` both hit
+this: a session or portal-link credential, or an external party's name, copied into an
+unreachable, org-id-less audit row forever. Both were fixed the same way — **audit the
+transition, not the row**: a redacting/scoped trigger for `portal_sessions` (only the revocation
+transition, `token_hash` stripped), and one hand-built, field-scoped `audit_log` insert per
+genuine transition for `portal_links.vendor_id` (§13) rather than any trigger at all. **Before
+attaching the generic trigger to a new table, check what a live row actually contains.**
 
 > For manual delivery (§13) and rights entry (§9), `audit_log` **is** the provenance record —
 > the source is a person, not a document.

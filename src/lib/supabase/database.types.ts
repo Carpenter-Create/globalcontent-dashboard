@@ -666,10 +666,12 @@ export type Database = {
           expires_at: string
           id: string
           purpose: Database["public"]["Enums"]["portal_link_purpose"]
+          recipient_name: string | null
           revoked_at: string | null
           share_token: string | null
           title_id: string | null
           token_hash: string
+          vendor_id: string | null
         }
         Insert: {
           asset_id?: string | null
@@ -679,10 +681,12 @@ export type Database = {
           expires_at: string
           id?: string
           purpose?: Database["public"]["Enums"]["portal_link_purpose"]
+          recipient_name?: string | null
           revoked_at?: string | null
           share_token?: string | null
           title_id?: string | null
           token_hash: string
+          vendor_id?: string | null
         }
         Update: {
           asset_id?: string | null
@@ -692,10 +696,12 @@ export type Database = {
           expires_at?: string
           id?: string
           purpose?: Database["public"]["Enums"]["portal_link_purpose"]
+          recipient_name?: string | null
           revoked_at?: string | null
           share_token?: string | null
           title_id?: string | null
           token_hash?: string
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -717,6 +723,13 @@ export type Database = {
             columns: ["title_id"]
             isOneToOne: false
             referencedRelation: "titles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_links_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -1296,6 +1309,12 @@ export type Database = {
         }
         Returns: string[]
       }
+      attach_link_vendor: {
+        // p_vendor_id is required (no SQL DEFAULT) but explicitly nullable — passing null is
+        // how a caller detaches a vendor from a link, not an omitted argument.
+        Args: { p_force?: boolean; p_link_id: string; p_vendor_id: string | null }
+        Returns: undefined
+      }
       can_deliver: {
         Args: {
           p_at: string
@@ -1350,6 +1369,7 @@ export type Database = {
       create_screener_link: {
         Args: {
           p_expires_at?: string
+          p_recipient_name?: string
           p_share_token?: string
           p_title_id: string
           p_token_hash: string
@@ -1377,8 +1397,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      gc_can: {
+        Args: { p_capability: string; p_uid: string }
+        Returns: boolean
+      }
       gc_check_digit: { Args: { p_n: number }; Returns: number }
       is_gc_staff: { Args: { p_uid: string }; Returns: boolean }
+      lapse_org: {
+        Args: { p_first_failure: string; p_org: string }
+        Returns: string
+      }
       link_title_to_work_of: {
         Args: { p_target_title_id: string; p_title_id: string }
         Returns: string
@@ -1474,6 +1502,10 @@ export type Database = {
         Args: { p_payload: Json; p_title_ids: string[]; p_vendor_id: string }
         Returns: string
       }
+      record_renewal: {
+        Args: { p_effective_from: string; p_org: string }
+        Returns: string
+      }
       review_title: {
         Args: {
           p_decision: Database["public"]["Enums"]["review_decision"]
@@ -1563,6 +1595,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      tier_allows: {
+        Args: { p_action: string; p_org: string }
+        Returns: boolean
+      }
+      tier_revenue_share_bp: {
+        Args: { p_tier: Database["public"]["Enums"]["tier_enum"] }
+        Returns: number
+      }
     }
     Enums: {
       asset_kind:
@@ -1572,6 +1612,7 @@ export type Database = {
         | "screener"
         | "poster"
         | "banner"
+        | "trailer"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1791,6 +1832,7 @@ export const Constants = {
         "screener",
         "poster",
         "banner",
+        "trailer",
       ],
       delivery_status: [
         "pending",

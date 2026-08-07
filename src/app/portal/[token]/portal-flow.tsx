@@ -9,16 +9,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { PORTAL_COPY } from "@/lib/portal";
-import { ScreenerRoom } from "./screener-room";
+import type { BuyerActions } from "@/lib/buyer-page";
+import { TitlePage } from "./title-page";
 
 type Stage = "identity" | "code" | "ready";
 
 // What renders once identity + code are verified. Both portal link `purpose`s share the
 // same identity→code gate below; only the post-verification stage differs — this is the
 // seam Task 5 branches on rather than duplicating the gate in a second component.
+//
+// The screener variant carries more than ScreenerRoom currently reads (catalogId, metadata,
+// posterUrl, bannerUrl, trailerUrl, actions) — that's deliberate. Task 7 (this file's
+// page.tsx) loads it; TitlePage (title-page.tsx) is the consumer that renders the rest.
+// trailerUrl is signed the same way as posterUrl/bannerUrl (see page.tsx) — the trailer is
+// promotional material, same sensitivity class as artwork, not gated behind the OTP session
+// like the screener/master.
+//
+// Deliberately NO recipientName field. The link's recipient_name is the client's own internal
+// tracking label ("tubi - dave") — it must never reach the buyer's browser at all, so it is
+// not read out of the DB row into this payload in the first place (page.tsx never selects it
+// into `ready`). `company`, passed alongside `ready` to TitlePage, is what actually renders —
+// the buyer's own typed input at the identity gate, not this link's internal label.
 export type ReadyView =
   | { mode: "download"; filename: string; bytes: number }
-  | { mode: "screener"; title: string; synopsis: string | null; runtimeMinutes: number | null };
+  | {
+      mode: "screener";
+      title: string;
+      catalogId: string | null;
+      synopsis: string | null;
+      runtimeMinutes: number | null;
+      metadata: Record<string, unknown>;
+      posterUrl: string | null;
+      bannerUrl: string | null;
+      trailerUrl: string | null;
+      actions: BuyerActions;
+    };
 
 // Three-stage account-less flow: capture identity → verify emailed OTP → ready (download or
 // screener, per `ready.mode`). No client-side Supabase call — the /api/portal/* routes own
@@ -92,8 +117,22 @@ export function PortalFlow({
     window.location.href = url;
   }
 
+  // The title page is the two-column "utility meets film aesthetic" layout (viewing and
+  // metadata carry equal weight — see title-page.tsx) and needs the full width the portal
+  // layout grants (portal/layout.tsx), not the narrow centered card every other stage below
+  // uses. It also owns its own error surface, since its actions (watch, three downloads)
+  // outnumber the single error slot the card stages share.
+  if (stage === "ready" && ready.mode === "screener") {
+    // `company` is what the "Prepared for" line renders — `ready` carries no recipient-name
+    // field at all (see ReadyView above): the link's recipient_name is the CLIENT's own
+    // internal tracking label ("tubi - dave", "Roku (2nd attempt)") and must never reach an
+    // external buyer. `company` is what the buyer themselves just typed at the identity gate —
+    // already local state here, already required, so no extra query is needed.
+    return <TitlePage ready={ready} company={company} />;
+  }
+
   return (
-    <Card>
+    <Card className="mx-auto max-w-md">
       <CardBody>
         <h1 className="t-subhead text-ink mb-1">
           {ready.mode === "screener" ? PORTAL_COPY.screenerHeading : PORTAL_COPY.roomTitle}
@@ -184,16 +223,6 @@ export function PortalFlow({
             <Button onClick={download} disabled={busy} className="w-full">
               {PORTAL_COPY.downloadButton}
             </Button>
-          </div>
-        )}
-
-        {stage === "ready" && ready.mode === "screener" && (
-          <div className="mt-3">
-            <ScreenerRoom
-              title={ready.title}
-              synopsis={ready.synopsis}
-              runtimeMinutes={ready.runtimeMinutes}
-            />
           </div>
         )}
       </CardBody>

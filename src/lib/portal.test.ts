@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { PORTAL, generateToken, hashToken, generateOtpCode, hashOtp, safeEqualHex } from "./portal";
+import {
+  PORTAL,
+  PORTAL_COPY,
+  generateToken,
+  hashToken,
+  generateOtpCode,
+  hashOtp,
+  safeEqualHex,
+  downloadFailureMessage,
+} from "./portal";
 
 describe("portal crypto", () => {
   it("generates distinct URL-safe tokens", () => {
@@ -31,5 +40,34 @@ describe("portal crypto", () => {
     expect(PORTAL.otpTtlMinutes).toBe(10);
     expect(PORTAL.otpMaxAttempts).toBe(5);
     expect(PORTAL.sessionTtlHours).toBe(24);
+  });
+});
+
+// Fix round 2, item 2: title-page.tsx used to tell every non-409 failure "this link has
+// expired or been withdrawn" — false for a 403 refusal and false for a 5xx server fault.
+describe("downloadFailureMessage", () => {
+  it("maps 409 to the cold-storage message", () => {
+    expect(downloadFailureMessage(409)).toBe(PORTAL_COPY.errorPreparing);
+  });
+
+  it("maps any 5xx to the generic server-fault message, never 'expired'", () => {
+    expect(downloadFailureMessage(500)).toBe(PORTAL_COPY.errorServer);
+    expect(downloadFailureMessage(503)).toBe(PORTAL_COPY.errorServer);
+  });
+
+  it("shows the route's own 403 message when present", () => {
+    expect(downloadFailureMessage(403, "This file is available to watch but not to download for this title."))
+      .toBe("This file is available to watch but not to download for this title.");
+  });
+
+  it("falls back to a neutral message on a 403 with no body error", () => {
+    expect(downloadFailureMessage(403)).toBe(PORTAL_COPY.errorDownloadUnavailable);
+    expect(downloadFailureMessage(403, "")).toBe(PORTAL_COPY.errorDownloadUnavailable);
+    expect(downloadFailureMessage(403, "   ")).toBe(PORTAL_COPY.errorDownloadUnavailable);
+  });
+
+  it("reserves errorExpired for everything else (401 no-session, or an unrecognized status)", () => {
+    expect(downloadFailureMessage(401)).toBe(PORTAL_COPY.errorExpired);
+    expect(downloadFailureMessage(404)).toBe(PORTAL_COPY.errorExpired);
   });
 });

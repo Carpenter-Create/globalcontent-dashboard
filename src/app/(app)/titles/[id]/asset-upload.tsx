@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 import { planParts, planWindows } from "@/lib/upload-plan";
 
-type Kind = "master" | "caption" | "poster" | "banner" | "screener";
+type Kind = "master" | "caption" | "poster" | "banner" | "screener" | "trailer";
 
 // How many parts are in flight at once. Multipart upload exists to be parallel —
 // uploading serially wastes almost all of the available bandwidth on a big master.
@@ -150,6 +150,7 @@ export function AssetUpload({ titleId }: { titleId: string }) {
           className="rounded-[var(--radius-sm)] border border-hairline bg-surface px-2 py-1 t-body-sm text-ink"
         >
           <option value="master">Master</option>
+          <option value="trailer">Trailer</option>
           <option value="caption">Caption</option>
           <optgroup label="Artwork">
             <option value="poster">Poster (vertical, ~2:3)</option>

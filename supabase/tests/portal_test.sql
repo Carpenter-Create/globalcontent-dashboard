@@ -1,6 +1,8 @@
 -- portal_test.sql
 -- Portal gate: create_portal_link (GC-only, master-asset-only), portal_resolve_download
--- (session + rule-12 grant re-check), revoke_portal_link (GC-only, soft revoke), RLS
+-- (session + rule-12 grant re-check), revoke_portal_link (soft revoke; GC blanket, client
+-- limited to its own org's screener links since 20260806000200 — the link here is a
+-- master_download, which stays GC-only), RLS
 -- (client cannot read portal tables), append-only portal_access_events.
 
 begin;
@@ -157,13 +159,13 @@ select throws_ok($$ select public.portal_resolve_download('sess_ok') $$,
   'P0001', 'This delivery is no longer active', 'rejected delivery blocks download');
 update public.deliveries set status = 'delivered' where id = current_setting('t.deliv')::uuid;
 
--- ---- revoke_portal_link: GC-only ------------------------------------------
+-- ---- revoke_portal_link: master_download stays GC-only ---------------------
 set local role authenticated;
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
 select throws_ok(
   format($$ select public.revoke_portal_link(%L) $$, current_setting('t.link')),
-  'P0001', 'Not authorized', 'client cannot revoke a link');
+  'P0001', 'Not authorized', 'client cannot revoke a master_download link');
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select lives_ok(format($$ select public.revoke_portal_link(%L) $$, current_setting('t.link')),

@@ -35,6 +35,20 @@ export function ScreenerRoom({
       const r = await fetch("/api/portal/screener", { method: "POST" });
       if (cancelled) return;
       if (r.status === 409) return setError(PORTAL_COPY.errorPreparing);
+      // A 403 here has two honestly different causes and the route's body says which:
+      // PORTAL_COPY.errorExpired means the SESSION lapsed mid-visit (expired/revoked, same
+      // meaning as everywhere else that copy appears) — not a statement about the screener at
+      // all. PORTAL_COPY.screenerStreamUnavailableNotice means the route's own buyer-link gate
+      // fired — a race, not the common path: buyer-page.ts's canWatchScreener mirrors this
+      // same rule, so the Watch button (and thus this component) shouldn't normally mount when
+      // it would fire; it exists for the window between this page's render and the click
+      // landing (e.g. the client flips screener_source back to 'master' in between). Collapsing
+      // both into one message told a buyer whose access simply expired that the screener
+      // "isn't available yet," which is false — read the body instead of assuming which one it is.
+      if (r.status === 403) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        return setError(body?.error ?? PORTAL_COPY.screenerStreamUnavailableNotice);
+      }
       if (!r.ok) return setError(PORTAL_COPY.errorExpired);
       const { url } = await r.json();
       setSrc(url);

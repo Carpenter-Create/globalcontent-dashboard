@@ -126,6 +126,69 @@ async function mustBeEmpty(id, what, exists, read) {
       : "0 rows returned, but no matching row existed either — test proves nothing");
 }
 
+/**
+ * A read whose visible set must be EXACTLY what the live policy promises — no more (a leak)
+ * and no fewer (a probe that has quietly stopped proving anything).
+ *
+ * mustBeEmpty can only say "you may see nothing here". Since 20260806000300 the boundary on
+ * portal_links is not "nothing" but "exactly your own org's screener_view links": a probe that
+ * asserted emptiness there would now fail on CORRECT behaviour, and the only ways to make it
+ * green again are to weaken it or to baseline it — the two failures this file exists to
+ * prevent. This asserts the boundary itself instead, which is strictly stronger: it fails on a
+ * leak (as before) AND on a blanket deny that would make the negative half meaningless.
+ *
+ * @param bait async () => { allowed: string[], forbidden: string[] } — disjoint key sets,
+ *        resolved as service_role at probe time. Never hardcoded from the fixture: the counts
+ *        are derived from what is actually in the table, the same reason termsBefore (below)
+ *        is a snapshot rather than a literal.
+ * @param read async () => {data,error} as the attacker. Each row must carry `id`, which is the
+ *        key compared against those sets (for the token probe it is the token itself).
+ *
+ * Verdicts:
+ *   FAIL    — a key outside `allowed` came back. That is the leak.
+ *   VACUOUS — either nothing forbidden existed to leak, or an `allowed` key did NOT come back.
+ *             The second case means the policy is narrower than this probe assumes, so the
+ *             probe is no longer evidence about the boundary — not a breach, but not a pass
+ *             either. Both fail the gate loudly, which is the point: policy and probe get
+ *             reconciled in the same PR, by a human, rather than one drifting past the other.
+ */
+async function mustSeeExactly(id, what, bait, read) {
+  const { allowed, forbidden } = await bait();
+  let res;
+  try {
+    res = await read();
+  } catch (e) {
+    record(id, what, "INCONCLUSIVE", `threw: ${e.message}`);
+    return;
+  }
+  if (res.error) {
+    record(id, what, "INCONCLUSIVE", `read rejected outright: ${res.error.code ?? "-"} ${res.error.message}`);
+    return;
+  }
+  const rows = res.data ?? [];
+  const allow = new Set(allowed);
+  const seen = new Set(rows.map((r) => r.id));
+  const leaked = rows.filter((r) => !allow.has(r.id));
+  if (leaked.length) {
+    record(id, what, "FAIL", `*** ${leaked.length} ROW(S) LEAKED *** ${JSON.stringify(leaked).slice(0, 260)}`);
+    return;
+  }
+  if (!forbidden.length) {
+    record(id, what, "VACUOUS", "nothing forbidden existed to leak — test proves nothing");
+    return;
+  }
+  const missing = allowed.filter((k) => !seen.has(k));
+  if (missing.length) {
+    record(id, what, "VACUOUS",
+      `${missing.length} of ${allowed.length} permitted row(s) did NOT come back — the policy is ` +
+      `narrower than this probe assumes, so its negative half proves nothing: ${JSON.stringify(missing).slice(0, 160)}`);
+    return;
+  }
+  record(id, what, "PASS",
+    `exactly the ${allowed.length} permitted row(s) returned; ${forbidden.length} forbidden row(s) ` +
+    `DO exist (verified as service_role) and none came back`);
+}
+
 const countAs = (table, col, val) => async () => {
   const { count } = await admin.from(table).select("*", { count: "exact", head: true }).eq(col, val);
   return count ?? 0;
@@ -150,11 +213,19 @@ const GOOD_META = {
  * Build a fully-populated org.
  *
  * Client-owned rows go through the real client RPCs under the owner's JWT.
- * GC-only rows (deliveries, portal_links, title_reviews, export_records, works)
- * are created by calling the real GC RPCs under a gc_staff JWT — service_role has
- * no INSERT privilege on those tables, so there is no shortcut. The remainder
- * (subscriptions, findings, notifications, portal_otps/sessions/events) is seeded
- * as service_role, which is exactly how the webhook and portal routes write them.
+ * GC-written rows (deliveries, title_reviews, export_records, works, and the
+ * master_download side of portal_links) are created by calling the real GC RPCs
+ * under a gc_staff JWT — service_role has no INSERT privilege on those tables, so
+ * there is no shortcut. The remainder (subscriptions, findings, notifications,
+ * portal_otps/sessions/events) is seeded as service_role, which is exactly how the
+ * webhook and portal routes write them.
+ *
+ * portal_links is NOT a GC-only table (20260806000300 — see the probe section that
+ * says so in full). Its boundary now runs between PURPOSES and between ORGS, not
+ * between authors, so each org is seeded with THREE links on purpose: a
+ * master_download link (GC-only whatever the org), a GC-authored screener_view link,
+ * and a client-authored screener_view link — all on the same title. A probe cannot
+ * tell those boundaries apart without a row on each side of every one of them.
  *
  * Every table an attack test reads is left with at least one row, so an empty
  * result is real evidence rather than an accident of an unpopulated fixture.
@@ -267,18 +338,39 @@ async function seedOrg(owner, gc, name, vendorId) {
   }));
 
   // Added in audit pass 3, after 20260721000300 and 20260722000100 were applied:
-  //   - portal_links.share_token now stores the RAW screener token in plaintext
+  //   - portal_links.share_token stores the RAW screener token in plaintext
   //     (hash-only for master_download; deliberate, see the migration header).
-  //     Seed one so the cross-org read test has a real credential as bait.
+  //     Seed one so the read tests have a real credential as bait.
   //   - asset_kind gained 'poster'/'banner'; seed a poster so the new kinds are
   //     covered by the storage_key isolation tests rather than assumed.
-  const rawShareToken = `RAW-SHARE-${name}-${run}`;
+  //
+  // Extended after 20260806000300 (see the portal_links probe section): TWO screener links
+  // per org, one per author, on the SAME title and with distinct tokens. The GC-authored one
+  // is the row the read boundary no longer hides from this org; the client-authored one is
+  // the row it was widened for. With only one of them, the org-boundary assertion and the
+  // author question are indistinguishable, and whichever probe happens to be written first
+  // silently decides what the other one means.
+  const rawShareToken = `RAW-SHARE-GC-${name}-${run}`;
   const { data: screenerLinkId, error: slErr } = await g.rpc("create_screener_link", {
     p_title_id: live.titleId,
     p_token_hash: createHash("sha256").update(`${name}-screener`).digest("hex"),
     p_share_token: rawShareToken,
   });
   if (slErr) throw new Error(`seed screener link ${name}: ${slErr.message}`);
+  // Client-authored, under the OWNER's JWT (never service_role — this is the client path and
+  // it must survive the real RPC's guards). A buyer name is mandatory on the client branch
+  // since 20260806000500, and it is also what keeps this insert from revoking the GC link
+  // above: create_screener_link's single-active revoke matches on (title, lower(recipient)),
+  // and GC's is unnamed. `live` is in_delivery by this point, which the client branch's
+  // post-approval status gate requires.
+  const clientShareToken = `RAW-SHARE-CLIENT-${name}-${run}`;
+  const { data: clientLinkId, error: clErr } = await c.rpc("create_screener_link", {
+    p_title_id: live.titleId,
+    p_token_hash: createHash("sha256").update(`${name}-client-screener`).digest("hex"),
+    p_share_token: clientShareToken,
+    p_recipient_name: `Buyer-${name}`,
+  });
+  if (clErr) throw new Error(`seed client screener link ${name}: ${clErr.message}`);
   const { data: posterId, error: poErr } = await c.rpc("create_asset", {
     p_org_id: orgId, p_title_id: live.titleId, p_kind: "poster",
     p_storage_key: `orgs/${orgId}/titles/${live.titleId}/poster/${randomUUID()}/poster.jpg`,
@@ -290,7 +382,9 @@ async function seedOrg(owner, gc, name, vendorId) {
     name, orgId, docId, deliveryId, linkId, sessionId: sess.id,
     titleId: draft.titleId, grantId: draft.grantId, assetId: draft.assetId,
     liveTitleId: live.titleId, liveAssetId: live.assetId,
-    screenerLinkId, rawShareToken, posterId,
+    screenerLinkId, rawShareToken,          // GC-authored screener link + its raw token
+    clientLinkId, clientShareToken,         // client-authored screener link + its raw token
+    posterId,
     termId: terms?.[0]?.id ?? null,
   };
 }
@@ -378,23 +472,114 @@ async function main() {
       return r.error ? r : { data: (r.data ?? []).filter((x) => x.org_id !== A.orgId), error: null };
     });
 
-  for (const t of ["gc_staff", "vendors", "portal_links", "portal_otps", "portal_sessions",
+  // portal_links is deliberately NOT in this list any more — see the section below.
+  for (const t of ["gc_staff", "vendors", "portal_otps", "portal_sessions",
                    "portal_access_events", "screener_view_events", "export_records", "works"]) {
     await R(`SELECT * FROM ${t} — GC-only table`,
       async () => { const { count } = await admin.from(t).select("*", { count: "exact", head: true }); return count ?? 0; },
       () => a.from(t).select("*"));
   }
 
-  // --- pass 3 additions: objects that did not exist when this harness was written ---
-  await R("SELECT portal_links.share_token — the RAW screener token, stored in plaintext (20260721000300)",
-    async () => { const { count } = await admin.from("portal_links").select("*", { count: "exact", head: true }).not("share_token","is",null); return count ?? 0; },
+  // ----------------------------------------------------------------------
+  // portal_links — NOT a GC-only table since 20260806000300.
+  //
+  // It was, and these probes used to assert it by demanding an empty read. That rule was
+  // repealed: portal_links_select now reads
+  //
+  //     gc_can(auth.uid(), 'view')
+  //     OR (purpose = 'screener_view' AND title_id IS NOT NULL
+  //         AND EXISTS (SELECT 1 FROM titles t
+  //                     WHERE t.id = portal_links.title_id
+  //                       AND member_can(auth.uid(), t.org_id, 'operate')))
+  //
+  // so an org with 'operate' sees every screener_view link on its OWN titles. Founder
+  // decision, 2026-08-06: it is the client's title and their revenue, and hiding GC's
+  // outbound activity from them was indefensible ("Show the work"). Note what the deleted
+  // conjunct was and was NOT: 20260806000200's `and not is_gc_staff(created_by)` is gone, so
+  // GC-AUTHORED links on this org's titles are visible too, on purpose. Do not re-add an
+  // author assertion here without re-adding it to the policy first.
+  //
+  // The empty-read probes were therefore asserting a repealed rule, and an empty-read probe
+  // that fires on correct behaviour has exactly two outcomes, both bad: it gets weakened, or
+  // it gets baselined. Baselining it was refused (a baseline is a list of known defects). So
+  // the assertion moves to the boundary that IS live, which is strictly stronger than the one
+  // it replaces — it still fails on every leak the old probe caught, plus the ones below that
+  // it could not have.
+  //
+  // Two conjuncts do the remaining work, and each gets its own probe so a failure names which
+  // one broke:
+  //   * `purpose = 'screener_view'` (with `title_id is not null`, which the table's own
+  //     purpose-shape CHECK ties to it) keeps master_download GC-only — that token post-OTP
+  //     yields the master itself, which is why it was never given a stored share_token.
+  //   * `member_can(..., t.org_id, 'operate')` keeps the org boundary.
+  //
+  // KNOWN, ACCEPTED, AND NOT ASSERTED HERE (flagged in the isolation report, not silently
+  // absorbed): a client can read the raw share_token of GC's own unnamed link on their title,
+  // and /api/portal/screener exempts unnamed links from the master-source stream refusal that
+  // 20260806000500 added for named buyer links. That is same-org — the actor is the title's
+  // own rights holder and the bytes are their own master — so it is out of B3's cross-org
+  // scope and is a founder call, not something to encode as a red build here.
+  // ----------------------------------------------------------------------
+  // Both bait sets are QUERIED as service_role, not spelled out from the fixture, so adding a
+  // link to seedOrg cannot leave a probe silently asserting a stale expectation (the lesson
+  // termsBefore records below). Each query is bounded by title id rather than scanning the
+  // table: seed rows are left behind by every run, and a truncated bait read would understate
+  // `allowed` and report a false narrowing.
+  const portalLinkVisibility = async () => {
+    const { data: mine } = await admin.from("portal_links").select("id")
+      .eq("purpose", "screener_view").in("title_id", [A.titleId, A.liveTitleId]);
+    const { data: theirs } = await admin.from("portal_links").select("id")
+      .in("title_id", [B.titleId, B.liveTitleId]);
+    // Forbidden bait, named by category: every link on an Org B title, PLUS both
+    // master_download links — Org A's OWN included, since that is precisely the row a
+    // widening scoped by org instead of by purpose would leak, and its token post-OTP is
+    // the master itself. master_download rows carry title_id null, so they cannot collide
+    // with `theirs`.
+    return {
+      allowed: (mine ?? []).map((l) => l.id),
+      forbidden: [...(theirs ?? []).map((l) => l.id), A.linkId, B.linkId],
+    };
+  };
+  await mustSeeExactly(`R${i++}`,
+    "SELECT * FROM portal_links unfiltered — visible set must be EXACTLY Org A's own screener links",
+    portalLinkVisibility,
+    () => a.from("portal_links").select("id, purpose, title_id, created_by, recipient_name, share_token"));
+  await R("SELECT portal_links WHERE purpose='master_download' — still GC-only, incl. Org A's OWN link",
+    async () => {
+      const { count } = await admin.from("portal_links")
+        .select("*", { count: "exact", head: true }).eq("purpose", "master_download");
+      return count ?? 0;
+    },
+    () => a.from("portal_links").select("id, purpose, delivery_id, asset_id, token_hash")
+      .eq("purpose", "master_download"));
+  // The token probe, sharpened. "Sees zero tokens" is no longer the rule and would fail on
+  // correct behaviour; "sees exactly its own titles' tokens" is, and it also proves the zero
+  // it reports for Org B is a boundary rather than a blanket deny.
+  const shareTokenVisibility = async () => {
+    const tokensOn = async (titleIds) => {
+      const { data } = await admin.from("portal_links").select("share_token")
+        .in("title_id", titleIds).not("share_token", "is", null);
+      return (data ?? []).map((l) => l.share_token);
+    };
+    return {
+      allowed: await tokensOn([A.titleId, A.liveTitleId]),
+      forbidden: await tokensOn([B.titleId, B.liveTitleId]),
+    };
+  };
+  await mustSeeExactly(`R${i++}`,
+    "SELECT portal_links.share_token — the RAW screener token, in plaintext: own titles' only, never another org's",
+    shareTokenVisibility,
     async () => {
       const r = await a.from("portal_links").select("id, title_id, share_token").not("share_token", "is", null);
-      return r.error ? r : { data: r.data ?? [], error: null };
+      // Compare on the CREDENTIAL itself, not the row id — the token is the thing that must
+      // not cross the boundary, and a row leaked under a different id would still be a leak.
+      return r.error ? r : { data: (r.data ?? []).map((x) => ({ ...x, id: x.share_token })), error: null };
     });
-  await R("SELECT portal_links WHERE title_id = <OrgB's title> — B's screener link row",
+  await R("SELECT portal_links WHERE title_id = <OrgB's title> — B's screener link rows",
     countAs("portal_links", "title_id", B.liveTitleId),
     () => a.from("portal_links").select("*").eq("title_id", B.liveTitleId));
+
+  // --- pass 3 additions: objects that did not exist when this harness was written ---
   await R("SELECT assets WHERE id = <OrgB poster> — new 'poster' kind (20260722000100)",
     countAs("assets", "id", B.posterId),
     () => a.from("assets").select("*").eq("id", B.posterId));
@@ -681,8 +866,21 @@ async function main() {
   await P("rpc create_portal_link(B's asset) — mint a master-download link",
     () => a.rpc("create_portal_link", { p_delivery_id: B.deliveryId, p_asset_id: B.assetId,
       p_token_hash: createHash("sha256").update("y").digest("hex") }));
-  await P("rpc revoke_portal_link(B's link) — GC-only",
-    () => a.rpc("revoke_portal_link", { p_link_id: B.linkId }));
+  // revoke_portal_link returns void, so a call that SUCCEEDED comes back as 200 + null data —
+  // to mustDeny that is indistinguishable from "RLS filtered it out" unless an independent
+  // re-read says otherwise (this file's own correctness rule 1). Both probes below carry one.
+  const linkNotRevoked = (linkId) => async () => {
+    const { data } = await admin.from("portal_links").select("revoked_at").eq("id", linkId).maybeSingle();
+    return !!data && data.revoked_at === null;
+  };
+  await P("rpc revoke_portal_link(B's master_download link) — GC-only purpose",
+    () => a.rpc("revoke_portal_link", { p_link_id: B.linkId }), linkNotRevoked(B.linkId));
+  // New surface, same migration that widened the read side: since 20260806000300 a non-GC
+  // caller may revoke a screener_view link — but only via member_can on the OWNING title's
+  // org, re-derived from the link id inside the RPC. Drop that re-derivation and any client
+  // could kill any org's buyer link by id.
+  await P("rpc revoke_portal_link(B's client screener link) — client-revocable purpose, wrong org",
+    () => a.rpc("revoke_portal_link", { p_link_id: B.clientLinkId }), linkNotRevoked(B.clientLinkId));
   await P("rpc create_notification(OrgB) — push a fake GC Support message to B",
     () => a.rpc("create_notification", { p_org_id: B.orgId, p_kind: "title_rejected",
       p_title: "Suspended", p_body: "Wire funds here", p_source_refs: {} }));

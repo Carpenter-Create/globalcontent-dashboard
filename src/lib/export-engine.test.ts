@@ -64,6 +64,7 @@ describe("renderOffer", () => {
 function title(overrides: Partial<TitleExportInput> = {}): TitleExportInput {
   return {
     catalogId: "GC-0000001",
+    title: "Film Name",
     metadata: {},
     offer: [],
     ...overrides,
@@ -206,6 +207,31 @@ describe("buildExportRows", () => {
     };
     const { warnings } = buildExportRows(spec, [title({ offer: [] })]);
     expect(warnings).toEqual([]);
+  });
+
+  it("resolves the title source from the record, not from metadata", () => {
+    const spec: ExportFormatSpec = {
+      format: "xlsx",
+      columns: [{ header: "Title", source: { kind: "title" } }],
+    };
+    const { rows } = buildExportRows(spec, [title({ title: "Monarch" })]);
+    expect(rows[0][0]).toBe("Monarch");
+  });
+
+  it("does not warn 'blank' for a blank title, only for the blank field beside it", () => {
+    // Both columns are blank here. If the blank-warning gate ever widened to include
+    // "title" alongside "field", this would produce two warnings instead of one — a
+    // title fixture with a non-blank value can't catch that, since the blank-check
+    // inside the gate would stay false for it regardless of which kinds are gated.
+    const spec: ExportFormatSpec = {
+      format: "xlsx",
+      columns: [
+        { header: "Title", source: { kind: "title" } },
+        { header: "Director", source: { kind: "field", key: "director" } },
+      ],
+    };
+    const { warnings } = buildExportRows(spec, [title({ title: "", metadata: {} })]);
+    expect(warnings).toEqual([`GC-0000001: "Director" is blank`]);
   });
 });
 

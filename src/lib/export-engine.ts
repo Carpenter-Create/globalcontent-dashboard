@@ -4,6 +4,7 @@ import type { ExportColumn, ExportFormatSpec } from "@/lib/export-spec";
 export type OfferLine = { rightsType: string; territory: string; windowEnd: string | null };
 export type TitleExportInput = {
   catalogId: string;
+  title: string;
   metadata: Record<string, unknown>;
   offer: OfferLine[]; // the title's deliveries to the endpoint
 };
@@ -59,6 +60,7 @@ export function buildExportRows(spec: ExportFormatSpec, titles: TitleExportInput
       let raw: unknown;
       switch (col.source.kind) {
         case "catalog_id": raw = t.catalogId; break;
+        case "title": raw = t.title; break;
         case "offer": raw = renderOffer(t.offer); break;
         case "static": raw = col.source.value; break;
         case "field": raw = t.metadata[col.source.key]; break;

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
+import { generateToken, hashToken } from "@/lib/portal";
+import { escapeIlikePattern } from "@/lib/buyer-names";
 import { resolveTerritories, type TerritoryMode } from "@/lib/territories";
 import type { RightsType } from "@/lib/rights";
 import { computeMetadataFindings, METADATA_LOGIC_VERSION } from "@/lib/metadata";
@@ -131,5 +133,105 @@ export async function submitTitle(
   }
 
   revalidatePath(`/titles/${titleId}`);
+  return {};
+}
+
+// Create (or replace) a screener share link for a named buyer. The raw token is persisted
+// as share_token so the URL can be re-copied on later page loads — acceptable for a screener
+// (view-only, still OTP-gated at the portal; the OTP is the real gate, not the URL).
+// Authorization is the RPC itself — member_can(...,'operate') on the title's org plus the
+// post-approval status gate — never this action.
+//
+// Links are per-buyer, not per-title: calling this again for the SAME recipient name is the
+// "replace" — the RPC revokes that buyer's previous live link first, so a URL already sent to
+// them stops resolving. A different name creates a second, independent link. Matching is
+// case-insensitive in the DB but the casing the client types is what gets stored and shown, so
+// "tubi" and "Tubi" collide (replace, not two rows) — do not add client-side normalisation that
+// would contradict that.
+//
+// Unification (20260806000300): the match is on (title, recipient) alone — no author partition.
+// Whoever created the earlier live link for that buyer, a same-name create replaces it. So the
+// collision check below reads every live screener_view link on the title regardless of who
+// created it; it does not need to know or care whether the caller is GC staff.
+//
+// A collision is a SILENT, DESTRUCTIVE replace from the client's point of view: typing a name
+// that already has a live link kills the URL already emailed to that buyer with no signal that
+// just happened. So unless the caller has explicitly asked to replace (the "Replace link"
+// button on an existing row — a deliberate, informed action), check for a live link with the
+// same name first and refuse with a message rather than silently swapping it out. The check
+// uses `.ilike()` on the escaped, trimmed name so it matches the RPC's real matching SQL
+// (`lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''))`,
+// 20260806000300) — see lib/buyer-names.ts for why the escaping matters (a name with a literal
+// % or _ would otherwise become a wildcard).
+export async function createBuyerScreenerLink(input: {
+  titleId: string;
+  recipientName: string;
+  replace?: boolean;
+}): Promise<{ error?: string; url?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthUser();
+  if (!user) return { error: "Not authenticated." };
+  const recipient = input.recipientName.trim();
+  // 20260806000500: create_screener_link's client branch now enforces this in the database too
+  // (raises "A buyer name is required") — that RPC guard, not this one, is what actually stops
+  // a client from minting an unnamed link (e.g. by calling the RPC directly from the browser),
+  // which the buyer-link gate would otherwise misclassify as GC's own operational link and
+  // stream the master. This check only exists to fail fast with a form-friendly message instead
+  // of a raw Postgres exception; keep its wording consistent with the RPC's, never contradictory.
+  if (!recipient) return { error: "Enter the buyer's name." };
+
+  if (!input.replace) {
+    const { data: candidates } = await supabase
+      .from("portal_links")
+      .select("recipient_name")
+      .eq("title_id", input.titleId)
+      .eq("purpose", "screener_view")
+      .is("revoked_at", null)
+      // Fix round 3, item 7: an EXPIRED link is already dead to the buyer — the RPC's own
+      // match predicate (20260806000300) only checks revoked_at is null, so calling create
+      // again for that name silently revokes-and-replaces it with no live URL actually being
+      // killed. Warning here anyway would block the ordinary "their old link lapsed, send a
+      // new one" case behind an unnecessary confirmation click.
+      .gt("expires_at", new Date().toISOString())
+      .ilike("recipient_name", escapeIlikePattern(recipient))
+      // At most one live row can match a given name (the RPC enforces that), so 1 would
+      // suffice; 5 is a small defensive margin, not a real list — this is an existence check,
+      // not a page.
+      .limit(5);
+    const existing = candidates?.[0];
+    if (existing?.recipient_name) {
+      return {
+        error: `A link for ${existing.recipient_name} already exists. Use Replace link on that buyer to send a new URL, or enter a different name.`,
+      };
+    }
+  }
+
+  const token = generateToken();
+  const { error } = await supabase.rpc("create_screener_link", {
+    p_title_id: input.titleId,
+    p_token_hash: hashToken(token),
+    p_share_token: token,
+    p_recipient_name: recipient,
+  });
+  if (error) return { error: error.message };
+
+  const base = process.env.PORTAL_BASE_URL?.replace(/\/+$/, "") ?? "";
+  revalidatePath(`/titles/${input.titleId}`);
+  return { url: `${base}/portal/${token}` };
+}
+
+// Withdraw the live link without minting a replacement — "stop sharing this".
+export async function revokeBuyerScreenerLink(input: {
+  linkId: string;
+  titleId: string;
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const { error } = await supabase.rpc("revoke_portal_link", { p_link_id: input.linkId });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/titles/${input.titleId}`);
   return {};
 }
