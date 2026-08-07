@@ -2032,6 +2032,13 @@ export const Constants = {
         "takedown_requested",
         "taken_down",
       ],
+      transcode_status: [
+        "submitted",
+        "running",
+        "complete",
+        "failed",
+        "submit_failed",
+      ],
       vendor_mode: ["portal_upload", "email"],
     },
   },
