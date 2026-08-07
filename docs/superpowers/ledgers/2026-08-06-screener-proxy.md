@@ -120,3 +120,31 @@ Proxy T5: implemented (60d1a8b, 261 tests, auth mutation-verified). Review NOT
   Also: the bounded/status-filtered select test passes against a route with
   neither; the stuck signal cannot report its own absence; no maxDuration on a
   serial loop over up to 500 jobs x 2 AWS calls.
+
+=== OPEN SECURITY FINDING — founder call, 2026-08-07 ===
+Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the
+merge (both halves are already in these branches; merging does not worsen it),
+but it is a real bypass of a control we deliberately built.
+
+WHAT: unification (20260806000300) removed `not is_gc_staff(created_by)` from
+portal_links_select, so a client can read GC's OWN unnamed screener link on
+their title — including its raw share_token. Separately, the interim stream gate
+exempts unnamed links from the master-source refusal so GC's operational review
+links keep working.
+
+TOGETHER: a client can lift GC's link token, open the portal, pass the OTP with
+any email they control, and stream the master. That is the same bypass
+20260806000500 closed on the WRITE path (a client must name a buyer), reopened
+through the READ path.
+
+SEVERITY: it is their own title and their own master — they could already
+download it and hand it to anyone — so this is not an escalation of what data
+they can reach. It is a control that can be walked around, which tends to be
+discovered at the worst moment.
+
+LIKELY FIX: stop exempting unnamed links once GC's review flow has a real
+dedicated screener, which the proxy work delivers anyway. Until then, either
+narrow the read policy to hide GC-authored share_tokens (partially reversing a
+founder transparency decision), or accept it knowingly.
+
+NOT encoded as a B3 probe: same-org, so out of that harness's scope.
