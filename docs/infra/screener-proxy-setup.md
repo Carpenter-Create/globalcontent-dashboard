@@ -176,45 +176,96 @@ aws mediaconvert list-job-templates --endpoint-url "$MEDIACONVERT_ENDPOINT" --re
 
 ---
 
-## STEP 4 — the app's own MediaConvert read access (for the poll)
+## STEP 4 — the app's own MediaConvert access: submit a job, and read it back (the poll)
 
 The role from STEP 1 is what MediaConvert *itself* assumes to run a job — it has nothing to do
 with how this app's server code talks to MediaConvert. The app calls AWS using the `gc-assets-app`
 IAM user's long-lived credentials (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, the same ones
 `src/lib/s3.ts` and `src/lib/mediaconvert.ts` already use — see `docs/infra/asset-storage-setup.md`
 STEP 4 and `docs/infra/portal-go-live-runbook.md` STEP 2 for how that user was created and what it
-already has). The scheduled poll (a later task) needs that user to ask MediaConvert about job
-status and to read the finished output object. Check what it already grants before adding
-anything, so this doesn't duplicate a permission that's already there:
+already has). That same user needs to do two distinct things this runbook has not yet granted:
+**submit** a job (`src/lib/mediaconvert.ts`'s `submitProxyJob`, called from the upload-complete
+path — already committed code, so this is not optional) and **poll** it (a later task: ask
+MediaConvert about job status, then read the finished output object). Check what it already grants
+before adding anything, so this doesn't duplicate a permission that's already there:
 
 - **`s3:GetObject`, bucket-wide, is already granted** (`portal-go-live-runbook.md` STEP 2). The
   poll's `HeadObject` on a screener output key needs exactly this — nothing to add.
-- **No MediaConvert permission of any kind is granted yet.** `mediaconvert:GetJob` (look up a
-  single job by id — what the poll actually calls) and `mediaconvert:ListJobs` (kept available in
-  case the poll ever needs to enumerate rather than look up by id) are both missing.
+- **No MediaConvert permission of any kind is granted yet, for submit or poll.** That includes
+  `mediaconvert:CreateJob` — the action `submitProxyJob` calls on every master upload. Without it,
+  every single upload's transcode submission fails with `AccessDenied` — silently, because
+  `src/app/api/assets/complete/route.ts` deliberately swallows a transcode failure so an upload
+  never breaks on account of it. One log line, no proxy, on every master ever uploaded, forever.
+- **`iam:PassRole` on `gc-mediaconvert-role` is also missing, and is easy to miss entirely.**
+  `CreateJob` takes a `Role` argument (`MEDIACONVERT_ROLE_ARN`, from STEP 1) and hands it to
+  MediaConvert on the caller's behalf — AWS requires the caller to hold `iam:PassRole` on that
+  exact role, separately from whatever `mediaconvert:CreateJob` itself allows. Granting
+  `CreateJob` without `PassRole` still fails every call: AWS refuses the pass, not the job.
+- `mediaconvert:GetJob` (look up a single job by id — what the poll actually calls) and
+  `mediaconvert:ListJobs` (kept available in case the poll ever needs to enumerate rather than
+  look up by id) are both missing too.
 
 ```bash
 cat > /tmp/gc-assets-mediaconvert.json <<JSON
 { "Version": "2012-10-17", "Statement": [
+  { "Effect": "Allow", "Action": ["mediaconvert:CreateJob","mediaconvert:ListJobs"],
+    "Resource": "*" },
   { "Effect": "Allow", "Action": "mediaconvert:GetJob",
     "Resource": "arn:aws:mediaconvert:$AWS_REGION:$ACCOUNT_ID:jobs/*" },
-  { "Effect": "Allow", "Action": "mediaconvert:ListJobs", "Resource": "*" }
+  { "Effect": "Allow", "Action": "iam:PassRole",
+    "Resource": "$MEDIACONVERT_ROLE_ARN",
+    "Condition": { "StringEquals": { "iam:PassedToService": "mediaconvert.amazonaws.com" } } }
 ] }
 JSON
 aws iam put-user-policy --user-name gc-assets-app \
   --policy-name gc-assets-mediaconvert --policy-document file:///tmp/gc-assets-mediaconvert.json
 ```
 
-`mediaconvert:ListJobs` does not support resource-level restriction — AWS requires `"Resource":
-"*"` for it. That is the one exception to "not bucket-wide" thinking in this runbook, not an
-oversight: `GetJob`, the action the poll actually uses per job, stays scoped to the account's job
-ARNs.
+Two things about that document that are easy to get wrong:
+
+- **`mediaconvert:CreateJob` (like `ListJobs`) does not support resource-level restriction** — AWS
+  requires `"Resource": "*"` for both, because a job has no ARN until after it's created. That's
+  the same exception STEP 4 already noted for `ListJobs`, not a new one. `GetJob`, the one action
+  here that AWS *does* let you scope, stays scoped to the account's job ARNs.
+- **`put-user-policy` replaces the named inline policy wholesale**, same hazard as the
+  `put-bucket-lifecycle-configuration` call that once dropped an unrelated rule (see this runbook's
+  intro). `gc-assets-mediaconvert` is its own policy name, separate from `gc-assets-s3` — restating
+  it here does not touch `gc-assets-s3` (STEP 2 of `portal-go-live-runbook.md`) — but if `GetJob`/
+  `ListJobs` were already granted under this same policy name from an earlier partial run, this
+  document restates them too rather than replacing them with only the two new statements. If you
+  are hand-editing this JSON later, keep all four actions (`CreateJob`, `ListJobs`, `GetJob`,
+  `PassRole`) in one document — a `put-user-policy` call with only the new ones silently deletes
+  the old ones.
+
+**Why the `iam:PassedToService` condition, given the `Resource` is already the one specific role
+ARN:** the resource scoping alone stops `gc-assets-app` from passing *some other* role, but says
+nothing about *which service* it can be passed to — a `PassRole` grant is normally read alongside
+whatever trust policy the target role has, and this defends the grant itself rather than leaning
+on that role's trust policy (STEP 1) never changing. `gc-mediaconvert-role` is single-purpose today,
+so the condition costs nothing and closes the gap if that trust policy is ever loosened later
+without this policy being revisited at the same time. Belt-and-suspenders, not decorative — the
+negative control below proves it's load-bearing rather than assumed.
 
 **Verify the grant actually resolves, not just that the policy parses** — the same
-`simulate-principal-policy` proof used in STEP 1, this time against `gc-assets-app`:
+`simulate-principal-policy` proof used in STEP 1, this time against `gc-assets-app`, covering all
+four actions plus two negative controls:
 
 ```bash
 export GC_ASSETS_APP_ARN=$(aws iam get-user --user-name gc-assets-app --query 'User.Arn' --output text)
+
+# CreateJob — the actual action submitProxyJob calls:
+aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
+  --action-names mediaconvert:CreateJob --resource-arns "*" \
+  --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
+
+# PassRole on the exact MediaConvert role, in the context CreateJob actually calls it in
+# (passed TO the mediaconvert service) — --context-entries supplies the condition key the
+# real CreateJob call would carry, so this evaluates the condition, not just the Resource match:
+aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
+  --action-names iam:PassRole --resource-arns "$MEDIACONVERT_ROLE_ARN" \
+  --context-entries ContextKeyName=iam:PassedToService,ContextKeyValues=mediaconvert.amazonaws.com,ContextKeyType=string \
+  --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
+
 aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
   --action-names mediaconvert:GetJob \
   --resource-arns "arn:aws:mediaconvert:$AWS_REGION:$ACCOUNT_ID:jobs/1234567890123-abcdef" \
@@ -224,12 +275,33 @@ aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
 aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
   --action-names mediaconvert:ListJobs --resource-arns "*" \
   --query 'EvaluationResults[0].EvalDecision'   # expect "allowed"
+
+# Negative control 1 — PassRole must be denied for a DIFFERENT role ARN, proving the Resource
+# really is the one specific role and not accidentally "*":
+aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
+  --action-names iam:PassRole --resource-arns "arn:aws:iam::$ACCOUNT_ID:role/some-unrelated-role" \
+  --context-entries ContextKeyName=iam:PassedToService,ContextKeyValues=mediaconvert.amazonaws.com,ContextKeyType=string \
+  --query 'EvaluationResults[0].EvalDecision'   # expect "implicitDeny"
+
+# Negative control 2 — the SAME correct role ARN must be denied if the context claims it's being
+# passed to a DIFFERENT service, proving the iam:PassedToService condition is actually evaluated
+# and not silently ignored:
+aws iam simulate-principal-policy --policy-source-arn "$GC_ASSETS_APP_ARN" \
+  --action-names iam:PassRole --resource-arns "$MEDIACONVERT_ROLE_ARN" \
+  --context-entries ContextKeyName=iam:PassedToService,ContextKeyValues=ec2.amazonaws.com,ContextKeyType=string \
+  --query 'EvaluationResults[0].EvalDecision'   # expect "implicitDeny"
 ```
 
-An `implicitDeny` here means the poll will run on schedule forever, call `GetJob`, get an
-`AccessDenied`, and silently never register a proxy — the stuck-jobs signal the poll itself
-produces (a later task) would eventually surface that, but catching it here is one command instead
-of a production incident.
+An `implicitDeny` on `CreateJob` or `PassRole` is the exact gap this STEP exists to close: every
+master upload would submit, `completeMultipart` and `create_asset` would both succeed, and
+`submitProxyJob`'s `AccessDenied` would land in `src/app/api/assets/complete/route.ts`'s
+catch block — logged, swallowed, and never surfaced to a client or GC user, because that
+swallow exists precisely so a transcode problem never breaks an upload. No screener would ever be
+produced, for any title, and nothing short of reading server logs would show it. An `implicitDeny`
+on `GetJob`/`ListJobs` means the poll (once built) will run on schedule forever, call `GetJob`, get
+an `AccessDenied`, and silently never register a proxy — the stuck-jobs signal the poll itself
+produces (a later task) would eventually surface that, but catching either failure here is one
+command instead of a production incident.
 
 ---
 

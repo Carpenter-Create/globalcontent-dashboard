@@ -69,8 +69,8 @@ export async function POST(req: Request) {
   // completed) must NEVER lose the client's upload. A missing proxy just degrades the buyer
   // page to exactly what it does today: no regression, only a missing improvement. Submit
   // BEFORE recording — if the submit throws there is no job to record; if the record throws,
-  // a job now exists in AWS with nothing tracking it here, which Task 6's reconcile pass is
-  // designed to find and pick back up.
+  // a job now exists in AWS with nothing tracking it here, which the scheduled poll (Task 5,
+  // src/app/api/cron/transcode-poll) is designed to find and pick back up.
   if (b.kind === "master" && assetId) {
     try {
       const { externalJobId, expectedKey } = await submitProxyJob({ masterKey: b.key });

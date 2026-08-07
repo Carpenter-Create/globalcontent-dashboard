@@ -4,7 +4,7 @@
 -- proxy (the object the buyer-facing screener page actually streams — masters archive to
 -- Glacier at 90 days per 111fbbe, and a buyer must never wait on a 5-12h restore mid-pitch).
 -- This migration is the job ledger and the two service-role functions that resolve a
--- completion or failure event from that pipeline. Submission (T4) and the callback route
+-- completion or failure outcome from that pipeline. Submission (T4) and the scheduled poll
 -- (T5) are later slices; this is the record they write to and read from.
 --
 -- THE OUTPUT KEY IS AUTHORITY, NOT A HINT — FOR THE COMPLETION EVENT. expected_output_key
@@ -23,9 +23,10 @@
 -- FIX ROUND 1 (this section added; the checks below were not in the first draft) —
 --
 --   CRITICAL: the comparison MUST use `is distinct from`, not `<>`. `btrim(NULL) <> 'key'`
---   is SQL NULL, and `if NULL then` does not branch — a malformed EventBridge payload with
---   a missing field (no attacker required) walked straight past the only defence this
---   migration has, registered a screener asset for an object never verified to exist,
+--   is SQL NULL, and `if NULL then` does not branch — a malformed completion payload (a poll
+--   bug, or a MediaConvert response missing an expected field, no attacker required) walked
+--   straight past the only defence this migration has, registered a screener asset for an
+--   object never verified to exist,
 --   flipped screener_source, marked the job 'complete' (permanently — assets are immutable
 --   and fail_transcode_job refuses a 'complete' job), and left no recovery path through any
 --   RPC. Fixed below with `coalesce(btrim(p_storage_key), '') is distinct from
@@ -50,18 +51,19 @@
 --       p_source_asset_id simply matches no row and correctly raises.
 --   Nothing else in either new function compares a nullable input with `=`/`<>`/`not in`.
 --
---   IMPORTANT: register_transcode_output's SELECT took no row lock. EventBridge is
---   at-least-once delivery — exactly the case the idempotency comment above claims to
---   handle — so two concurrent deliveries for the same job could both read 'submitted',
---   both pass the key check, and both INSERT: two immutable, undeletable screener assets
---   sharing a key, one orphaned forever. Fixed with `for update` on that select: the second
---   caller blocks until the first commits, then re-reads the now-'complete' row and takes
---   the idempotent early-return branch instead of racing it.
+--   IMPORTANT: register_transcode_output's SELECT took no row lock. The scheduled poll's
+--   invocations can overlap — a slow run still processing a job when the next scheduled tick
+--   starts its own pass over the same in-flight jobs — exactly the case the idempotency
+--   comment above claims to handle — so two concurrent calls for the same job could both
+--   read 'submitted', both pass the key check, and both INSERT: two immutable, undeletable
+--   screener assets sharing a key, one orphaned forever. Fixed with `for update` on that
+--   select: the second caller blocks until the first commits, then re-reads the
+--   now-'complete' row and takes the idempotent early-return branch instead of racing it.
 --
 --   IMPORTANT: `grant ... insert, update ... to service_role` was removed. Both RPCs are
 --   SECURITY DEFINER and run as their owner regardless of the caller's own table grants, so
 --   service_role never needed table-level write access for either to work. Leaving the
---   grant in place would let the callback route — or a compromised service key — set
+--   grant in place would let the poll route — or a compromised service key — set
 --   `status='complete', output_asset_id=<anything>` directly, skipping register_
 --   transcode_output's key check entirely. service_role now gets SELECT only. Add a write
 --   grant only when a task that needs direct writes exists and can be reviewed on its own
@@ -293,8 +295,10 @@
 --   <title>/`, so the output must land under the kind this table's whole purpose is to
 --   produce, not merely somewhere under the right title.
 --
--- IDEMPOTENCY. EventBridge (and SNS before it) is at-least-once delivery; a completion for
--- the same job can arrive twice. register_transcode_output checks `status = 'complete'`
+-- IDEMPOTENCY. The scheduled poll can have overlapping runs — a slow run still processing a
+-- job when the next scheduled tick starts its own pass over the same in-flight jobs — so a
+-- completion for the same job can be processed twice. register_transcode_output checks `status
+-- = 'complete'`
 -- BEFORE the key comparison (now under a row lock — see FIX ROUND 1) and returns the
 -- already-registered output_asset_id verbatim — no second asset row, no second title/audit
 -- write. A duplicate delivery's own storage_key/bytes/content_hash are never re-validated
@@ -533,15 +537,18 @@ create or replace function public.register_transcode_output(
 ) returns uuid language plpgsql security definer set search_path = public as $$
 declare v_job public.transcode_jobs; v_asset_id uuid; v_source public.screener_source;
 begin
-  -- FOR UPDATE (fix round 1): EventBridge is at-least-once delivery. Without a row lock,
-  -- two concurrent deliveries for the same job both read 'submitted', both pass the key
-  -- check, and both insert — two immutable, undeletable screener assets sharing a key, one
-  -- orphaned forever. The lock serializes them: the second caller blocks until the first
-  -- commits, then re-reads the now-'complete' row and takes the idempotent early return.
+  -- FOR UPDATE (fix round 1): the scheduled poll's invocations can overlap — a slow run still
+  -- processing this job when the next scheduled tick starts its own pass over the same
+  -- in-flight jobs. Without a row lock, two concurrent calls for the same job both read
+  -- 'submitted', both pass the key check, and both insert — two immutable, undeletable
+  -- screener assets sharing a key, one orphaned forever. The lock serializes them: the second
+  -- caller blocks until the first commits, then re-reads the now-'complete' row and takes the
+  -- idempotent early return.
   select * into v_job from public.transcode_jobs where id = p_job_id for update;
   if not found then raise exception 'Job not found'; end if;
 
-  -- Idempotent: a duplicate EventBridge delivery must not register a second asset.
+  -- Idempotent: a second call for the same job (an overlapping poll run) must not register a
+  -- second asset.
   if v_job.status = 'complete' then return v_job.output_asset_id; end if;
 
   -- Fix round 2: the only other terminal states are 'failed' and 'submit_failed' -- a job
