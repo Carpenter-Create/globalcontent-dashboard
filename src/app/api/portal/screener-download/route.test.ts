@@ -63,6 +63,7 @@ describe("POST /api/portal/screener-download", () => {
     fakeAdmin({
       tables: {
         titles: () => ({ data: { status: "in_delivery", screener_source: "master" }, error: null }),
+        portal_links: () => ({ data: { recipient_name: "Tubi" }, error: null }),
       },
     });
 
@@ -80,6 +81,7 @@ describe("POST /api/portal/screener-download", () => {
     fakeAdmin({
       tables: {
         titles: () => ({ data: { status: "in_review", screener_source: "dedicated" }, error: null }),
+        portal_links: () => ({ data: { recipient_name: "Tubi" }, error: null }),
       },
     });
 
@@ -94,6 +96,7 @@ describe("POST /api/portal/screener-download", () => {
     fakeAdmin({
       tables: {
         titles: () => ({ data: { status: "in_delivery", screener_source: "dedicated" }, error: null }),
+        portal_links: () => ({ data: { recipient_name: "Tubi" }, error: null }),
         portal_access_events: () => ({ data: null, error: null }),
       },
     });

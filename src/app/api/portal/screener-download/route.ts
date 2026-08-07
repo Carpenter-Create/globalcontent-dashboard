@@ -36,18 +36,23 @@ export async function POST(req: Request) {
   // A successful resolve already proves a screener-kind asset exists (the RPC raises
   // otherwise), so hasScreenerAsset is true by construction here. `licensed` doesn't feed
   // canDownloadScreener; it's passed as a safe default rather than left undefined.
-  const { data: titleRow } = await admin
-    .from("titles")
-    .select("status, screener_source")
-    .eq("id", row.title_id)
-    .maybeSingle();
+  //
+  // recipient_name is read from the link the RPC already resolved (row.link_id) rather than
+  // left at the permissive `false`/GC's-own default — canDownloadScreener doesn't read
+  // hasRecipientName today, but a stale placeholder here would fail open the moment it does.
+  // Fail closed on an unreadable row, same reasoning as /api/portal/screener's gate: an
+  // unreadable link is treated as a buyer link (the more restrictive value), not as GC's own.
+  const [{ data: titleRow }, { data: linkRow, error: linkError }] = await Promise.all([
+    admin.from("titles").select("status, screener_source").eq("id", row.title_id).maybeSingle(),
+    admin.from("portal_links").select("recipient_name").eq("id", row.link_id).maybeSingle(),
+  ]);
   const actions = buyerActionsFor({
     titleStatus: titleRow?.status ?? null,
     hasScreenerAsset: true,
     licensed: false,
     screenerIsDedicated: titleRow?.screener_source === "dedicated",
     hasMasterAsset: false, // irrelevant to canDownloadScreener — see buyer-page.ts
-    hasRecipientName: false, // irrelevant to canDownloadScreener — see buyer-page.ts
+    hasRecipientName: linkError ? true : Boolean(linkRow?.recipient_name),
   });
   if (!actions.canDownloadScreener) {
     // Distinct from "Not authorized", and honest about WHY: on the (current, default)

@@ -97,6 +97,12 @@ export const PORTAL_COPY = {
   // item 3) — "show the work": silence where a download button would otherwise be reads as a
   // bug, not a deliberate state.
   screenerDownloadUnavailableNotice: "A downloadable screener isn't available for this title.",
+  // Shown in place of the ENTIRE viewing surface (no Watch button at all) — covers both "no
+  // screener asset uploaded yet" and, as of the buyer-link watch gate, "this title's screener
+  // is master-sourced, which today's default makes every title" (buyer-page.ts's
+  // `canWatchScreener`). Deliberately does not say "contact your representative": there is no
+  // fault here, and it isn't the buyer's to chase — it's GC's own pending workflow step.
+  screenerNotProvidedNotice: "A viewable screener hasn't been provided for this title yet.",
   // Buyer-link stream refusal (see /api/portal/screener/route.ts): a named-recipient link on a
   // master-sourced title is refused the stream outright, not just the download — the page
   // must say why rather than leave a dead player, same "show the work" reasoning as the

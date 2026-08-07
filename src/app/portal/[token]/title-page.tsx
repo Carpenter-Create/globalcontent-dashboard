@@ -233,8 +233,20 @@ export function TitlePage({ ready, company }: { ready: ScreenerReady; company: s
           )}
         </div>
 
-        {/* "Show the work" (fix round 2, item 3): a title that can be watched but has nothing
-            to download is a real, intentional state — the button just silently not being
+        {/* Final blockers, item 2: an unwatchable title (no screener uploaded yet, or — on a
+            named buyer link — a master-sourced screener the watch gate refuses) used to render
+            NOTHING here: no button, no explanation, just a poster and a metadata download.
+            `screenerIsDedicated`'s `screener_source = 'master'` default makes this the common
+            case for every buyer link today, not an edge case, so the empty column was the
+            shipping default, not a rare miss. Condition on `!canWatchScreener` — the viewing
+            surface itself, not the narrower "can watch but not download" case below — so the
+            notice covers every reason the surface can be empty. */}
+        {!ready.actions.canWatchScreener && (
+          <p className="t-body-sm text-ink-3">{PORTAL_COPY.screenerNotProvidedNotice}</p>
+        )}
+
+        {/* "Show the work" (fix round 2, item 3): a title that CAN be watched but has nothing
+            to download is a narrower, distinct state — the button just silently not being
             there reads as a bug to an external buyer, not a deliberate choice. */}
         {ready.actions.canWatchScreener && !ready.actions.canDownloadScreener && (
           <p className="t-body-sm text-ink-3">{PORTAL_COPY.screenerDownloadUnavailableNotice}</p>

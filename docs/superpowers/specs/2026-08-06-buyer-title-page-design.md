@@ -54,25 +54,40 @@ This replaces the small player card a `screener_view` portal link opens today.
 | Master download gate | An active rights grant and delivery **for this recipient**, checked in the database. |
 | Metadata fields | Keep both `title` and `alternate_title`. |
 
-### Amendment, post-ship (2026-08-06) — the screener download additionally requires a dedicated screener asset
+### Amendment, post-ship (2026-08-06) — the screener download, and on a buyer link the watch itself, additionally require a dedicated screener asset
 
-**As shipped, this is stricter than the table above originally stated.** §9's dependency #3
-("screener proxy — not a hard blocker") was wrong: it is a hard blocker for the *download*
-button, and `screener_source` defaults to `'master'` on every title today, so **no title has a
-downloadable screener until GC uploads a dedicated one and flips the setting.**
+**As shipped, this is stricter than the table above originally stated, in two stages.** §9's
+dependency #3 ("screener proxy — not a hard blocker") was wrong: it is a hard blocker for the
+*download* button, and `screener_source` defaults to `'master'` on every title today, so **no
+title has a downloadable screener until GC uploads a dedicated one and flips the setting.**
 
 Why: on the `'master'` default, "the screener" is the master file itself, byte-for-byte
 (`src/lib/assets.ts`, `screenerKindFor`'s own comment). A one-click **download** hands over a
 durable, unwatermarked bearer file to whoever holds the buyer link — bypassing the licence gate
-the master route exists to enforce — where a **watch** only ever streams it. So the rule that
-shipped is:
+the master route exists to enforce.
 
-- **Watch** — gated on approval only, exactly as this table originally said. Fine even on a
-  master-sourced screener; it's a re-validated stream, not a durable file.
-- **Download** — gated on approval **AND** `screener_source = 'dedicated'`
+The first cut of this fix (above) reasoned that a **watch** only ever streams it, so gating
+watch the same way wasn't necessary. That reasoning held for GC's own operational links but not
+for a buyer link: `20260806000200` opened link-minting to every client account_owner/
+delivery_ops, so a browser `<video>` stream and a one-click download of the same master-sourced
+bytes now differ only in how many clicks it takes an external recipient to walk off with an
+unwatermarked deliverable — a `<video src>` is a directly-copyable signed URL, not a
+copy-protected format. Commit `5892805` closed that gap. **The rule that shipped is:**
+
+- **Watch, on a buyer link** (`portal_links.recipient_name` non-null — the discriminator
+  between a client-minted link and GC's own) — gated on approval **AND**
+  `screener_source = 'dedicated'`, same as download
+  (`src/lib/buyer-page.ts`, `buyerActionsFor.canWatchScreener`; enforced again, independently,
+  in `/api/portal/screener/route.ts` since the page's gate only decides what renders, not what
+  the stream route will serve).
+- **Watch, on GC's own unnamed operational link** — gated on approval only, unchanged. This
+  risk predates this branch — GC's own reviewers and vendor screeners have always had this
+  access — and is GC's own workflow to carry; breaking it as collateral damage of the buyer-link
+  fix would not be a fix, it would be scope creep with a different name.
+- **Download, on any link** — gated on approval **AND** `screener_source = 'dedicated'`
   (`src/lib/buyer-page.ts`, `buyerActionsFor.canDownloadScreener`). Absent that, the button does
-  not render; the page shows a notice that a downloadable screener isn't available for the
-  title rather than a dead or 403'ing button.
+  not render; the page shows a notice that a viewable screener isn't available for the title
+  rather than a dead or 403'ing button.
 
 This makes §9's "not a hard blocker" wrong as written; it has been promoted to a prerequisite
 below rather than left standing as a doc that disagrees with the code.
@@ -250,7 +265,7 @@ anonymous visitor, which lowers the risk but does not remove the requirement.
 | No trailer | Viewing side shows the screener only. |
 | Missing metadata fields | Omitted, not blanked. |
 | Title not yet approved | Everything works except watching and the screener download. |
-| **Title approved, `screener_source = 'master'` (today's default on every title)** | **Watch works (streams the master); the screener DOWNLOAD button does not render — a dedicated screener asset is a separate, additional prerequisite. See the §2 amendment.** |
+| **Title approved, `screener_source = 'master'` (today's default on every title)** | **On a buyer link (named recipient): neither watch nor download is offered — the page shows a notice that a viewable screener hasn't been provided yet, in place of the whole viewing surface. On GC's own unnamed operational link: watch still works (streams the master); the screener DOWNLOAD button still does not render. A dedicated screener asset is the prerequisite for both, on a buyer link. See the §2 amendment.** |
 | Recipient has no licence | Master absent. This is the normal pitch state, not an error. |
 | Recipient not a known vendor | Screener and metadata work; master never appears. |
 | Missing poster or banner | Layout falls back rather than breaking. |
@@ -304,16 +319,22 @@ untrusted input reaching a response header.
 
 1. **`{ kind: "title" }` export source** — prerequisite. Shared file, own tests.
 2. **Recipient on `portal_links`** plus the narrowed revoke scope (§7).
-3. **Screener proxy (option B)** — **prerequisite for the screener DOWNLOAD, not merely
-   desirable.** Originally written as "not a hard blocker"; that was wrong as shipped. On the
-   `'master'` default, a downloadable screener would hand over the unwatermarked master
-   byte-for-byte (see the §2 amendment) — `buyerActionsFor.canDownloadScreener` therefore
-   refuses until `screener_source = 'dedicated'` and a real screener asset exists. **Watching**
-   still works without it (streams the master; no different from any other pitch view). Until
-   the proxy exists for a given title, the buyer's screener is the master when watched, may
-   archive at 90 days, and may be a browser-unplayable mezzanine format — the page is correct
-   without it, but the download feature does not exist for that title. Approved separately on
-   2026-08-06; requires a scoped amendment to `docs/domain-spec.md` §12.
+3. **Screener proxy (option B)** — **prerequisite for the screener DOWNLOAD always, and for the
+   WATCH itself on a buyer link.** Originally written as "not a hard blocker"; that was wrong as
+   shipped, and wrong twice over. On the `'master'` default, a downloadable screener would hand
+   over the unwatermarked master byte-for-byte (see the §2 amendment) —
+   `buyerActionsFor.canDownloadScreener` therefore refuses until `screener_source = 'dedicated'`
+   and a real screener asset exists. Watching was originally left open regardless (streams the
+   master; no different from any other pitch view) — but for a **buyer** link specifically, a
+   stream and a download of the same master-sourced bytes are the same exposure with different
+   click counts, so `5892805` closed that too: `canWatchScreener` now refuses a buyer link the
+   same way `canDownloadScreener` does. GC's own unnamed operational links are unaffected —
+   that exposure predates this branch. Practically, this makes the screener proxy a
+   prerequisite for the buyer page being useful **at all**, not merely for the download: until
+   a title has a dedicated screener asset, a buyer link to it renders a poster, a synopsis, and
+   a metadata download with no way to watch anything — the pitch itself doesn't work yet, only
+   GC's own internal review of the same title does. Approved separately on 2026-08-06; requires
+   a scoped amendment to `docs/domain-spec.md` §12.
 4. **This page.**
 
 ## 10. Open items

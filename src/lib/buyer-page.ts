@@ -79,11 +79,17 @@ export function buyerActionsFor(state: BuyerPageState): BuyerActions {
     canDownloadScreener: state.hasScreenerAsset && approved && !withdrawn && state.screenerIsDedicated,
     // Deliberately NOT gated on `withdrawn`: an already-licensed, already-delivered master is
     // existing state, not a future action — rule 11's own exception ("never retroactively
-    // destroy existing state"). It is gated entirely by the delivery's own status, which
-    // already excludes 'taken_down' (master-licence.ts's ACTIVE_DELIVERY_STATUSES). Never
-    // inferred from the title alone: licensed means an active grant AND delivery for THIS
-    // recipient, resolved server-side. hasMasterAsset is the second, independent precondition
-    // the route itself enforces (there must be something to actually serve).
+    // destroy existing state"). `deliveries.status` and `titles.status` are INDEPENDENT
+    // columns — nothing cascades between them, so a `taken_down` title can still have a
+    // `live` delivery, and `licensed` would still be true for it. The protection here is not
+    // "the title's status already excludes this" (it doesn't); it's that GC must actively end
+    // the grant or delivery (master-licence.ts's ACTIVE_DELIVERY_STATUSES) to close this off —
+    // the same "enforce at the point of action, on the record that action actually reads"
+    // reasoning as the rest of rule 11, just resting on the delivery's status rather than the
+    // title's. Never inferred from the title alone: licensed means an active grant AND
+    // delivery for THIS recipient, resolved server-side. hasMasterAsset is the second,
+    // independent precondition the route itself enforces (there must be something to actually
+    // serve).
     canDownloadMaster: state.licensed && state.hasMasterAsset,
     canDownloadMetadata: true,
   };

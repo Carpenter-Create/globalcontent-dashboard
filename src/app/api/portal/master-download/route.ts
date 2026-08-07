@@ -98,7 +98,11 @@ export async function POST(req: Request) {
     licensed,
     screenerIsDedicated: false, // irrelevant to canDownloadMaster — see buyer-page.ts
     hasMasterAsset: Boolean(masterAsset),
-    hasRecipientName: false, // irrelevant to canDownloadMaster — see buyer-page.ts
+    // Irrelevant to canDownloadMaster today, but wired to the real value (not the permissive
+    // `false` default) rather than assumed safe — resolveBuyerLink already resolved it, so
+    // there's no excuse for a stale placeholder that would fail open the day some other
+    // predicate here starts reading it.
+    hasRecipientName: Boolean(link.recipientName),
   });
   if (!actions.canDownloadMaster) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });

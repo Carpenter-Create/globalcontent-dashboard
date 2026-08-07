@@ -11,7 +11,13 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data, error } = await admin.rpc("portal_resolve_screener", { p_session_token_hash: hashToken(raw) });
   const row = Array.isArray(data) ? data[0] : data;
-  if (error || !row) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  // The RPC raises when the SESSION itself (not the buyer-link gate below) is gone — expired,
+  // revoked, or the link it points at is expired/revoked. Distinct copy from the buyer-link
+  // gate's 403 below: ScreenerRoom reads this route's error body to tell "your access lapsed
+  // mid-visit" (this branch) apart from "no viewable screener has been provided" (the gate) —
+  // conflating them told a buyer whose session simply expired that the screener itself "isn't
+  // available yet," which is false and not what happened.
+  if (error || !row) return NextResponse.json({ error: PORTAL_COPY.errorExpired }, { status: 403 });
 
   // Buyer-link gate — THE authorization for this route (buyer-page.ts's canWatchScreener
   // mirrors it so the UI doesn't offer the refused action, but that copy is not this check;
@@ -28,12 +34,21 @@ export async function POST(req: Request) {
   // risk predates this branch and is GC's own workflow to carry, not something to break today
   // as collateral damage. Re-read fresh from the DB, never inferred from the page that
   // rendered the Watch button — CLAUDE.md rule 10, never trust the client for this.
-  const [{ data: linkRow }, { data: titleRow }] = await Promise.all([
+  const [
+    { data: linkRow, error: linkError },
+    { data: titleRow, error: titleError },
+  ] = await Promise.all([
     admin.from("portal_links").select("recipient_name").eq("id", row.link_id).maybeSingle(),
     admin.from("titles").select("screener_source").eq("id", row.title_id).maybeSingle(),
   ]);
-  const isBuyerLink = Boolean(linkRow?.recipient_name);
-  const screenerIsDedicated = titleRow?.screener_source === "dedicated";
+  // Fail closed on an unreadable row — a transient read error must never widen the gate.
+  // The unknown case is the closed case for EACH flag independently: an unreadable link is
+  // treated as a buyer link (not GC's own), and an unreadable title is treated as NOT a
+  // dedicated screener. Both defaults only ever tighten the check below, never bypass it —
+  // the opposite of the bug this replaces, where `linkRow` being null on a failed read made
+  // `isBuyerLink` false and skipped the gate outright, streaming a buyer link's master.
+  const isBuyerLink = linkError ? true : Boolean(linkRow?.recipient_name);
+  const screenerIsDedicated = titleError ? false : titleRow?.screener_source === "dedicated";
   if (isBuyerLink && !screenerIsDedicated) {
     return NextResponse.json({ error: PORTAL_COPY.screenerStreamUnavailableNotice }, { status: 403 });
   }

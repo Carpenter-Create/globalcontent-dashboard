@@ -21,17 +21,24 @@
  * match — or fail to match — the wrong rows. Escaping makes ILIKE treat the value as a
  * literal (still case-insensitive) string.
  *
- * `*` needs the same treatment for a different reason: PostgREST itself (not Postgres) maps
- * an unescaped `*` to `%` in a `like`/`ilike` filter value before it ever reaches the
- * database — a documented convenience so a URL doesn't have to percent-encode `%25`. A buyer
- * named "A*B" would otherwise act as "A" + any run of characters + "B" in the collision check
- * this escapes for (createBuyerScreenerLink's `.ilike()` call). `\*` is how PostgREST spells a
- * literal asterisk, so the escape output must produce that, not a bare `*`.
+ * `*` is deliberately NOT escaped here, even though PostgREST maps an unescaped `*` to `%` in
+ * a `like`/`ilike` filter value before it reaches Postgres (a documented convenience so a URL
+ * doesn't have to percent-encode `%25`). This function runs BEFORE that substitution — it
+ * cannot see or influence what PostgREST does afterward, only what Postgres does once the
+ * value arrives. Escaping `*` to `\*` here does not produce a literal asterisk at the
+ * database: PostgREST's substitution is a plain character replacement with no escape
+ * awareness, so `\*` becomes `\%` on the wire — a literal PERCENT SIGN, not a literal
+ * asterisk. Concretely: a buyer named "A*B Studios" with a live link — escaping `*` turns the
+ * collision pattern into one that matches nothing, so `create_screener_link` finds no
+ * collision, skips the warning, and silently revokes the URL already emailed to that buyer.
+ * Leaving `*` unescaped instead over-matches (the pattern stays a wildcard) and produces a
+ * harmless spurious warning — worse UX, never a silent loss. Under-matching silently kills a
+ * live link; over-matching only annoys. That asymmetry is why the safe direction is to leave
+ * `*` alone, not to "complete" the escaping.
  */
 export function escapeIlikePattern(value: string): string {
   return value
     .replace(/\\/g, "\\\\")
     .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_")
-    .replace(/\*/g, "\\*");
+    .replace(/_/g, "\\_");
 }
