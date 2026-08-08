@@ -44,13 +44,15 @@ it accordingly.
 
 ## Git state
 
-All merged. PR #87 (buyer title page, complete) and PR #89 (screener proxy, 5 of 8 tasks) are both
-on `main`; both branches are deleted. #88 was auto-closed when its base branch was removed by the
-#87 merge and is superseded by #89 — ignore it.
+All merged. PR #87 (buyer title page, complete), PR #89 (screener proxy through Task 5), and
+PR #93 (Task 6A — read-only GC proxy-job panel) are on `main`. #88 was auto-closed when its base
+branch was removed by the #87 merge and is superseded by #89 — ignore it.
 
-Verified on `main`: typecheck clean, **286 Vitest tests**, **504 pgTAP assertions**, build compiles,
-`pnpm exec eslint src` reports 0 errors and exactly 5 pre-existing warnings. All migrations applied
-to the **local** database — the production database is a separate matter, below.
+Verified on `main` after PR #93 (`0c778eb`, reviewed implementation `0f4ed63`): typecheck clean,
+**318 Vitest tests**, **504 pgTAP assertions**, build compiles, `pnpm exec eslint src` reports 0
+errors and exactly 5 pre-existing warnings. Required CI `isolation` passed; Vercel passed; `checks`
+stayed red only on the documented pre-existing `pnpm audit` advisories (`js-yaml` / `nanoid`). All
+migrations applied to the **local** database — the production database is a separate matter, below.
 
 **CI on `main` is partly red, in two independent places, and neither is a regression you
 introduced.**
@@ -89,25 +91,23 @@ decision, not an implementation detail.
 | 3 | Deterministic output-key derivation — `src/lib/mediaconvert-settings.ts` |
 | 4 | Job submission on master upload — `src/lib/mediaconvert.ts`, hooked in `src/app/api/assets/complete/route.ts` |
 | 5 | Scheduled poll — `src/app/api/cron/transcode-poll/route.ts`, `vercel.json` |
+| 6A | Read-only GC “Proxy jobs” panel — PR #93 (`0f4ed63`). Bounded title-scoped `transcode_jobs` read inside the page `Promise.all`; status, created time, failure reason, output screener; stuck when active and strictly older than 60 minutes. No heartbeat; no retry. |
 
 ### Remaining
 
 | Task | Deliverable |
 |---|---|
-| 6A | GC panel showing job status — read-only |
 | 6B | Retry action on that panel — mutation |
 | 7 | Narrow amendment to `docs/domain-spec.md` §12, which currently states GC never transcodes |
 | 8 | Backfill runbook for ~700 existing masters — founder-executed, spends real money |
 
-**6A/6B is an execution split, not a scope change.** The plan's Task 6 already has exactly this
-seam — Step 1 is the panel, Step 2 is the retry action — and 6A/6B just makes each a separately
-reviewable commit. Nothing is added, removed or deferred: 6B is the second half of the same task,
-not a later slice. The reason to split is that the two halves fail differently. 6A is a bounded
-read with a derived display value; 6B submits to AWS, writes a new job row, and has to get retry
-eligibility and role gating right — including the fact that the partial unique index
-`transcode_jobs_active_key_uidx` makes retrying an already-`complete` job a unique-constraint
-violation rather than a no-op. Reviewing that alongside table markup is how the interesting half
-gets skimmed.
+**Next slice is Task 6B.** 6A/6B was an execution split of the plan’s existing Step 1 / Step 2
+boundary, not a scope change. 6A is done; 6B is the second half of Task 6 and Task 6 is not done
+until it ships. 6B is a separate mutation slice: no new schema expected unless implementation
+evidence proves otherwise; preserve existing authorization/RPC boundaries; get retry eligibility
+right against the partial unique index `transcode_jobs_active_key_uidx` (retrying an already-
+`complete` job is a unique-constraint violation, not a no-op — **do not retry completed jobs**);
+AWS submit and job-recording failure paths must be explicit and tested.
 
 ### Review status of `432ecbb` — code review satisfied, production validation **not**
 
@@ -329,10 +329,10 @@ master through the real pipeline as the gate before trusting any of it — not a
 ## Start here
 
 1. Read `docs/superpowers/ledgers/2026-08-06-screener-proxy.md` end to end.
-2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline.
-3. Read commit `432ecbb` for context — its review obligation is discharged (see above), so this is
-   orientation, not a gate.
-4. Then Task 6A.
+2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline
+   (318 Vitest tests after Task 6A).
+3. Read the shipped Task 6A surface — `src/lib/transcode-jobs.ts` and
+   `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx` — then Task 6B.
 
 Ask the founder before: any schema change, anything touching money or rights, any user-facing copy,
 and any decision the spec does not already settle. Record decisions in the spec in the same change
