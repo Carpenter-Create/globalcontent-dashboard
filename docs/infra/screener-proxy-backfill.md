@@ -64,10 +64,30 @@ All of the following must be true before pilot or any further batch:
 | `20260806000100` … `20260806000500` | Buyer / screener-link surface |
 | **`20260807000100_transcode_jobs.sql`** | **Hard requirement** — `transcode_jobs`, RLS, `create_transcode_job`, `register_transcode_output`, `fail_transcode_job`, `transcode_jobs_active_key_uidx` |
 | `20260807000200_attach_link_vendor_default_null.sql` | Link RPC shape (documented gap; not MediaConvert-critical) |
+| **`20260808000100_hide_gc_unnamed_screener_links.sql`** | **Required** — Option D layer B; do not ship `003` transparency without this |
+| **`20260808000200_portal_resolve_screener_asset_kind.sql`** | **Required** — returns `asset_kind` so portal routes authorize the resolved asset (TOCTOU close) |
 
-**Founder checkpoint M1 (non-mutating verification only):**
+**M1 is BLOCKED** until Option D + TOCTOU remediation is merged to `main`. Do not apply the
+buyer/transcode package to production while the unnamed-link bypass or stream TOCTOU would land.
+Future apply package = original seven + `080001` + `080002` (**nine** migrations).
 
-1. Show exact SQL; get destructive-ops approval; founder applies to production.
+**REQUIRED production ordering (STOP condition):**
+
+1. Merge Option D + TOCTOU app + `080001` + `080002` to `main`.
+2. Deploy the **NEW** application code first.
+3. Verify the deployed portal gate is fail-closed (no `asset_kind` → refuse; no master stream).
+4. Fresh production drift/preflight.
+5. Founder applies all **nine** migrations in timestamp order in one controlled package.
+6. Non-mutating schema/RLS/function/type verification.
+7. Only then D1/A1 — not C2.
+
+**Do not begin the nine-migration production apply while the old application build is serving
+traffic.** Applying `20260806000300` under the old app can expose GC unnamed tokens while the
+old unnamed master-stream exemption still exists.
+
+**Founder checkpoint M1 (non-mutating verification only — after the ordering above):**
+
+1. Show exact SQL; get destructive-ops approval; founder applies to production (step 5 only after steps 1–4).
 2. Confirm `migration-drift` (or equivalent) is **green** / migration presence is confirmed for the required set above.
 3. Confirm `transcode_jobs` schema expectations without writing rows: table / RLS / RPC **definitions** present via metadata or migration verification; application-generated types / schema expectations match (`src/lib/supabase/database.types.ts` vs applied migrations).
 4. Optional: an authenticated **read** path that proves operator visibility of `transcode_jobs` where repository rules already allow a non-mutating check (empty result set is fine).

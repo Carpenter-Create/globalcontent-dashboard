@@ -79,6 +79,8 @@ Task 5b: FOUNDER DECISION NEEDED — revoke_portal_link has no status gate while
   create does. A client account_owner can revoke GC's chain-of-title REVIEW
   screener while the title is in_review, via the RPC (not reachable in the UI).
   Self-defeating rather than a leak — GC can re-mint — so left ungated for now.
+  STILL OPEN as of 2026-08-08 — deliberately NOT included in Option D unnamed-link
+  remediation (stream gate + narrow RLS). Separate founder call.
 Task 5b: fix round 1/5 (4 addressed, 0 open; commits 5e14e2a..b1893fa) plan(57)
 Task 5b: complete (commits a4f0a58..b1893fa, review clean)
 APPLIED and merged 2026-08-07. (Was recorded here as pending; corrected at handoff.)

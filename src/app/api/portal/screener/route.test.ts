@@ -1,12 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Final blockers, item 1 (CRITICAL) + item 5: this is the enforcement point for the branch's
-// headline fix — a buyer link (named recipient) must never stream a master-sourced "screener",
-// since on the 'master' default that IS the master byte-for-byte (screenerKindFor's comment,
-// lib/assets.ts), and a <video> stream is a directly-copyable signed URL, not a copy-protected
-// format. This route had no test at all before this file; it is the ONLY portal route that
-// didn't. Also pins the fail-closed fix: an unreadable portal_links row must refuse, not skip
-// the gate — the original bug streamed the master when that read failed.
+// Option D + TOCTOU close: portal stream authorizes on resolved asset_kind from
+// portal_resolve_screener — never on a separately timed titles.screener_source read.
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/s3", () => ({ resolveOrRestore: vi.fn() }));
@@ -18,14 +13,14 @@ import { resolveOrRestore } from "@/lib/s3";
 import { assetViewUrl } from "@/lib/asset-url";
 import { PORTAL, PORTAL_COPY } from "@/lib/portal";
 import { POST } from "./route";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const RAW_TOKEN = "raw-session-token";
-const RESOLVED_ROW = {
-  storage_key: "orgs/o1/titles/t1/master/x/file.mov",
-  link_id: "link-1",
-  session_id: "session-1",
-  title_id: "title-1",
-};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 function mockCookie() {
   vi.mocked(cookies).mockResolvedValue({
@@ -33,105 +28,108 @@ function mockCookie() {
   } as unknown as Awaited<ReturnType<typeof cookies>>);
 }
 
-type Handler = (filters: Record<string, unknown>) => { data: unknown; error: { message: string } | null };
-
-function fakeTable(handler: Handler) {
-  const filters: Record<string, unknown> = {};
-  const builder: Record<string, unknown> = {};
-  for (const m of ["select", "order", "limit"]) builder[m] = vi.fn(() => builder);
-  builder.eq = vi.fn((col: string, val: unknown) => {
-    filters[col] = val;
-    return builder;
-  });
-  builder.maybeSingle = vi.fn(async () => handler(filters));
-  builder.insert = vi.fn(async () => handler(filters));
-  return builder;
-}
-
-function fakeAdmin(opts: {
-  rpcResult?: { data: unknown; error: { message: string } | null };
-  tables: Record<string, Handler>;
-}) {
-  const rpc = vi.fn(async () => opts.rpcResult ?? { data: [RESOLVED_ROW], error: null });
+function fakeAdmin(rpcRow: unknown) {
+  const rpc = vi.fn(async () => ({ data: [rpcRow], error: null }));
   const from = vi.fn((table: string) => {
-    const handler = opts.tables[table];
-    if (!handler) throw new Error(`fakeAdmin: unexpected table "${table}" queried`);
-    return fakeTable(handler);
+    throw new Error(`fakeAdmin: unexpected table "${table}" — route must not re-read title/source for the gate`);
   });
   vi.mocked(createAdminClient).mockReturnValue({ from, rpc } as unknown as ReturnType<typeof createAdminClient>);
   return { from, rpc };
 }
 
+const MASTER_ROW = {
+  storage_key: "orgs/o1/titles/t1/master/x/file.mov",
+  link_id: "link-1",
+  session_id: "session-1",
+  title_id: "title-1",
+  asset_kind: "master",
+};
+
+const SCREENER_ROW = {
+  storage_key: "orgs/o1/titles/t1/screener/x/file_screener.mp4",
+  link_id: "link-1",
+  session_id: "session-1",
+  title_id: "title-1",
+  asset_kind: "screener",
+};
+
 describe("POST /api/portal/screener", () => {
-  it("refuses to stream a master-sourced screener over a buyer link (named recipient)", async () => {
+  it("refuses when the resolved asset is a master (named or unnamed — same rule)", async () => {
     mockCookie();
-    fakeAdmin({
-      tables: {
-        portal_links: () => ({ data: { recipient_name: "Tubi" }, error: null }),
-        titles: () => ({ data: { screener_source: "master" }, error: null }),
-      },
-    });
+    fakeAdmin(MASTER_ROW);
 
     const res = await POST(new Request("http://test/", { method: "POST" }));
-    const body = (await res.json()) as { error?: string };
+    const body = (await res.json()) as { error?: string; url?: string };
 
     expect(res.status).toBe(403);
     expect(body.error).toBe(PORTAL_COPY.screenerStreamUnavailableNotice);
+    expect(body.url).toBeUndefined();
+    expect(assetViewUrl).not.toHaveBeenCalled();
+    expect(resolveOrRestore).not.toHaveBeenCalled();
   });
 
-  it("streams a buyer link once the title has a real dedicated screener asset", async () => {
+  it("streams when the resolved asset is a dedicated screener", async () => {
     mockCookie();
     vi.mocked(resolveOrRestore).mockResolvedValue({ status: "available" });
     vi.mocked(assetViewUrl).mockResolvedValue("https://signed.example/screener");
-    fakeAdmin({
-      tables: {
-        portal_links: () => ({ data: { recipient_name: "Tubi" }, error: null }),
-        titles: () => ({ data: { screener_source: "dedicated" }, error: null }),
-      },
-    });
+    fakeAdmin(SCREENER_ROW);
 
     const res = await POST(new Request("http://test/", { method: "POST" }));
     const body = (await res.json()) as { url?: string };
 
     expect(res.status).toBe(200);
     expect(body.url).toBe("https://signed.example/screener");
+    expect(assetViewUrl).toHaveBeenCalledWith(SCREENER_ROW.storage_key, PORTAL.screenerStreamTtlSeconds);
   });
 
-  it("streams a master-sourced screener over GC's own unnamed operational link", async () => {
+  // TOCTOU regression: RPC already returned MASTER; a concurrent flip would make a later
+  // titles.screener_source read say "dedicated". Route must still refuse and must not sign.
+  it("refuses a resolved MASTER key even if a later title read would claim dedicated (TOCTOU)", async () => {
     mockCookie();
-    vi.mocked(resolveOrRestore).mockResolvedValue({ status: "available" });
-    vi.mocked(assetViewUrl).mockResolvedValue("https://signed.example/master");
-    fakeAdmin({
-      tables: {
-        portal_links: () => ({ data: { recipient_name: null }, error: null }),
-        titles: () => ({ data: { screener_source: "master" }, error: null }),
-      },
-    });
+    // If the route incorrectly re-reads titles and treats dedicated as sufficient while
+    // keeping the master key, this would be the failing shape. Our fakeAdmin throws on any
+    // from() — and even if it did not, asset_kind master must 403 before signing.
+    const { from } = fakeAdmin(MASTER_ROW);
 
     const res = await POST(new Request("http://test/", { method: "POST" }));
-    const body = (await res.json()) as { url?: string };
-
-    expect(res.status).toBe(200);
-    expect(body.url).toBe("https://signed.example/master");
-  });
-
-  // Final blockers, item 1 (CRITICAL): the bug this pins. A transient read failure on
-  // portal_links must never be treated as "not a buyer link" — that reading is what let the
-  // gate skip and stream a buyer link's master. An unreadable row is now the CLOSED case:
-  // treated as a buyer link, refused unless the title's screener is independently dedicated.
-  it("refuses when the portal_links row cannot be read, even on a master-sourced title", async () => {
-    mockCookie();
-    fakeAdmin({
-      tables: {
-        portal_links: () => ({ data: null, error: { message: "read failed" } }),
-        titles: () => ({ data: { screener_source: "master" }, error: null }),
-      },
-    });
-
-    const res = await POST(new Request("http://test/", { method: "POST" }));
-    const body = (await res.json()) as { error?: string };
 
     expect(res.status).toBe(403);
-    expect(body.error).toBe(PORTAL_COPY.screenerStreamUnavailableNotice);
+    expect(assetViewUrl).not.toHaveBeenCalled();
+    expect(resolveOrRestore).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when asset_kind is missing from the RPC row", async () => {
+    mockCookie();
+    fakeAdmin({
+      storage_key: SCREENER_ROW.storage_key,
+      link_id: SCREENER_ROW.link_id,
+      session_id: SCREENER_ROW.session_id,
+      title_id: SCREENER_ROW.title_id,
+      // asset_kind omitted — pre-migration / inconsistent shape
+    });
+
+    const res = await POST(new Request("http://test/", { method: "POST" }));
+    expect(res.status).toBe(403);
+    expect(assetViewUrl).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when asset_kind is an unexpected value", async () => {
+    mockCookie();
+    fakeAdmin({ ...SCREENER_ROW, asset_kind: "trailer" });
+
+    const res = await POST(new Request("http://test/", { method: "POST" }));
+    expect(res.status).toBe(403);
+    expect(assetViewUrl).not.toHaveBeenCalled();
+  });
+
+  it("source pin: must authorize on resolved asset_kind, not titles.screener_source re-read", () => {
+    const src = readFileSync(join(process.cwd(), "src/app/api/portal/screener/route.ts"), "utf8");
+    expect(src).toContain("isDedicatedScreenerAsset");
+    expect(src).toContain("asPortalResolvedScreener");
+    // Runtime query/branch pins (comments may mention the old column name).
+    expect(src).not.toMatch(/isBuyerLink/);
+    expect(src).not.toMatch(/from\(\s*["']titles["']\s*\)/);
+    expect(src).not.toMatch(/["']screener_source["']/);
   });
 });

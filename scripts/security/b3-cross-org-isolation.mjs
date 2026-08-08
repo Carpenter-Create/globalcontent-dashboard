@@ -513,35 +513,27 @@ async function main() {
   //     yields the master itself, which is why it was never given a stored share_token.
   //   * `member_can(..., t.org_id, 'operate')` keeps the org boundary.
   //
-  // KNOWN, ACCEPTED, AND NOT ASSERTED HERE (flagged in the isolation report, not silently
-  // absorbed): a client can read the raw share_token of GC's own unnamed link on their title,
-  // and /api/portal/screener exempts unnamed links from the master-source stream refusal that
-  // 20260806000500 added for named buyer links. That is same-org — the actor is the title's
-  // own rights holder and the bytes are their own master — so it is out of B3's cross-org
-  // scope and is a founder call, not something to encode as a red build here.
+  // 20260808000100 (Option D layer B): clients see NAMED screener_view links on own titles
+  // only — not GC-authored UNNAMED operational links (those carry plaintext share_token).
+  // Cross-org and master_download remains forbidden. Do NOT park the old bypass in KNOWN_OPEN.
   // ----------------------------------------------------------------------
-  // Both bait sets are QUERIED as service_role, not spelled out from the fixture, so adding a
-  // link to seedOrg cannot leave a probe silently asserting a stale expectation (the lesson
-  // termsBefore records below). Each query is bounded by title id rather than scanning the
-  // table: seed rows are left behind by every run, and a truncated bait read would understate
-  // `allowed` and report a false narrowing.
   const portalLinkVisibility = async () => {
-    const { data: mine } = await admin.from("portal_links").select("id")
-      .eq("purpose", "screener_view").in("title_id", [A.titleId, A.liveTitleId]);
     const { data: theirs } = await admin.from("portal_links").select("id")
       .in("title_id", [B.titleId, B.liveTitleId]);
-    // Forbidden bait, named by category: every link on an Org B title, PLUS both
-    // master_download links — Org A's OWN included, since that is precisely the row a
-    // widening scoped by org instead of by purpose would leak, and its token post-OTP is
-    // the master itself. master_download rows carry title_id null, so they cannot collide
-    // with `theirs`.
+    // Allowed: client-authored named buyer link only. Forbidden: Org B screener links,
+    // both orgs' master_download links, AND Org A's GC unnamed operational screener link.
     return {
-      allowed: (mine ?? []).map((l) => l.id),
-      forbidden: [...(theirs ?? []).map((l) => l.id), A.linkId, B.linkId],
+      allowed: [A.clientLinkId],
+      forbidden: [
+        ...(theirs ?? []).map((l) => l.id),
+        A.linkId,
+        B.linkId,
+        A.screenerLinkId,
+      ],
     };
   };
   await mustSeeExactly(`R${i++}`,
-    "SELECT * FROM portal_links unfiltered — visible set must be EXACTLY Org A's own screener links",
+    "SELECT * FROM portal_links — client sees own named screener links only (not GC unnamed ops)",
     portalLinkVisibility,
     () => a.from("portal_links").select("id, purpose, title_id, created_by, recipient_name, share_token"));
   await R("SELECT portal_links WHERE purpose='master_download' — still GC-only, incl. Org A's OWN link",
@@ -552,22 +544,14 @@ async function main() {
     },
     () => a.from("portal_links").select("id, purpose, delivery_id, asset_id, token_hash")
       .eq("purpose", "master_download"));
-  // The token probe, sharpened. "Sees zero tokens" is no longer the rule and would fail on
-  // correct behaviour; "sees exactly its own titles' tokens" is, and it also proves the zero
-  // it reports for Org B is a boundary rather than a blanket deny.
-  const shareTokenVisibility = async () => {
-    const tokensOn = async (titleIds) => {
-      const { data } = await admin.from("portal_links").select("share_token")
-        .in("title_id", titleIds).not("share_token", "is", null);
-      return (data ?? []).map((l) => l.share_token);
-    };
-    return {
-      allowed: await tokensOn([A.titleId, A.liveTitleId]),
-      forbidden: await tokensOn([B.titleId, B.liveTitleId]),
-    };
-  };
+  // Token probe: client may see its own named-link token; must NOT see GC unnamed ops token
+  // or any Org B token.
+  const shareTokenVisibility = async () => ({
+    allowed: [A.clientShareToken],
+    forbidden: [A.rawShareToken, B.rawShareToken, B.clientShareToken],
+  });
   await mustSeeExactly(`R${i++}`,
-    "SELECT portal_links.share_token — the RAW screener token, in plaintext: own titles' only, never another org's",
+    "SELECT portal_links.share_token — named own-title token only; never GC unnamed or other org",
     shareTokenVisibility,
     async () => {
       const r = await a.from("portal_links").select("id, title_id, share_token").not("share_token", "is", null);
