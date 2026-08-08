@@ -1,0 +1,58 @@
+# Codex project configuration — globalcontent-dashboard
+#
+# This exists for ONE reason: to deny reads on secrets. Claude Code gets that layer from
+# `.claude/settings.json`'s `permissions.deny` block (`Read(./.env)`, `Read(./.env.*)`,
+# `Read(./secrets/**)`). The Codex import did not carry it across, and prose in AGENTS.md is not
+# an enforcement boundary. This is the Codex-native equivalent.
+#
+# Tier 3 repo: real PII, signed contracts, rights-holder revenue data, payouts. The secrets these
+# rules cover include the Supabase service-role key, which bypasses RLS entirely.
+#
+# ---------------------------------------------------------------------------------------------
+# READ THIS BEFORE TRUSTING IT. There are two documented ways these rules are silently inert, and
+# neither one prints an error. This repo has been burned six times by verification that cannot
+# fail — do not let this be the seventh.
+#
+#   1. PERMISSION PROFILES DO NOT COMPOSE WITH THE OLDER SANDBOX SETTINGS. If `sandbox_mode`
+#      appears in ANY loaded config file (most likely `~/.codex/config.toml`), or you pass
+#      `--sandbox`, Codex uses those older settings INSTEAD of `default_permissions` — and every
+#      rule below is ignored. Check your user config for `sandbox_mode` / `[sandbox_workspace_write]`
+#      and remove them if you want this to bind.
+#
+#   2. PROJECT `.codex/` LAYERS LOAD ONLY WHEN THE PROJECT IS TRUSTED. In an untrusted checkout
+#      this file is not read at all.
+#
+# Permission profiles are also marked Beta by OpenAI and may change. VERIFY, don't assume: start a
+# Codex session here and confirm it reports the `gc-dashboard` profile as active and refuses to
+# read `.env`. A refusal you have actually observed is the only evidence worth anything.
+#
+# If `pnpm install` or another network step starts failing in a Codex session and nothing else
+# changed, this file is the first suspect — the profile inherits its network policy from
+# `:workspace`. Fix that by configuring the profile's network block deliberately, NOT by deleting
+# the deny rules.
+# ---------------------------------------------------------------------------------------------
+
+default_permissions = "gc-dashboard"
+
+[permissions.gc-dashboard]
+description = "Global Content dashboard — normal workspace editing, secrets unreadable."
+extends = ":workspace"
+
+[permissions.gc-dashboard.filesystem]
+# The `**` patterns below need bounded pre-expansion on Linux, WSL and native Windows.
+glob_scan_max_depth = 3
+
+# A narrower `deny` stays in force even where the surrounding root is writable, so the workspace
+# stays editable while these paths remain unreadable. Both the repo-root and the recursive form of
+# each pattern are listed deliberately: a rule that silently matches nothing is worse than no rule.
+[permissions.gc-dashboard.filesystem.":workspace_roots"]
+".env" = "deny"
+".env.*" = "deny"
+"**/.env" = "deny"
+"**/.env.*" = "deny"
+"secrets" = "deny"
+"secrets/**" = "deny"
+"**/secrets/**" = "deny"
+
+# Hooks are configured in `.codex/hooks.json`, not here. Codex merges a layer's `hooks.json` and an
+# inline `[hooks]` table and warns at startup, so this layer deliberately uses only the former.

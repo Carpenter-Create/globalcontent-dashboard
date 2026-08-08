@@ -120,6 +120,226 @@ Proxy T5: implemented (60d1a8b, 261 tests, auth mutation-verified). Review NOT
   Also: the bounded/status-filtered select test passes against a route with
   neither; the stuck signal cannot report its own absence; no maxDuration on a
   serial loop over up to 500 jobs x 2 AWS calls.
+Proxy T5: fix round 1/5 (2a937bb) — 4 of the 6 closed; the review findings above
+  stand as written, this records what answered them.
+  (a) headObjectMeta narrowed to the SDK's own modeled "NotFound"; the
+      statusCode===404 fallback (which also matched a renamed bucket) dropped.
+      S3_BUCKET/AWS_REGION validated at MODULE LOAD, so an unset bucket can no
+      longer reach HeadObject as `Bucket: undefined` and be misread as absent.
+      The residual was documented honestly rather than papered over: HeadObject
+      answers a missing KEY and a missing BUCKET with an identical bodyless 404,
+      verified against the SDK's own waiter source. Left open here; closed in
+      round 2.
+  (b) the runbook restates the full gc-assets-app policy WITH s3:ListBucket plus
+      a verify step. This is the grant that turns a missing object from a
+      harmlessly-retried 403 into a permanent fail — hence the ordering
+      constraint; round 2's corroboration gate is what makes the grant safe to
+      apply.
+  + maxDuration, a time budget, and bounded concurrency, against the unbounded
+    serial loop.
+  + regex "already complete" detection replaced by a status peek immediately
+    before each write: the regex could not distinguish a genuine race from a
+    not-found job, and had no equivalent on the register path.
+  + s3.test.ts gains the table-driven headObjectMeta coverage that did not exist
+    before this round — the branch deciding "permanently failed" had none.
+  + the bounded/status-filtered select assertion now pins the real .in/.range
+    calls, mutation-checked: removing .in fails THAT test and nothing else.
+  STILL OPEN after this round: heartbeat persistence (needs a table, so
+  founder-approved migration only) and the 404-vs-missing-bucket ambiguity.
+Proxy T5: fix round 2/5 (e4ab173) — closes round 1's standing residual, and
+  restructures the route around the irreversibility problem.
+  + Phases (resolve AWS status -> check object presence for EVERY complete job
+    -> corroboration gate -> write), so no job is permanently failed until every
+    COMPLETE job's check result is known. More than one COMPLETE job in a tick
+    with ALL outputs missing is read as a CONFIGURATION FAULT rather than N
+    independent failures: none written, all held for the next tick, response
+    forced non-200. A lone complete-but-missing job still fails normally.
+    THIS IS WHAT MAKES THE s3:ListBucket GRANT SAFE — ship the grant and this
+    logic together, never the grant alone.
+  + s3.ts issues HeadBucket on the NotFound path to tell a missing key from a
+    missing bucket, using the permission round 1 had already granted. Separate,
+    tightly-timed pollS3 client so a large multipart assembly's legitimately
+    longer latency is never affected.
+  + every AWS call also raced against its own 10s ceiling (withTimeout),
+    independent of client config — a between-batch budget check cannot bind if
+    one call hangs forever. Proven with a never-resolving mock under fake timers.
+  + rotate() shifts in-memory processing order each tick (SQL ordering
+    unchanged), so a persistently-bad head-of-queue job no longer consumes the
+    whole budget while the tail defers indefinitely. TOTAL_FAILURE_FLOOR (3)
+    stops one transient blip tripping the total-outage 503.
+  + CLAUDE.md gotcha recorded: the module-load env guard turns a missing
+    S3_BUCKET/AWS_REGION into a `next build` failure, not merely a runtime one,
+    and CI's checks job never runs `pnpm build`.
+Proxy T5: fix round 3/5 (432ecbb) — three defects in round 2's OWN work.
+  + Writes now run against a SEPARATELY RESERVED deadline (WRITE_BUDGET_MS, 20s)
+    rather than whatever the checking phases left. A busy tick previously
+    deferred 100% of writes — including registers for objects already CONFIRMED
+    PRESENT — and still reported 200, because "every job errored" never covers
+    "every job deferred". massDeferral (>=50% of a tick's jobs, above a sample
+    floor) added to the unhealthy signal.
+  + The corroboration gate no longer infers full visibility from cohort size.
+    That invariant was an UNSTATED COUPLING to CONCURRENCY — runBatched returns
+    only 0, a multiple of CONCURRENCY, or everything — so setting CONCURRENCY to
+    1, a plausible throttling response, would have let a truncated systemic-fault
+    cohort of one through to a permanent fail. Now holds whenever phase C1 itself
+    was truncated. Also corrected the inverted reasoning in the prior report:
+    FIRING is what withholds the irreversible write, so firing LESS is the unsafe
+    direction.
+  + "absent" (confirmed 404) split from "empty" (0 bytes). A 0-byte object proves
+    the bucket is reachable and the key exact — evidence AGAINST a systemic fault,
+    not for one. It now always fails normally and is excluded from the gate's
+    math, so two genuine 0-byte encodes in one tick can no longer be held forever
+    with no resolution path.
+  + rotate() exported and directly unit-tested (previously ZERO coverage —
+    removing the call left every test green), and the withTimeout wrapping
+    headObjectMeta given the coverage only the GetJob hang had. NOTE, because a
+    handoff open-issues list carried these as outstanding after the fact: both
+    are CLOSED HERE. rotate has five dedicated tests and the HeadObject-hang
+    timeout test exists; re-adding them as open issues would be a regression in
+    the record, not a finding.
+  Both Importants mutation-checked by hand: reverting the write-budget
+  reservation fails exactly the new test; CONCURRENCY=1 with a forced C1
+  truncation still reports the absent job HELD, and reverting the gate's
+  corroborationIncomplete check flips held back to 0.
+Proxy T5: complete (60d1a8b..432ecbb). Re-verified on main 2026-08-07 by running,
+  not reading: typecheck clean, 286 Vitest tests across 31 files, 0 eslint errors
+  and 5 pre-existing warnings in src, build compiles.
+RESIDUAL RISK carried deliberately out of T5 — accepted, not forgotten, and not
+  defects to rediscover as new:
+  - Supabase calls carry NO timeout; only the AWS calls do. Data-safe (both RPCs
+    are row-locked and idempotent, so a killed invocation leaves no partial
+    state) but observability-unsafe: the summary, the stuck warning and the 503
+    are all lost when Postgres hangs.
+  - No heartbeat table, so the poll still cannot report its own ABSENCE. T6's
+    panel must compute staleness from transcode_jobs.status + created_at — data
+    that exists whether or not this route ran — never from a number the route
+    produced. Persisting a heartbeat needs a migration, so it is a founder step.
+  - rotate() BOUNDS head-of-queue starvation; it does not drain a backlog. A
+    permanently-erroring job still spends budget whenever its turn comes up
+    early, and rotation guarantees each job an eventual early slot, not
+    throughput. Never exercised against a real backlog.
+  - MASS_DEFERRAL_RATIO 0.5 and TOTAL_FAILURE_FLOOR 3 are judgment calls with no
+    production data behind them. Revisit once there is any.
+  - NOTHING in this pipeline has run against real AWS. The runbook is unapplied.
+    One real master through the real pipeline is the gate, not a polish step.
+MERGED to main 2026-08-07 as PR #89 (12cadf1), at 5 of 8 tasks. Remaining: T6 GC
+  visibility + retry, T7 the narrow domain-spec §12 amendment, T8 the
+  founder-executed backfill. The migrations this slice added are applied LOCALLY;
+  the prod database is behind main (see HANDOFF's Git state section).
+
+=== REVIEW STATUS: 432ecbb — code review discharged 2026-08-07 ===
+WHAT WAS REVIEWED: fix round 3/5 in full — the reserved write deadline
+  (WRITE_BUDGET_MS) that stops a busy tick deferring 100% of writes while still
+  answering 200; massDeferral joining the unhealthy signal; the corroboration
+  gate no longer inferring full visibility from cohort size (the old form was an
+  unstated coupling to CONCURRENCY, so CONCURRENCY=1 would have let a truncated
+  systemic-fault cohort through to a PERMANENT fail); the absent/empty split, so
+  a 0-byte object is read as evidence AGAINST a systemic fault rather than for
+  one; and the new direct tests for rotate() and the withTimeout around
+  headObjectMeta.
+
+HOW IT WAS DISCHARGED: two agents reviewed it independently — Cursor and Codex,
+  each from its own cold orientation pass over the repo, neither holding the
+  other's conclusion — and converged on the same reading: correct as written,
+  safe to build on, residual risks unchanged from the list above. The author had
+  already mutation-checked both Importants by hand (revert the write-budget
+  reservation and exactly the new test fails; force a C1 truncation under
+  CONCURRENCY=1 and the absent job is still reported held, and reverting the
+  gate's corroborationIncomplete check flips held back to 0).
+
+WHAT THIS DOES NOT MEAN. Recorded deliberately, because "reviewed" is exactly
+  the word this repo has been burned by six times:
+  - It is NOT production validation. Three readings of the same code agree only
+    that the code says what it means to say. Every RESIDUAL RISK bullet above
+    stands unreduced — no Supabase timeout, no heartbeat, rotate() bounding
+    rather than draining starvation, and two thresholds with no production data
+    behind them.
+  - NOTHING in this pipeline has executed against real AWS. One real master
+    through the real pipeline is still the gate, and review does not move it.
+  - The s3:ListBucket ORDERING CONSTRAINT is untouched and still in force: the
+    grant must not reach production ahead of this code, because it is what turns
+    a harmlessly-retried 403 into a permanent, irreversible fail. The
+    corroboration gate reviewed here is what makes the grant safe — which is the
+    reason they ship together, not a reason either has been exercised.
+
+=== PROPOSED, NOT BUILT — heartbeat persistence (future founder decision) ===
+PROVENANCE: written during T5 fix round 1 (item 5) and corrected in fix round 2,
+  and until now it lived only in `.superpowers/sdd/2026-08-06-screener-proxy/
+  task-5-report.md` — a GITIGNORED scratch file, i.e. nowhere a new reader would
+  ever find it. Promoted here verbatim so the record survives; promotion is not
+  approval.
+
+STATUS: NOT BUILT. No migration exists and none may be written for it in this
+  slice. It is a SEPARATE observability slice and a FUTURE founder-approved
+  schema change. Do not fold it into T6.
+
+WHY IT IS NOT A T6 DEPENDENCY: T6's panel derives stuck state from
+  transcode_jobs.status + created_at, which ages correctly whether or not the
+  poll ever ran — so the panel is not blocked on this. What the panel cannot do
+  is say WHICH thing stopped: a stopped cron and a stalled MediaConvert job
+  produce an identical aging row. A heartbeat separates those two, and only
+  those two. That is a real gap and a real limitation, but it is not T6's.
+
+THE CORRECTION fix round 2 made to the original proposal, kept because the
+  reasoning is the reusable part: the first draft gated the read on a bare
+  `is_gc_staff(auth.uid())`, when every GC-scoped read policy since
+  20260727000100 uses `public.gc_can(auth.uid(), 'view')` — 20260802000200
+  exists specifically to ELIMINATE bare is_gc_staff gating, so reintroducing it
+  would be the exact pattern that migration was written to remove. It also gave
+  service_role a direct `insert, update` grant, contradicting the
+  revoke-all-plus-RPC convention 20260807000100 spent two fix rounds
+  establishing for transcode_jobs itself. A SECURITY DEFINER RPC runs as its
+  owner regardless of the caller's grants, so service_role never needs a direct
+  table write for the call to work.
+
+PROPOSED SHAPE (not applied, not approved — do not run this):
+
+  create table public.cron_heartbeats (
+    job_name    text primary key,
+    last_run_at timestamptz not null,
+    summary     jsonb not null default '{}'::jsonb
+  );
+  revoke all on public.cron_heartbeats from anon, authenticated, service_role;
+  grant select on public.cron_heartbeats to authenticated;   -- gc_can-gated below
+  alter table public.cron_heartbeats enable row level security;
+  create policy cron_heartbeats_select on public.cron_heartbeats for select to authenticated
+    using (public.gc_can(auth.uid(), 'view'));
+
+  create or replace function public.record_poll_heartbeat(p_job_name text, p_summary jsonb default null)
+    returns void language plpgsql security definer set search_path = public as $$
+  begin
+    insert into public.cron_heartbeats (job_name, last_run_at, summary)
+    values (btrim(p_job_name), now(), coalesce(p_summary, '{}'::jsonb))
+    on conflict (job_name) do update set last_run_at = excluded.last_run_at, summary = excluded.summary;
+  end; $$;
+  revoke execute on function public.record_poll_heartbeat(text, jsonb) from public, anon, authenticated;
+  grant  execute on function public.record_poll_heartbeat(text, jsonb) to service_role;
+
+  The route would call record_poll_heartbeat('transcode-poll', <summary jsonb>)
+  at the END of every invocation, success or partial failure alike — the point
+  is "did it run," not "did it succeed." A panel then reads last_run_at: if
+  now() - last_run_at exceeds a couple of scheduled intervals, it can say the
+  poll has not run, which is the failure mode a per-invocation JSON response
+  structurally cannot report.
+
+  Note the `p_summary jsonb default null` — required, not stylistic. Without
+  DEFAULT null the type generator marks the argument required non-null and the
+  omitted-argument call site fails to compile. That has bitten five times; see
+  CLAUDE.md's Known Gotchas.
+
+=== T6 EXECUTION DECOMPOSITION — 2026-08-07, scope unchanged ===
+T6 executes as two commits along the Step 1 / Step 2 boundary the plan already
+  draws: 6A is the read-only panel, 6B is the retry mutation. NOT a scope change
+  and NOT a deferral — 6B is the second half of T6, and T6 is not done until both
+  have shipped. The plan's Task 6 Step 3 was amended to two commits, which was the
+  narrowest edit that removed the contradiction.
+WHY: the halves fail differently. 6A is a bounded read plus a derived display
+  value. 6B submits to AWS, writes a job row, and has to get retry eligibility
+  and the GC-operate gate right — including that the partial unique index
+  transcode_jobs_active_key_uidx makes retrying an already-`complete` job a
+  UNIQUE CONSTRAINT VIOLATION rather than a no-op, because the retry would carry
+  the same expected_output_key. Reviewed next to table markup, that is the half
+  that gets skimmed.
 
 === OPEN SECURITY FINDING — founder call, 2026-08-07 ===
 Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the

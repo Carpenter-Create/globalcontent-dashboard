@@ -1,7 +1,7 @@
 # Buyer title page — design
 
 **Date:** 2026-08-06
-**Status:** approved in brainstorming; not yet planned or built
+**Status:** shipped — built and merged to `main` (PR #87). Amended post-ship; see the amendment in §2
 **Scope:** the page a buyer sees when a client shares a title with them, from pitch through
 to post-licence collection
 

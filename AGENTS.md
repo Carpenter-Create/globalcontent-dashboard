@@ -1,0 +1,318 @@
+# AGENTS.md — Global Content Dashboard
+
+> Repo root, read by Codex. **Self-contained — assume nothing is inherited.** This file was
+> imported from the sibling `CLAUDE.md`, which defers its working contract, founder checkpoints,
+> verification discipline and secrets rules to a global `~/.claude/CLAUDE.md`. There is no Codex
+> equivalent of that file, so the import arrived depending on a file that does not exist and the
+> four sections below were silently lost. They are restored here in full.
+>
+> **Do not "re-sync" this file with `CLAUDE.md` by deleting the next section as duplication.**
+> The asymmetry is deliberate: Claude Code inherits those rules from its global config, Codex
+> does not. Everything below "Project Tier" is the shared repo content and should stay in step
+> with `CLAUDE.md`.
+
+## Working Contract
+- You are a careful senior engineer, not an eager junior. Prefer the smallest change that works.
+- Duplication is cheaper than the wrong abstraction. Don't extract shared code until a second real
+  caller exists.
+- State assumptions inline rather than asking a question you can answer from context.
+- Reversible, low-stakes decision → decide and note it. **Costly or irreversible → surface it and
+  wait.**
+
+## Founder Checkpoints (never decide these for me)
+Surface for sign-off: pricing / packaging / money movement · branding, naming, copy tone, visual
+decisions · data deletion / destructive migrations · external communications (user emails, public
+text) · final architecture & launch calls. Automate freely everywhere else.
+
+## Verification Discipline (every task)
+- Before starting: state how you'll verify success — automated (a test) or manual (founder checks).
+- After finishing: **run it and report the real result, not "it should work."** Paste the output.
+- **`pnpm`, never `npm`.** The full gate is
+  `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build`. Baseline: 0 eslint errors and
+  exactly 5 pre-existing warnings in `src`. `pnpm lint` is red from unrelated worktree files — lint
+  `src` only.
+- When you write a test, **mutate the code it covers and confirm it actually fails.** This repo has
+  shipped tests that could not fail; see `docs/HANDOFF.md`'s closing section for the six times a
+  check reported what was asked rather than what was true.
+
+## Secrets & Safety
+- **Never read, print, or commit `.env`, `.env.*`, or anything under `secrets/`.** Never put keys in
+  client code; secrets are server-only and never `NEXT_PUBLIC_`. `.codex/config.toml` denies reads
+  on those paths, but the rule binds whether or not the sandbox enforces it.
+- Before changing existing code, say what changes, what could break, and how to roll back.
+- Assume a git commit exists before destructive work; if not, make one first.
+
+## Destructive ops — the hook is a backstop, not the rule
+The Destructive-Ops Rule below is the binding instruction. `.codex/hooks/guard-destructive.sh` is
+registered as a `PreToolUse` hook in `.codex/hooks.json` and blocks the obvious phrasings, but
+**treat it as a seatbelt, not a licence**: project `.codex/` layers load only when the project is
+trusted, and Codex skips a non-managed hook until its current definition has been reviewed and
+trusted — so an untrusted checkout, or an edit to the hook itself, leaves you unguarded with no
+error and no log line. Never rely on being stopped.
+
+Fuller repo-specific rules, and every known open issue, are in **`docs/HANDOFF.md`**. Read it before
+touching this codebase.
+
+## Project Tier
+**Tier 3.** Real external users, PII, signed contracts, rights-holder revenue data, payouts.
+Full spec, blast-radius review, security rigor.
+
+## What this is
+The authenticated client dashboard for **Global Content's Content Distribution pillar**. Rights
+holders sign a licensing agreement, submit titles and **platform-ready** assets, track delivery
+across vendors, and (later) receive revenue statements and payouts.
+
+**Not** the public site — that's `globalcontent-web`, separate repo, Tier 2. **Not** 24Frame —
+separate product, separate repo, and a **separate Supabase ACCOUNT**, not merely a separate
+project. Reason: Supabase access tokens are **account-scoped** — there is no project-scoped
+variant — and a token can read any project's `service_role` key, which bypasses RLS entirely. One
+account means one token compromise reaches everything in it. Creating 24Frame under this account
+because the org and billing already exist would silently widen every existing token, with nothing
+failing to signal it. **Never create 24Frame under the Global Content Supabase account.**
+
+## Source of truth
+- **`docs/domain-spec.md`** — domain model, roles, rights/territory, terms, fees, rate rules,
+  delivery, provenance, v1 scope. **Read before any schema or business-logic work**; migrations
+  come from it. It holds the detail this file summarizes. Spec beats reference repos and older code.
+- **If a decision isn't in the spec, ask — then record it there in the same PR.**
+- Brand canon lives in Drive and the Claude project — it did not move, and there is no copy of it
+  in any Codex project. Treat it as read-only elsewhere; the compiled rules below govern here.
+  Never mirror canon docs into `docs/`.
+
+## Platform
+Single app (Next.js App Router on Vercel). **No monorepo, no `packages/`, no workspaces.**
+No mobile. **Its own Supabase project** — never share `globalcontent-web`'s.
+
+## Reference repos — patterns only, never domain, never brand
+- **`/Users/adamcarpenter/watershedportal`** — donates auth, **multi-tenant org/membership + RLS
+  structure** (the most valuable thing in it), edge-function patterns, dashboard shell,
+  data-table primitives, email structure, env/deploy layout.
+- **`/Users/adamcarpenter/royalogic`** — **later**, revenue module only: accounting periods,
+  statement-to-period assignment, ingestion and lineage patterns.
+
+> **Port the plumbing, redesign the domain.** Both are *music publishing* repos. The businesses
+> rhyme — owner submits, we place, money returns, we report — which is what makes cloning
+> dangerous: a schema 70% right and subtly wrong, carrying every RLS policy built on it.
+> **GC has no multi-party splits** — single-vendor: GC pays the client, the client pays their own
+> stakeholders. Never inherit a splits ontology, stakeholder entity, or payee management.
+> In doubt about a table? It's domain. About a pattern? Probably fine.
+
+## Golden rules (non-negotiable)
+1. **RLS is the authorization layer.** Every table, tenant-isolated by org membership **and role**.
+   No table ships without policies. Roles are in the first migration, not a UI toggle.
+2. **Nothing is ever deleted** — status changes only. Takedown archives in place: no
+   `titles_archive` table, no DELETE.
+3. **Sources are immutable.** Vendor reports, executed contracts, client uploads: stored as
+   received, hashed, dated. Corrections are new records.
+4. **Every derived number carries `source_refs` + `logic_version` + `derived_at`.** Untraceable
+   means unfinished. The health score is a derived number.
+5. **`audit_log` is append-only** — trigger-populated, UPDATE/DELETE revoked at the permission
+   level. First migration. For manual delivery and rights entry it **is** the provenance record.
+6. **Terms are records, not columns.** So are rights grants and fees. `contract_terms` is
+   effective-dated and immutable; the rate is **snapshotted**, never a FK to `tiers.rate`.
+7. **Money is integer cents.** Never floats. Derive the counterparty share by subtraction.
+8. **The clickwrap accept writes client-initiated terms (signup/upgrade/downgrade); webhooks/cron write system-initiated terms (lapse/renewal). The math reads terms only.** Stripe never enters the calculation path.
+   `effective_from` from the event timestamp, **never `now()`**. Exception — lapse has no event:
+   use `lapsed_at + 30 days`. The lapse job must be idempotent.
+9. **Transaction date wins; pro-rate only when it's absent.** Pro-rating a source that *had* dates
+   is a silent, defensible-looking error.
+10. **Anything a user could cheat by editing client code lives in an edge function** — payments,
+    term writing, URL signing, fee charges. Never trust the client for terms, fees, or state.
+11. **A tier change gates future actions; it never retroactively destroys existing state.**
+    Enforce at the point of action, never as a sweep — downgrade and lapse alike. Otherwise
+    you're auto-taking-down live titles (spec §6).
+12. **Rights are the exception to rule 11 — grants expand, never contract.** Shrinking scope would
+    leave GC distributing where it has no rights: infringement, not inconvenience. Less scope =
+    early takedown ($197/title) + resubmit. **No delivery may exist outside an active grant's scope and
+    window — enforce in the database, not the UI.** Territories are **resolved ISO codes, never
+    labels**: store `mode` (world|include|exclude) + explicit alpha-2 list. "Europe" shifts.
+13. **GC never holds banking or tax identifiers.** Client enters them into **Trolley's widget**.
+    Store `trolley_recipient_id`, `payout_status`, `tax_form_status`, masked display only.
+14. **S3 keys in Postgres; never URLs.** Signed CloudFront URLs on demand from an edge function.
+    Uploads are presigned multipart **direct to S3**, never proxied through the app.
+
+## Deletion — before porting anything from 24Frame
+24Frame's rulebook cascades account deletion across all tables. **Correct there, catastrophic
+here:** titles, assets, and revenue belong to the **org**, not the user. User deletion removes
+`auth.users` + personal PII only, never org-owned records. A departing employee must never
+cascade a client's catalog.
+
+## Org roles
+`account_owner` (all) · `accountant` (read all; writes tax + banking only) · `legal` (read all,
+write nothing) · `delivery_ops` (all operational **incl. rights + territories**; no finance, no
+tax) · `viewer` (catalog read-only).
+
+GC-side roles mirror these but **scope inverts** (all orgs) — **prefix them `gc_*`** so a client
+policy can't be wired to a GC role by name collision. **View-as-client must be audit-logged
+loudly** — it's a service-role backdoor wearing a nice hat.
+
+## Money
+- **Stripe money in** (tier subscriptions + fees). **Trolley money out** (payouts, W-9/W-8BEN,
+  1099/1042-S). No overlap.
+- **Fees are a table, not constants**, and snapshot onto the charge: `early_takedown` $197/title
+  (before term expiry; free offload at/after expiry, all tiers) · `rights_change` $97 ·
+  `upgrade_differential` (computed). **No downgrade fee** (removed).
+- **Pricing convention: prices end in 7, never 9.** $197, $97 — not $199, $99.
+- **Early takedown is a priced OPTION, not a penalty** — "withdraw before expiry on payment of the
+  fee" (enforceable; a breach penalty would be arguable liquidated damages).
+- **Downgrades are free** — new clickwrap, term resets to the signing date, rate = new tier; unused
+  prepaid → account credit. Lapse likewise writes an Access term with no fee.
+
+## Delivery is manual — there are no platform APIs
+GC staff deliver by hand: either exporting metadata in a vendor's required format and uploading to
+the vendor's own portal, or sending a templated email from the dashboard (signature templated from the
+sending GC user's account). **Status is set by a person, not an API ack** — so `audit_log` is the
+provenance record; don't model a `source_document` that doesn't exist. **Vendor portal credentials
+live in a password manager, never the database.**
+
+**The export mapping is the intake mapping in reverse** — client sheet → canonical is intake,
+canonical → vendor format is export. **One mapping engine, not two.**
+
+**Masters go to Glacier Flexible at 90 days** (lifecycle policy, not code — masters only, not
+artwork/screeners). Restore takes 5–12h, so **delivery needs a `restoring` state**: no vendor
+email until it completes, or you're mailing links that 404.
+
+## Findings and AI
+- **One findings store.** The attention queue (push) and Globee (pull) read the same table.
+  **Globee reads findings as a tool and never recomputes them**, or the two will disagree.
+- **Validator findings and AI findings stay labeled apart** — requirements vs. suggestions. The
+  AI's misses must not poison the validator's credibility. **False flags kill the queue:
+  precision over recall.**
+- **The metadata-mapping AI outputs a MAPPING, not data.** Applied deterministically; saved per
+  client and replayed — so it cannot hallucinate a runtime. **AI maps; the zod validator decides.
+  Never the reverse.**
+- **Globee runs with the user's JWT, never the service-role key.** RLS stops cross-tenant leakage
+  — not the system prompt. Reach is scoped tools, not table access. Prompt injection via uploaded
+  sheets is not hypothetical; user-JWT + RLS fails closed.
+
+## Two channels
+- **Global Content Support** — the institution. **Push only.** Bad news and obligations: payment
+  failed, rejection, deadlines, tier changes, expiry. Parent voice.
+- **Ask Globee** — the chat surface. **Pull only. Never initiates**, never volunteers an upsell.
+  Warm and professional; no preamble, no decoration. Register shifts with stakes — money,
+  rejections, deadlines get precision. Cannot advocate against GC: facts, tradeoff, hand off.
+- Findings and notifications carry a `sender`: `gc_support` | `globee`.
+- **Globee drafts; the client approves their own actions; GC approves anything client-facing.**
+  Globee never sets prices, never mails a client unattended, never promises a delivery date.
+
+## Brand guardrails (compiled — full canon in Drive/Claude project)
+- **The dashboard is operating infrastructure — never a SaaS product, app, or software offering.**
+- Aggregation is a **capability within Content Distribution**, never a separate division or brand.
+- Pillars are locked: **Content Distribution · 24Frame · Co-Productions.** "Original Content" is
+  retired and must not appear.
+- Never frame GC as a startup, a generic production company, a commodity upload platform, a
+  self-serve software product, a trendy agency, or an unstructured creator community.
+- **Never invent anything.** Confirmed: 700+ licensed titles; two co-productions —
+  *A Soldier for Christmas* (in market), *12 Letters of Christmas* (releasing this year). That's
+  the whole slate. Vendor/partner/platform names are **unconfirmed — never name one.** No invented
+  stats, promises, or capabilities, in copy or in any AI-facing feature.
+
+## Voice (compiled — governs UI copy, emails, error states)
+- Calm, premium, restrained, expert. Authority earned, never asserted. Trust earned through
+  transparency, never assumed.
+- **Educate with economy** — clarity from expertise, never padding. Declarative. No filler.
+- **Banned:** full-service · innovative solutions · empowering creators · one-stop shop ·
+  best-in-class platform · upload and earn · maximize your revenue · seamless · frictionless ·
+  white-glove · elevate · amplify · unleash · supercharge · game-changing.
+- **Show the work.** A client seeing $776.79 on $1,000 without the slice breakdown reads it as a
+  bug. Term-change notices name old rate, new rate, effective date, and how to reverse — never
+  "your account has changed." Transparency here *is* the brand rule, not a UX nicety.
+
+## Design
+- **Design tokens only.** Port `tokens.css` from `globalcontent-web`, map via Tailwind `@theme`.
+  Never hardcode hex. Do **not** copy watershedportal's palette — that's Watershed brand.
+- Real GC accent is a **founder checkpoint** pending the logo. Stay on the neutral placeholder.
+- **Logic in `lib/`, not components.** Copy lives in `lib/` content modules, not inline in JSX.
+
+## Security must-nots
+- Never expose the Supabase **service-role key** or any AWS/Stripe/Trolley secret to a client bundle.
+- Contract terms and rights grants are **GC/Owner-write, role-read — enforced in RLS policy, not
+  by hiding the form.** A UI-only rule is not a rule.
+
+## Destructive-Ops Rule (intentionally duplicated — safety; enforced by the hook)
+> IMPORTANT: Never run migrations, drop/alter tables, delete rows, revoke permissions, or change
+> RLS/auth config without first showing me the exact SQL and getting explicit approval.
+> Creating audit triggers and revoking UPDATE/DELETE on `audit_log` are destructive ops.
+
+## Build order (first vertical slice — in this order)
+```
+auth → org + membership + ROLES + RLS
+     → clickwrap accept (assent record + rendered terms as source doc) → contract_terms on accept
+     → Stripe tier purchase (paid tiers) → org: active
+     → title stub → rights grant → asset upload (multipart to S3)
+     → metadata intake (guided form only) → in_review chain-of-title gate (narrow)
+     → vendor records → delivery status (manual, GC-updated, grant-gated)
+     → findings (validator only) + attention queue → notifications (email + in-app)
+     [Trolley recipient setup → first payout, not signup (§16)]
+```
+`audit_log` + source layer in the **first** migration. Prove multi-tenant, role-aware RLS
+end-to-end before widening.
+
+## Do NOT build yet (deferred — design the seam, don't build it)
+Revenue/accounting module · statements · payouts · metadata paths 2 & 3 · AI findings · health
+score · Ask Globee · dashboard insights · 24Frame entitlement grant · anything public-facing ·
+mobile · **transcoding** (clients deliver platform-ready; GC never transcodes).
+
+## Conventions
+- UUID PKs (`gen_random_uuid()`), `timestamptz` everywhere, `snake_case`.
+- Migrations in `supabase/migrations`; regenerate TS types after schema changes.
+- TypeScript strict. Validate inputs at the edge (zod).
+- Every new table: definition + indexes + RLS policies + triggers, in one migration.
+- Secrets server-only. Run `leak-check` before shipping.
+
+## Known Gotchas (living — durable lessons only)
+Append lessons learned in THIS repo that aren't already in the spec. Real lessons only —
+restatements crowd out the section's purpose.
+
+- **Supabase `gen types` marks every RPC arg without a `DEFAULT` as required non-null.** So an
+  optional param (one you want to pass `undefined`/omit from a `.rpc()` call) MUST be declared
+  `… text default null` in the SQL, or TS rejects the call. Bake `DEFAULT null` into the param the
+  first time — don't ship required-arg RPCs and patch with a follow-up migration. The generator
+  can only emit required-non-null or optional-non-null, never required-nullable — hand-editing
+  `database.types.ts` to fake the nullable case doesn't survive the next regeneration, which
+  reverts it silently and points the resulting build error at the call site, not the function it
+  actually came from. Where the argument's meaning is "detach" (clear an existing value), spell
+  that as an **omitted (`undefined`) argument**, never an explicit `null`. (Bit us on
+  `accept_terms` → `20260717000200`, `add_rights_grant` → `20260718000300`, `create_asset` →
+  `20260718000600`, `attach_link_vendor` → `20260806000400`, fixed in `20260807000200`.)
+
+- **Never call `supabase.auth.getUser()` in app code — use `getAuthUser()` / `getOrgContext()`
+  from `lib/supabase`.** `getUser()` is a **network round-trip to the Auth server on every
+  call** (measured 35–49ms against a *local* Supabase; worse against hosted). We had it three
+  times per navigation — middleware, layout, page — plus a duplicated memberships query, for
+  nine sequential round-trips. `getClaims()` verifies the JWT **locally** via WebCrypto against
+  a cached JWKS on asymmetric signing keys (ES256 here) and still refreshes an expired token,
+  so it is a drop-in. Wrapped in React `cache()`, a layout and its page share one verification.
+  **Layout render 79ms → 26ms.** `getOrgContext()` extends this to identity + memberships +
+  gc_staff + unread in one cached, parallel resolution — a page under `(app)` must never
+  re-query membership the layout already has. (`eb189b1`, `98e91a9`, `fefa259`.)
+
+- **Independent Supabase queries in a server component must be `Promise.all`'d.** Awaiting them
+  in sequence is the default thing to write and it costs a full round-trip each. This is the
+  single easiest performance regression to reintroduce.
+
+- **Local dev has TWO email paths and only one of them is fake.** Cost an hour of "the magic
+  link never arrived."
+  - **Supabase Auth** (magic link / login) → the local stack's own SMTP → **Mailpit at
+    <http://127.0.0.1:54324>**. Never reaches a real inbox. Bookmark it.
+  - **App email** (portal OTP, GC Support notifications — `src/lib/email.ts`) → **Resend**, from
+    `assets@globalcontent.co` → **a real inbox, even from localhost.** Be aware you are sending
+    genuine mail while developing.
+
+  Deliberately not routing auth mail through Resend: `supabase/config.toml` sets
+  `auth.rate_limit.email_sent = 2` per hour, which throttles dev logins almost immediately.
+
+- **`src/lib/s3.ts` throws at MODULE LOAD if `S3_BUCKET`/`AWS_REGION` are unset — and `next
+  build` evaluates route modules, so a missing var fails the BUILD, not just serving.** Over
+  20 modules import `@/lib/s3` (directly or transitively), including several route handlers,
+  so `pnpm build` in any environment missing either var fails at build time with a module-load
+  exception, before a single request is ever served. **CI does not catch this** — `.github/
+  workflows/ci.yml`'s `checks` job runs `pnpm typecheck` and `pnpm test`, never `pnpm build`;
+  only a real Vercel deployment attempt would surface it. Both vars must exist in **every**
+  Vercel environment this app is ever built in, **including preview** — a preview deploy
+  failing to build over a missing env var is this gotcha, not a code regression. (The guard
+  itself is intentional and correct — fix round 1 of the screener-proxy poll review added it
+  because an unset bucket silently became `Bucket: undefined`, which S3 answers with the same
+  404 a genuinely-missing object gets, misfiring `headObjectMeta`'s absence check. The
+  consequence — that this turns a runtime gap into a build-time one — just needs to be known
+  going in, not discovered via a failed deploy.)
