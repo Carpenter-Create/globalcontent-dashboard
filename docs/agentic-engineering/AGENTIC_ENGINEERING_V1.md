@@ -96,7 +96,8 @@ over costly, irreversible, product, architectural, production, and founder-gated
 10. **Automation must not silently reinterpret repository doctrine.**
 11. **A failed automated check is never converted into “pass.”**
 12. **Append-only control events** record who/what transitioned state, on which SHAs, with
-    evidence references. Rewriteable “audit arrays” are not the authority.
+    evidence references. Rewriteable “audit arrays” are not the authority. Event integrity
+    uses protected Git history **and** a per-task hash chain with CAS writes (§4.5).
 13. **Trusted validation floor is non-overridable** by task contracts (§8).
 14. **Privileged control workflows run only trusted code from protected `main`** (§12).
 
@@ -180,7 +181,7 @@ missing evidence.
 | Plane | What lives there | Mutability |
 | --- | --- | --- |
 | **Implementation PR branch** | Application/docs code under review only | Mutable by Implementer; HEAD is `implementation` input |
-| **Protected branch `ae/control`** | Frozen authorized contract blobs; append-only control events; derived closure snapshots | Writable only by founder and the privileged control token (path-limited); never by Implementer/Reviewer tokens |
+| **Protected branch `ae/control`** | Frozen authorized contract blobs; append-only control events; derived closure snapshots | Writable only by founder and the dedicated privileged orchestrator identity under §4.5 integrity rules; never by Implementer/Reviewer credentials |
 | **GitHub Issue (`ae/task`)** | Authorization UX; human thread; optional derived labels | Issue body is **non-canonical**. Authorization uses `issue_comment` **created** events only |
 | **GitHub Check Runs** | Validation evidence for exact SHA | Platform-canonical for CI/validation |
 | **PR review threads** | Human/agent review discussion | Referenced by control events via review/thread IDs; not sole authority |
@@ -195,13 +196,19 @@ state — it self-invalidates `reviewed_sha == head` when recording approval.
 
 ```
 ae/control
-  contracts/<task_id>/v<version>.yaml    # immutable after authorize event for that version
-  events/<task_id>/<utc>-<seq>-<type>.json  # append-only; never rewrite
-  closures/<task_id>/<head_sha>.md       # derived snapshots keyed by head SHA
+  proposed/<task_id>/v<version>.yaml     # pre-auth staging only; NOT authority; replaceable until authorize
+  contracts/<task_id>/v<version>.yaml    # created once at authorize; immutable forever for that version
+  events/<task_id>/<utc>-<seq>-<type>.json  # append-only; never rewrite/rename/delete
+  closures/<task_id>/<head_sha>.md       # derived non-authority mirrors (may be refreshed)
 ```
 
-Events are the live state machine. Current state = fold of the event log (deterministic).
-No rewriteable `audit_trail` array inside a mutable task file.
+**Current state is never a mutable authority file.** State = deterministic fold of:
+
+1. immutable authorized contract blob(s) under `contracts/`
+2. valid append-only event chain under `events/`
+3. GitHub platform facts (PR head, check runs, review IDs)
+
+Labels, Issue body, Slack, and closure Markdown remain derived mirrors only.
 
 ### 4.4 Control Issue
 
@@ -211,6 +218,192 @@ One Issue per task (`label: ae/task`, title includes `task_id`). Used for:
 - founder `AE-AUTHORIZE` comment (§5)
 - optional human discussion
 - derived label mirrors of state (informational only)
+
+### 4.5 Control-ledger integrity model (required before Phase A)
+
+Ordinary branch protection and the phrase “append-only” are **not** sufficient by
+themselves. A writer that can commit to `ae/control` could otherwise delete, replace, or
+reorder history. v1 therefore requires **layered** enforcement: GitHub history protections
++ workflow-enforced path invariants + per-task event hash chain + serialized CAS writes.
+
+#### 4.5.1 Branch history protections (GitHub rulesets)
+
+`ae/control` MUST be configured so that, at minimum:
+
+- force pushes are blocked;
+- branch deletion is blocked;
+- direct updates are restricted to the founder identity and the dedicated privileged
+  orchestrator identity only;
+- Implementer and Reviewer credentials cannot push to `ae/control` and cannot bypass
+  those protections (separate tokens; no admin override for agents).
+
+These protections preserve Git history integrity against casual rewrite. They do **not**
+by themselves make individual files append-only inside a new forward commit. File-level
+append-only is enforced by §4.5.2–§4.5.5 in trusted-main orchestration code.
+
+#### 4.5.2 Append-only object invariant
+
+Once any of these paths exists on `ae/control` at any accepted tip:
+
+- `contracts/<task_id>/v<version>.yaml`
+- `events/<task_id>/<event-file>.json`
+
+a later control-plane transition **must not** modify, rename, or delete that path.
+
+New transitions may only **add** new event objects (and, at authorize time, create the
+corresponding `contracts/...` blob if absent). Authorized contract blobs are immutable
+forever for that `(task_id, contract_version)`.
+
+`proposed/` staging objects are outside this invariant and are never authority. Closing
+a contract version means writing `contracts/...` once; it does not rewrite `proposed/`.
+
+#### 4.5.3 Trusted integrity check before every control write
+
+Before the privileged orchestrator creates any new control commit, trusted-main code must:
+
+1. Fetch the current `ae/control` tip SHA (`expected_tip`).
+2. Compare the existing protected object set/history against the previously accepted
+   control tip / parent commit.
+3. Verify that no existing `contracts/**` or `events/**` path has been modified, deleted,
+   renamed, or replaced between the previously accepted tip and `expected_tip` (and that
+   the commit being prepared would not do so either).
+4. Verify per-task event-chain integrity (§4.5.4).
+5. If any integrity check fails:
+   - perform **no write**;
+   - record operational failure out-of-band if possible (Issue comment / Slack) without
+     mutating the ledger;
+   - treat the task/control plane as `CRITICAL_FAILURE`;
+   - notify the founder;
+   - require founder disposition under §4.5.7.
+
+This verification runs only from trusted-main orchestration code — never from
+PR-controlled code.
+
+#### 4.5.4 Event hash chain
+
+Every control event object includes a verifiable chain. Conceptual shape:
+
+```json
+{
+  "schema_version": 1,
+  "task_id": "AE-0001",
+  "sequence": 12,
+  "event_type": "review_completed",
+  "occurred_at": "2026-08-08T14:00:00.000Z",
+  "actor": {
+    "kind": "reviewer",
+    "provider": "codex",
+    "session_or_run_id": "...",
+    "github_actor_id": null
+  },
+  "active_contract_version": 1,
+  "active_contract_digest": "sha256:...",
+  "prev_event_digest": "sha256:...",
+  "payload": {},
+  "event_digest": "sha256:..."
+}
+```
+
+**Digest formulation (deterministic):**
+
+1. Build the canonical event object including all fields except `event_digest`.
+2. Serialize with a fixed canonical JSON form defined at implementation time
+   (sorted object keys, UTF-8, no insignificant whitespace variance, LF only).
+3. `event_digest = "sha256:" + hex(SHA-256(canonical_bytes))`.
+4. Persist the object including `event_digest`.
+
+**Chain rules for each `task_id`:**
+
+- Sequence numbers are contiguous integers starting at `1`.
+- Event `sequence == 1` sets
+  `prev_event_digest = "sha256:genesis:ae-control:<task_id>"`
+  (documented genesis string; not the digest of a prior file).
+- Each later event’s `prev_event_digest` MUST equal the prior accepted event’s
+  `event_digest`.
+- Fold is valid only if sequences are contiguous, every `prev_event_digest` matches,
+  every `event_digest` recomputes from canonical bytes, and no earlier event object has
+  disappeared or changed under `events/<task_id>/`.
+
+The hash chain is **not** a substitute for protected Git history. Use both.
+
+#### 4.5.5 Contract digest linkage
+
+The first authorization event for a contract version (`event_type: authorize`, usually
+`sequence == 1` or the first event after a re-authorize on a new version) MUST bind in its
+payload / event fields:
+
+- `task_id`
+- `contract_version`
+- exact `contract_digest`
+- `founder_actor_id` (numeric)
+- `base_sha`
+- Issue number + authorizing `comment_id`
+
+Every subsequent event for that task MUST carry `active_contract_version` and
+`active_contract_digest` matching the currently authorized contract. A new authorize event
+for `contract_version + 1` is the only way to change the active digest. Silent migration
+to another contract is forbidden and fails integrity.
+
+#### 4.5.6 Serialized writers and optimistic CAS
+
+All privileged control-plane writes share **one global concurrency domain**:
+`ae-control` (GitHub Actions concurrency group or equivalent single-flight lock).
+
+Per-task locks alone are insufficient: tasks share one branch tip. Global serialization
+prevents two runs from reading the same old tip and appending divergent next commits.
+
+**Optimistic compare-and-swap on the branch tip:**
+
+1. Reader/writer notes `expected_tip = current ae/control SHA`.
+2. After integrity checks, construct the next commit whose sole parent is `expected_tip`,
+   adding only allowed new paths (new event file; and at authorize, new
+   `contracts/<task_id>/vN.yaml` if creating that version).
+3. Update the `ae/control` ref to the new commit **only if** it still points at
+   `expected_tip` (`force: false` / non-fast-forward rejected).
+4. If the tip moved: **do not force**. Re-read, revalidate chain and append-only invariant,
+   then retry once under policy or stop with fail-closed behavior.
+5. No force-push. No history rewrite. No automatic rebase of `ae/control`.
+
+Allowed path deltas for an orchestrator-produced commit (enforced in trusted workflow code,
+not by a nonexistent GitHub “path-scoped write” token permission):
+
+- add `events/<task_id>/<new-file>.json`
+- add `contracts/<task_id>/v<version>.yaml` only when absent (authorize)
+- optionally refresh derived `closures/**` and non-authority `proposed/**` per policy
+
+Any other delta (including touching an existing protected path) → no write →
+`CRITICAL_FAILURE` path (§4.5.7).
+
+#### 4.5.7 Founder recovery path (integrity violation)
+
+If `ae/control` integrity is violated (missing/changed protected objects, broken hash
+chain, unauthorized tip rewrite, CAS abuse attempt, etc.):
+
+1. Halt unattended orchestration for affected tasks (fail closed).
+2. Classify operational state as `CRITICAL_FAILURE`.
+3. Preserve evidence (tip SHAs, failing check outputs, actor identities, timestamps).
+4. Notify founder (Slack gate + Issue).
+5. Founder reviews Git history / audit evidence.
+6. Recovery occurs **only** through a founder-approved procedure documented separately.
+   The orchestrator must **not** auto-repair, force-push, delete events, or rewrite
+   history.
+
+Destructive recovery implementation is out of scope for this specification.
+
+#### 4.5.8 Enforcement realism (do not over-claim GitHub)
+
+Distinguish three layers:
+
+| Layer | What it actually provides |
+| --- | --- |
+| GitHub branch/rulesets | Who may update the ref; block force-push; block deletion; required status optional |
+| Token permissions | Repo-level `contents` read/write only — **not** native path-limited write ACLs. Do not claim path-scoped token permissions GitHub does not offer. |
+| Trusted workflow validation | Protected-`main` code validates allowed path deltas, append-only invariant, hash chain, contract digest linkage, and CAS tip updates |
+
+Least privilege for the orchestrator token therefore means: dedicated identity; write
+access only to this repository (or the minimum repos needed); **no** `main` merge rights;
+**no** production cloud credentials; workflow code refuses unsafe deltas. Path safety is
+a property of the writer program + rulesets, not a phantom token scope.
 
 ---
 
@@ -246,18 +439,19 @@ On `issue_comment` with `action == created` only:
 2. Verify `github.event.comment.user.id` equals the configured founder numeric ID
    (`FOUNDER_GITHUB_ACTOR_ID` repository variable — immutable numeric actor ID, **not**
    login/display name).
-3. Load the proposed contract bytes for `(task_id, contract_version)` from the designated
-   pre-auth staging object on `ae/control` (or the control PR merge that placed
-   `contracts/<task_id>/vN.yaml` in a *proposed* path). Recompute
-   `sha256(canonical_bytes)`.
+3. Load the proposed contract bytes for `(task_id, contract_version)` from untrusted
+   staging (`proposed/<task_id>/vN.yaml` on `ae/control`, or equivalent Issue-attached
+   bytes treated as data). Recompute `sha256` of the exact bytes to be frozen.
 4. Require digest match; require `base_sha` exists on the repository and equals the
    contract’s `base_sha` field.
-5. Append an `authorize` event to `ae/control` containing:
-   - `task_id`, `contract_version`, `contract_digest`, `base_sha`
-   - `founder_actor_id`, `issue_number`, `comment_id`, `authorized_at` (comment
-     `created_at`)
-   - control-branch commit that freezes the contract blob as authoritative
-6. Transition state → `AUTHORIZED`.
+5. Under §4.5 integrity + CAS rules, create one control commit that:
+   - adds `contracts/<task_id>/vN.yaml` with those exact bytes (**create-only**; fail if
+     the path already exists with different bytes);
+   - appends an `authorize` event whose fields bind `task_id`, `contract_version`,
+     `contract_digest`, `founder_actor_id`, `base_sha`, `issue_number`, `comment_id`,
+     `authorized_at` (comment `created_at`), plus hash-chain fields
+     (`sequence`, `prev_event_digest`, `event_digest`, `active_contract_*`).
+6. Transition folded state → `AUTHORIZED`.
 
 **Comment edits (`action == edited`) never authorize and never amend an authorize event.**
 Changing authority-bearing fields requires a new `contract_version`, new digest, and a new
@@ -265,10 +459,11 @@ Changing authority-bearing fields requires a new `contract_version`, new digest,
 
 ### 5.4 Pre-auth staging
 
-Before authorization, an agent or human may open a **control-plane PR into `ae/control`**
-(or a founder push) that adds `contracts/<task_id>/vN.yaml`. That file is not live until
-the authorize event binds its digest. Implementation PRs must not carry this file as
-authority.
+Before authorization, an agent or human may stage bytes at
+`proposed/<task_id>/vN.yaml` (or provide them as Issue data). Staging is **not**
+authority and may be replaced until authorize. The privileged authorize write is what
+creates the immutable `contracts/<task_id>/vN.yaml` blob. Implementation PRs must not
+carry control authority files.
 
 ---
 
@@ -644,8 +839,13 @@ Legend: **AA** agent-autonomous · **AS** within authorized slice · **FD** foun
 - **Never** checks out-and-executes or imports PR-controlled code/scripts.
 - Schema-validates all inputs.
 - Verifies founder-authorized `contract_digest` / version before honoring scope.
-- Least-privilege GitHub permissions (e.g. write limited to `ae/control` paths + Issue
-  comments/labels; **no** merge to `main`; **no** production cloud credentials in v1).
+- Enforces §4.5 before every control write (append-only path delta check, hash chain,
+  global serialized CAS tip update).
+- Least-privilege GitHub permissions in the realistic sense (§4.5.8): dedicated
+  orchestrator identity with repository content write sufficient to update `ae/control`
+  and to comment/label Issues; **no** merge to `main`; **no** production cloud
+  credentials in v1. Path allowlisting is enforced by trusted workflow code, not by a
+  nonexistent path-scoped token ACL.
 - Governance/workflow changes that expand autonomous authority activate only after
   founder review and merge to `main`.
 
@@ -653,10 +853,10 @@ Legend: **AA** agent-autonomous · **AS** within authorized slice · **FD** foun
 
 | Token | Capabilities | Forbidden |
 | --- | --- | --- |
-| Implementer | Push implementation branch; open PR | Merge `main`; write `ae/control`; prod creds |
-| Reviewer | Read repo; comment on PR | Push implementation branch; merge; control write; prod |
-| Privileged orchestrator | Append `ae/control` events; comment/label Issues; read checks | Merge `main`; prod cloud secrets; execute PR code |
-| Founder | Merge `main`; authorize; production execution outside agents | — |
+| Implementer | Push implementation branch; open PR | Merge `main`; push `ae/control`; prod creds |
+| Reviewer | Read repo; comment on PR | Push implementation branch; merge; push `ae/control`; prod |
+| Privileged orchestrator | Push forward-only CAS updates to `ae/control` after §4.5 checks; comment/label Issues; read checks | Merge `main`; force-push; prod cloud secrets; execute PR code; rewrite protected paths |
+| Founder | Merge `main`; authorize; production execution outside agents; integrity recovery procedure | — |
 
 ---
 
@@ -667,8 +867,8 @@ One authority per fact class:
 | Fact class | Canonical authority |
 | --- | --- |
 | Implementation content | Git commits / PR head |
-| Authorization, state transitions, founder dispositions, actor identity | Append-only events on `ae/control` (+ Issue comment IDs referenced by those events) |
-| Authorized contract bytes | Frozen blob on `ae/control` bound by digest in authorize event |
+| Authorization, state transitions, founder dispositions, actor identity | Append-only hash-chained events on `ae/control` under §4.5 (+ Issue comment IDs referenced by those events) |
+| Authorized contract bytes | Frozen create-once blob on `ae/control` bound by digest in authorize event |
 | Validation evidence | GitHub check runs on the exact SHA |
 | Review evidence | Control `review_completed` event referencing PR review/thread IDs + reviewer run identity |
 | Specs/plans/ledgers | Reasoning / reference only |
@@ -711,6 +911,7 @@ second approval channel.
 | Reviewer lacks independent context | cannot approve; `BLOCKED` / `CRITICAL_FAILURE` |
 | Privileged workflow uncertainty | fail closed |
 | Attempt to weaken isolation harness | `CRITICAL_FAILURE` |
+| `ae/control` integrity failure (path rewrite, broken chain, CAS/history abuse) | no write; `CRITICAL_FAILURE`; founder recovery only (§4.5.7) |
 | `main` drift vs `base_sha` | report; conflicts or intersecting high-risk paths → founder decision; no silent rebase |
 
 ---
@@ -734,16 +935,25 @@ second approval channel.
 
 1. **Branch protection / rulesets on `main`:** required PR; founder-only merge path;
    required status check `isolation` (and floor check runs once added).
-2. **Branch protection on `ae/control`:** restrict pushes to founder + privileged
-   orchestrator token; no Implementer/Reviewer write.
-3. **Founder-only merge authority** enforced by GitHub (Code Owners + rules), not prose.
-4. **Agent tokens cannot merge to `main`** (and cannot bypass rulesets).
-5. **`FOUNDER_GITHUB_ACTOR_ID` configured** for authorize verification.
-6. **Stale-review / head-change invalidation** implemented against the predicate.
-7. **Validation floor enforcement** in the readiness predicate (not waivable by task YAML).
-8. **Reviewer role isolation:** separate credentials; reviewer push denied on
-   implementation branches.
-9. **Privileged vs unprivileged workflow split** merged to `main` before use.
+2. **Protected / non-forceable `ae/control`:** block force-push; block deletion; restrict
+   direct updates to founder + dedicated privileged orchestrator identity; Implementer and
+   Reviewer credentials cannot write it or bypass protections.
+3. **Append-only path invariant verifier** in trusted-main orchestration (§4.5.2–§4.5.3).
+4. **Event-chain verifier** (contiguous sequence, prev digest, recomputed event digests)
+   (§4.5.4).
+5. **Serialized writer / concurrency domain** `ae-control` (global) (§4.5.6).
+6. **Optimistic branch-tip compare-and-swap** with `force: false`; retry/stop on tip move
+   (§4.5.6).
+7. **Founder-only recovery** from integrity failure; no orchestrator auto-rewrite (§4.5.7).
+8. **Founder-only merge authority** enforced by GitHub (Code Owners + rules), not prose.
+9. **Agent tokens cannot merge to `main`** (and cannot bypass rulesets).
+10. **`FOUNDER_GITHUB_ACTOR_ID` configured** for authorize verification.
+11. **Stale-review / head-change invalidation** implemented against the predicate.
+12. **Validation floor enforcement** in the readiness predicate (not waivable by task
+    contract).
+13. **Reviewer role isolation:** separate credentials; reviewer push denied on
+    implementation branches.
+14. **Privileged vs unprivileged workflow split** merged to `main` before use.
 
 Until then, AE may be documented and dry-run under direct founder supervision, but must
 not claim unattended operation.
@@ -779,8 +989,8 @@ No assumption that OpenClaw is required.
 
 | Phase | Objective | Repo changes | Risk | Validation | Founder checkpoint |
 | --- | --- | --- | --- | --- | --- |
-| A | Control-plane contract schema + event types + authorize comment grammar | docs/schema only; no unattended runners | low | schema examples; digest stability tests (pure) | approve control-plane choice + authorize mechanism |
-| B | `ae/control` protection + Issue binding + SHA pin events | ruleset docs; optional scripts | med | push-after-approve invalidates readiness in dry-run | confirm merge remains founder-only |
+| A | Control-plane contract/event schema + authorize grammar + **ledger integrity model** (§4.5) frozen in-spec | docs/schema only; no unattended runners; do not create `ae/control` yet | low | digest/chain examples; CAS/invariant semantics review | approve integrity model + authorize mechanism |
+| B | `ae/control` rulesets + Issue binding + SHA pin events + integrity verifier wiring | ruleset docs; trusted-main verifier (still no prod) | med | simulate rewrite/delete/race → no write + CRITICAL_FAILURE; CAS rejects tip move | confirm merge remains founder-only |
 | C | Implementer/Reviewer routing with isolation | runner adapters | med-high | reviewer cannot push; distinct session recorded | vendor bindings |
 | D | Validation floor check runs + readiness predicate | unprivileged CI additions as needed; predicate | med | mutate head/checks → not ready | floor list |
 | E | Slack notification-only | secret docs + notifier | med | only four states | channel + secrets |
@@ -800,7 +1010,7 @@ ChatGPT, Cursor, Codex, and GitHub.
 
 Success evidence:
 
-1. Contract frozen on `ae/control` with authorize event (actor ID + digest + base SHA)
+1. Contract frozen on `ae/control` with authorize event (actor ID + digest + base SHA + hash chain) and §4.5 integrity prerequisites live
 2. Implementation routed without founder clipboard
 3. `validated_sha` set from floor check runs on exact SHA
 4. Independent review on exact diff; review event recorded
@@ -867,12 +1077,16 @@ single-pass → `FOUNDER_REVIEW` ambiguity; validation floor overridability.
 | Important — reviewer independence not structural | **Resolved** — §9; self-review exception removed |
 | Important — duplicated canonical evidence / rewriteable audit | **Resolved** — §13 append-only events |
 | Minor — §2.7 destructive wording inverted | **Resolved** — §2.7 / §6.4 |
+| Focused re-review — `ae/control` append-only not enforceable | **Resolved** — §4.5 integrity model (history protections + path invariant + pre-write checks + hash chain + CAS + founder recovery); token path-ACL overclaim corrected (§4.5.8) |
 
 **Findings not accepted as written:** none of the Critical/Important items were rejected.
 One refinement relative to a possible over-reading: baseline exceptions remain expressible
 for **non-floor** observed checks with exact fingerprints (needed because `main`’s
 non-required `checks` audit can be red without making AE pretend audit passed). Floor
 checks remain non-waivable — aligned with HANDOFF’s “never baseline-away isolation.”
+
+Previously resolved findings listed in §24 above were **not** weakened by the §4.5
+integrity addition.
 
 ---
 
