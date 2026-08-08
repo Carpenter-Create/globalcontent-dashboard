@@ -92,13 +92,9 @@ export function verifyEventChain(rawEvents: unknown[]): EventChainResult {
     }
 
     if (ev.event_type === "authorize") {
-      const payload = ev.payload as {
-        contract_version?: unknown;
-        contract_digest?: unknown;
-      };
       if (
-        payload.contract_version !== ev.active_contract_version ||
-        payload.contract_digest !== ev.active_contract_digest
+        ev.payload.contract_version !== ev.active_contract_version ||
+        ev.payload.contract_digest !== ev.active_contract_digest
       ) {
         issues.push({
           code: "authorize_digest_bind",

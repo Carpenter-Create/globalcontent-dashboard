@@ -7,32 +7,24 @@ import {
 } from "./contract-schema";
 
 /**
- * Canonical frozen contract file form (spec §6.5):
- * - UTF-8
- * - LF line endings only
- * - trailing single newline
- * - fixed key order matching the schema field list
- * - 2-space indent for nested structures
- * - no trailing spaces
+ * Canonical frozen contract YAML subset.
  *
- * Digest binds these exact bytes (not a re-serialization of a parsed AST from another
- * YAML library). Phase A emits and verifies this subset without a YAML dependency.
+ * All string scalars are JSON-style double-quoted.
+ * Booleans are only bare `true` / `false`.
+ * Integers are bare decimal digits (lexical).
+ * Digest binds exact frozen UTF-8 bytes after canonical-form assertion.
  */
 
-function yamlEscape(s: string): string {
-  if (s === "") return '""';
-  if (/^[\w./:@+-]+$/.test(s) && !/^(true|false|null|~)$/i.test(s)) {
-    return s;
-  }
+function q(s: string): string {
   return JSON.stringify(s);
 }
 
 function emitSourceRef(ref: SourceRef, indent: string): string[] {
-  const lines = [`${indent}- path: ${yamlEscape(ref.path)}`];
+  const lines = [`${indent}- path: ${q(ref.path)}`];
   if (ref.sections && ref.sections.length > 0) {
     lines.push(`${indent}  sections:`);
     for (const sec of ref.sections) {
-      lines.push(`${indent}    - ${yamlEscape(sec)}`);
+      lines.push(`${indent}    - ${q(sec)}`);
     }
   }
   return lines;
@@ -40,56 +32,55 @@ function emitSourceRef(ref: SourceRef, indent: string): string[] {
 
 function emitBaseline(ex: BaselineException, indent: string): string[] {
   const lines = [
-    `${indent}- check_name: ${yamlEscape(ex.check_name)}`,
-    `${indent}  failing_step: ${yamlEscape(ex.failing_step)}`,
-    `${indent}  fingerprint: ${yamlEscape(ex.fingerprint)}`,
+    `${indent}- check_name: ${q(ex.check_name)}`,
+    `${indent}  failing_step: ${q(ex.failing_step)}`,
+    `${indent}  fingerprint: ${q(ex.fingerprint)}`,
   ];
   if (ex.note !== undefined) {
-    lines.push(`${indent}  note: ${yamlEscape(ex.note)}`);
+    lines.push(`${indent}  note: ${q(ex.note)}`);
   }
   return lines;
 }
 
 function emitCriterion(c: AcceptanceCriterion, indent: string): string[] {
   return [
-    `${indent}- id: ${yamlEscape(c.id)}`,
-    `${indent}  description: ${yamlEscape(c.description)}`,
+    `${indent}- id: ${q(c.id)}`,
+    `${indent}  description: ${q(c.description)}`,
   ];
 }
 
-/** Produce canonical YAML bytes for a validated contract. */
 export function formatCanonicalContractYaml(contract: TaskContract): string {
   const c = parseTaskContract(contract);
   const lines: string[] = [
     `schema_version: ${c.schema_version}`,
-    `task_id: ${yamlEscape(c.task_id)}`,
+    `task_id: ${q(c.task_id)}`,
     `contract_version: ${c.contract_version}`,
-    `title: ${yamlEscape(c.title)}`,
+    `title: ${q(c.title)}`,
     `authorized_scope:`,
-    ...c.authorized_scope.map((s) => `  - ${yamlEscape(s)}`),
+    ...c.authorized_scope.map((s) => `  - ${q(s)}`),
     `out_of_scope:`,
     ...(c.out_of_scope.length === 0
       ? [`  []`]
-      : c.out_of_scope.map((s) => `  - ${yamlEscape(s)}`)),
+      : c.out_of_scope.map((s) => `  - ${q(s)}`)),
     `source_refs:`,
     ...c.source_refs.flatMap((r) => emitSourceRef(r, "  ")),
-    `base_branch: ${yamlEscape(c.base_branch)}`,
-    `base_sha: ${c.base_sha}`,
-    `work_branch: ${yamlEscape(c.work_branch)}`,
-    `role_separation: ${c.role_separation}`,
+    `base_branch: ${q(c.base_branch)}`,
+    `base_sha: ${q(c.base_sha)}`,
+    `work_branch: ${q(c.work_branch)}`,
+    `role_separation: ${q(c.role_separation)}`,
     `implementer:`,
-    `  agent: ${c.implementer.agent}`,
+    `  agent: ${q(c.implementer.agent)}`,
     `reviewer:`,
-    `  agent: ${c.reviewer.agent}`,
+    `  agent: ${q(c.reviewer.agent)}`,
     `validation_additions:`,
     `  commands:`,
     ...(c.validation_additions.commands.length === 0
       ? [`    []`]
-      : c.validation_additions.commands.map((x) => `    - ${yamlEscape(x)}`)),
+      : c.validation_additions.commands.map((x) => `    - ${q(x)}`)),
     `  status_checks:`,
     ...(c.validation_additions.status_checks.length === 0
       ? [`    []`]
-      : c.validation_additions.status_checks.map((x) => `    - ${yamlEscape(x)}`)),
+      : c.validation_additions.status_checks.map((x) => `    - ${q(x)}`)),
     `baseline_exceptions:`,
     ...(c.baseline_exceptions.length === 0
       ? [`  []`]
@@ -98,7 +89,7 @@ export function formatCanonicalContractYaml(contract: TaskContract): string {
     `may_draft_production_runbook: ${c.may_draft_production_runbook}`,
     `dependency_addition_allowed: ${c.dependency_addition_allowed}`,
     `ci_workflow_change_allowed: ${c.ci_workflow_change_allowed}`,
-    `review_intensity: ${c.review_intensity}`,
+    `review_intensity: ${q(c.review_intensity)}`,
     `max_remediation_rounds: ${c.max_remediation_rounds}`,
     `acceptance_criteria:`,
     ...c.acceptance_criteria.flatMap((ac) => emitCriterion(ac, "  ")),
@@ -106,15 +97,41 @@ export function formatCanonicalContractYaml(contract: TaskContract): string {
   return `${lines.join("\n")}\n`;
 }
 
-function unquote(raw: string): string {
+/** Parse only canonical double-quoted JSON strings. */
+function parseQuotedString(raw: string): string {
   const t = raw.trim();
-  if (
-    (t.startsWith('"') && t.endsWith('"')) ||
-    (t.startsWith("'") && t.endsWith("'"))
-  ) {
-    return JSON.parse(t.replace(/^'/, '"').replace(/'$/, '"')) as string;
+  if (!(t.startsWith('"') && t.endsWith('"'))) {
+    throw new Error(`expected double-quoted string, got: ${raw}`);
   }
-  return t;
+  if (t.includes("'") && !t.includes("\\")) {
+    // single quotes inside JSON string are fine; reject single-quoted YAML form entirely
+  }
+  try {
+    const v = JSON.parse(t) as unknown;
+    if (typeof v !== "string") throw new Error("not a string");
+    return v;
+  } catch {
+    throw new Error(`invalid JSON string scalar: ${raw}`);
+  }
+}
+
+function parseBool(raw: string): boolean {
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new Error(`invalid boolean (only true|false): ${raw}`);
+}
+
+function parsePositiveInt(raw: string): number {
+  if (!/^[1-9][0-9]*$/.test(raw) && raw !== "0") {
+    throw new Error(`invalid integer: ${raw}`);
+  }
+  // schema_version may be 1; allow 0 only for completeness then zod rejects if needed
+  if (raw !== "0" && !/^[1-9][0-9]*$/.test(raw)) {
+    throw new Error(`invalid integer: ${raw}`);
+  }
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n)) throw new Error(`integer not safe: ${raw}`);
+  return n;
 }
 
 type Line = { indent: number; content: string };
@@ -140,10 +157,6 @@ function parseLines(text: string): Line[] {
   });
 }
 
-/**
- * Parse our canonical contract YAML subset into a validated TaskContract.
- * Rejects non-canonical / unsupported YAML constructs.
- */
 export function parseCanonicalContractYaml(text: string): TaskContract {
   const lines = parseLines(text);
   const root: Record<string, unknown> = {};
@@ -171,16 +184,16 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
     }
     const out: string[] = [];
     while (i < lines.length && lines[i].indent === indent && lines[i].content.startsWith("- ")) {
-      out.push(unquote(lines[i].content.slice(2)));
+      out.push(parseQuotedString(lines[i].content.slice(2)));
       i += 1;
     }
     return out;
   }
 
-  root.schema_version = Number(expectRootKey("schema_version"));
-  root.task_id = unquote(expectRootKey("task_id"));
-  root.contract_version = Number(expectRootKey("contract_version"));
-  root.title = unquote(expectRootKey("title"));
+  root.schema_version = parsePositiveInt(expectRootKey("schema_version"));
+  root.task_id = parseQuotedString(expectRootKey("task_id"));
+  root.contract_version = parsePositiveInt(expectRootKey("contract_version"));
+  root.title = parseQuotedString(expectRootKey("title"));
 
   expectRootKey("authorized_scope");
   root.authorized_scope = parseStringList(2);
@@ -191,7 +204,7 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
   expectRootKey("source_refs");
   const sourceRefs: SourceRef[] = [];
   while (i < lines.length && lines[i].indent === 2 && lines[i].content.startsWith("- path:")) {
-    const path = unquote(lines[i].content.slice("- path:".length));
+    const path = parseQuotedString(lines[i].content.slice("- path:".length).trim());
     i += 1;
     let sections: string[] | undefined;
     if (i < lines.length && lines[i].indent === 4 && lines[i].content === "sections:") {
@@ -202,7 +215,7 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
         lines[i].indent === 6 &&
         lines[i].content.startsWith("- ")
       ) {
-        sections.push(unquote(lines[i].content.slice(2)));
+        sections.push(parseQuotedString(lines[i].content.slice(2)));
         i += 1;
       }
     }
@@ -210,23 +223,27 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
   }
   root.source_refs = sourceRefs;
 
-  root.base_branch = unquote(expectRootKey("base_branch"));
-  root.base_sha = expectRootKey("base_sha");
-  root.work_branch = unquote(expectRootKey("work_branch"));
-  root.role_separation = expectRootKey("role_separation");
+  root.base_branch = parseQuotedString(expectRootKey("base_branch"));
+  root.base_sha = parseQuotedString(expectRootKey("base_sha"));
+  root.work_branch = parseQuotedString(expectRootKey("work_branch"));
+  root.role_separation = parseQuotedString(expectRootKey("role_separation"));
 
   expectRootKey("implementer");
   if (!lines[i] || lines[i].indent !== 2 || !lines[i].content.startsWith("agent:")) {
     throw new Error("expected implementer.agent");
   }
-  root.implementer = { agent: unquote(lines[i].content.slice("agent:".length)) };
+  root.implementer = {
+    agent: parseQuotedString(lines[i].content.slice("agent:".length).trim()),
+  };
   i += 1;
 
   expectRootKey("reviewer");
   if (!lines[i] || lines[i].indent !== 2 || !lines[i].content.startsWith("agent:")) {
     throw new Error("expected reviewer.agent");
   }
-  root.reviewer = { agent: unquote(lines[i].content.slice("agent:".length)) };
+  root.reviewer = {
+    agent: parseQuotedString(lines[i].content.slice("agent:".length).trim()),
+  };
   i += 1;
 
   expectRootKey("validation_additions");
@@ -246,17 +263,23 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
     i += 1;
   } else {
     while (i < lines.length && lines[i].indent === 2 && lines[i].content.startsWith("- ")) {
-      const check_name = unquote(lines[i].content.replace(/^- check_name:\s*/, ""));
+      const check_name = parseQuotedString(
+        lines[i].content.replace(/^- check_name:\s*/, ""),
+      );
       i += 1;
       if (!lines[i]?.content.startsWith("failing_step:")) throw new Error("failing_step");
-      const failing_step = unquote(lines[i].content.slice("failing_step:".length));
+      const failing_step = parseQuotedString(
+        lines[i].content.slice("failing_step:".length).trim(),
+      );
       i += 1;
       if (!lines[i]?.content.startsWith("fingerprint:")) throw new Error("fingerprint");
-      const fingerprint = unquote(lines[i].content.slice("fingerprint:".length));
+      const fingerprint = parseQuotedString(
+        lines[i].content.slice("fingerprint:".length).trim(),
+      );
       i += 1;
       let note: string | undefined;
       if (i < lines.length && lines[i].indent === 4 && lines[i].content.startsWith("note:")) {
-        note = unquote(lines[i].content.slice("note:".length));
+        note = parseQuotedString(lines[i].content.slice("note:".length).trim());
         i += 1;
       }
       baselines.push(
@@ -268,23 +291,30 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
   }
   root.baseline_exceptions = baselines;
 
-  root.may_draft_migration_sql = expectRootKey("may_draft_migration_sql") === "true";
-  root.may_draft_production_runbook =
-    expectRootKey("may_draft_production_runbook") === "true";
-  root.dependency_addition_allowed =
-    expectRootKey("dependency_addition_allowed") === "true";
-  root.ci_workflow_change_allowed =
-    expectRootKey("ci_workflow_change_allowed") === "true";
-  root.review_intensity = expectRootKey("review_intensity");
-  root.max_remediation_rounds = Number(expectRootKey("max_remediation_rounds"));
+  root.may_draft_migration_sql = parseBool(expectRootKey("may_draft_migration_sql"));
+  root.may_draft_production_runbook = parseBool(
+    expectRootKey("may_draft_production_runbook"),
+  );
+  root.dependency_addition_allowed = parseBool(
+    expectRootKey("dependency_addition_allowed"),
+  );
+  root.ci_workflow_change_allowed = parseBool(
+    expectRootKey("ci_workflow_change_allowed"),
+  );
+  root.review_intensity = parseQuotedString(expectRootKey("review_intensity"));
+  root.max_remediation_rounds = parsePositiveInt(
+    expectRootKey("max_remediation_rounds"),
+  );
 
   expectRootKey("acceptance_criteria");
   const criteria: AcceptanceCriterion[] = [];
   while (i < lines.length && lines[i].indent === 2 && lines[i].content.startsWith("- id:")) {
-    const id = unquote(lines[i].content.slice("- id:".length));
+    const id = parseQuotedString(lines[i].content.slice("- id:".length).trim());
     i += 1;
     if (!lines[i]?.content.startsWith("description:")) throw new Error("description");
-    const description = unquote(lines[i].content.slice("description:".length));
+    const description = parseQuotedString(
+      lines[i].content.slice("description:".length).trim(),
+    );
     i += 1;
     criteria.push({ id, description });
   }
@@ -297,7 +327,6 @@ export function parseCanonicalContractYaml(text: string): TaskContract {
   return parseTaskContract(root);
 }
 
-/** True iff bytes are exactly the canonical form of the contract they encode. */
 export function isCanonicalContractYaml(text: string): boolean {
   try {
     const parsed = parseCanonicalContractYaml(text);

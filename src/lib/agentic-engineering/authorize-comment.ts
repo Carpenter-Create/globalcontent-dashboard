@@ -26,17 +26,25 @@ const REQUIRED_KEYS = [
  * - Exact header `AE-AUTHORIZE`
  * - Required fields exactly once; unknown fields rejected
  * - No blank lines / trailing free text
+ * - Terminal newline: none, or exactly one (additional blank lines rejected)
  * - `key: value` with exactly one space after colon
+ * - `contract_version` must be a positive safe integer
  */
 export function parseAuthorizeComment(body: string): AuthorizeParseResult {
   const errors: string[] = [];
   const normalized = body.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split("\n");
-  while (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
+
+  // Allow no final newline, or exactly one. Reject additional trailing blank lines.
+  let text = normalized;
+  if (text.endsWith("\n")) {
+    text = text.slice(0, -1);
+  }
+  const lines = text.split("\n");
+  if (lines.some((line) => line === "")) {
+    return { ok: false, errors: ["blank lines are not allowed"] };
   }
 
-  if (lines.length === 0) {
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) {
     return { ok: false, errors: ["empty comment"] };
   }
   if (lines[0] !== "AE-AUTHORIZE") {
@@ -46,10 +54,6 @@ export function parseAuthorizeComment(body: string): AuthorizeParseResult {
   const seen = new Map<string, string>();
   for (let i = 1; i < lines.length; i += 1) {
     const line = lines[i];
-    if (line.trim() === "") {
-      errors.push(`blank line at ${i + 1} not allowed`);
-      continue;
-    }
     const m = /^([a-z_]+): (.+)$/.exec(line);
     if (!m || line.endsWith(" ")) {
       errors.push(
@@ -84,6 +88,13 @@ export function parseAuthorizeComment(body: string): AuthorizeParseResult {
     errors.push("contract_version must be a positive integer");
   }
   const contract_version = Number(versionRaw);
+  if (
+    !Number.isSafeInteger(contract_version) ||
+    contract_version < 1 ||
+    String(contract_version) !== versionRaw
+  ) {
+    errors.push("contract_version must be a positive safe integer");
+  }
 
   const digestParse = sha256DigestSchema.safeParse(seen.get("contract_digest"));
   if (!digestParse.success) {

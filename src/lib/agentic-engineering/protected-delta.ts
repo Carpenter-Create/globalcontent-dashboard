@@ -1,3 +1,9 @@
+import {
+  isAuthorityPath,
+  isDerivedPath,
+  parseControlPath,
+} from "./control-paths";
+
 export type ProtectedObjectMap = ReadonlyMap<string, string>;
 
 export type ProtectedDeltaIssue = {
@@ -10,23 +16,9 @@ export type ProtectedDeltaResult =
   | { ok: true }
   | { ok: false; issues: ProtectedDeltaIssue[] };
 
-function isProtectedAuthorityPath(path: string): boolean {
-  return (
-    path.startsWith("contracts/") ||
-    path.startsWith("events/")
-  );
-}
-
-function isDerivedPath(path: string): boolean {
-  return path.startsWith("closures/") || path.startsWith("proposed/");
-}
-
 /**
  * Pure create-once verifier for conceptual protected object sets (spec §4.5.2).
- *
- * - `contracts/**` and `events/**` may only be added, never modified/deleted/renamed
- * - rename-as-delete+add is rejected (deleted protected path)
- * - `closures/**` and `proposed/**` may change (non-authority)
+ * All paths must match strict control-plane grammar; unknown classes fail closed.
  */
 export function verifyProtectedObjectDelta(
   prior: ProtectedObjectMap,
@@ -34,8 +26,19 @@ export function verifyProtectedObjectDelta(
 ): ProtectedDeltaResult {
   const issues: ProtectedDeltaIssue[] = [];
 
+  for (const path of new Set([...prior.keys(), ...next.keys()])) {
+    const parsed = parseControlPath(path);
+    if (!parsed.ok) {
+      issues.push({
+        code: "invalid_path",
+        path,
+        message: `invalid control path: ${parsed.reason}`,
+      });
+    }
+  }
+
   for (const [path, digest] of prior) {
-    if (!isProtectedAuthorityPath(path)) continue;
+    if (!isAuthorityPath(path)) continue;
     if (!next.has(path)) {
       issues.push({
         code: "protected_deleted",
@@ -53,20 +56,11 @@ export function verifyProtectedObjectDelta(
     }
   }
 
-  for (const path of next.keys()) {
-    if (isProtectedAuthorityPath(path) || isDerivedPath(path)) continue;
-    // Unknown top-level areas are rejected for orchestrator deltas in later phases;
-    // Phase A only validates the create-once invariant on known protected prefixes.
-    void path;
-  }
-
-  // Detect rename: a prior protected digest reappearing at a new protected path while
-  // the old path is gone — already covered as delete; also flag digest relocation.
   for (const [oldPath, oldDigest] of prior) {
-    if (!isProtectedAuthorityPath(oldPath)) continue;
+    if (!isAuthorityPath(oldPath)) continue;
     if (next.has(oldPath)) continue;
     for (const [newPath, newDigest] of next) {
-      if (!isProtectedAuthorityPath(newPath)) continue;
+      if (!isAuthorityPath(newPath)) continue;
       if (prior.has(newPath)) continue;
       if (newDigest === oldDigest) {
         issues.push({
@@ -76,6 +70,12 @@ export function verifyProtectedObjectDelta(
         });
       }
     }
+  }
+
+  // Derived paths may change; still must be grammatically valid (checked above).
+  for (const path of next.keys()) {
+    if (isAuthorityPath(path) || isDerivedPath(path)) continue;
+    // invalid_path already recorded
   }
 
   if (issues.length > 0) return { ok: false, issues };

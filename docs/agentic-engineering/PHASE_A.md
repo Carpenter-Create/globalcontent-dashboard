@@ -13,18 +13,29 @@ No network, no GitHub writes, no `ae/control` branch, no workflows.
 **Exact frozen UTF-8 file bytes** after canonical-form enforcement (spec §6.5).
 
 1. Validate structured contract with `taskContractSchema`.
-2. Emit canonical YAML via `formatCanonicalContractYaml` (LF, fixed key order, trailing newline).
+2. Emit canonical YAML via `formatCanonicalContractYaml` (LF, fixed key order,
+   trailing newline; **all string scalars double-quoted JSON-style**).
 3. `digestContractFileBytes` asserts the input equals that canonical form, then
    `sha256:` + hex(SHA-256(utf8 bytes)).
 
-Do not digest a re-serialized AST from another YAML library.
+Booleans are only bare `true` / `false`. Integers are lexical decimal. Bare or
+single-quoted string forms are rejected. Digest binds exact frozen UTF-8 bytes.
 
-## Event digest
+## Event digest / JSON-safe domain
 
 `event_digest = sha256:` + hex(SHA-256(canonical JSON of event **without** `event_digest`)).
 
-Canonical JSON: sorted object keys at every level, arrays keep supplied order, compact
-UTF-8, no insignificant whitespace (`canonicalJsonString`).
+Payloads and digest inputs are constrained to a JSON-safe domain (string, finite
+number, boolean, null, arrays, plain string-keyed objects). `undefined`, `NaN`,
+`Infinity`, `Date`, class instances, and forbidden keys (`__proto__`,
+`constructor`, `prototype`) are rejected. Canonicalization uses null-prototype
+containers and never silently drops unsupported fields.
+
+## Authority event payloads
+
+`controlEventSchema` is a discriminated union on `event_type` with **strict**
+payloads per type. Missing `outcome` / `status` never defaults to success /
+approved. Unknown fields on authority-bearing events are rejected.
 
 ## Genesis
 
@@ -36,22 +47,35 @@ This is a documented sentinel, not a content hash.
 
 ## Event chain
 
-`verifyEventChain` checks contiguous sequences, genesis/prev digests, recomputed
-`event_digest`, constant `task_id`, and active contract continuity (only `authorize`
-may change `active_contract_*`).
+`verifyEventChain` schema-validates before digest/chain acceptance, then checks
+contiguous sequences, genesis/prev digests, recomputed `event_digest`, constant
+`task_id`, and active contract continuity (only `authorize` may change
+`active_contract_*`).
 
-## Protected deltas
+## Protected path grammar
 
-`verifyProtectedObjectDelta(prior, next)` enforces create-once on `contracts/**` and
-`events/**`. `closures/**` and `proposed/**` are non-authority.
+Strict repository-relative forms only:
+
+- `contracts/<task_id>/v<positive-integer>.yaml`
+- `events/<task_id>/<6-digit-seq>-<event_type>.json`
+- `closures/<task_id>/<40-hex-sha>.md`
+- `proposed/<task_id>/v<positive-integer>.yaml`
+
+Unknown classes and path-bypass forms (`/`, `\`, `..`, empty segments) fail closed.
 
 ## State fold
 
 `foldTaskState` derives current task state from a valid event chain. Mutable
 `current_state` files are not authority.
 
+- `validation_completed` / `review_completed` require explicit outcomes.
+- Approved `review_completed` remains in `REVIEWING`.
+- Only `founder_review_ready` (exact SHA + contract + evidence pins) enters
+  `FOUNDER_REVIEW`.
+
 ## Closure readiness
 
-`evaluateClosureReadiness` is a pure predicate over a structured snapshot. It encodes
-`pr.head.sha == implementation_sha == validated_sha == reviewed_sha` and the other
-§7.2 gates. No GitHub API calls.
+`evaluateClosureReadiness` takes **expectations** (floor checks, acceptance IDs,
+session identities, push attestation) and **observed** evidence. Reviewer
+independence is derived (same session / push capability fail closed). Empty
+expected required-check lists are invalid for this repository’s floor model.

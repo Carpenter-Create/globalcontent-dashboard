@@ -23,9 +23,12 @@ function basePreimage(
     active_contract_version: 1,
     active_contract_digest: SAMPLE_DIGEST,
     prev_event_digest: genesisPrevEventDigest("AE-0001"),
-    payload: { note: "a" },
+    payload: {
+      contract_version: 1,
+      contract_digest: SAMPLE_DIGEST,
+    },
     ...overrides,
-  };
+  } as ControlEventPreimage;
 }
 
 describe("computeEventDigest", () => {
@@ -54,8 +57,22 @@ describe("computeEventDigest", () => {
   });
 
   it("changes when payload changes", () => {
-    const a = computeEventDigest(basePreimage({ payload: { note: "a" } }));
-    const b = computeEventDigest(basePreimage({ payload: { note: "b" } }));
+    const a = computeEventDigest(
+      basePreimage({
+        payload: {
+          contract_version: 1,
+          contract_digest: SAMPLE_DIGEST,
+        },
+      }),
+    );
+    const b = computeEventDigest(
+      basePreimage({
+        payload: {
+          contract_version: 2,
+          contract_digest: SAMPLE_DIGEST,
+        },
+      }),
+    );
     expect(a).not.toBe(b);
   });
 
@@ -72,5 +89,20 @@ describe("computeEventDigest", () => {
   it("withEventDigest attaches a matching digest", () => {
     const ev = withEventDigest(basePreimage());
     expect(ev.event_digest).toBe(computeEventDigest(ev));
+  });
+
+  it("rejects non-JSON-safe payload values during digest", () => {
+    expect(() =>
+      computeEventDigest(
+        basePreimage({
+          payload: {
+            contract_version: 1,
+            contract_digest: SAMPLE_DIGEST,
+            // @ts-expect-error intentional unsafe injection
+            when: new Date(),
+          },
+        }),
+      ),
+    ).toThrow();
   });
 });

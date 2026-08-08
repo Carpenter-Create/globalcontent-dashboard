@@ -22,6 +22,14 @@ describe("parseAuthorizeComment", () => {
     }
   });
 
+  it("accepts exactly one terminal newline", () => {
+    expect(parseAuthorizeComment(`${valid}\n`).ok).toBe(true);
+  });
+
+  it("rejects additional blank lines after terminal newline", () => {
+    expect(parseAuthorizeComment(`${valid}\n\n`).ok).toBe(false);
+  });
+
   it("accepts CRLF line endings", () => {
     const r = parseAuthorizeComment(valid.replace(/\n/g, "\r\n"));
     expect(r.ok).toBe(true);
@@ -49,8 +57,7 @@ describe("parseAuthorizeComment", () => {
   });
 
   it("rejects uppercase hex in digest", () => {
-    const upper =
-      "sha256:" + "A".repeat(64);
+    const upper = "sha256:" + "A".repeat(64);
     const body = [
       "AE-AUTHORIZE",
       "task_id: AE-0001",
@@ -72,8 +79,35 @@ describe("parseAuthorizeComment", () => {
   });
 
   it("rejects wrong header", () => {
-    expect(parseAuthorizeComment(valid.replace("AE-AUTHORIZE", "AUTHORIZE")).ok).toBe(
-      false,
-    );
+    expect(
+      parseAuthorizeComment(valid.replace("AE-AUTHORIZE", "AUTHORIZE")).ok,
+    ).toBe(false);
+  });
+
+  it("rejects non-safe-integer contract_version overflow magnitude", () => {
+    const body = [
+      "AE-AUTHORIZE",
+      "task_id: AE-0001",
+      "contract_version: 9007199254740993",
+      `contract_digest: ${SAMPLE_DIGEST}`,
+      `base_sha: ${SAMPLE_SHA}`,
+    ].join("\n");
+    const r = parseAuthorizeComment(body);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors.some((e) => /safe integer/.test(e))).toBe(true);
+    }
+  });
+
+  it("rejects zero and negative contract_version", () => {
+    expect(
+      parseAuthorizeComment(valid.replace("contract_version: 1", "contract_version: 0"))
+        .ok,
+    ).toBe(false);
+    expect(
+      parseAuthorizeComment(
+        valid.replace("contract_version: 1", "contract_version: -1"),
+      ).ok,
+    ).toBe(false);
   });
 });

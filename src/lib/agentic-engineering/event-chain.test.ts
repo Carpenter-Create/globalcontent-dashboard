@@ -3,27 +3,81 @@ import { describe, expect, it } from "vitest";
 import { verifyEventChain } from "./event-chain";
 import { computeEventDigest } from "./event-digest";
 import { genesisPrevEventDigest } from "./genesis";
-import { chainEvents, SAMPLE_DIGEST, SAMPLE_DIGEST_B } from "./test-fixtures";
+import {
+  authorizePayload,
+  chainEvents,
+  SAMPLE_DIGEST,
+  SAMPLE_DIGEST_B,
+} from "./test-fixtures";
 
 describe("verifyEventChain", () => {
   it("accepts a valid chain", () => {
     const events = chainEvents([
-      {
-        type: "authorize",
-        payload: {
-          contract_version: 1,
-          contract_digest: SAMPLE_DIGEST,
-          founder_actor_id: 1,
-          base_sha: "a".repeat(40),
-          issue_number: 1,
-          comment_id: 2,
-          authorized_at: "2026-08-08T14:00:00.000Z",
-        },
-      },
+      { type: "contract_staged" },
+      { type: "authorize", payload: authorizePayload() },
       { type: "implementation_started" },
     ]);
     const r = verifyEventChain(events);
     expect(r.ok).toBe(true);
+  });
+
+  it("schema validation occurs before digest/chain acceptance", () => {
+    const events = chainEvents([{ type: "contract_staged" }]);
+    const bad = {
+      ...events[0],
+      sequence: 2,
+      event_type: "authorize",
+      payload: { decision: "yes" },
+      prev_event_digest: events[0].event_digest,
+      event_digest: SAMPLE_DIGEST,
+    };
+    const r = verifyEventChain([...events, bad]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.issues.some((i) => i.code === "malformed_event")).toBe(true);
+    }
+  });
+
+  it("unsupported / malformed authority payloads invalidate the chain", () => {
+    const events = chainEvents([
+      { type: "contract_staged" },
+      { type: "authorize" },
+      { type: "implementation_started" },
+      { type: "implementation_declared" },
+    ]);
+    const bad = {
+      ...events[events.length - 1],
+      sequence: 5,
+      event_type: "validation_completed",
+      payload: { ok: true },
+      prev_event_digest: events[events.length - 1].event_digest,
+      event_digest: SAMPLE_DIGEST,
+    };
+    const r = verifyEventChain([...events, bad]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.issues.some((i) => i.code === "malformed_event")).toBe(true);
+    }
+  });
+
+  it("rejects reordered events", () => {
+    const events = chainEvents([
+      { type: "contract_staged" },
+      { type: "authorize" },
+      { type: "implementation_started" },
+    ]);
+    const r = verifyEventChain([events[0], events[2], events[1]]);
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects removed middle event (sequence gap)", () => {
+    const events = chainEvents([
+      { type: "contract_staged" },
+      { type: "authorize" },
+      { type: "implementation_started" },
+    ]);
+    const r = verifyEventChain([events[0], events[2]]);
+    expect(r.ok).toBe(false);
   });
 
   it("rejects bad genesis", () => {
@@ -32,8 +86,7 @@ describe("verifyEventChain", () => {
       ...events[0],
       prev_event_digest: "sha256:" + "0".repeat(64),
     };
-    // recompute digest after mutation so failure is prev/genesis, not digest
-    const pre = { ...broken, event_digest: undefined };
+    const pre = { ...broken };
     delete (pre as { event_digest?: string }).event_digest;
     const recomputed = {
       ...pre,
@@ -49,7 +102,7 @@ describe("verifyEventChain", () => {
   it("rejects sequence gap", () => {
     const events = chainEvents([
       { type: "contract_staged" },
-      { type: "authorize", payload: { contract_version: 1, contract_digest: SAMPLE_DIGEST } },
+      { type: "authorize", payload: authorizePayload() },
     ]);
     const rest = {
       ...events[1],
@@ -69,7 +122,7 @@ describe("verifyEventChain", () => {
   it("rejects wrong previous digest", () => {
     const events = chainEvents([
       { type: "contract_staged" },
-      { type: "implementation_started" },
+      { type: "authorize" },
     ]);
     const rest = {
       ...events[1],
@@ -87,11 +140,14 @@ describe("verifyEventChain", () => {
   it("rejects mutated prior event (digest mismatch)", () => {
     const events = chainEvents([
       { type: "contract_staged" },
-      { type: "implementation_started" },
+      { type: "authorize" },
     ]);
     const mutated = {
       ...events[0],
-      payload: { tampered: true },
+      payload: {
+        contract_version: 1,
+        contract_digest: SAMPLE_DIGEST_B,
+      },
       // keep stale digest
     };
     const r = verifyEventChain([mutated, events[1]]);
@@ -104,7 +160,7 @@ describe("verifyEventChain", () => {
   it("rejects task_id change", () => {
     const events = chainEvents([
       { type: "contract_staged" },
-      { type: "implementation_started" },
+      { type: "authorize" },
     ]);
     const rest = {
       ...events[1],
@@ -131,6 +187,23 @@ describe("verifyEventChain", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.issues.some((i) => i.code === "active_contract_drift")).toBe(true);
+    }
+  });
+
+  it("enforces authorize binding to active_contract_*", () => {
+    const events = chainEvents([
+      { type: "contract_staged" },
+      {
+        type: "authorize",
+        payload: authorizePayload({
+          contract_digest: SAMPLE_DIGEST_B,
+        }),
+      },
+    ]);
+    const r = verifyEventChain(events);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.issues.some((i) => i.code === "authorize_digest_bind")).toBe(true);
     }
   });
 
