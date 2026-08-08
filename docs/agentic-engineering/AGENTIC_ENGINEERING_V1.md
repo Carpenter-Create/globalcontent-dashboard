@@ -3,6 +3,7 @@
 - **Status:** specification only — not implemented
 - **Branch target for this doc:** `feat/agentic-engineering-v1`
 - **Base at authoring:** `db0de83dfd7da483ded7233446df7da553c66233`
+- **Revision:** post–Codex architecture/governance review (CHANGES REQUIRED → remediated in-spec)
 - **Audience:** founder + any engineer/agent implementing the orchestration system
 - **Authority:** This document defines *coordination automation*. It does not override
   `AGENTS.md`, `CLAUDE.md`, `docs/domain-spec.md`, or `docs/HANDOFF.md`. Where those
@@ -12,30 +13,22 @@
 
 ## 0. Repository evidence this design is built on
 
-This spec was designed against the operating model already in the repo, not invented
-in isolation. Implementers must treat these as binding inputs:
-
 | Source | What it contributes |
 | --- | --- |
-| `AGENTS.md` / `CLAUDE.md` | Working contract, founder checkpoints, destructive-ops rule, verification discipline, secrets rules, golden rules |
-| `docs/HANDOFF.md` | Live hard rules, production migration gating, “verification that cannot fail” lesson, Cursor/Codex independent review practice |
+| `AGENTS.md` / `CLAUDE.md` | Working contract, founder checkpoints, destructive-ops rule, verification floor, secrets rules |
+| `docs/HANDOFF.md` | Production migration gating, “verification that cannot fail,” Cursor/Codex independence practice |
 | `docs/domain-spec.md` | Domain truth; open founder decisions must not be invented |
 | `.github/workflows/ci.yml` | `checks` + `isolation`; `isolation` is the required status check on `main` |
-| `.github/workflows/migration-drift.yml` | Threat-aware secret design: no PR trigger for secret-bearing jobs; least-privilege `drift_reader`; fail closed on empty/unknown results |
-| `.codex/config.toml` + `.codex/hooks.json` + `.codex/hooks/guard-destructive.sh` | Secrets deny + destructive-command backstop (seatbelt, not licence) |
-| `.github/CODEOWNERS` | Structural ownership; founder `@acarpcreate`; enables “require Code Owners review” later |
-| `docs/superpowers/specs|plans|ledgers/*` | Existing bounded-work pattern: design → plan → execution ledger with SHA-pinned implement/review/fix rounds |
+| `.github/workflows/migration-drift.yml` | Secret-bearing jobs must not run from untrusted PR-head workflow definitions; least privilege; fail closed |
+| `.codex/config.toml` + hooks | Secrets deny + destructive-command backstop (seatbelt, not licence) |
+| `.github/CODEOWNERS` | Structural ownership (`@acarpcreate`); enables Code Owners merge requirements |
+| `docs/superpowers/specs\|plans\|ledgers/*` | Spec → plan → ledger pattern; SHA-pinned implement/review; `fix round N/5` |
 
-**Reuse, do not duplicate:**
+**Reuse, do not duplicate live control state:**
 
-- **Spec / plan / ledger triad** already governs bounded engineering (screener-proxy is the
-  reference). Agentic Engineering v1 adds a *machine-readable task contract + state machine*
-  around that triad; it does not replace design docs or ledgers.
-- **Fix-round counters** already appear in ledgers as `fix round N/5`. v1 codifies that limit.
-- **Founder process note (2026-08-07, screener-proxy ledger):** full review loops stay on
-  database changes and publicly reachable endpoints; ordinary code may receive one review pass
-  rather than endless fix/re-review. v1 encodes that as review-intensity policy, not as a
-  weakening of independent review.
+- Spec / plan / ledger remain **reasoning and reference** (HANDOFF: ledger carries *why*).
+- Agentic Engineering adds a **protected control plane** + **implementation PR**.
+- Ledgers, Slack, and closure packages are **derived**, not canonical authority.
 
 ---
 
@@ -58,13 +51,12 @@ ChatGPT defines work
   → founder decides whether to merge
 ```
 
-That coordination cost is the target of automation. Product authority is not.
+Coordination cost is the automation target. Product authority is not.
 
 ### Objective
 
-Reduce manual founder coordination between ChatGPT, Cursor, Codex, and GitHub for
-**bounded engineering slices**, while preserving human authority over costly, irreversible,
-product, architectural, production, and founder-gated decisions.
+Automate coordination around **bounded engineering slices** while preserving human authority
+over costly, irreversible, product, architectural, production, and founder-gated decisions.
 
 ### Acceptance criterion
 
@@ -74,10 +66,8 @@ product, architectural, production, and founder-gated decisions.
 
 ### Non-goals for this document
 
-- Implementing orchestration code
+- Implementing orchestration code, workflows, schemas, scripts, or Slack
 - Adding dependencies
-- Creating GitHub Actions workflows
-- Adding Slack integration
 - Changing application behavior, schema, or migrations
 - Invoking production systems
 
@@ -85,30 +75,30 @@ product, architectural, production, and founder-gated decisions.
 
 ## 2. Design principles
 
-1. **GitHub remains the canonical code and PR system of record.** Branches, commits, PRs,
-   checks, and merge state are authoritative for code motion.
-2. **`AGENTS.md`, repository docs, tests, and CI are authoritative governance inputs.**
-   The orchestrator routes work; it does not reinterpret doctrine into softer rules.
-3. **Implementer and reviewer are separate roles.** The same agent identity must not fill
-   both roles on the same task without an explicit founder exception recorded on the task.
-4. **Review inspects the actual diff/commit**, never only an implementer summary. Ledgers
-   already show summary overclaim; the protocol assumes that failure mode.
-5. **Founder checkpoints in `AGENTS.md` remain binding.** Pricing/packaging/money,
-   branding/naming/copy/visual decisions, data deletion / destructive migrations, external
-   communications, final architecture & launch calls.
-6. **Production mutation remains founder-gated.** Applying migrations, AWS production
-   changes, spend, and production validation are never agent-autonomous.
-7. **Destructive operations remain prohibited for agents** unless a task explicitly records
-   `destructive_ops_allowed: false` (default) or a founder-approved exception path that still
-   requires founder *execution* for apply. Writing SQL in a PR ≠ applying it.
-8. **Security/isolation controls may not be weakened to make automation easier.** Never add
-   `KNOWN_OPEN` baseline entries to greenwash CI (`docs/HANDOFF.md`). Never convert a failed
-   check into a pass to keep the workflow moving.
+1. **Separate implementation plane from control plane.** Mutable authorization, state,
+   review, and closure evidence must not live on the implementation PR branch. Recording
+   control evidence must never change the SHA under review. No “metadata commits don’t
+   count” exception. No ad-hoc content digest of the implementation branch as a substitute
+   for exact HEAD equality.
+2. **GitHub is the system of record for code motion** (branches, commits, PRs, check runs).
+3. **`AGENTS.md`, repository docs, tests, and CI are authoritative governance inputs.**
+   Automation routes work; it does not soften doctrine.
+4. **Implementer and reviewer are separate roles** with structural isolation (see §9).
+5. **Review inspects the actual diff at an exact SHA**, never only an implementer summary.
+6. **Founder checkpoints in `AGENTS.md` remain binding.**
+7. **Production mutation and destructive execution are always founder-executed in v1.**
+   No agent-editable boolean can authorize performing them. A contract may authorize
+   *drafting/reviewing* migration SQL or production runbooks when the bounded task allows;
+   applying/executing remains founder-only. Writing SQL in a PR ≠ applying it.
+8. **Security/isolation controls may not be weakened for automation convenience.**
+   Never add `KNOWN_OPEN` entries to greenwash CI. Never convert fail → pass to keep motion.
 9. **Fail closed** when authority or state is ambiguous.
 10. **Automation must not silently reinterpret repository doctrine.**
-11. **A failed automated check is never converted into “pass”** merely to keep motion.
-12. **Every transition leaves an audit trail** of who/what performed it, on which SHA, with
-    what evidence.
+11. **A failed automated check is never converted into “pass.”**
+12. **Append-only control events** record who/what transitioned state, on which SHAs, with
+    evidence references. Rewriteable “audit arrays” are not the authority.
+13. **Trusted validation floor is non-overridable** by task contracts (§8).
+14. **Privileged control workflows run only trusted code from protected `main`** (§12).
 
 ---
 
@@ -116,882 +106,779 @@ product, architectural, production, and founder-gated decisions.
 
 ### 3.1 Founder
 
-Authority for:
+Authority for: authorizing contracts; founder checkpoints; AE phase progression; production
+mutation and validation; material architecture/product decisions; merge to `main`;
+disposing `BLOCKED` / `CRITICAL_FAILURE` / Important-finding acceptances; resolving material
+agent disagreement.
 
-- authorizing a bounded task contract
-- founder checkpoints (`AGENTS.md`)
-- phase progression of Agentic Engineering itself
-- production mutation and production validation
-- material architecture / product decisions
-- merge authorization to `main` (v1: always founder-executed or founder-approved)
-- resolving `BLOCKED` / `CRITICAL_FAILURE` / material agent disagreement
-
-The founder is *not* required as a message courier between Implementer and Reviewer.
+Not required as a message courier between Implementer and Reviewer.
 
 ### 3.2 Orchestrator
 
-Owns task-state transitions and routing.
+Owns task-state transitions and routing on the **control plane**.
 
-Does:
+Does: verify transition evidence; route Implementer/Reviewer; observe CI; evaluate
+closure-readiness predicate; assemble derived closure packages; notify at gates; stop at
+founder gates.
 
-- validate that a transition’s required evidence exists
-- assign/route Implementer and Reviewer work
-- observe CI and validation results
-- assemble closure packages
-- notify the founder at legitimate gates
-- stop at founder gates
-
-Does not:
-
-- independently reinterpret product requirements
-- invent missing spec decisions
-- implement application code unless explicitly acting under a declared Implementer role
-  for that task (discouraged in v1; prefer separate implementer)
-- approve its own governance changes
-- merge to `main` autonomously
-- apply migrations or mutate production
+Does not: reinterpret product requirements; invent missing spec decisions; implement app
+code (unless separately acting as Implementer on another declared binding — discouraged);
+approve its own governance changes; merge to `main`; apply migrations; mutate production;
+execute or import PR-controlled code from a privileged context.
 
 ### 3.3 Implementer
 
-Executes the authorized bounded slice on the work branch.
+Executes the authorized slice on the **implementation branch / PR only**.
 
-May:
+May: implement/remediate within authorized scope; open/update the task PR; push
+implementation commits; run local checks for its own feedback.
 
-- implement within `authorized_scope`
-- remediate reviewer findings **within authorized scope**
-- open/update the task PR
-- run local verification commands prescribed by `AGENTS.md`
-
-Must not:
-
-- expand scope without escalation to `FOUNDER_DECISION_REQUIRED` or `BLOCKED`
-- apply migrations / run destructive DB ops / mutate AWS or Vercel production
-- treat review as optional
-- mark validation passed without runnable evidence
+Must not: write control-plane authority state; expand scope without escalation; apply
+migrations / destructive DB ops / mutate AWS or Vercel production; mark validation or
+review passed; push after claiming a SHA is under review without expecting invalidation.
 
 ### 3.4 Independent Reviewer
 
-Reviews the **actual commit/diff** at a pinned SHA against:
+Reviews the **actual commit/diff** at `reviewed_sha` against the authorized contract,
+`AGENTS.md`, referenced specs, security/isolation, test quality, regressions, scope creep,
+and correctness.
 
-- authorized task contract (scope in/out)
-- `AGENTS.md` / hard rules
-- referenced domain/spec/plan requirements
-- security/isolation boundaries
-- test quality (including mutation-check discipline where claimed)
-- regressions and scope creep
-- implementation correctness
+Must: use a separate session/run identity; fresh context from governing docs + exact diff;
+checkout/read surface pinned to `reviewed_sha`; record provider/model/session identity +
+`reviewed_sha`; emit structured findings; refuse summary-only review.
 
-Must:
+Must not: push to the implementation branch; share the implementer’s session/context;
+apply production changes; waive Critical findings.
 
-- obtain independent context (checkout/diff at SHA; read governing docs)
-- produce structured findings (`Critical` / `Important` / `Minor` / `deferred`)
-- pin `reviewed_sha`
-- refuse to rubber-stamp implementer summaries
+### 3.5 Validation / Closure (deterministic function, not an agent)
 
-Must not:
+**Recommendation unchanged:** Validation / Closure is a deterministic orchestration
+function in v1.
 
-- rely solely on implementer-authored summaries
-- apply production changes
-- expand into implementation except for explicitly allowed tiny mechanical fixes if the
-  task policy says so (default: **no**; screener-proxy’s “coordinator fixed a cast”
-  remains a human/coordinator exception, not the v1 default)
-
-### 3.5 Validation / Closure — recommendation
-
-**Recommendation: Validation / Closure is a deterministic orchestration function in v1,
-not a separate agent.**
-
-Why:
-
-1. **Repository verification is already specified mechanically** —
-   `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build`, plus CI jobs
-   `checks` and `isolation`. A second opinionated agent adds disagreement without adding
-   authority.
-2. **This repo’s recurring failure mode is “verification that cannot fail.”** Closure must
-   observe concrete exit codes, check runs, and SHA pins — not narrate confidence.
-3. **Independent qualitative judgment already belongs to the Reviewer.** Splitting a third
-   agent creates another transport hop the founder is trying to eliminate.
-4. **Fail-closed assembly is easier to make deterministic** than agentic: missing required
-   check → not closable; `head_sha != reviewed_sha` → not closable; unresolved Critical →
-   not closable.
-
-Validation / Closure therefore:
-
-- runs or observes required validation commands / CI
-- verifies SHA pins and review freshness
-- verifies task acceptance criteria checkboxes
-- emits a **closure package** (machine fields + short human summary)
-- transitions to `FOUNDER_REVIEW` only when closable; otherwise back to remediation,
-  `BLOCKED`, or `CRITICAL_FAILURE`
-
-A later phase may add an optional “closure auditor” agent; it is not required for v1.
+It observes check runs / pinned validation evidence, evaluates the closure-readiness
+predicate (§7), emits a **derived** closure package on the control plane, and advances to
+`FOUNDER_REVIEW` only when the predicate is true. It does not narrate confidence over
+missing evidence.
 
 ---
 
-## 4. Task state machine
+## 4. Protected control-plane design (selected)
 
-### 4.1 Canonical states (v1)
+### 4.1 Options evaluated
 
-Combined where clean:
+| Option | Strengths | Weaknesses for v1 |
+| --- | --- | --- |
+| A. Trusted GitHub Issue + comments only | Native numeric actor IDs; low setup | Comment/body edits; weak immutable blob store; easy to fork “truth” across labels vs body |
+| B. Protected control branch only | Git-auditable blobs + events | Git author ≠ verified GitHub actor ID; authorization UX awkward |
+| C. Check-run metadata only | Excellent for validation evidence | Poor fit for contracts, dispositions, append-only narrative of authority |
+| D. **Combination (selected)** | Actor-ID auth via Issue comment *created* events; immutable contract + append-only events on protected branch; check runs for validation; PR for code | Slightly more moving parts than A alone — still no new database |
 
-| State | Meaning |
+### 4.2 Selected design: Issue trigger + protected `ae/control` + checks + implementation PR
+
+**Planes:**
+
+| Plane | What lives there | Mutability |
+| --- | --- | --- |
+| **Implementation PR branch** | Application/docs code under review only | Mutable by Implementer; HEAD is `implementation` input |
+| **Protected branch `ae/control`** | Frozen authorized contract blobs; append-only control events; derived closure snapshots | Writable only by founder and the privileged control token (path-limited); never by Implementer/Reviewer tokens |
+| **GitHub Issue (`ae/task`)** | Authorization UX; human thread; optional derived labels | Issue body is **non-canonical**. Authorization uses `issue_comment` **created** events only |
+| **GitHub Check Runs** | Validation evidence for exact SHA | Platform-canonical for CI/validation |
+| **PR review threads** | Human/agent review discussion | Referenced by control events via review/thread IDs; not sole authority |
+| **Specs / plans / ledgers** | Design intent + reasoning narrative | Not live task state |
+| **Slack** | Derived notifications | Never authority |
+| **Closure package** | Derived readiness summary | Written to control plane (Issue comment and/or `ae/control` object); **not** committed to the implementation branch before merge |
+
+**Rejected:** YAML (or any mutable control record) on the implementation branch as canonical
+state — it self-invalidates `reviewed_sha == head` when recording approval.
+
+### 4.3 Object layout on `ae/control` (conceptual; not implemented yet)
+
+```
+ae/control
+  contracts/<task_id>/v<version>.yaml    # immutable after authorize event for that version
+  events/<task_id>/<utc>-<seq>-<type>.json  # append-only; never rewrite
+  closures/<task_id>/<head_sha>.md       # derived snapshots keyed by head SHA
+```
+
+Events are the live state machine. Current state = fold of the event log (deterministic).
+No rewriteable `audit_trail` array inside a mutable task file.
+
+### 4.4 Control Issue
+
+One Issue per task (`label: ae/task`, title includes `task_id`). Used for:
+
+- posting draft contract text for founder skim (non-canonical)
+- founder `AE-AUTHORIZE` comment (§5)
+- optional human discussion
+- derived label mirrors of state (informational only)
+
+---
+
+## 5. Founder authorization mechanism (exact)
+
+### 5.1 Mechanism selected
+
+**GitHub Issue comment created-event authorization**, verified by a privileged control
+workflow defined only on protected `main`, then snapshotted onto `ae/control`.
+
+Agents cannot spoof this by editing repository files: they cannot forge another user’s
+GitHub comment, and the workflow ignores comment edits.
+
+### 5.2 Authorize comment schema
+
+Founder posts a **new** Issue comment (not an edit) whose body is exactly parseable as:
+
+```text
+AE-AUTHORIZE
+task_id: AE-0001
+contract_version: 1
+contract_digest: sha256:<64 lowercase hex>
+base_sha: <40 lowercase hex>
+```
+
+Optional trailing notes are forbidden in v1 (keep the payload strict).
+
+### 5.3 Verification steps (privileged workflow)
+
+On `issue_comment` with `action == created` only:
+
+1. Parse payload; reject malformed comments (no state change).
+2. Verify `github.event.comment.user.id` equals the configured founder numeric ID
+   (`FOUNDER_GITHUB_ACTOR_ID` repository variable — immutable numeric actor ID, **not**
+   login/display name).
+3. Load the proposed contract bytes for `(task_id, contract_version)` from the designated
+   pre-auth staging object on `ae/control` (or the control PR merge that placed
+   `contracts/<task_id>/vN.yaml` in a *proposed* path). Recompute
+   `sha256(canonical_bytes)`.
+4. Require digest match; require `base_sha` exists on the repository and equals the
+   contract’s `base_sha` field.
+5. Append an `authorize` event to `ae/control` containing:
+   - `task_id`, `contract_version`, `contract_digest`, `base_sha`
+   - `founder_actor_id`, `issue_number`, `comment_id`, `authorized_at` (comment
+     `created_at`)
+   - control-branch commit that freezes the contract blob as authoritative
+6. Transition state → `AUTHORIZED`.
+
+**Comment edits (`action == edited`) never authorize and never amend an authorize event.**
+Changing authority-bearing fields requires a new `contract_version`, new digest, and a new
+`AE-AUTHORIZE` comment.
+
+### 5.4 Pre-auth staging
+
+Before authorization, an agent or human may open a **control-plane PR into `ae/control`**
+(or a founder push) that adds `contracts/<task_id>/vN.yaml`. That file is not live until
+the authorize event binds its digest. Implementation PRs must not carry this file as
+authority.
+
+---
+
+## 6. Immutable authorization contract
+
+### 6.1 Contract document
+
+The authorized contract is the frozen YAML blob at
+`ae/control/contracts/<task_id>/v<version>.yaml` whose digest was bound by the authorize
+event.
+
+### 6.2 Fields immutable after authorization
+
+Changing any of these requires `contract_version + 1`, new digest, and renewed founder
+`AE-AUTHORIZE`:
+
+| Field | Why immutable |
 | --- | --- |
-| `DRAFT` | Task contract being written; not actionable |
-| `FOUNDER_AUTHORIZATION_REQUIRED` | Contract complete; waiting for founder authorize |
-| `AUTHORIZED` | Founder authorized; ready to route implementation |
-| `IMPLEMENTING` | Implementer working |
-| `VALIDATING` | Deterministic validation after implement or remediate |
-| `REVIEWING` | Independent reviewer examining pinned implementation SHA |
-| `REMEDIATION_REQUIRED` | Review findings require changes inside scope |
-| `REMEDIATING` | Implementer addressing findings |
-| `FOUNDER_REVIEW` | Closure package ready; founder action needed to accept/merge path |
-| `FOUNDER_DECISION_REQUIRED` | Ambiguity / checkpoint / policy exception needs founder judgment |
-| `BLOCKED` | Cannot proceed without external input or precondition |
-| `CRITICAL_FAILURE` | Safety/integrity failure; stop |
-| `PAUSED` | Explicit pause by founder |
-| `CLOSED` | Terminal success (merged or explicitly accepted without merge if docs-only policy says so) |
-| `CANCELLED` | Terminal abandonment |
+| `authorized_scope` | Prevents silent scope widen |
+| `out_of_scope` | Prevents silent reclassification |
+| `source_refs` | Pins governing design inputs |
+| `base_branch` / `base_sha` | Pins authorize-time starting point |
+| `work_branch` policy / naming constraints | Branch policy |
+| `implementer` / `reviewer` **role bindings** (agent class + separation requirements) | Role integrity |
+| `role_separation` (must be enforced; no self-review flag) | Independence |
+| `validation_additions` (extra commands/checks beyond the floor) | Cannot remove floor; additions are pinned |
+| `baseline_exceptions` (fingerprint-bound only) | Prevents broad waivers |
+| Draft allowances: `may_draft_migration_sql`, `may_draft_production_runbook`, `dependency_addition_allowed`, `ci_workflow_change_allowed` | Authority-bearing |
+| `review_intensity` (`strict` \| `single_pass`) | Loop policy |
+| `max_remediation_rounds` | Loop cap |
+| `acceptance_criteria` (ids + descriptions) | Done-means |
 
-**Intentionally omitted as separate states:**
-`VALIDATING_IMPLEMENTATION` / `REVALIDATING` → single `VALIDATING` with
-`validation_context: after_implement | after_remediate` on the task record.
+### 6.3 Fields that are *not* in the contract (live on event log / platform)
 
-### 4.2 Terminal states
+These change over the task lifetime via **append-only events**, never by rewriting the
+authorized contract:
 
-- `CLOSED`
-- `CANCELLED`
+- `state`
+- `pr_number`
+- `implementation_sha`, `validated_sha`, `reviewed_sha`
+- `review_status`
+- remediation counters
+- findings + dispositions
+- closure-ready flag
+- Slack delivery bookkeeping
 
-`CRITICAL_FAILURE` and `BLOCKED` are **not** terminal by default; they require founder
-disposition (`PAUSED`, `CANCELLED`, re-authorize, or resume path).
+### 6.4 No execution-permission booleans
 
-### 4.3 Transitions
+The contract **must not** contain `production_mutation_allowed` or
+`destructive_ops_allowed` (or equivalents) that gate *execution*.
 
-| From | To | Owner | Automatic? | Required evidence |
-| --- | --- | --- | --- | --- |
-| `DRAFT` | `FOUNDER_AUTHORIZATION_REQUIRED` | Orchestrator or authoring agent | yes, when contract schema validates | valid task contract; scope; base branch/SHA; validation requirements; allowances |
-| `FOUNDER_AUTHORIZATION_REQUIRED` | `AUTHORIZED` | Founder | no | explicit authorize event (GitHub issue comment/label/UI later; v1 may be commit/PR comment with agreed phrase) + authorization timestamp |
-| `AUTHORIZED` | `IMPLEMENTING` | Orchestrator | yes | implementer identity assigned; work branch exists or creatable from `base_sha` |
-| `IMPLEMENTING` | `VALIDATING` | Orchestrator | yes | `implementation_sha` posted; implementer claims done within scope |
-| `IMPLEMENTING` | `FOUNDER_DECISION_REQUIRED` | Implementer/Orchestrator | detect auto / progress no | founder checkpoint encountered; recorded question |
-| `IMPLEMENTING` | `BLOCKED` | Orchestrator | yes | missing spec, infra precondition, or authority gap |
-| `IMPLEMENTING` | `CRITICAL_FAILURE` | Orchestrator | yes | safety/integrity breach attempt or unrecoverable tool corruption |
-| `VALIDATING` | `REVIEWING` | Orchestrator | yes | required local/CI validation green **or** task-declared advisory exceptions recorded without renaming failure to pass; `implementation_sha` immutable for this cycle |
-| `VALIDATING` | `REMEDIATION_REQUIRED` | Orchestrator | yes | validation failed and retries remain |
-| `VALIDATING` | `BLOCKED` | Orchestrator | yes | validation failed and retry budget exhausted, or required check unavailable |
-| `REVIEWING` | `REMEDIATION_REQUIRED` | Reviewer via Orchestrator | yes | findings with severity ≥ task threshold (default: any Critical/Important) |
-| `REVIEWING` | `FOUNDER_REVIEW` | Orchestrator | yes | review approved at `reviewed_sha == implementation_sha`; validation still green; closure package assembled; no unresolved blocking findings |
-| `REVIEWING` | `FOUNDER_DECISION_REQUIRED` | Reviewer/Orchestrator | yes | material doctrine conflict or checkpoint |
-| `REMEDIATION_REQUIRED` | `REMEDIATING` | Orchestrator | yes | remediation round < max; findings attached |
-| `REMEDIATING` | `VALIDATING` | Orchestrator | yes | new `implementation_sha`; previous `reviewed_sha` cleared/invalidated |
-| `FOUNDER_REVIEW` | `CLOSED` | Founder | no | merge completed **or** explicit docs-only close authorization; closure evidence finalized |
-| `FOUNDER_REVIEW` | `REMEDIATION_REQUIRED` | Founder | no | founder rejects with in-scope changes requested |
-| `FOUNDER_REVIEW` | `FOUNDER_DECISION_REQUIRED` | Founder | no | founder escalates a decision |
-| `FOUNDER_DECISION_REQUIRED` | `AUTHORIZED` / `IMPLEMENTING` / `REMEDIATING` / `PAUSED` / `CANCELLED` | Founder | no | written decision recorded on task |
-| `BLOCKED` | `AUTHORIZED` / `IMPLEMENTING` / `PAUSED` / `CANCELLED` | Founder | no | unblock decision + evidence |
-| `CRITICAL_FAILURE` | `PAUSED` / `CANCELLED` / (rare) `AUTHORIZED` | Founder | no | incident disposition |
-| `*` | `PAUSED` | Founder | no | pause reason |
-| `PAUSED` | prior resumable state | Founder | no | resume authorization |
-| any non-terminal | `CANCELLED` | Founder | no | cancel reason |
+In v1:
 
-### 4.4 Automatic vs founder-required
+- **Destructive DB execution** and **production mutation** are always founder-executed.
+- Contract may set `may_draft_migration_sql` / `may_draft_production_runbook` to allow
+  agents to *write* those artifacts inside scope for review.
+- Orchestrator must treat any attempt to execute apply/push/spend as
+  `CRITICAL_FAILURE` / `BLOCKED`, regardless of drafted docs.
 
-**Automatic (orchestrator):**
-`DRAFT→FOUNDER_AUTHORIZATION_REQUIRED`, `AUTHORIZED→IMPLEMENTING`,
-`IMPLEMENTING→VALIDATING`, `VALIDATING→REVIEWING|REMEDIATION_REQUIRED|BLOCKED`,
-`REVIEWING→REMEDIATION_REQUIRED|FOUNDER_REVIEW` (when evidence complete),
-`REMEDIATION_REQUIRED→REMEDIATING`, `REMEDIATING→VALIDATING`,
-stale-review invalidation, Slack notify on gate states.
-
-**Founder-required:**
-authorize, merge/close, decisions, pause/resume/cancel, production mutation,
-destructive apply, any authority exception, disposition of `BLOCKED` /
-`CRITICAL_FAILURE`.
-
-### 4.5 Loop limits
-
-| Loop | Limit | On exceed |
-| --- | --- | --- |
-| Validation retries after implement/remediate (same SHA cycle) | 2 automatic re-runs for flaky infra only; **0** for deterministic test failures | `REMEDIATION_REQUIRED` if tests failed with budget; else `BLOCKED` |
-| Review ↔ remediation rounds | **5** (matches existing ledger `fix round N/5`) | `FOUNDER_DECISION_REQUIRED` with full finding history — not silent continue |
-| Scope-expansion attempts | 0 automatic | `FOUNDER_DECISION_REQUIRED` or `BLOCKED` |
-| Stale-review regenerations after head moves | counts as a new review cycle toward the 5 | same exceed behavior |
-
-**Review-intensity policy (from founder process change):**
-
-- **Strict loop (up to 5):** migrations, RLS/permissions, security harnesses, publicly
-  reachable endpoints, money/rights paths, CI/governance files.
-- **Single-pass default:** ordinary internal code. After one Independent Reviewer pass,
-  unresolved Important+ either remediates once or escalates to `FOUNDER_REVIEW` with
-  findings visible — orchestrator must not infinite-loop “ordinary” code. Critical always
-  blocks closure.
-
-### 4.6 Failure behavior (state-level)
-
-- Ambiguous state / missing evidence → do not advance; remain or `BLOCKED`.
-- Head SHA moves after `reviewed_sha` set → invalidate approval; return to `VALIDATING`
-  or `REVIEWING` as appropriate; never treat prior approval as valid.
-- Required status check fail → not closable.
-- Advisory/non-required check fail → record honestly; closable only if task contract
-  explicitly lists that check as non-blocking **and** the failure matches a documented
-  pre-existing baseline (e.g. known `pnpm audit` on `main`). Still never rename fail→pass.
-
----
-
-## 5. Machine-readable task contract
-
-### 5.1 Serialization recommendation
-
-**v1 format: YAML file + companion Markdown execution ledger.**
-
-| Artifact | Path | Role |
-| --- | --- | --- |
-| Task contract | `docs/agentic-engineering/tasks/<task_id>.yaml` | Canonical machine state + authority fields |
-| Execution ledger | `docs/superpowers/ledgers/<date>-<slug>.md` (existing convention) | Append-only human reasoning trail |
-| Design/plan | `docs/superpowers/specs|plans/...` (existing) | What/how; referenced, not replaced |
-| GitHub PR | GitHub | Code review surface, checks, SHA movement |
-| GitHub Issue (optional mirror) | GitHub | Discoverability / authorization comment thread |
-
-**Why YAML task files (not Issue-only, not JSON-only, not frontmatter-only):**
-
-- **Machine readable** without HTML scraping
-- **Git-auditable** (diffs, blame, PRs) — same trust model as migrations/docs
-- **Human readable** enough for founder skim
-- **Low complexity** — no new database, no Issue-schema lock-in
-- **Fits repo culture** — governance already lives in `docs/`
-
-Markdown+frontmatter is acceptable as an alternative if an implementer strongly prefers one
-file, but split YAML + ledger matches “machine fields vs reasoning narrative” cleanly and
-avoids frontmatter size/escape pain for audit arrays.
-
-GitHub Issue fields are a **mirror**, not the sole source of truth: Issues are easy to edit
-without SHA discipline and are weaker for structured nested evidence.
-
-### 5.2 Required fields
+### 6.5 Example contract shape (illustrative)
 
 ```yaml
-# docs/agentic-engineering/tasks/AE-0001.yaml
 schema_version: 1
 task_id: AE-0001
+contract_version: 1
 title: "..."
 
-state: DRAFT  # canonical state enum
-
-# Scope
 authorized_scope:
   - "..."
 out_of_scope:
-  - "..."
+  - "production migration apply"
+  - "AWS spend"
 source_refs:
-  - path: docs/superpowers/specs/...
-  - path: docs/superpowers/plans/...
-  - path: docs/domain-spec.md
-    sections: ["§12"]
+  - path: docs/superpowers/specs/example.md
 
-# Git pins
 base_branch: main
-base_sha: "<full sha>"          # exact authorize-time pin
+base_sha: "..."   # full SHA
 work_branch: "feat/..."
-implementation_sha: null        # head under test
-reviewed_sha: null              # SHA the reviewer actually inspected
-review_status: none             # none|pending|changes_requested|approved|stale
-pr_number: null
 
-# Actors (role → durable identity string; vendor-agnostic)
+role_separation: required   # v1: always required; field exists to pin the requirement
 implementer:
-  role: implementer
-  agent: cursor            # cursor|codex|claude_code|human|other
-  identity: "..."          # session/actor label
+  agent: cursor             # cursor|codex|claude_code|human|other
 reviewer:
-  role: reviewer
   agent: codex
-  identity: "..."
-orchestrator:
-  agent: github_actions    # or local_runner|human|other
-  identity: "..."
+# session identities are bound later in events when runs start — not forged in-contract
 
-# Validation
-validation_requirements:
-  local_commands:
-    - "pnpm typecheck"
-    - "pnpm test"
-    - "pnpm exec eslint src"
-    - "pnpm build"
-  required_status_checks:
-    - isolation            # required on main today
-  observed_status_checks:
-    - checks               # observe; may be non-blocking if baseline-exception recorded
-  baseline_exceptions: []  # explicit, never silent
+validation_additions:
+  commands: []              # added to floor; cannot remove floor
+  status_checks: []         # added to required floor checks
+baseline_exceptions: []     # each must include exact fingerprint; founder-authorized only
+
+may_draft_migration_sql: false
+may_draft_production_runbook: false
+dependency_addition_allowed: false
+ci_workflow_change_allowed: false
+
+review_intensity: strict    # strict|single_pass
+max_remediation_rounds: 5
+
 acceptance_criteria:
   - id: AC1
     description: "..."
-    satisfied: false
-
-# Authority allowances (default deny)
-destructive_ops_allowed: false
-production_mutation_allowed: false
-dependency_addition_allowed: false
-ci_workflow_change_allowed: false
-merge_authority: founder          # founder only in v1
-review_intensity: strict          # strict|single_pass
-
-# Loop counters
-remediation_count: 0
-max_remediation_rounds: 5
-validation_context: null          # after_implement|after_remediate|null
-
-# Findings & gates
-unresolved_findings: []           # structured list
-founder_gates: []                 # checkpoints hit / pending
-scope_violations: []
-
-# Notifications
-slack:
-  last_notification_at: null
-  last_notification_kind: null
-  delivery_failures: 0
-
-# Closure
-closure_package_path: null        # e.g. docs/agentic-engineering/closures/AE-0001.md
-closure_evidence: null
-
-# Timestamps
-created_at: "..."
-authorized_at: null
-updated_at: "..."
-closed_at: null
-
-# Audit trail (append-only in practice; store as list)
-audit_trail:
-  - at: "..."
-    from_state: DRAFT
-    to_state: FOUNDER_AUTHORIZATION_REQUIRED
-    actor: orchestrator:...
-    evidence_refs: []
 ```
 
-### 5.3 Finding object shape
-
-```yaml
-- id: F1
-  severity: Critical          # Critical|Important|Minor
-  status: open                # open|addressed|deferred|wont_fix_founder
-  summary: "..."
-  evidence: "path/file.ts + reviewed_sha"
-  introduced_at_sha: "..."
-  resolved_at_sha: null
-```
-
-### 5.4 Closure package (human-facing)
-
-Generated Markdown under `docs/agentic-engineering/closures/<task_id>.md` containing:
-
-- task id/title/state
-- PR URL + number
-- `base_sha`, `implementation_sha`, `reviewed_sha` (must match for closable)
-- CI summary for required + observed checks (raw conclusions, not euphemisms)
-- unresolved findings
-- remediation round count
-- destructive/production allowance status (must both be false for default pilot)
-- scope violations (must be empty)
-- recommended founder action: `merge` / `reject` / `decide X` / `apply production separately`
+Digest input = canonical UTF-8 bytes of this file as frozen (implementations must define
+canonicalization: LF endings, stable key order as committed file bytes — **digest the
+exact frozen file bytes**, do not re-serialize).
 
 ---
 
-## 6. Authority matrix
+## 7. SHA model and closure-readiness predicate
 
-Legend:
+### 7.1 SHA fields
 
-- **AA** — agent-autonomous
-- **AS** — agent-autonomous within authorized slice
-- **FD** — founder decision required
-- **FE** — founder execution required (decision alone is insufficient)
-
-| Action | Classification | Notes |
+| Name | Meaning | Set by |
 | --- | --- | --- |
-| Reversible implementation details | AS | Inside authorized scope only |
-| Architecture (material) | FD | `AGENTS.md` founder checkpoints |
-| Product behavior | FD | Spec gaps → ask; record in domain-spec/same PR |
-| UI / copy / branding / visual | FD | Founder checkpoint |
-| Schema design in a migration file | AS or FD | AS only if slice explicitly authorized to write migration SQL; still **FE to apply** |
-| Apply migrations (local/prod) | FE | Destructive-ops rule; hooks block agents |
-| Destructive DB operations | FE | Show exact SQL; explicit approval |
-| AWS production changes / spend | FE | Runbooks are docs; founder executes |
-| Vercel production env/project changes | FE | |
-| Dependency additions | FD (+ usually AS after approve) | Default `dependency_addition_allowed: false` |
-| Security-control changes (RLS, harnesses, isolation) | FD + strict review | Never weaken to greenwash |
-| CI workflow changes | FD | `ci_workflow_change_allowed` default false; secret-trigger lessons apply |
-| PR creation | AS | On work branch for authorized task |
-| PR updates (push in scope) | AS | Invalidates prior `reviewed_sha` |
-| Review remediation | AS | Within scope + round budget |
-| Merge to `main` | FE (or FD with founder clicking merge) | **Not autonomous in v1** |
-| Deployment | FE / platform auto | Vercel auto-deploy on `main` is platform behavior; agents must not treat that as licence to merge |
-| Production validation | FE | HANDOFF: reviewed ≠ validated |
+| `implementation_sha` | PR head the Implementer declared ready for validation/review | control event after implementer declaration; must equal current PR head at use |
+| `validated_sha` | Exact SHA for which required validation evidence succeeded | Validation function |
+| `reviewed_sha` | Exact SHA the Independent Reviewer inspected and judged | Reviewer completion event |
+| `pr.head.sha` | Current GitHub PR head | Platform |
+
+**Closure readiness requires exact equality of all four.**
+
+Required CI/check evidence must belong to that same SHA (`validated_sha`).
+
+### 7.2 Atomic closure-readiness predicate
+
+Evaluate `closure_ready(task)` as a pure function over control events + GitHub API facts:
+
+```
+closure_ready :=
+  PR exists AND PR state == open
+  AND contract_digest/version match the authorized contract bound by authorize event
+  AND pr.head.sha == implementation_sha
+  AND pr.head.sha == validated_sha
+  AND pr.head.sha == reviewed_sha
+  AND review_status == approved (for that reviewed_sha)
+  AND every required floor check + contract validation_additions
+        has a successful check run on pr.head.sha
+  AND no required check on that SHA is pending/queued/in_progress
+  AND no unresolved Critical findings
+  AND no unresolved Important findings without durable founder accept disposition
+  AND no open scope_violations
+  AND no event indicating unauthorized production/destructive execution attempt
+  AND reviewer independence evidence present for reviewed_sha
+        (distinct session/run id from implementer; non-pushing reviewer credential used)
+  AND acceptance_criteria all satisfied or explicitly founder-disposed where allowed
+```
+
+**When to evaluate:**
+
+1. Before transitioning into `FOUNDER_REVIEW`
+2. On every PR `synchronize` / head-change event
+3. Immediately before founder merge/closure is accepted by the control plane
+
+**On PR head change:** automatically append `invalidate_closure` / `stale_review` events;
+clear closure-ready; if state was `FOUNDER_REVIEW`, transition to `VALIDATING` (or
+`IMPLEMENTING` if declaration withdrawn). Prior approvals do not survive.
+
+**`FOUNDER_REVIEW` means technically closure-ready** — the predicate is true. It is not a
+dumping ground for unresolved blocking defects.
+
+### 7.3 Stale-review invariant
+
+> Reviewer approves SHA A; implementer pushes SHA B; prior approval remains valid —
+> **forbidden.**
+
+Also forbidden: recording approval/control evidence by committing to the implementation
+branch (would move HEAD).
 
 ---
 
-## 7. GitHub control plane
+## 8. Trusted validation floor
 
-### 7.1 Responsibilities
+### 8.1 Floor (non-overridable)
 
-| Concern | v1 design |
+From `AGENTS.md` verification discipline, the **command floor** is:
+
+```text
+pnpm typecheck
+pnpm test
+pnpm exec eslint src
+pnpm build
+```
+
+From protected-branch / CI governance, the **required status-check floor** includes at
+least:
+
+```text
+isolation
+```
+
+(`isolation` is the required status check on `main` per `ci.yml` / HANDOFF.)
+
+**Tasks may add** commands or checks via `validation_additions`.
+**Tasks may not remove or weaken** the floor.
+
+### 8.2 Current CI coverage gap (documented, not waived)
+
+As of this writing, `.github/workflows/ci.yml` `checks` runs typecheck + test (+ audit +
+advisory full `pnpm lint`), and does **not** run `pnpm exec eslint src` or `pnpm build`.
+HANDOFF also notes build-time env gaps. Phase D must emit check runs covering the full
+command floor on the PR SHA (unprivileged PR validation workflow) so closure evidence is
+platform-native. Until that exists, unattended closure must not pretend the floor is
+satisfied by partial CI.
+
+### 8.3 Baseline exceptions
+
+- Allowed only inside the founder-authorized contract (`baseline_exceptions`).
+- Each exception must bind an **exact failure fingerprint** (check name + failing step
+  identity + stable error signature / advisory IDs), not broad text like “audit currently
+  fails.”
+- Exceptions may apply only to **non-floor** observed checks (e.g. known pre-existing
+  `pnpm audit` high findings on `main` if that check is observed but not part of the
+  floor). They must never waive `isolation` or an AGENTS.md floor command.
+- Failed checks are still recorded as failed; exception means “does not block closure,”
+  not “passed.”
+
+### 8.4 Validation evidence record
+
+Each validation evidence item (control event or check-run reference) must identify:
+
+- SHA
+- command or check name
+- result (`success` / `failure` / …)
+- check-run ID where applicable
+- timestamp
+- artifact/log reference (URL or digest)
+
+Implementer-local terminal output is **not** sufficient for `validated_sha`.
+
+---
+
+## 9. Reviewer independence (v1)
+
+### 9.1 Rules
+
+1. **No self-review exception** in v1 — remove founder override that allowed the same agent
+   identity to implement and review the same task.
+2. Separate reviewer **session/run identity** from the implementer’s.
+3. Fresh context: governing docs + exact diff at `reviewed_sha` only.
+4. Checkout/read surface pinned to `reviewed_sha`.
+5. Reviewer credentials **cannot push** the implementation branch (read-only token or
+   branch rules denying reviewer actor pushes).
+6. Record `provider`, `model`, `session_or_run_id`, and `reviewed_sha` on the review event.
+7. Same model *family* is acceptable; same implementation *session* is not.
+
+### 9.2 Expected v1 vendor mapping (portable)
+
+| Role | Expected binding |
 | --- | --- |
-| Branch creation | Orchestrator/Implementer creates `work_branch` from `base_sha` (not floating `main`) |
-| Task record persistence | YAML in repo on the work branch; authorization may land via founder commit/comment |
-| PR creation | One PR per task (or per explicitly authorized task group); link `task_id` in title/body |
-| Labels | Suggested: `ae/task`, `ae/state:<STATE>`, `ae/strict-review`, `ae/single-pass`, `ae/founder-gate` |
-| Checks/statuses | Observe GitHub Check Runs; required = task `required_status_checks` |
-| Review comments | Independent Reviewer writes findings on the PR **and** structured findings in YAML |
-| Required reviews | Prefer branch protection + Code Owners; agent “approval” is not a substitute for founder merge authority |
-| CI | Existing `ci.yml`; do not special-case fail→pass |
-| Commit SHA pinning | `implementation_sha` set from PR head |
-| Reviewed SHA pinning | `reviewed_sha` set only by Reviewer/Orchestrator after real diff inspection |
-| Stale-review invalidation | If `pr.head.sha != reviewed_sha`, set `review_status: stale`, clear approval, leave `FOUNDER_REVIEW` if already there only after re-review |
-| Closure evidence | Closure Markdown + YAML fields + PR link + check run URLs |
-| Merge authorization | Founder only |
+| Implementer | Cursor |
+| Reviewer | Codex |
+| Orchestrator | Privileged control workflow on trusted `main` (+ thin routers) |
+| Validation/Closure | Deterministic function |
 
-### 7.2 Reviewed-SHA invariant (non-negotiable)
-
-> Reviewer approves SHA A, implementer pushes SHA B, orchestrator treats the previous review
-> as still valid — **forbidden.**
-
-Rules:
-
-1. Approval is valid only while `reviewed_sha == implementation_sha == pr.head.sha`.
-2. Any new push sets `review_status: stale` and nullifies closure readiness.
-3. Closure package must print all three SHAs; mismatch ⇒ not closable.
-4. “Re-approve without diff” is `CRITICAL_FAILURE` / protocol violation if detected.
-
-### 7.3 Base SHA drift
-
-At authorization, pin `base_sha`. If `main` moves materially before merge:
-
-- Orchestrator does **not** auto-rebase/merge.
-- Transition to `FOUNDER_DECISION_REQUIRED` or `BLOCKED` with divergence summary when:
-  - merge conflicts exist, or
-  - changed files on `main` intersect the task touch set, or
-  - security/schema files on `main` moved under the task’s paths.
-- Clean non-overlapping drift may be reported in the closure package as
-  `main_ahead_by: N` without auto-rebasing unless the founder authorizes rebase.
-
-### 7.4 PR trust boundary for future workflows
-
-When Phase B/C add Actions:
-
-- Secret-bearing workflows must follow `migration-drift.yml` lessons:
-  - **Do not** trigger privileged secret jobs on `pull_request` from arbitrary heads such
-    that the workflow definition from the PR head can exfiltrate secrets.
-  - Prefer `pull_request_target` only with extreme care; default v1: orchestration that needs
-    secrets runs from `main`/trusted workflow definitions, operating on PR metadata via API.
-- Untrusted PR code must not receive production credentials.
+Vendor changes = runner adapter + role binding fields; state model unchanged.
 
 ---
 
-## 8. ChatGPT role (after orchestration exists)
+## 10. Task state machine
 
-ChatGPT Project moves **up** the stack:
+### 10.1 States
 
-- product/architecture thinking
-- founder decision support
-- phase planning for Agentic Engineering and product slices
-- exception interpretation when the system surfaces `FOUNDER_DECISION_REQUIRED`
-- reviewing closure packages with the founder
-- determining the **next** bounded slice
-
-ChatGPT is **not** a required hop between Implementer and Reviewer transitions.
-The orchestrator carries findings and SHAs; ChatGPT should not be the clipboard.
-
----
-
-## 9. Cursor / Codex relationship
-
-### 9.1 Abstract roles
-
-The state model names **Implementer** and **Reviewer** only (plus Founder, Orchestrator,
-Validation function). Vendor is a binding on the task record, not on the state machine.
-
-### 9.2 Expected v1 mapping
-
-| Role | Expected v1 binding |
+| State | Meaning |
 | --- | --- |
-| Implementer | Cursor (agent/IDE session) |
-| Reviewer | Codex (independent agent session) |
-| Orchestrator | GitHub-centric automation + thin router (Phase C+); human-orchestrated bootstrap allowed in Phase A/B |
-| Validation/Closure | Deterministic function/script |
+| `DRAFT` | Contract being authored; not actionable |
+| `FOUNDER_AUTHORIZATION_REQUIRED` | Staged contract awaiting `AE-AUTHORIZE` |
+| `AUTHORIZED` | Authorize event recorded; may route implementation |
+| `IMPLEMENTING` | Implementer working on implementation branch |
+| `VALIDATING` | Deterministic validation for declared `implementation_sha` |
+| `REVIEWING` | Independent reviewer on pinned SHA |
+| `REMEDIATION_REQUIRED` | In-scope changes required |
+| `REMEDIATING` | Implementer addressing findings |
+| `FOUNDER_REVIEW` | `closure_ready == true`; founder merge/close action needed |
+| `FOUNDER_DECISION_REQUIRED` | Checkpoint, ambiguity, or unresolved Important after allowed rounds |
+| `BLOCKED` | Cannot proceed |
+| `CRITICAL_FAILURE` | Safety/integrity stop |
+| `PAUSED` | Founder pause |
+| `CLOSED` | Terminal success (merge recorded) |
+| `CANCELLED` | Terminal abandonment |
 
-### 9.3 Portability rule
+### 10.2 Terminal states
 
-Replacing Cursor with Claude Code, or Codex with another reviewer, must require **only**
-task field changes (`implementer.agent`, `reviewer.agent`) and runner adapters — not state
-renames, not contract schema forks.
+`CLOSED`, `CANCELLED`.
 
-Independence requirement remains: reviewer runtime/context must not be the implementer’s
-same session with memory of “how to defend the patch.”
+### 10.3 Selected transitions (authority-relevant)
 
----
+| From | To | Owner | Auto? | Evidence |
+| --- | --- | --- | --- | --- |
+| `DRAFT` | `FOUNDER_AUTHORIZATION_REQUIRED` | Orchestrator | yes | staged contract schema-valid on control plane |
+| `FOUNDER_AUTHORIZATION_REQUIRED` | `AUTHORIZED` | Founder via §5 | no | verified `AE-AUTHORIZE` + snapshot event |
+| `AUTHORIZED` | `IMPLEMENTING` | Orchestrator | yes | implementer run bound; branch from `base_sha` |
+| `IMPLEMENTING` | `VALIDATING` | Orchestrator | yes | `implementation_sha == pr.head.sha` declared |
+| `VALIDATING` | `REVIEWING` | Orchestrator | yes | `validated_sha == implementation_sha`; floor evidence present |
+| `VALIDATING` | `REMEDIATION_REQUIRED` | Orchestrator | yes | validation failed; budget remains |
+| `REVIEWING` | `REMEDIATION_REQUIRED` | Orchestrator | yes | open Critical/Important; rounds remain |
+| `REVIEWING` | `FOUNDER_DECISION_REQUIRED` | Orchestrator | yes | rounds exhausted with open Important; or checkpoint/conflict. Open Critical may also surface here for founder visibility, but Critical remains non-waivable for `closure_ready` |
+| `REVIEWING` | `FOUNDER_REVIEW` | Orchestrator | yes | `closure_ready` predicate true |
+| `REMEDIATING` | `VALIDATING` | Orchestrator | yes | new head; prior validated/reviewed SHAs invalidated |
+| `FOUNDER_REVIEW` | `CLOSED` | Founder | no | founder merge; control event records merge SHA |
+| head change while `FOUNDER_REVIEW` | `VALIDATING` | Orchestrator | yes | auto retract closure-ready |
+| `*` | `PAUSED` / `CANCELLED` | Founder | no | founder disposition event |
 
-## 10. Slack exception inbox
+### 10.4 Loop limits and single-pass policy
 
-### 10.1 Role
+| Loop | Limit | On exceed |
+| --- | --- | --- |
+| Infra-flake validation re-poll | 2 | then `BLOCKED` if still unavailable |
+| Deterministic test failures | 0 auto “pass” | `REMEDIATION_REQUIRED` |
+| Review ↔ remediation | `max_remediation_rounds` (default 5; pinned in contract) | `FOUNDER_DECISION_REQUIRED` |
+| Scope expansion | 0 | `FOUNDER_DECISION_REQUIRED` / `BLOCKED` |
 
-Slack is an **exception inbox**, not a progress firehose.
+**Review intensity:**
 
-### 10.2 Default notify states
+- **`strict`:** up to `max_remediation_rounds` for DB/public/security/money/governance touches.
+- **`single_pass`:** ordinary internal code — after the permitted remediation round(s), any
+  **unresolved Important** → `FOUNDER_DECISION_REQUIRED` (**not** `FOUNDER_REVIEW`).
+- **Critical** findings are **non-waivable** for closure in v1. They never become
+  `closure_ready`.
 
-Only:
+**If founder explicitly accepts/defer-disposes an Important finding:**
 
-- `FOUNDER_REVIEW`
-- `FOUNDER_DECISION_REQUIRED`
-- `BLOCKED`
-- `CRITICAL_FAILURE`
+1. Append durable `finding_disposition` event (founder actor ID, finding id, disposition,
+   timestamp).
+2. Re-run validation/review semantics on the **exact current head** as required by the
+   predicate (disposition does not skip SHA equality or floor checks).
+3. Only then may `closure_ready` become true → `FOUNDER_REVIEW`.
 
-No notify on every implement/validate/review tick.
-
-### 10.3 Minimum payloads
-
-Common fields: `task_id`, `title`, `state`, `pr_url`, `work_branch`, deep link to task YAML.
-
-**`FOUNDER_REVIEW` must include:**
-
-- task id + title
-- PR number/URL
-- `implementation_sha`
-- `reviewed_sha`
-- CI state (required checks + observed checks, raw)
-- required checks list
-- unresolved findings (count by severity + top items)
-- `production_mutation_allowed` status
-- `destructive_ops_allowed` status
-- scope violations
-- recommended founder action
-
-**`FOUNDER_DECISION_REQUIRED`:** decision question, options if known, blocking evidence,
-what is frozen until answered.
-
-**`BLOCKED`:** blocker class, missing precondition, last good SHA, next human action.
-
-**`CRITICAL_FAILURE`:** failure class, what was halted, what must not be done next,
-incident pointers.
-
-### 10.4 Notification vs approval actions
-
-**Recommendation: notification-only in v1.**
-
-Why safer:
-
-- Approval buttons create a second, weaker control plane that can drift from GitHub/YAML
-- Mobile mis-taps on merge-adjacent actions are unacceptable for Tier 3
-- Founder already has GitHub + task YAML as authoritative surfaces
-- Slack delivery failures must not create split-brain approvals
-
-v2 may add ack/emoji for “received,” still keeping merge/authorize in GitHub.
-
-If Slack delivery fails: retry modestly, record `slack.delivery_failures`, but **do not**
-block `FOUNDER_REVIEW` state itself — the PR/closure package remains the source of truth;
-optionally fall back to GitHub mention/@founder comment.
+**Classification rule for intensity:** founder sets `review_intensity` at authorization.
+If the touch set intersects high-risk paths (migrations, RLS, security harnesses, public
+routes, money/rights, workflows/governance), the orchestrator must **upgrade to `strict`**
+(never downgrade). Ambiguous touch sets → `strict` or `FOUNDER_DECISION_REQUIRED`.
 
 ---
 
-## 11. Failure and escalation behavior
+## 11. Authority matrix
+
+Legend: **AA** agent-autonomous · **AS** within authorized slice · **FD** founder decision ·
+**FE** founder execution
+
+| Action | Class | Notes |
+| --- | --- | --- |
+| Reversible implementation details | AS | Scope-bound |
+| Material architecture / product behavior / UI-copy-brand | FD | Checkpoints |
+| Draft migration SQL / runbook | AS | Only if contract draft flags true |
+| Apply migrations / destructive DB / AWS prod / spend / Vercel prod | FE | Always; no enabling boolean |
+| Dependency / CI workflow changes | FD | Pinned flags; strict review |
+| Security-control changes | FD + strict | Never greenwash |
+| PR create/update on implementation branch | AS | Invalidates pins on push |
+| Review remediation | AS | Scope + rounds |
+| Control-plane event append (orchestrator) | Orchestrator | Privileged workflow only |
+| Merge to `main` | FE | Founder-only; token enforcement required |
+| Production validation | FE | Reviewed ≠ validated (HANDOFF) |
+
+---
+
+## 12. Workflow trust boundary (binding)
+
+### 12.1 Unprivileged PR validation
+
+- May execute PR code (build/test against the PR head).
+- **No** production secrets.
+- **No** privileged repository write token (`contents: read` or less; no control-branch
+  write; no merge).
+- Posts check runs used as validation evidence.
+
+### 12.2 Privileged control workflow
+
+- Workflow **code/definition comes only from protected trusted `main`** (same class of
+  constraint as `migration-drift.yml` refusing secret jobs on PR-head-defined workflows).
+- Treats PR bodies, Issue bodies, contract drafts, and agent output as **untrusted data**.
+- **Never** checks out-and-executes or imports PR-controlled code/scripts.
+- Schema-validates all inputs.
+- Verifies founder-authorized `contract_digest` / version before honoring scope.
+- Least-privilege GitHub permissions (e.g. write limited to `ae/control` paths + Issue
+  comments/labels; **no** merge to `main`; **no** production cloud credentials in v1).
+- Governance/workflow changes that expand autonomous authority activate only after
+  founder review and merge to `main`.
+
+### 12.3 Token classes (mandatory)
+
+| Token | Capabilities | Forbidden |
+| --- | --- | --- |
+| Implementer | Push implementation branch; open PR | Merge `main`; write `ae/control`; prod creds |
+| Reviewer | Read repo; comment on PR | Push implementation branch; merge; control write; prod |
+| Privileged orchestrator | Append `ae/control` events; comment/label Issues; read checks | Merge `main`; prod cloud secrets; execute PR code |
+| Founder | Merge `main`; authorize; production execution outside agents | — |
+
+---
+
+## 13. Canonical evidence model
+
+One authority per fact class:
+
+| Fact class | Canonical authority |
+| --- | --- |
+| Implementation content | Git commits / PR head |
+| Authorization, state transitions, founder dispositions, actor identity | Append-only events on `ae/control` (+ Issue comment IDs referenced by those events) |
+| Authorized contract bytes | Frozen blob on `ae/control` bound by digest in authorize event |
+| Validation evidence | GitHub check runs on the exact SHA |
+| Review evidence | Control `review_completed` event referencing PR review/thread IDs + reviewer run identity |
+| Specs/plans/ledgers | Reasoning / reference only |
+| Closure package | Derived output on control plane |
+| Slack | Derived notification only |
+
+**Conflict rule:** if a ledger, Issue body, Slack message, or closure Markdown disagrees
+with control events + check runs + PR head, the latter win. Derived surfaces are repaired
+from canonical data, not the reverse.
+
+---
+
+## 14. Slack exception inbox
+
+Notification-only in v1 (no approval buttons).
+
+Notify only: `FOUNDER_REVIEW`, `FOUNDER_DECISION_REQUIRED`, `BLOCKED`, `CRITICAL_FAILURE`.
+
+**`FOUNDER_REVIEW` payload minimum:** task id/title; PR URL; `implementation_sha`;
+`validated_sha`; `reviewed_sha`; `pr.head.sha`; contract version/digest; CI/floor state;
+unresolved findings; draft-allowance flags (not execution permissions); scope violations;
+recommended founder action (`merge` / `reject`).
+
+Delivery failure: record control event; GitHub Issue fallback mention; do not invent a
+second approval channel.
+
+---
+
+## 15. Failure and escalation (summary)
 
 | Situation | Behavior |
 | --- | --- |
-| Implementation fails tests | `VALIDATING` → `REMEDIATION_REQUIRED` (or stay implementing if implementer self-fixes before posting SHA). Deterministic failures do not get infinite flake retries. |
-| CI fails required check | Not closable; remediation or `BLOCKED` if environmental |
-| CI fails non-required check | Record raw failure; closable only with explicit baseline exception on task |
-| Reviewer finds issues | `REMEDIATION_REQUIRED` with structured findings; round++ |
-| Review/repair loops exceed 5 | `FOUNDER_DECISION_REQUIRED` with history |
-| Branch moves after approval | stale review invariant; re-validate + re-review |
-| Scope ambiguous | `FOUNDER_DECISION_REQUIRED` or `BLOCKED`; fail closed |
-| Required spec missing | `BLOCKED`; do not invent (`domain-spec.md` / `AGENTS.md`) |
-| Founder checkpoint encountered | `FOUNDER_DECISION_REQUIRED`; stop |
-| Destructive op appears necessary | halt; `destructive_ops_allowed` remains false unless founder rewrites contract; apply still FE |
-| Production access appears necessary | `FOUNDER_DECISION_REQUIRED` / `BLOCKED`; never self-elevate |
-| Slack delivery fails | record failure; GitHub fallback comment; state stands |
-| GitHub API / orchestrator unavailable | fail closed (no speculative merges); resume later; no silent local-only “closed” |
-| Agents disagree materially | `FOUNDER_DECISION_REQUIRED` with both evidence packs; no majority vote of bots |
-| Reviewer cannot obtain independent context | `BLOCKED` / `CRITICAL_FAILURE` — cannot approve |
-| `main` moves materially after authorize | §7.3 drift policy |
-| Attempt to weaken isolation harness / baseline | `CRITICAL_FAILURE` |
-| Orchestrator uncertainty | do not advance |
+| Floor/required check fails | not `closure_ready`; remediate or `BLOCKED` |
+| Reviewer findings Critical/Important | remediate or escalate per §10.4 |
+| Head moves after pins | auto invalidate; leave `FOUNDER_REVIEW` |
+| Scope ambiguous / missing spec | `BLOCKED` / `FOUNDER_DECISION_REQUIRED`; do not invent |
+| Founder checkpoint | `FOUNDER_DECISION_REQUIRED` |
+| Destructive/production execution appears necessary | halt; founder executes outside agent loop |
+| Agents disagree materially | `FOUNDER_DECISION_REQUIRED` with both evidence packs |
+| Reviewer lacks independent context | cannot approve; `BLOCKED` / `CRITICAL_FAILURE` |
+| Privileged workflow uncertainty | fail closed |
+| Attempt to weaken isolation harness | `CRITICAL_FAILURE` |
+| `main` drift vs `base_sha` | report; conflicts or intersecting high-risk paths → founder decision; no silent rebase |
 
 ---
 
-## 12. Security model
+## 16. Security model (additional)
 
-### 12.1 Least privilege
-
-- Orchestrator tokens: minimum scopes to read PR/checks, comment, label, push only to
-  task branches if push is required; **no** production cloud credentials in v1 orchestrator.
-- Implementer/reviewer sessions: existing repo denies on `.env` / `secrets/**`
-  (`.codex/config.toml`; Claude deny rules). Automation must not bypass these.
-- Prefer read-only review tokens where possible.
-
-### 12.2 Secrets
-
-- Never read/print/commit `.env`, `.env.*`, `secrets/`.
-- No production Supabase/AWS/Stripe/Trolley secrets in client bundles or chat logs.
-- Slack webhook/token: server-side only, repo secret; never echoed into PR bodies.
-- GitHub token: least scope; rotate on leak suspicion.
-
-### 12.3 Prompt injection
-
-- Repository content and PR text are untrusted input to agents.
-- Orchestrator must treat task YAML authority fields as the policy engine; model prose
-  cannot widen `authorized_scope` or flip allowance booleans.
-- Reviewer must ignore “APPROVED” claims inside code comments/docs unless evidence matches.
-
-### 12.4 Malicious or risky PR code
-
-- Untrusted PR workflows must not receive privileged secrets (see migration-drift design:
-  no secret-bearing `pull_request` head-defined workflow execution).
-- Self-modifying orchestration: changes under `docs/agentic-engineering/**` implementation
-  paths, `.github/workflows/**`, `.codex/**`, `AGENTS.md`, `CLAUDE.md` require
-  `review_intensity: strict` and founder decision before enabling broader autonomy.
-- Agents may not approve their own governance-reducing patches.
-
-### 12.5 Protected / governance files
-
-Treat as high-risk touch set:
-
-- `AGENTS.md`, `CLAUDE.md`
-- `docs/domain-spec.md`, `docs/HANDOFF.md`
-- `.github/workflows/**`, `.github/CODEOWNERS`
-- `.codex/**`, `.claude/**`
-- `scripts/security/**`
-- `supabase/migrations/**`
-
-Default: out of scope for ordinary tasks unless explicitly authorized.
-
-### 12.6 Production credentials
-
-Not available to v1 automation. Production migration apply, AWS runbooks, and spend remain
-founder-executed per HANDOFF.
-
-### 12.7 migration-drift as design exemplar
-
-Copy these properties into future AE workflows:
-
-1. Least-privilege credential (`drift_reader`, not account token)
-2. Password out-of-band (`PGPASSWORD`), not URL-embedded
-3. No PR-head workflow definition executing with secrets
-4. Symmetric comparison / fail on empty results
-5. Loud failure preferred to silent green
+- Least privilege per §12.3.
+- Never read/print/commit `.env` / `secrets/`.
+- Prompt injection: PR/Issue/contract prose cannot widen authorized digests; only
+  authorize events + frozen blobs define authority.
+- Protected touch set (migrations, RLS, harnesses, workflows, `AGENTS.md`, etc.) defaults
+  out of scope unless explicitly in authorized contract; forces `strict`.
+- migration-drift exemplar properties apply to AE privileged automation: least privilege,
+  no PR-head secret execution, fail loud on empty/unknown.
 
 ---
 
-## 13. Auditability
+## 17. Mandatory enforcement prerequisites
 
-| Fact | Canonical home | Notes |
-| --- | --- | --- |
-| Authorization | task YAML `authorized_at` + audit_trail (+ GitHub comment) | Don’t fork across three truths |
-| Implementation commits | git + `implementation_sha` | |
-| Review findings | task YAML `unresolved_findings` + PR review threads | Ledger narrates reasoning |
-| Remediation rounds | task YAML counters + ledger entries | |
-| CI results | GitHub Check Runs; closure package snapshots conclusions at decision time | |
-| State transitions | task YAML `audit_trail` | Append-only discipline |
-| Founder decisions | task YAML + ledger + (optional) domain-spec update in same PR when product doctrine changes | |
-| Merge | GitHub merge commit SHA recorded in closure | |
-| Reasoning behind non-obvious fixes | `docs/superpowers/ledgers/...` | Already highest-value context per HANDOFF |
+**Unattended execution (Phase F pilot and beyond) must not start until these exist:**
 
-Avoid duplicating canonical SHAs in Slack as authority; Slack may echo them for convenience
-only.
+1. **Branch protection / rulesets on `main`:** required PR; founder-only merge path;
+   required status check `isolation` (and floor check runs once added).
+2. **Branch protection on `ae/control`:** restrict pushes to founder + privileged
+   orchestrator token; no Implementer/Reviewer write.
+3. **Founder-only merge authority** enforced by GitHub (Code Owners + rules), not prose.
+4. **Agent tokens cannot merge to `main`** (and cannot bypass rulesets).
+5. **`FOUNDER_GITHUB_ACTOR_ID` configured** for authorize verification.
+6. **Stale-review / head-change invalidation** implemented against the predicate.
+7. **Validation floor enforcement** in the readiness predicate (not waivable by task YAML).
+8. **Reviewer role isolation:** separate credentials; reviewer push denied on
+   implementation branches.
+9. **Privileged vs unprivileged workflow split** merged to `main` before use.
+
+Until then, AE may be documented and dry-run under direct founder supervision, but must
+not claim unattended operation.
 
 ---
 
-## 14. v1 scope
+## 18. v1 scope
 
-### 14.1 Will automate
+### Will automate
 
-- task-state routing
-- bounded implementation assignment/routing
-- deterministic validation observation
-- independent review routing
-- bounded remediation loops (with caps)
-- PR preparation/updates for the task branch
-- CI observation
-- founder notification (Slack) at exception states
-- closure package assembly
+Task-state routing; bounded implementation assignment; deterministic validation
+observation; independent review routing; bounded remediation loops; PR preparation on the
+implementation branch; CI observation; founder Slack notification at exception states;
+derived closure package assembly on the control plane.
 
-### 14.2 Will not automate (confirmed against repo evidence)
+### Will not automate
 
-| Excluded | Why |
+Founder product/architecture decisions; production migrations; destructive DB execution;
+AWS production changes/spend; unrestricted deployment authority; autonomous merge to
+`main`; fail→pass conversions; agent self-review.
+
+### Pilot-eligible shape
+
+Low-risk bounded slice; no production/destructive execution; clear scope; existing
+spec/plan refs; contract draft flags for migrations/runbooks false unless the slice is
+explicitly about drafting those docs.
+
+---
+
+## 19. Implementation phases (after this spec is approved)
+
+No assumption that OpenClaw is required.
+
+| Phase | Objective | Repo changes | Risk | Validation | Founder checkpoint |
+| --- | --- | --- | --- | --- | --- |
+| A | Control-plane contract schema + event types + authorize comment grammar | docs/schema only; no unattended runners | low | schema examples; digest stability tests (pure) | approve control-plane choice + authorize mechanism |
+| B | `ae/control` protection + Issue binding + SHA pin events | ruleset docs; optional scripts | med | push-after-approve invalidates readiness in dry-run | confirm merge remains founder-only |
+| C | Implementer/Reviewer routing with isolation | runner adapters | med-high | reviewer cannot push; distinct session recorded | vendor bindings |
+| D | Validation floor check runs + readiness predicate | unprivileged CI additions as needed; predicate | med | mutate head/checks → not ready | floor list |
+| E | Slack notification-only | secret docs + notifier | med | only four states | channel + secrets |
+| F | First bounded pilot | ops | process | §20 criteria | authorize + walk away |
+| G | Hardening | protocol fixes | med | replay failures | broaden task classes? |
+| H | Optional dedicated orchestrator evaluation | note | low | compare interrupt rate | adopt/defer |
+
+Phase A in this revision is **control-plane schema/design freeze**, not “YAML on the
+feature branch.”
+
+---
+
+## 20. Pilot acceptance criteria
+
+Founder authorizes one low-risk bounded task and does not manually courier messages between
+ChatGPT, Cursor, Codex, and GitHub.
+
+Success evidence:
+
+1. Contract frozen on `ae/control` with authorize event (actor ID + digest + base SHA)
+2. Implementation routed without founder clipboard
+3. `validated_sha` set from floor check runs on exact SHA
+4. Independent review on exact diff; review event recorded
+5. Remediation auto-routed if needed
+6. `pr.head.sha == implementation_sha == validated_sha == reviewed_sha`
+7. CI/floor observed without euphemism
+8. One legitimate Slack notify at a gate state
+9. One derived closure package for founder inspection
+10. Enforcement prerequisites (§17) satisfied for the pilot environment
+
+Non-requirements: production apply, AWS spend, autonomous merge.
+
+---
+
+## 21. ChatGPT role
+
+After orchestration exists: product/architecture thinking; founder decision support; phase
+planning; exception interpretation; closure review with founder; choosing the next bounded
+slice. **Not** a required hop on every implement/review transition.
+
+---
+
+## 22. Mapping to current manual practice (informative)
+
+| Manual today | v1 |
 | --- | --- |
-| Founder product decisions | `AGENTS.md` checkpoints; domain-spec open decisions |
-| Final architecture decisions | founder checkpoint |
-| Production migrations | destructive-ops + HANDOFF FE |
-| Destructive database operations | hooks + policy |
-| AWS production changes / spend | runbooks founder-executed |
-| Production spend / backfill fleet | explicit FE |
-| Unrestricted deployment authority | Vercel follows `main`; merge is the real gate |
-| Autonomous merge to `main` | Tier 3; CODEOWNERS/founder |
-| Reinterpreting failed checks as pass | HANDOFF isolation baseline lesson |
-| Silent local migration apply as proof for others | HANDOFF: local DB non-authoritative when agents deviate |
-
-### 14.3 Pilot-eligible work shape
-
-Low-risk, docs-or-narrow-code slices with:
-
-- `destructive_ops_allowed: false`
-- `production_mutation_allowed: false`
-- clear in/out scope
-- existing spec/plan references
-- no dependency/CI/governance file changes unless the AE system itself is the task
-  (chicken/egg: AE implementation tasks are founder-supervised phases, not the first
-  unattended pilot)
+| Founder pastes briefs between tools | Orchestrator routes from control events |
+| Cursor ↔ Codex via founder | Separate roles; findings on control plane + PR threads |
+| Founder babysits CI | Readiness predicate observes check runs |
+| Founder reconstructs state | Derived closure package |
+| Founder applies prod migrations | Still founder (FE) |
 
 ---
 
-## 15. Implementation phases (after this spec is approved)
+## 23. Open questions
 
-Do **not** assume OpenClaw or any dedicated agent platform is required. Prefer repository-
-native GitHub + docs + thin scripts first. Phase H evaluates a dedicated orchestrator only
-if Phases A–G prove the state model and still lack reliability.
+Only items still unsettled after this revision:
 
-### Phase A — Task contract + state persistence
+1. **Orchestrator host for Phases C–E at runtime:** trusted `main` GitHub Actions vs a
+   local founder-supervised runner for early dry-runs. Protocol is Actions-shaped; Phase H
+   still evaluates a dedicated host if needed. Not OpenClaw-required.
+2. **Numeric founder actor ID value** to configure as `FOUNDER_GITHUB_ACTOR_ID` (operational
+   secret/config, not an architecture choice).
+3. **Whether docs-only AE meta-work must always close via PR to `main`** — recommendation
+   remains yes for anything that changes protected governance; pure Issue+control-branch
+   contract experiments may stay on `ae/control` without an application PR.
 
-- **Objective:** Durable YAML schema + validation + example task; state enum frozen.
-- **Repo changes:** `docs/agentic-engineering/tasks/`, schema/readme, maybe a pure
-  validator script (no Actions required yet).
-- **Risk:** low (docs/schema only).
-- **Validation:** schema examples validate; invalid transitions rejected by validator.
-- **Founder checkpoint:** approve schema field set + authorize/close semantics.
-
-### Phase B — GitHub state / PR integration
-
-- **Objective:** Bind task ↔ branch ↔ PR ↔ SHAs; labels; stale-review detection rules.
-- **Repo changes:** docs + optional `gh`-driven scripts; still no secret-heavy Actions
-  required.
-- **Risk:** medium (API auth, mis-pinning SHAs).
-- **Validation:** simulated push-after-approve marks review stale.
-- **Founder checkpoint:** confirm merge remains founder-only.
-
-### Phase C — Implementer / Reviewer routing
-
-- **Objective:** Route work packets to Implementer and Independent Reviewer without founder
-  clipboard; enforce role separation.
-- **Repo changes:** runner adapters; prompts/packets referencing task YAML; ledger write
-  conventions.
-- **Risk:** medium-high (agent non-compliance, scope creep).
-- **Validation:** dry-run on a docs-only task; verify reviewer reads diff at SHA.
-- **Founder checkpoint:** approve vendor bindings and independence rules.
-
-### Phase D — Validation / Closure
-
-- **Objective:** Deterministic validation + closure package generation.
-- **Repo changes:** closure templates; check-run observation; readiness predicate.
-- **Risk:** medium (lying green; ignoring required `isolation`).
-- **Validation:** mutate a test so readiness fails; confirm fail-closed.
-- **Founder checkpoint:** required vs observed checks list.
-
-### Phase E — Slack notifications
-
-- **Objective:** Exception-inbox notifications only.
-- **Repo changes:** secret config docs; notifier; no approval buttons.
-- **Risk:** medium (secret handling, noise).
-- **Validation:** only four states notify; failure fallback to GitHub comment.
-- **Founder checkpoint:** Slack workspace/channel + secret placement.
-
-### Phase F — First bounded pilot
-
-- **Objective:** Unattended coordination on one low-risk authorized task (§16).
-- **Repo changes:** minimal; mostly operations.
-- **Risk:** process risk > code risk.
-- **Validation:** pilot acceptance criteria (§16) all true with evidence pasted.
-- **Founder checkpoint:** choose pilot task; authorize; walk away; dispose closure.
-
-### Phase G — Hardening
-
-- **Objective:** Fix protocol gaps found in pilot; tighten stale-review, drift, budgets.
-- **Repo changes:** schema/orchestrator fixes; docs lessons in Known Gotchas if durable.
-- **Risk:** medium.
-- **Validation:** replay pilot failure modes.
-- **Founder checkpoint:** whether to allow broader task classes.
-
-### Phase H — Optional dedicated orchestrator evaluation
-
-- **Objective:** Evaluate whether in-repo Actions+scripts are enough or a dedicated
-  orchestrator host is warranted.
-- **Repo changes:** evaluation note; possibly none.
-- **Risk:** low if evaluation-only; high if premature platform adoption.
-- **Validation:** written comparison against A–G metrics (founder interrupts/task,
-  stale-review incidents, false closes).
-- **Founder checkpoint:** adopt/defer platform.
+Resolved by this revision (no longer open): founder authorization UX; control-plane
+persistence choice; self-review exception; production/destructive enabling booleans;
+single-pass → `FOUNDER_REVIEW` ambiguity; validation floor overridability.
 
 ---
 
-## 16. Pilot acceptance criteria
+## 24. Codex review disposition
 
-### Pilot shape
-
-Founder authorizes **one low-risk bounded engineering task** (prefer docs/governance-adjacent
-or narrowly scoped non-production code already specified). Then the founder does **not**
-manually carry messages between ChatGPT, Cursor, Codex, and GitHub.
-
-### Success requires evidence for all of:
-
-1. Task contract created (`docs/agentic-engineering/tasks/<id>.yaml`)
-2. Implementation routed automatically (founder did not paste the brief into Cursor as courier)
-3. Validation executed (commands/CI observed; raw results recorded)
-4. Independent review executed on the real diff at a pinned SHA
-5. Remediation routed automatically if needed (or explicitly skipped because review clean)
-6. `reviewed_sha` pinned and equal to `implementation_sha` at closure time
-7. CI observed (required checks named; failures not euphemized)
-8. Founder receives **one** legitimate Slack notification when action is required
-   (not a per-step stream)
-9. Founder inspects **one closure package** rather than reconstructing state manually
-
-### Explicit pilot non-requirements
-
-- No production migration apply
-- No AWS spend
-- No autonomous merge (founder merges or declines)
-
----
-
-## 17. Open questions
-
-Only items repository evidence cannot settle:
-
-1. **Authorization UX for v1:** What exact founder gesture counts as `AUTHORIZED` —
-   GitHub Issue comment phrase, label flip, checkbox in YAML committed by founder, or
-   PR review “Authorize AE task”? (All are compatible with the state machine; pick one
-   before Phase B.)
-2. **Orchestrator host for Phases C–E:** Trusted `main`-defined GitHub Actions vs local
-   founder machine runner vs later dedicated host. Phase H exists because this is unsettled;
-   v1 protocol does not depend on OpenClaw.
-3. **Single-pass vs strict classification edge cases:** Who classifies a task that touches
-   both ordinary UI and a publicly reachable route — default to `strict` automatically, or
-   always founder-set at authorization?
-4. **Whether docs-only tasks may `CLOSED` without merging to `main` via PR** if the change
-   already landed by another path — default recommendation is still “PR + founder merge,”
-   but confirm for pure planning docs on an AE branch.
-
-No open question is raised here about whether production migrations, destructive ops, or
-autonomous merges can be agent-owned — repository doctrine already answers **no**.
-
----
-
-## 18. Mapping to current manual practice (informative)
-
-| Manual today | v1 automation |
+| Finding | Disposition |
 | --- | --- |
-| ChatGPT brief → founder → Cursor | Founder authorizes task; Orchestrator routes Implementer packet |
-| Cursor done → founder → Codex | Orchestrator routes Reviewer packet at `implementation_sha` |
-| Codex findings → founder → Cursor | `REMEDIATION_REQUIRED` → Implementer with structured findings |
-| Founder babysits CI | Validation/Closure observes checks |
-| Founder reconstructs state from chat | Closure package + task YAML + ledger |
-| Founder applies prod migrations | Still founder (out of scope) |
+| Critical — control state on implementation branch self-invalidates SHA | **Resolved** — §2.1, §4; control plane separated |
+| Critical — founder auth / scope spoofable via agent YAML | **Resolved** — §5 identity-bound authorize; §6 immutability |
+| Critical — review/CI freshness not atomic | **Resolved** — §7 `validated_sha` + readiness predicate + head-change retract |
+| Critical — privileged workflow boundary under-specified | **Resolved** — §12 binding split |
+| Important — single-pass vs blocking threshold | **Resolved** — unresolved Important → `FOUNDER_DECISION_REQUIRED` (§10.4) |
+| Important — validation floor waivable | **Resolved** — §8 |
+| Important — reviewer independence not structural | **Resolved** — §9; self-review exception removed |
+| Important — duplicated canonical evidence / rewriteable audit | **Resolved** — §13 append-only events |
+| Minor — §2.7 destructive wording inverted | **Resolved** — §2.7 / §6.4 |
 
-Reference pattern already proven in-repo: screener-proxy **spec → plan → ledger** with
-SHA-pinned implement/review/fix rounds and independent Cursor vs Codex reviews
-(`docs/HANDOFF.md`, `docs/superpowers/ledgers/2026-08-06-screener-proxy.md`).
+**Findings not accepted as written:** none of the Critical/Important items were rejected.
+One refinement relative to a possible over-reading: baseline exceptions remain expressible
+for **non-floor** observed checks with exact fingerprints (needed because `main`’s
+non-required `checks` audit can be red without making AE pretend audit passed). Floor
+checks remain non-waivable — aligned with HANDOFF’s “never baseline-away isolation.”
 
 ---
 
-## 19. Document control
+## 25. Document control
 
-- **This file is the v1 coordination spec.** Implementation plans for Phases A–H should land
-  under `docs/superpowers/plans/` (or `docs/agentic-engineering/plans/`) only after founder
-  approval of this document.
-- Amendments that change authority, state names, or SHA invariants require founder approval.
+- Spec-only. Implementation plans land only after founder approval of this document.
+- Amendments to authority, SHA invariants, authorize mechanism, or control-plane choice
+  require founder approval.
 - Do not claim Agentic Engineering is implemented because this file exists.
