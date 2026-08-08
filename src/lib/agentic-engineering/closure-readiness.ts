@@ -1,4 +1,5 @@
 import { gitShaSchema, sha256DigestSchema } from "./contract-schema";
+import type { ControlEvent } from "./event-schema";
 
 export type FindingSeverity = "Critical" | "Important" | "Minor";
 
@@ -9,16 +10,28 @@ export type ClosureFinding = {
 };
 
 /**
- * Durable founder disposition evidence from the control plane.
- * Bare caller objects without actor/event/contract refs cannot waive Important.
+ * Authoritative configured founder GitHub actor ID for this repository.
+ * Callers pass this via expectations; the predicate compares against it.
  */
-export type FounderDisposition = {
+export const CONFIGURED_FOUNDER_GITHUB_ACTOR_ID = 40549435;
+
+export type FounderDispositionValue =
+  | "accepted_by_founder"
+  | "deferred"
+  | "wont_fix_founder";
+
+/**
+ * Disposition evidence derived from an already-validated control-event chain.
+ * Free-form caller disposition objects are not accepted.
+ */
+export type VerifiedFindingDispositionEvent = {
+  eventType: string;
+  taskId: string;
   findingId: string;
-  disposition: "accepted_by_founder" | "deferred" | "wont_fix_founder";
+  disposition: string;
   founderActorId: number;
-  /** event_digest of the finding_disposition control event */
-  controlEventDigest: string;
-  controlEventSequence: number;
+  eventDigest: string;
+  sequence: number;
   activeContractVersion: number;
   activeContractDigest: string;
 };
@@ -62,6 +75,8 @@ export type AuthorizedContractExpectations = {
 export type ClosureReadinessInput = {
   expectations: {
     authorizedContract: AuthorizedContractExpectations;
+    /** Must be the configured founder GitHub actor ID. */
+    expectedFounderActorId: number;
     implementerSessionOrRunId: string;
     reviewerSessionOrRunId: string;
     /** If true, reviewer independence fails (architecture forbids push). */
@@ -79,7 +94,11 @@ export type ClosureReadinessInput = {
     checkResults: ObservedCheckResult[];
     acceptanceResults: { id: string; satisfied: boolean }[];
     findings: ClosureFinding[];
-    founderDispositions: FounderDisposition[];
+    /**
+     * Verified finding_disposition events extracted from a validated event chain.
+     * Important waivers resolve only against this list.
+     */
+    verifiedFindingDispositions: VerifiedFindingDispositionEvent[];
     scopeViolations: string[];
     unauthorizedProductionOrDestructiveAttempt: boolean;
   };
@@ -107,43 +126,68 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Map<string, number>
   return counts;
 }
 
-function isDurableDisposition(
-  d: FounderDisposition,
-  authVersion: number,
-  authDigest: string,
+/**
+ * Project verified finding_disposition events from a schema-validated chain.
+ * Callers should pass events only after verifyEventChain / foldTaskState succeeds.
+ */
+export function extractVerifiedFindingDispositions(
+  events: ControlEvent[],
+): VerifiedFindingDispositionEvent[] {
+  const out: VerifiedFindingDispositionEvent[] = [];
+  for (const ev of events) {
+    if (ev.event_type !== "finding_disposition") continue;
+    out.push({
+      eventType: "finding_disposition",
+      taskId: ev.task_id,
+      findingId: ev.payload.finding_id,
+      disposition: ev.payload.disposition,
+      founderActorId: ev.payload.founder_actor_id,
+      eventDigest: ev.event_digest,
+      sequence: ev.sequence,
+      activeContractVersion: ev.active_contract_version,
+      activeContractDigest: ev.active_contract_digest,
+    });
+  }
+  return out;
+}
+
+function isWaivingDisposition(disposition: string): boolean {
+  return (
+    disposition === "accepted_by_founder" || disposition === "wont_fix_founder"
+  );
+}
+
+/**
+ * Exact match of a verified control-chain finding_disposition to an Important finding.
+ */
+function matchesVerifiedWaiver(
+  findingId: string,
+  d: VerifiedFindingDispositionEvent,
+  expectedFounderActorId: number,
+  contractVersion: number,
+  contractDigest: string,
 ): boolean {
-  if (!d || typeof d !== "object") return false;
-  if (typeof d.findingId !== "string" || d.findingId.length === 0) return false;
+  if (d.eventType !== "finding_disposition") return false;
+  if (d.findingId !== findingId) return false;
+  if (d.founderActorId !== expectedFounderActorId) return false;
+  if (d.activeContractVersion !== contractVersion) return false;
+  if (d.activeContractDigest !== contractDigest) return false;
+  if (!isDigest(d.eventDigest)) return false;
   if (
-    d.disposition !== "accepted_by_founder" &&
-    d.disposition !== "deferred" &&
-    d.disposition !== "wont_fix_founder"
+    typeof d.sequence !== "number" ||
+    !Number.isInteger(d.sequence) ||
+    d.sequence < 1
   ) {
     return false;
   }
-  if (
-    typeof d.founderActorId !== "number" ||
-    !Number.isInteger(d.founderActorId) ||
-    d.founderActorId < 1
-  ) {
-    return false;
-  }
-  if (!isDigest(d.controlEventDigest)) return false;
-  if (
-    typeof d.controlEventSequence !== "number" ||
-    !Number.isInteger(d.controlEventSequence) ||
-    d.controlEventSequence < 1
-  ) {
-    return false;
-  }
-  if (d.activeContractVersion !== authVersion) return false;
-  if (d.activeContractDigest !== authDigest) return false;
+  if (!isWaivingDisposition(d.disposition)) return false;
   return true;
 }
 
 /**
  * Pure closure-readiness predicate (spec §7.2).
  * Reviewer independence is derived from session identities + push attestation.
+ * Important waivers require verified control-chain finding_disposition events.
  */
 export function evaluateClosureReadiness(
   input: ClosureReadinessInput,
@@ -151,6 +195,22 @@ export function evaluateClosureReadiness(
   const reasons: string[] = [];
   const { expectations: exp, observed: obs } = input;
   const auth = exp.authorizedContract;
+
+  // --- Founder identity expectation ---
+  let founderIdOk = false;
+  if (
+    typeof exp.expectedFounderActorId !== "number" ||
+    !Number.isInteger(exp.expectedFounderActorId) ||
+    exp.expectedFounderActorId < 1 ||
+    !Number.isSafeInteger(exp.expectedFounderActorId)
+  ) {
+    reasons.push("expected_founder_actor_id_invalid");
+  } else if (exp.expectedFounderActorId !== CONFIGURED_FOUNDER_GITHUB_ACTOR_ID) {
+    // Bind expectations to the repository's configured founder identity.
+    reasons.push("expected_founder_actor_id_not_configured");
+  } else {
+    founderIdOk = true;
+  }
 
   // --- Authorized contract expectations ---
   let authVersionOk = false;
@@ -172,6 +232,7 @@ export function evaluateClosureReadiness(
   }
 
   // --- Observed active contract identity (never inferred) ---
+  let contractIdentityOk = false;
   if (
     obs.activeContractVersion == null ||
     obs.activeContractDigest == null ||
@@ -181,9 +242,10 @@ export function evaluateClosureReadiness(
   } else if (authVersionOk && authDigestOk) {
     if (obs.activeContractVersion !== auth.version) {
       reasons.push("active_contract_version_mismatch");
-    }
-    if (obs.activeContractDigest !== auth.digest) {
+    } else if (obs.activeContractDigest !== auth.digest) {
       reasons.push("active_contract_digest_mismatch");
+    } else {
+      contractIdentityOk = true;
     }
   }
 
@@ -222,7 +284,6 @@ export function evaluateClosureReadiness(
         continue;
       }
       if (list.length > 1) {
-        // Fail closed even when identical — no ambiguous evidence.
         reasons.push(`duplicate_observed_check_evidence:${name}`);
         continue;
       }
@@ -296,17 +357,14 @@ export function evaluateClosureReadiness(
     }
   }
 
-  // --- Findings / durable founder dispositions ---
-  const dispCounts = countBy(obs.founderDispositions, (d) => d.findingId);
-  for (const [id, count] of dispCounts) {
-    if (count > 1) reasons.push(`duplicate_founder_disposition:${id}`);
-  }
+  // --- Findings / verified control-chain dispositions (single authority representation) ---
+  const verified = Array.isArray(obs.verifiedFindingDispositions)
+    ? obs.verifiedFindingDispositions
+    : [];
 
-  const dispositionsByFinding = new Map<string, FounderDisposition>();
-  for (const d of obs.founderDispositions) {
-    if (!dispositionsByFinding.has(d.findingId)) {
-      dispositionsByFinding.set(d.findingId, d);
-    }
+  const dispCounts = countBy(verified, (d) => d.findingId);
+  for (const [id, count] of dispCounts) {
+    if (count > 1) reasons.push(`duplicate_verified_disposition:${id}`);
   }
 
   for (const f of obs.findings) {
@@ -314,29 +372,26 @@ export function evaluateClosureReadiness(
       if (f.status !== "addressed") {
         reasons.push(`unresolved_critical:${f.id}`);
       }
-      const d = dispositionsByFinding.get(f.id);
-      if (d) {
+      // Any disposition evidence for Critical is non-waivable.
+      if (verified.some((d) => d.findingId === f.id)) {
         reasons.push(`critical_non_waivable:${f.id}`);
       }
     } else if (f.severity === "Important") {
       if (f.status === "open" || f.status === "deferred") {
-        const d = dispositionsByFinding.get(f.id);
-        if (!d) {
+        if (!founderIdOk || !contractIdentityOk || !authVersionOk || !authDigestOk) {
           reasons.push(`unresolved_important:${f.id}`);
           continue;
         }
-        if (!authVersionOk || !authDigestOk) {
-          reasons.push(`unresolved_important:${f.id}`);
-          continue;
-        }
-        if (!isDurableDisposition(d, auth.version, auth.digest)) {
-          reasons.push(`malformed_founder_disposition:${f.id}`);
-          continue;
-        }
-        if (
-          d.disposition !== "accepted_by_founder" &&
-          d.disposition !== "wont_fix_founder"
-        ) {
+        const match = verified.find((d) =>
+          matchesVerifiedWaiver(
+            f.id,
+            d,
+            exp.expectedFounderActorId,
+            auth.version,
+            auth.digest,
+          ),
+        );
+        if (!match) {
           reasons.push(`unresolved_important:${f.id}`);
         }
       }

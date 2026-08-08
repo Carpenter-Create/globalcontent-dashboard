@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
   evaluateClosureReadiness,
   requiredChecksWithFloor,
   VALIDATION_FLOOR_CHECK_NAMES,
   type AuthorizedContractExpectations,
   type ClosureReadinessInput,
-  type FounderDisposition,
+  type VerifiedFindingDispositionEvent,
 } from "./closure-readiness";
 import {
   floorCheckResults,
@@ -16,15 +17,17 @@ import {
   SAMPLE_SHA_B,
 } from "./test-fixtures";
 
-function validDisposition(
-  overrides: Partial<FounderDisposition> = {},
-): FounderDisposition {
+function verifiedDisposition(
+  overrides: Partial<VerifiedFindingDispositionEvent> = {},
+): VerifiedFindingDispositionEvent {
   return {
+    eventType: "finding_disposition",
+    taskId: "AE-0001",
     findingId: "F2",
     disposition: "accepted_by_founder",
-    founderActorId: 42,
-    controlEventDigest: "sha256:" + "e".repeat(64),
-    controlEventSequence: 9,
+    founderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+    eventDigest: "sha256:" + "e".repeat(64),
+    sequence: 9,
     activeContractVersion: 1,
     activeContractDigest: SAMPLE_DIGEST,
     ...overrides,
@@ -53,6 +56,7 @@ function readyInput(
         acceptanceCriterionIds: ["AC1"],
         ...authOverrides,
       },
+      expectedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
       implementerSessionOrRunId: "impl-session-1",
       reviewerSessionOrRunId: "review-session-1",
       reviewerMayPush: false,
@@ -69,7 +73,7 @@ function readyInput(
       checkResults: floorCheckResults(),
       acceptanceResults: [{ id: "AC1", satisfied: true }],
       findings: [],
-      founderDispositions: [],
+      verifiedFindingDispositions: [],
       scopeViolations: [],
       unauthorizedProductionOrDestructiveAttempt: false,
       ...overrides.observed,
@@ -350,12 +354,13 @@ describe("evaluateClosureReadiness", () => {
     });
   });
 
-  describe("durable founder dispositions", () => {
-    it("Important + no disposition → not ready", () => {
+  describe("verified control-chain founder dispositions", () => {
+    it("Important + no verified disposition event → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [],
           },
         }),
       );
@@ -363,61 +368,153 @@ describe("evaluateClosureReadiness", () => {
       expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + malformed/no actor disposition → not ready", () => {
+    it("Important + disposition event from wrong actor ID → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            founderDispositions: [
-              validDisposition({ founderActorId: 0 }),
+            verifiedFindingDispositions: [
+              verifiedDisposition({ founderActorId: 99999 }),
             ],
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("malformed_founder_disposition:F2");
+      expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + no event reference → not ready", () => {
+    it("Important + correct actor but fake/unverified event digest → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            founderDispositions: [
-              validDisposition({ controlEventDigest: "not-a-digest" }),
+            verifiedFindingDispositions: [
+              verifiedDisposition({ eventDigest: "not-a-digest" }),
             ],
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("malformed_founder_disposition:F2");
+      expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + valid founder disposition → may proceed", () => {
+    it("Important + wrong finding ID → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            founderDispositions: [validDisposition()],
+            verifiedFindingDispositions: [
+              verifiedDisposition({ findingId: "OTHER" }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + wrong contract digest → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [
+              verifiedDisposition({
+                activeContractDigest: SAMPLE_DIGEST_B,
+              }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + wrong contract version → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [
+              verifiedDisposition({ activeContractVersion: 2 }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + wrong event type → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [
+              verifiedDisposition({ eventType: "authorize" }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + matching verified finding_disposition event → may proceed", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [verifiedDisposition()],
           },
         }),
       );
       expect(r.ready).toBe(true);
     });
 
-    it("Critical + any disposition → still not ready", () => {
+    it("Critical + matching founder disposition event → still not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F1", severity: "Critical", status: "addressed" }],
-            founderDispositions: [
-              validDisposition({ findingId: "F1" }),
+            verifiedFindingDispositions: [
+              verifiedDisposition({ findingId: "F1" }),
             ],
           },
         }),
       );
       expect(r.ready).toBe(false);
       expect(r.reasons).toContain("critical_non_waivable:F1");
+    });
+
+    it("expected founder actor ID missing/invalid → fail closed", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: { expectedFounderActorId: 0 },
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [verifiedDisposition()],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("expected_founder_actor_id_invalid");
+    });
+
+    it("expected founder actor ID not the configured repo identity → fail closed", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: { expectedFounderActorId: 99999 },
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            verifiedFindingDispositions: [
+              verifiedDisposition({ founderActorId: 99999 }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("expected_founder_actor_id_not_configured");
     });
   });
 

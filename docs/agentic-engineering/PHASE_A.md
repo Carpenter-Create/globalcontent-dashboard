@@ -85,6 +85,8 @@ expectations).
 - `VALIDATION_FLOOR_CHECK_NAMES` members are non-omittable and must each appear
   exactly once in expected required checks; contracts may only add.
 - Duplicate expected or observed check / acceptance evidence fails closed.
-- Important waivers require durable founder disposition evidence (actor ID,
-  control event digest/sequence, active contract pins). Critical is non-waivable.
+- Important waivers resolve only against verified control-chain
+  `finding_disposition` events (`verifiedFindingDispositions`), matching
+  configured founder actor ID `CONFIGURED_FOUNDER_GITHUB_ACTOR_ID` (40549435),
+  finding ID, and active contract pins. Critical is non-waivable.
 - Reviewer independence is derived (same session / push capability fail closed).
