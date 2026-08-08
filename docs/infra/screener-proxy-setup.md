@@ -416,15 +416,30 @@ echo "checked — no output above the 'checked' line means none of the four valu
 
 ---
 
-## End-to-end verification (do all of these — a green console at every step above is not proof)
+## End-to-end verification (historical AWS-side CLI path — not Task 8 production validation)
+
+> **Task 8 / production screener-proxy validation (2026-08-07 founder decision):**
+> This section’s manual AWS CLI `create-job` submission is **not** the approved production
+> end-to-end validation path for the current screener-proxy workflow. For Task 8 and for claiming
+> the feature works in production, use the **governed one-master C2 canary** in
+> [`docs/infra/screener-proxy-backfill.md`](./screener-proxy-backfill.md) (§8–§9) instead — authorized
+> app path (`submitProxyJob` → `create_transcode_job`), poll, GC panel, and buyer gated playback.
+> **Do not** treat an AWS console job or this ad hoc CLI job as a substitute for that canary.
+> **Infrastructure setup and non-submitting verification above remain valid and required** (role,
+> queue, endpoint, IAM, Vercel env, `simulate-principal-policy`, ListBucket ordering). Skip only
+> the submitting steps in this section when following the Task 8 backfill workflow.
 
 A permission grant that resolves to `implicitDeny` on the one action that matters looks
 **identical**, in the console, to one that works: same policy JSON, same "attached" status, same
 zero errors, because there's nothing to error on if the thing that would use it is never called.
 That's precisely how the lifecycle prefix bug shipped. The checks above proved each piece in
-isolation; these prove the pieces work **together**, moving a real object through the real path.
+isolation; the historical steps below were written to prove the pieces work **together** by
+moving a real object through a hand-built MediaConvert path **before** application submit code
+existed. They are retained as setup history / emergency AWS-side debugging reference — **not** as
+Task 8 authorization.
 
 1. **Submit one real job against a known master and confirm output lands where expected.**
+   *(Legacy / pre-app path — skip for Task 8; use the backfill runbook C2 canary instead.)*
    Until `buildProxyJobSettings` (a later task) exists, submit a minimal settings document by hand
    so this pipeline is proven before any application code depends on it. **`RateControlMode:
    QVBR` requires its companion `QvbrSettings.QvbrQualityLevel`** — MediaConvert rejects the job
@@ -477,14 +492,14 @@ isolation; these prove the pieces work **together**, moving a real object throug
    aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$OUTPUT_DEST"   # for comparison only
    ```
 
-This runbook proves the AWS side end-to-end: a job can be submitted and its output lands at the
-exact key the poll will look for. It stops short of proving the app's own credentials can read
-that job back — STEP 4's `simulate-principal-policy` check is a deliberate proxy for that,
-mirroring the identical choice STEP 1 makes for the service role, rather than exporting
-`gc-assets-app`'s long-lived secret key into this shell for one command. The last mile — a real
-poll invocation, with `CRON_SECRET`, against `$TEST_JOB_ID`, actually calling
-`register_transcode_output` — needs application code this runbook doesn't produce, and is the
-plan's Task 5's own manual step instead.
+Historically, this CLI path was meant to prove the AWS side in isolation: a job can be submitted
+and its output lands at the exact key the poll will look for. It always stopped short of proving
+the app's own credentials can read that job back — STEP 4's `simulate-principal-policy` check is
+a deliberate proxy for that, mirroring the identical choice STEP 1 makes for the service role,
+rather than exporting `gc-assets-app`'s long-lived secret key into this shell for one command.
+For the current screener-proxy workflow, that last mile **and** the submit itself are covered by
+the governed C2 canary in `docs/infra/screener-proxy-backfill.md`, not by re-running this CLI job
+as production validation.
 
 2. **Confirm the produced proxy is NOT archive-tagged.** Masters are tagged
    `gc-archive=master` at `CreateMultipartUpload` (`src/lib/s3.ts`), and the Glacier lifecycle rule
@@ -499,6 +514,13 @@ plan's Task 5's own manual step instead.
    # will silently transition to Glacier at 90 days and the buyer page will start 404ing screeners.
    ```
 
-Record pass/fail against both before treating this pipeline as live. **A role or policy that shows
-green in its own console and has never moved a real object through the whole path is unverified,
-not working.**
+For **Task 8 / production go-live of the screener-proxy feature**, record pass/fail only against
+the governed C2 one-master canary in `docs/infra/screener-proxy-backfill.md`. **That C2 canary is
+the sole approved Task 8 production end-to-end validation gate.** There is no equivalent
+app-path substitute, no manual CLI substitute, no AWS console substitute, and no
+temporary/interim submit path. Pilot or fleet submission must not begin before C2 PASS and S1
+approval (see the backfill runbook). Infrastructure pieces that show green in isolation remain
+**setup-verified only** until that C2 canary moves a real object through submit → record → poll
+→ register → buyer playback. **A role or policy that shows green in its own console and has never
+been exercised through the C2 canary is unverified for Task 8 production feature validation, not
+working.**

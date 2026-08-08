@@ -438,8 +438,48 @@ NOT TOUCHED (intentionally — non-governing historical / open issues preserved)
     unnamed-link finding, revoke_portal_link founder call, concurrent-retry
     residual, heartbeat debt, architectural/test debt, Task 8 backfill.
 
-NEXT: Task 8 — backfill runbook (write document only; founder-executed;
-  spends real money when run). Do not begin until this docs slice ships.
+=== Proxy T8: runbook complete — documentation only (uncommitted pending review) ===
+DATE: 2026-08-07. Created docs/infra/screener-proxy-backfill.md.
+
+DELIVERED (docs only):
+  - Founder-only execution warning; no agent migrations/psql/AWS/spend.
+  - Preconditions: prod migrations, deploy, AWS/IAM, ListBucket ordering, cron.
+  - Canary procedure + PASS/FAIL; STOP on FAIL.
+  - Eligibility: current master = newest kind=master by created_at per title
+    (portal_resolve_screener / transcode_jobs migration evidence); skip if
+    active/complete job holds deterministic screener key; dedicated titles
+    eligible for proxy register without screener_source override.
+  - Glacier/unrestored excluded from initial cohort (deferred separate procedure).
+  - Future founder TS script requirements (dry-run, batching, submit→record);
+    script NOT created in this slice.
+  - Rollout: canary 1 → pilot 5–10 → controlled batches; no full-catalog wave.
+  - Stop conditions, split-brain, retry rules, prohibited actions, checkpoints.
+
+CODEX FINDINGS FIX (same day, docs only):
+  1. Canary sequencing: §2a before canary submit; §2b one controlled canary spend
+     before C2; §2c C2+stops+founder+S1 before pilot. No circular “PASS before canary.”
+  2. M1: non-mutating verification only — no create_transcode_job smoke.
+  3. Submission governance: interim operate path removed. Pilot/batch require §13a
+     script (not built). Canary may use POST /api/assets/complete only; virgin
+     pre-existing-master canary without upload-complete is blocked until script.
+  4. C2 PASS requires GC panel AND mandatory buyer gated playback.
+  5. Reconciled setup vs backfill: screener-proxy-setup.md legacy CLI create-job is
+     NOT Task 8 production E2E validation; A1 uses infra/non-submitting checks only;
+     C2 canary is the sole Task 8 end-to-end path. Setup IAM/queue/env steps intact.
+  6. Removed setup phrasing “or an equivalently governed app-path job” — no alternate
+     Task 8 production E2E path; C2 sole gate; no CLI/console/interim substitute.
+
+NOT DONE (explicit):
+  - Founder execution of backfill
+  - Production canary
+  - Migration apply
+  - AWS runbook apply/verify
+  - TypeScript backfill script (blocks pilot/batch; S1)
+  - Production validation claim
+
+NEXT: Founder review of the corrected runbook → commit/PR docs → founder
+  M1/D1/A1/C0/C1 then one canary spend → C2 (GC+buyer) → S1 script slice →
+  pilot. Do not spend from the agent.
 
 === OPEN SECURITY FINDING — founder call, 2026-08-07 ===
 Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the
