@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ae:dry-run": "node scripts/agentic-engineering/dry-run.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-mediaconvert": "^3.1104.0",

@@ -107,3 +107,37 @@ export function formatEventPath(
 export function formatContractPath(taskId: string, version: number): string {
   return `contracts/${taskId}/v${version}.yaml`;
 }
+
+export function formatProposedPath(taskId: string, version: number): string {
+  return `proposed/${taskId}/v${version}.yaml`;
+}
+
+export function formatClosurePath(taskId: string, headSha: string): string {
+  if (!TASK_ID_RE.test(taskId)) throw new Error("bad task id");
+  if (!/^[0-9a-f]{40}$/.test(headSha)) throw new Error("bad closure sha");
+  return `closures/${taskId}/${headSha}.md`;
+}
+
+export function parseEventPath(
+  path: string,
+):
+  | {
+      ok: true;
+      taskId: string;
+      sequence: number;
+      eventType: (typeof EVENT_TYPES_FOR_PATH)[number];
+    }
+  | { ok: false; reason: string } {
+  const parsed = parseControlPath(path);
+  if (!parsed.ok || parsed.class !== "event") {
+    return { ok: false, reason: "not an event path" };
+  }
+  const m = EVENT_RE.exec(path);
+  if (!m) return { ok: false, reason: "event path parse failed" };
+  return {
+    ok: true,
+    taskId: m[1],
+    sequence: Number(m[2]),
+    eventType: m[3] as (typeof EVENT_TYPES_FOR_PATH)[number],
+  };
+}
