@@ -298,7 +298,10 @@ export function foldTaskState(rawEvents: unknown[]): FoldResult {
             `finding_disposition from ${state.state}`,
           );
         }
-        state = applyMeta(state, ev, "FOUNDER_DECISION_REQUIRED");
+        // Disposition is control-plane evidence, not a state demotion.
+        // Preserve REVIEWING so founder_review_ready remains reachable after
+        // an Important waiver while review is already approved.
+        state = applyMeta(state, ev, state.state);
         break;
       }
       case "stale_review": {

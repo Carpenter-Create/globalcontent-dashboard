@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+  evaluateClosureReadiness,
+  requiredChecksWithFloor,
+} from "./closure-readiness";
 import { foldTaskState } from "./state-fold";
 import {
   authorizePayload,
   chainEvents,
+  floorCheckResults,
   SAMPLE_DIGEST,
   SAMPLE_SHA,
   SAMPLE_SHA_B,
@@ -324,5 +330,205 @@ describe("foldTaskState", () => {
     const r = foldTaskState(events);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.state.state).toBe("AUTHORIZED");
+  });
+
+  describe("finding_disposition does not block founder review", () => {
+    it("finding_disposition while REVIEWING remains REVIEWING", () => {
+      const events = chainEvents([
+        { type: "contract_staged" },
+        { type: "authorize" },
+        { type: "implementation_started" },
+        { type: "implementation_declared" },
+        { type: "validation_completed" },
+        { type: "review_completed" },
+        {
+          type: "finding_disposition",
+          payload: {
+            finding_id: "F2",
+            disposition: "accepted_by_founder",
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          },
+        },
+      ]);
+      const r = foldTaskState(events);
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.state.state).toBe("REVIEWING");
+        expect(r.state.reviewStatus).toBe("approved");
+        expect(r.state.state).not.toBe("FOUNDER_DECISION_REQUIRED");
+      }
+    });
+
+    it("subsequent founder_review_ready after Important disposition reaches FOUNDER_REVIEW", () => {
+      const events = chainEvents([
+        { type: "contract_staged" },
+        {
+          type: "authorize",
+          payload: authorizePayload({
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          }),
+        },
+        { type: "implementation_started" },
+        { type: "implementation_declared" },
+        { type: "validation_completed" },
+        { type: "review_completed" },
+        {
+          type: "finding_disposition",
+          payload: {
+            finding_id: "F2",
+            disposition: "accepted_by_founder",
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          },
+        },
+        { type: "founder_review_ready" },
+      ]);
+      const fold = foldTaskState(events);
+      expect(fold.ok).toBe(true);
+      if (fold.ok) expect(fold.state.state).toBe("FOUNDER_REVIEW");
+
+      // Closure predicate can already be true for the same Important waiver.
+      const closure = evaluateClosureReadiness({
+        expectations: {
+          authorizedContract: {
+            taskId: "AE-0001",
+            version: 1,
+            digest: SAMPLE_DIGEST,
+            requiredCheckNames: requiredChecksWithFloor(),
+            acceptanceCriterionIds: ["AC1"],
+          },
+          expectedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          implementerSessionOrRunId: "impl-session-1",
+          reviewerSessionOrRunId: "review-session-1",
+          reviewerMayPush: false,
+        },
+        observed: {
+          activeContractVersion: 1,
+          activeContractDigest: SAMPLE_DIGEST,
+          pr: { open: true, headSha: SAMPLE_SHA },
+          implementationSha: SAMPLE_SHA,
+          validatedSha: SAMPLE_SHA,
+          reviewedSha: SAMPLE_SHA,
+          reviewStatus: "approved",
+          checkResults: floorCheckResults(),
+          acceptanceResults: [{ id: "AC1", satisfied: true }],
+          findings: [{ id: "F2", severity: "Important", status: "open" }],
+          controlEvents: events,
+          scopeViolations: [],
+          unauthorizedProductionOrDestructiveAttempt: false,
+        },
+      });
+      expect(closure.ready).toBe(true);
+    });
+
+    it("Critical disposition cannot enter FOUNDER_REVIEW and remains blocked by closure", () => {
+      const events = chainEvents([
+        { type: "contract_staged" },
+        {
+          type: "authorize",
+          payload: authorizePayload({
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          }),
+        },
+        { type: "implementation_started" },
+        { type: "implementation_declared" },
+        { type: "validation_completed" },
+        { type: "review_completed" },
+        {
+          type: "finding_disposition",
+          payload: {
+            finding_id: "F1",
+            disposition: "accepted_by_founder",
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          },
+        },
+      ]);
+      const fold = foldTaskState(events);
+      expect(fold.ok).toBe(true);
+      if (fold.ok) {
+        expect(fold.state.state).toBe("REVIEWING");
+        expect(fold.state.state).not.toBe("FOUNDER_REVIEW");
+      }
+
+      const closure = evaluateClosureReadiness({
+        expectations: {
+          authorizedContract: {
+            taskId: "AE-0001",
+            version: 1,
+            digest: SAMPLE_DIGEST,
+            requiredCheckNames: requiredChecksWithFloor(),
+            acceptanceCriterionIds: ["AC1"],
+          },
+          expectedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          implementerSessionOrRunId: "impl-session-1",
+          reviewerSessionOrRunId: "review-session-1",
+          reviewerMayPush: false,
+        },
+        observed: {
+          activeContractVersion: 1,
+          activeContractDigest: SAMPLE_DIGEST,
+          pr: { open: true, headSha: SAMPLE_SHA },
+          implementationSha: SAMPLE_SHA,
+          validatedSha: SAMPLE_SHA,
+          reviewedSha: SAMPLE_SHA,
+          reviewStatus: "approved",
+          checkResults: floorCheckResults(),
+          acceptanceResults: [{ id: "AC1", satisfied: true }],
+          findings: [{ id: "F1", severity: "Critical", status: "addressed" }],
+          controlEvents: events,
+          scopeViolations: [],
+          unauthorizedProductionOrDestructiveAttempt: false,
+        },
+      });
+      expect(closure.ready).toBe(false);
+      expect(closure.reasons).toContain("critical_non_waivable:F1");
+    });
+
+    it("finding_disposition alone cannot bypass founder_review_ready / closure gate", () => {
+      const events = chainEvents([
+        { type: "contract_staged" },
+        { type: "authorize" },
+        { type: "implementation_started" },
+        { type: "implementation_declared" },
+        { type: "validation_completed" },
+        { type: "review_completed" },
+        {
+          type: "finding_disposition",
+          payload: {
+            finding_id: "F2",
+            disposition: "accepted_by_founder",
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          },
+        },
+      ]);
+      const fold = foldTaskState(events);
+      expect(fold.ok).toBe(true);
+      if (fold.ok) {
+        expect(fold.state.state).toBe("REVIEWING");
+        expect(fold.state.state).not.toBe("FOUNDER_REVIEW");
+      }
+    });
+
+    it("finding_disposition from FOUNDER_DECISION_REQUIRED stays there (no silent FOUNDER_REVIEW)", () => {
+      const events = chainEvents([
+        { type: "contract_staged" },
+        { type: "authorize" },
+        { type: "implementation_started" },
+        { type: "founder_decision_required", payload: { question: "scope?" } },
+        {
+          type: "finding_disposition",
+          payload: {
+            finding_id: "F2",
+            disposition: "accepted_by_founder",
+            founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+          },
+        },
+      ]);
+      const r = foldTaskState(events);
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.state.state).toBe("FOUNDER_DECISION_REQUIRED");
+        expect(r.state.state).not.toBe("FOUNDER_REVIEW");
+      }
+    });
   });
 });
