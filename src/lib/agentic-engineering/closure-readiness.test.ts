@@ -2,34 +2,65 @@ import { describe, expect, it } from "vitest";
 
 import {
   evaluateClosureReadiness,
+  requiredChecksWithFloor,
   VALIDATION_FLOOR_CHECK_NAMES,
+  type AuthorizedContractExpectations,
   type ClosureReadinessInput,
+  type FounderDisposition,
 } from "./closure-readiness";
 import {
   floorCheckResults,
   SAMPLE_DIGEST,
+  SAMPLE_DIGEST_B,
   SAMPLE_SHA,
   SAMPLE_SHA_B,
 } from "./test-fixtures";
 
+function validDisposition(
+  overrides: Partial<FounderDisposition> = {},
+): FounderDisposition {
+  return {
+    findingId: "F2",
+    disposition: "accepted_by_founder",
+    founderActorId: 42,
+    controlEventDigest: "sha256:" + "e".repeat(64),
+    controlEventSequence: 9,
+    activeContractVersion: 1,
+    activeContractDigest: SAMPLE_DIGEST,
+    ...overrides,
+  };
+}
+
 function readyInput(
   overrides: {
-    expectations?: Partial<ClosureReadinessInput["expectations"]>;
+    expectations?: Omit<
+      Partial<ClosureReadinessInput["expectations"]>,
+      "authorizedContract"
+    > & {
+      authorizedContract?: Partial<AuthorizedContractExpectations>;
+    };
     observed?: Partial<ClosureReadinessInput["observed"]>;
   } = {},
 ): ClosureReadinessInput {
+  const { authorizedContract: authOverrides, ...expRest } =
+    overrides.expectations ?? {};
   return {
     expectations: {
-      authorizedContractVersion: 1,
-      authorizedContractDigest: SAMPLE_DIGEST,
-      expectedRequiredCheckNames: [...VALIDATION_FLOOR_CHECK_NAMES],
-      expectedAcceptanceCriterionIds: ["AC1"],
+      authorizedContract: {
+        version: 1,
+        digest: SAMPLE_DIGEST,
+        requiredCheckNames: requiredChecksWithFloor(),
+        acceptanceCriterionIds: ["AC1"],
+        ...authOverrides,
+      },
       implementerSessionOrRunId: "impl-session-1",
       reviewerSessionOrRunId: "review-session-1",
       reviewerMayPush: false,
-      ...overrides.expectations,
+      ...expRest,
     },
     observed: {
+      activeContractVersion: 1,
+      activeContractDigest: SAMPLE_DIGEST,
       pr: { open: true, headSha: SAMPLE_SHA },
       implementationSha: SAMPLE_SHA,
       validatedSha: SAMPLE_SHA,
@@ -53,41 +84,341 @@ describe("evaluateClosureReadiness", () => {
     expect(r.reasons).toEqual([]);
   });
 
-  it("empty required evidence → not ready", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        expectations: { expectedRequiredCheckNames: [] },
-        observed: { checkResults: [] },
-      }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("expected_required_checks_empty");
+  describe("observed active contract identity", () => {
+    it("correct observed version/digest may proceed", () => {
+      const r = evaluateClosureReadiness(readyInput());
+      expect(r.ready).toBe(true);
+    });
+
+    it("observed version mismatch → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({ observed: { activeContractVersion: 2 } }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("active_contract_version_mismatch");
+    });
+
+    it("observed digest mismatch → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({ observed: { activeContractDigest: SAMPLE_DIGEST_B } }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("active_contract_digest_mismatch");
+    });
+
+    it("observed active contract missing → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            activeContractVersion: null,
+            activeContractDigest: null,
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("observed_active_contract_missing");
+    });
+
+    it("expected authorized contract missing/invalid → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              version: 0,
+              digest: "not-a-digest",
+            },
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("authorized_contract_version_invalid");
+      expect(r.reasons).toContain("authorized_contract_digest_invalid");
+    });
+
+    it("contract identity mismatch even when SHAs/checks/review are valid → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            activeContractVersion: 1,
+            activeContractDigest: SAMPLE_DIGEST_B,
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("active_contract_digest_mismatch");
+      // Other gates still look good — only contract identity fails
+      expect(r.reasons).not.toContain("review_not_approved");
+      expect(r.reasons).not.toContain("head_reviewed_sha_mismatch");
+    });
   });
 
-  it("missing one expected floor check → not ready", () => {
-    const checks = floorCheckResults().filter((c) => c.name !== "build");
-    const r = evaluateClosureReadiness(
-      readyInput({ observed: { checkResults: checks } }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("missing_required_check:build");
+  describe("validation floor non-omittable", () => {
+    it("complete built-in floor → valid when evidence complete", () => {
+      const r = evaluateClosureReadiness(readyInput());
+      expect(r.ready).toBe(true);
+      for (const name of VALIDATION_FLOOR_CHECK_NAMES) {
+        expect(
+          readyInput().expectations.authorizedContract.requiredCheckNames,
+        ).toContain(name);
+      }
+    });
+
+    for (const omitted of VALIDATION_FLOOR_CHECK_NAMES) {
+      it(`omit ${omitted} from expectations → not ready`, () => {
+        const names = VALIDATION_FLOOR_CHECK_NAMES.filter((n) => n !== omitted);
+        const r = evaluateClosureReadiness(
+          readyInput({
+            expectations: {
+              authorizedContract: { requiredCheckNames: [...names] },
+            },
+            observed: {
+              checkResults: floorCheckResults().filter((c) => c.name !== omitted),
+            },
+          }),
+        );
+        expect(r.ready).toBe(false);
+        expect(r.reasons).toContain(
+          `missing_floor_check_expectation:${omitted}`,
+        );
+      });
+    }
+
+    it("duplicate expected required check → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              requiredCheckNames: [
+                ...VALIDATION_FLOOR_CHECK_NAMES,
+                "isolation",
+              ],
+            },
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("duplicate_expected_check:isolation");
+    });
+
+    it("duplicate observed evidence for same check, even identical → not ready", () => {
+      const base = floorCheckResults();
+      const isolation = base.find((c) => c.name === "isolation")!;
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: { checkResults: [...base, { ...isolation }] },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain(
+        "duplicate_observed_check_evidence:isolation",
+      );
+    });
+
+    it("contract-added check missing observed evidence → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              requiredCheckNames: requiredChecksWithFloor(["extra_check"]),
+            },
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("missing_required_check:extra_check");
+    });
+
+    it("built-in floor + contract addition all green → may proceed", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              requiredCheckNames: requiredChecksWithFloor(["extra_check"]),
+            },
+          },
+          observed: {
+            checkResults: [
+              ...floorCheckResults(),
+              {
+                name: "extra_check",
+                sha: SAMPLE_SHA,
+                conclusion: "success",
+                checkRunId: "cr-extra",
+              },
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(true);
+    });
+
+    it("supplying only isolation (omitting floor) → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: { requiredCheckNames: ["isolation"] },
+          },
+          observed: {
+            checkResults: [
+              {
+                name: "isolation",
+                sha: SAMPLE_SHA,
+                conclusion: "success",
+                checkRunId: "1",
+              },
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("missing_floor_check_expectation:typecheck");
+      expect(r.reasons).toContain("missing_floor_check_expectation:test");
+      expect(r.reasons).toContain("missing_floor_check_expectation:eslint_src");
+      expect(r.reasons).toContain("missing_floor_check_expectation:build");
+    });
   });
 
-  it("duplicate/contradictory check evidence → not ready", () => {
-    const checks = [
-      ...floorCheckResults(),
-      {
-        name: "isolation",
-        sha: SAMPLE_SHA,
-        conclusion: "failure" as const,
-        checkRunId: "cr-x",
-      },
-    ];
-    const r = evaluateClosureReadiness(
-      readyInput({ observed: { checkResults: checks } }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("contradictory_check_evidence:isolation");
+  describe("acceptance criteria authority", () => {
+    it("empty authorized acceptance list is legitimate when contract has none", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: { acceptanceCriterionIds: [] },
+          },
+          observed: { acceptanceResults: [] },
+        }),
+      );
+      expect(r.ready).toBe(true);
+    });
+
+    it("duplicate expected acceptance IDs → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              acceptanceCriterionIds: ["AC1", "AC1"],
+            },
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("duplicate_expected_acceptance:AC1");
+    });
+
+    it("duplicate observed acceptance evidence → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            acceptanceResults: [
+              { id: "AC1", satisfied: true },
+              { id: "AC1", satisfied: true },
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("duplicate_observed_acceptance:AC1");
+    });
+
+    it("missing acceptance criterion → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: {
+              acceptanceCriterionIds: ["AC1", "AC2"],
+            },
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("missing_acceptance_criterion:AC2");
+    });
+
+    it("unexpected acceptance evidence cannot substitute for missing IDs", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          expectations: {
+            authorizedContract: { acceptanceCriterionIds: ["AC1"] },
+          },
+          observed: {
+            acceptanceResults: [{ id: "OTHER", satisfied: true }],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("missing_acceptance_criterion:AC1");
+    });
+  });
+
+  describe("durable founder dispositions", () => {
+    it("Important + no disposition → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + malformed/no actor disposition → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            founderDispositions: [
+              validDisposition({ founderActorId: 0 }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("malformed_founder_disposition:F2");
+    });
+
+    it("Important + no event reference → not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            founderDispositions: [
+              validDisposition({ controlEventDigest: "not-a-digest" }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("malformed_founder_disposition:F2");
+    });
+
+    it("Important + valid founder disposition → may proceed", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            founderDispositions: [validDisposition()],
+          },
+        }),
+      );
+      expect(r.ready).toBe(true);
+    });
+
+    it("Critical + any disposition → still not ready", () => {
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F1", severity: "Critical", status: "addressed" }],
+            founderDispositions: [
+              validDisposition({ findingId: "F1" }),
+            ],
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("critical_non_waivable:F1");
+    });
   });
 
   it("check success but wrong SHA → not ready", () => {
@@ -110,29 +441,6 @@ describe("evaluateClosureReadiness", () => {
     );
     expect(r.ready).toBe(false);
     expect(r.reasons).toContain("required_check_missing_run_id:isolation");
-  });
-
-  it("missing acceptance criterion → not ready", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        expectations: { expectedAcceptanceCriterionIds: ["AC1", "AC2"] },
-      }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("missing_acceptance_criterion:AC2");
-  });
-
-  it("unexpected acceptance evidence cannot substitute for missing IDs", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        expectations: { expectedAcceptanceCriterionIds: ["AC1"] },
-        observed: {
-          acceptanceResults: [{ id: "OTHER", satisfied: true }],
-        },
-      }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("missing_acceptance_criterion:AC1");
   });
 
   it("same implementer/reviewer session → not ready", () => {
@@ -166,9 +474,7 @@ describe("evaluateClosureReadiness", () => {
 
   it("fails when a required check is pending", () => {
     const checks = floorCheckResults().map((c) =>
-      c.name === "isolation"
-        ? { ...c, conclusion: "pending" as const }
-        : c,
+      c.name === "isolation" ? { ...c, conclusion: "pending" as const } : c,
     );
     const r = evaluateClosureReadiness(
       readyInput({ observed: { checkResults: checks } }),
@@ -187,47 +493,6 @@ describe("evaluateClosureReadiness", () => {
     );
     expect(r.ready).toBe(false);
     expect(r.reasons).toContain("unresolved_critical:F1");
-  });
-
-  it("fails on unresolved Important without founder disposition", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        observed: {
-          findings: [{ id: "F2", severity: "Important", status: "open" }],
-        },
-      }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("unresolved_important:F2");
-  });
-
-  it("allows Important with durable founder disposition", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        observed: {
-          findings: [{ id: "F2", severity: "Important", status: "open" }],
-          founderDispositions: [
-            { findingId: "F2", disposition: "accepted_by_founder" },
-          ],
-        },
-      }),
-    );
-    expect(r.ready).toBe(true);
-  });
-
-  it("never allows Critical waived by founder disposition", () => {
-    const r = evaluateClosureReadiness(
-      readyInput({
-        observed: {
-          findings: [{ id: "F1", severity: "Critical", status: "addressed" }],
-          founderDispositions: [
-            { findingId: "F1", disposition: "accepted_by_founder" },
-          ],
-        },
-      }),
-    );
-    expect(r.ready).toBe(false);
-    expect(r.reasons).toContain("critical_non_waivable:F1");
   });
 
   it("fails on scope violation", () => {

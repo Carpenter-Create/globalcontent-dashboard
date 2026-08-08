@@ -75,7 +75,16 @@ Unknown classes and path-bypass forms (`/`, `\`, `..`, empty segments) fail clos
 
 ## Closure readiness
 
-`evaluateClosureReadiness` takes **expectations** (floor checks, acceptance IDs,
-session identities, push attestation) and **observed** evidence. Reviewer
-independence is derived (same session / push capability fail closed). Empty
-expected required-check lists are invalid for this repository’s floor model.
+`evaluateClosureReadiness` takes contract-derived **expectations**
+(`authorizedContract` version/digest, required checks, acceptance IDs) plus
+session/push attestation, and **observed** evidence including folded
+`activeContractVersion` / `activeContractDigest` (never inferred from
+expectations).
+
+- Observed active contract must exactly equal authorized contract identity.
+- `VALIDATION_FLOOR_CHECK_NAMES` members are non-omittable and must each appear
+  exactly once in expected required checks; contracts may only add.
+- Duplicate expected or observed check / acceptance evidence fails closed.
+- Important waivers require durable founder disposition evidence (actor ID,
+  control event digest/sequence, active contract pins). Critical is non-waivable.
+- Reviewer independence is derived (same session / push capability fail closed).
