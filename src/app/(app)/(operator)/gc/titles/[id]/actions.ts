@@ -2,8 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 
+import { submitProxyJob } from "@/lib/mediaconvert";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/supabase/auth";
+import {
+  TRANSCODE_RETRY_CONFLICT,
+  TRANSCODE_RETRY_INELIGIBLE,
+  TRANSCODE_RETRY_NOT_AUTHORIZED,
+  TRANSCODE_RETRY_RECORD_FAILED,
+  TRANSCODE_RETRY_SUBMIT_FAILED,
+  TRANSCODE_RETRY_UNAUTHENTICATED,
+  isTranscodeJobRetryable,
+  isTranscodeJobUniqueConflict,
+  type TranscodeStatus,
+} from "@/lib/transcode-jobs";
 
 // GC sets a title's forward-looking release date (go-to-market). Written via the
 // set_release_date RPC, gated on is_gc_staff in the DB — there is no client write
@@ -65,6 +77,116 @@ export async function attachLinkVendor(input: {
     p_force: input.force ? true : undefined,
   });
   if (error) return { error: error.message };
+
+  revalidatePath(`/gc/titles/${input.titleId}`);
+  return {};
+}
+
+/**
+ * Task 6B — retry a failed / submit_failed screener-proxy job.
+ *
+ * Sequence matches the master-upload path: submit to MediaConvert, then record a NEW
+ * `transcode_jobs` row via `create_transcode_job`. The old row is never updated or
+ * deleted. Org / title / source asset / master key come from the server-read job row
+ * (and its source asset), never from client-supplied keys. Output key is derived by
+ * `submitProxyJob` → `proxyOutputKey` on that master key.
+ *
+ * Auth order:
+ * 1. `getAuthUser()` — session
+ * 2. `gc_can(operate)` — pre-side-effect safety gate (before any job/asset read / AWS)
+ * 3. `create_transcode_job` → `member_can(..., 'operate')` — database write boundary
+ *
+ * Eligibility is re-checked server-side — never trust the button.
+ */
+export async function retryTranscodeJob(input: {
+  titleId: string;
+  jobId: string;
+}): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const user = await getAuthUser();
+  if (!user) return { error: TRANSCODE_RETRY_UNAUTHENTICATED };
+
+  // Pre-AWS operate gate. Fail closed on lookup error or non-true. Does not replace the RPC.
+  const { data: canOperate, error: canOperateError } = await supabase.rpc("gc_can", {
+    p_uid: user.id,
+    p_capability: "operate",
+  });
+  if (canOperateError || canOperate !== true) {
+    return { error: TRANSCODE_RETRY_NOT_AUTHORIZED };
+  }
+
+  const { data: job, error: jobReadError } = await supabase
+    .from("transcode_jobs")
+    .select("id, org_id, title_id, source_asset_id, status")
+    .eq("id", input.jobId)
+    .eq("title_id", input.titleId)
+    .maybeSingle();
+
+  if (jobReadError || !job) {
+    return { error: TRANSCODE_RETRY_INELIGIBLE };
+  }
+
+  if (!isTranscodeJobRetryable(job.status as TranscodeStatus)) {
+    return { error: TRANSCODE_RETRY_INELIGIBLE };
+  }
+
+  const { data: sourceAsset, error: assetReadError } = await supabase
+    .from("assets")
+    .select("id, storage_key, kind, org_id, title_id")
+    .eq("id", job.source_asset_id)
+    .maybeSingle();
+
+  if (
+    assetReadError ||
+    !sourceAsset ||
+    sourceAsset.kind !== "master" ||
+    !sourceAsset.storage_key ||
+    sourceAsset.org_id !== job.org_id ||
+    sourceAsset.title_id !== job.title_id
+  ) {
+    return { error: TRANSCODE_RETRY_INELIGIBLE };
+  }
+
+  let externalJobId: string;
+  let expectedKey: string;
+  try {
+    ({ externalJobId, expectedKey } = await submitProxyJob({
+      masterKey: sourceAsset.storage_key,
+    }));
+  } catch {
+    return { error: TRANSCODE_RETRY_SUBMIT_FAILED };
+  }
+
+  // AWS already accepted the job. A record failure/rejection is split-brain — return the
+  // approved message; never throw through to the client; do not claim success.
+  // No compensation / cleanup (matches upload path; concurrent-retry residual accepted).
+  let recordError: { code?: string; message?: string; details?: string; hint?: string } | null =
+    null;
+  try {
+    const recorded = await supabase.rpc("create_transcode_job", {
+      p_org_id: job.org_id,
+      p_title_id: job.title_id,
+      p_source_asset_id: job.source_asset_id,
+      p_expected_output_key: expectedKey,
+      p_external_job_id: externalJobId,
+    });
+    recordError = recorded.error;
+  } catch {
+    return { error: TRANSCODE_RETRY_RECORD_FAILED };
+  }
+
+  if (recordError) {
+    if (isTranscodeJobUniqueConflict(recordError)) {
+      return { error: TRANSCODE_RETRY_CONFLICT };
+    }
+    const message = recordError.message?.trim() ?? "";
+    // Only positively identified auth failures use authorization copy.
+    if (/^not authorized\.?$/i.test(message) || /^not authenticated\.?$/i.test(message)) {
+      return { error: message.endsWith(".") ? message : `${message}.` };
+    }
+    // Empty / unknown / unrelated uniqueness → split-brain warning after AWS accept.
+    return { error: TRANSCODE_RETRY_RECORD_FAILED };
+  }
 
   revalidatePath(`/gc/titles/${input.titleId}`);
   return {};

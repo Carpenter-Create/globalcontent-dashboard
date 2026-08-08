@@ -13,6 +13,25 @@ export const TRANSCODE_PANEL_HEADING = "Proxy jobs";
 export const TRANSCODE_PANEL_EMPTY = "No proxy jobs.";
 export const TRANSCODE_STUCK_MARKER = "Stuck";
 
+/** Statuses that may be retried (Task 6B). Active and complete jobs must never retry. */
+export const TRANSCODE_RETRYABLE_STATUSES: readonly TranscodeStatus[] = [
+  "failed",
+  "submit_failed",
+];
+
+/** Approved Task 6B retry copy — do not invent variants in JSX or the action. */
+export const TRANSCODE_RETRY_LABEL = "Retry";
+export const TRANSCODE_RETRY_PENDING = "Retrying…";
+export const TRANSCODE_RETRY_UNAUTHENTICATED = "Not authenticated.";
+export const TRANSCODE_RETRY_INELIGIBLE = "This job cannot be retried.";
+export const TRANSCODE_RETRY_NOT_AUTHORIZED = "Not authorized.";
+export const TRANSCODE_RETRY_SUBMIT_FAILED =
+  "Could not submit the proxy job. Please try again.";
+export const TRANSCODE_RETRY_RECORD_FAILED =
+  "Proxy job was submitted but could not be recorded. Do not retry yet; contact engineering.";
+export const TRANSCODE_RETRY_CONFLICT =
+  "A proxy job for this master is already in progress or complete.";
+
 export const TRANSCODE_STATUS_LABELS: Record<TranscodeStatus, string> = {
   submitted: "Submitted",
   running: "Running",
@@ -20,6 +39,28 @@ export const TRANSCODE_STATUS_LABELS: Record<TranscodeStatus, string> = {
   failed: "Failed",
   submit_failed: "Submit failed",
 };
+
+/** Only `failed` and `submit_failed` may be retried. Never submitted / running / complete. */
+export function isTranscodeJobRetryable(status: TranscodeStatus): boolean {
+  return (TRANSCODE_RETRYABLE_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * True only when the error identifies the expected-output-key partial unique index
+ * `transcode_jobs_active_key_uidx`. Other 23505 / uniqueness failures (e.g. external_job_id)
+ * must NOT use the proxy-key conflict copy — they are record failures after AWS submit.
+ */
+export function isTranscodeJobUniqueConflict(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}): boolean {
+  const haystack = [error.message, error.details, error.hint]
+    .filter((part): part is string => typeof part === "string" && part.length > 0)
+    .join("\n");
+  return haystack.includes("transcode_jobs_active_key_uidx");
+}
 
 /**
  * An active job is stuck when its `created_at` is strictly older than the threshold.

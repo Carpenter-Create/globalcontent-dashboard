@@ -3,12 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   TRANSCODE_PANEL_EMPTY,
   TRANSCODE_PANEL_HEADING,
+  TRANSCODE_RETRY_CONFLICT,
+  TRANSCODE_RETRY_INELIGIBLE,
+  TRANSCODE_RETRY_LABEL,
+  TRANSCODE_RETRY_NOT_AUTHORIZED,
+  TRANSCODE_RETRY_PENDING,
+  TRANSCODE_RETRY_RECORD_FAILED,
+  TRANSCODE_RETRY_SUBMIT_FAILED,
+  TRANSCODE_RETRY_UNAUTHENTICATED,
   TRANSCODE_STUCK_THRESHOLD_MS,
   formatFailureReason,
   formatOutputAsset,
   formatTranscodeCreatedAt,
   formatTranscodeStatusLabel,
+  isTranscodeJobRetryable,
   isTranscodeJobStuck,
+  isTranscodeJobUniqueConflict,
   TRANSCODE_STATUS_LABELS,
   type TranscodeStatus,
 } from "./transcode-jobs";
@@ -126,5 +136,77 @@ describe("approved panel copy", () => {
   it("exports the founder-approved heading and empty state verbatim", () => {
     expect(TRANSCODE_PANEL_HEADING).toBe("Proxy jobs");
     expect(TRANSCODE_PANEL_EMPTY).toBe("No proxy jobs.");
+  });
+});
+
+describe("isTranscodeJobRetryable", () => {
+  it.each<[TranscodeStatus]>([["failed"], ["submit_failed"]])(
+    "%s is retryable",
+    (status) => {
+      expect(isTranscodeJobRetryable(status)).toBe(true);
+    },
+  );
+
+  it.each<[TranscodeStatus]>([["submitted"], ["running"], ["complete"]])(
+    "%s is never retryable",
+    (status) => {
+      expect(isTranscodeJobRetryable(status)).toBe(false);
+    },
+  );
+});
+
+describe("isTranscodeJobUniqueConflict", () => {
+  it("is true only when the error names transcode_jobs_active_key_uidx", () => {
+    expect(
+      isTranscodeJobUniqueConflict({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "transcode_jobs_active_key_uidx"',
+      }),
+    ).toBe(true);
+    expect(
+      isTranscodeJobUniqueConflict({
+        details: "Key (expected_output_key)=(...) already exists.",
+        message: "transcode_jobs_active_key_uidx",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not treat bare 23505 or unrelated uniqueness as the proxy-key conflict", () => {
+    expect(isTranscodeJobUniqueConflict({ code: "23505", message: "duplicate key" })).toBe(
+      false,
+    );
+    expect(
+      isTranscodeJobUniqueConflict({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "transcode_jobs_external_job_id_key"',
+      }),
+    ).toBe(false);
+    expect(
+      isTranscodeJobUniqueConflict({
+        message: "unique constraint violated",
+      }),
+    ).toBe(false);
+    expect(isTranscodeJobUniqueConflict({ message: "Not authorized" })).toBe(false);
+  });
+});
+
+describe("approved retry copy (Task 6B)", () => {
+  it("exports founder-approved strings verbatim", () => {
+    expect(TRANSCODE_RETRY_LABEL).toBe("Retry");
+    expect(TRANSCODE_RETRY_PENDING).toBe("Retrying…");
+    expect(TRANSCODE_RETRY_UNAUTHENTICATED).toBe("Not authenticated.");
+    expect(TRANSCODE_RETRY_INELIGIBLE).toBe("This job cannot be retried.");
+    expect(TRANSCODE_RETRY_NOT_AUTHORIZED).toBe("Not authorized.");
+    expect(TRANSCODE_RETRY_SUBMIT_FAILED).toBe(
+      "Could not submit the proxy job. Please try again.",
+    );
+    expect(TRANSCODE_RETRY_RECORD_FAILED).toBe(
+      "Proxy job was submitted but could not be recorded. Do not retry yet; contact engineering.",
+    );
+    expect(TRANSCODE_RETRY_CONFLICT).toBe(
+      "A proxy job for this master is already in progress or complete.",
+    );
   });
 });

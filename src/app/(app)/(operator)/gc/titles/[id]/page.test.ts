@@ -42,11 +42,13 @@ describe("GcTitleDetail transcode_jobs read (Task 6A)", () => {
     expect(DETAIL_LIST).toBe(200);
   });
 
-  it("does not wire a retry mutation in this page (Task 6B is separate)", () => {
-    // Comments may name Task 6B; the page must not call the submit/retry surfaces.
+  it("gates Retry via gc_can(operate) and never calls submit/record from the page", () => {
+    // Retry mutation lives in actions.ts; the page only resolves the UI capability flag.
+    expect(pageSrc).toContain('rpc("gc_can"');
+    expect(pageSrc).toContain("canRetry={canOperate === true}");
     expect(pageSrc).not.toContain("create_transcode_job");
-    expect(pageSrc).not.toContain("submitTranscode");
-    expect(pageSrc).not.toContain("retryTranscode");
+    expect(pageSrc).not.toContain("submitProxyJob");
+    expect(pageSrc).not.toContain("retryTranscodeJob");
     expect(pageSrc).not.toContain('from("./actions")');
   });
 });

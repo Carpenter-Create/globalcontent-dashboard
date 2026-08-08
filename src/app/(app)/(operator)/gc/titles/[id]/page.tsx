@@ -54,6 +54,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
     { data: deliveries },
     { data: activeVendors },
     { data: transcodeJobs },
+    { data: canOperate },
   ] = await Promise.all([
       supabase
         .from("rights_grants")
@@ -101,8 +102,9 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
       // vendors are excluded here (not just refused by the RPC) so GC never even sees a dead
       // option in the picker.
       supabase.from("vendors").select("id, name").eq("active", true).order("name").range(...rangeFor(UNPAGINATED_MAX)),
-      // Task 6A — bounded, title-scoped proxy-job read. Stuck state is derived in the panel
-      // from status + created_at; no heartbeat. Retry is Task 6B and is not wired here.
+      // Task 6A/6B — bounded, title-scoped proxy-job read. Stuck state is derived in the
+      // panel from status + created_at; no heartbeat. Retry UI is gated by gc_can(operate);
+      // the action re-checks eligibility and the RPC enforces the write gate.
       // Disambiguate the assets join: this table has two FKs to assets (source + output).
       supabase
         .from("transcode_jobs")
@@ -112,6 +114,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
         .eq("title_id", id)
         .order("created_at", { ascending: false })
         .range(...rangeFor(DETAIL_LIST)),
+      supabase.rpc("gc_can", { p_uid: user.id, p_capability: "operate" }),
     ]);
 
   // Widened to include recipient_name/vendor_id/vendors so the same read also feeds
@@ -292,10 +295,14 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
           </Card>
         ) : null}
 
-        {/* Screener proxy jobs — Task 6A read-only visibility. Retry is Task 6B. */}
+        {/* Screener proxy jobs — Task 6A visibility + Task 6B retry when operate-capable. */}
         <Card>
           <CardBody>
-            <TranscodePanel jobs={proxyJobs} />
+            <TranscodePanel
+              titleId={t.id}
+              jobs={proxyJobs}
+              canRetry={canOperate === true}
+            />
           </CardBody>
         </Card>
 
