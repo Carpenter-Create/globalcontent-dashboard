@@ -98,15 +98,20 @@ decision, not an implementation detail.
 | 6A | Read-only GC “Proxy jobs” panel — PR #93 (`0f4ed63`). Bounded title-scoped `transcode_jobs` read inside the page `Promise.all`; status, created time, failure reason, output screener; stuck when active and strictly older than 60 minutes. No heartbeat dependency. |
 | 6B | Retry mutation — PR #95 (`0f4b07a`). Retry only `failed` / `submit_failed`; pre-AWS `gc_can(operate)` gate; RPC remains DB write boundary; trusted inputs from server-read job/master; AWS submit → new job row; old history preserved; explicit AWS / record-failure / `transcode_jobs_active_key_uidx` conflict handling. |
 | 7 | Domain-spec §12 + out-of-scope + `CLAUDE.md` / `AGENTS.md` deferred-list reconciliation for the approved internal viewing screener-proxy exception. Docs/governance only; no product behavior change. |
+| 8 | Backfill **runbook** — `docs/infra/screener-proxy-backfill.md` (documentation only). Does **not** execute jobs, apply migrations, or validate production AWS. |
 
-### Remaining
+### Remaining (founder execution — not a plan coding task)
 
-| Task | Deliverable |
+| Item | Notes |
 |---|---|
-| 8 | Backfill runbook for ~700 existing masters — founder-executed, spends real money |
+| Production migrations | Apply `20260806000100`–`20260807000200` (destructive-ops; founder) |
+| AWS runbook verify + canary | Setup runbook, then one-master canary (first controlled spend); **C2** = GC panel **and** buyer gated playback |
+| Backfill / pilot execution | Blocked until C2 + founder-approved TS script (**S1**); script not written yet |
+| Glacier deferred cohort | Separate restore strategy — excluded from initial backfill |
 
-**Next slice is Task 8.** Tasks 6 and 7 are complete. Task 8 writes a backfill runbook; it does
-**not** run a backfill and does not submit jobs. Founder-executed; spends real money when run.
+**Plan Task 8 (runbook document) is complete** (including Codex sequencing / M1 / vehicle /
+C2-buyer corrections). Founder execution has **not** started. The pipeline is **not**
+production-validated until recorded **C2**. Pilot/fleet remain unauthorized without **S1**.
 
 **Open residuals from Task 6 (documented, not resolved in 6B):** founder-accepted concurrent
 retry race (cross-tab/operator/direct calls may double-submit AWS before the unique index claims
@@ -201,7 +206,7 @@ in `docs/superpowers/ledgers/`.
 | Unnamed-link master-stream bypass (see the section above) | screener-proxy ledger, foot |
 | The **production database is 7 migrations behind `main`** (`20260806000100`–`20260807000200`), so the buyer title page and `transcode_jobs` are live as code and absent as schema. Only the founder applies migrations | `migration-drift` CI |
 | `revoke_portal_link` has no status gate, while `create_screener_link` does. A client `account_owner` can revoke GC's chain-of-title review link on an `in_review` title, via the RPC though not the UI. Self-defeating rather than dangerous — GC can re-mint — so it was left open, but never actually decided | buyer-title-page ledger |
-| The ~$700 backfill (Task 8) spends real money and is founder-executed | plan, Task 8 |
+| The ~$700 backfill spends real money and is founder-executed; runbook is `docs/infra/screener-proxy-backfill.md` — execution and canary still open | backfill runbook |
 
 **Architectural debt with a known correct fix**
 
@@ -335,10 +340,11 @@ master through the real pipeline as the gate before trusting any of it — not a
 1. Read `docs/superpowers/ledgers/2026-08-06-screener-proxy.md` end to end.
 2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline
    (356 Vitest tests after Task 6).
-3. Tasks 6–7 are shipped. Pipeline code: `src/lib/transcode-jobs.ts`,
-   `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx`, and
-   `retryTranscodeJob` in `actions.ts`. Spec/governance: domain-spec §12 exception + CLAUDE/
-   AGENTS deferred-list wording. Next slice is Task 8 (backfill runbook only — do not execute).
+3. Tasks 6–8 (plan) are shipped through the backfill **runbook**. Pipeline code + GC panel/retry
+   + domain-spec exception are on `main`. Read `docs/infra/screener-proxy-backfill.md` before any
+   spend. Next work is **founder** preconditions (migrations, AWS verify, one-master canary) —
+   not agent-executed backfill. Do not create the founder TS script until that follow-on slice
+   is approved.
 
 Ask the founder before: any schema change, anything touching money or rights, any user-facing copy,
 and any decision the spec does not already settle. Record decisions in the spec in the same change

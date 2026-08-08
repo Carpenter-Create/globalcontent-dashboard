@@ -608,21 +608,33 @@ git commit -m "docs(spec): §12 exception for internal viewing proxies"
 
 ### Task 8: The backfill runbook
 
+> **Status 2026-08-07:** Runbook written at `docs/infra/screener-proxy-backfill.md` (docs slice;
+> uncommitted until founder review). Documentation only — does **not** execute backfill, apply
+> migrations, invoke AWS, or create the future founder TypeScript script. Founder execution and
+> production canary remain open. Codex findings addressed in-doc: non-circular canary sequence;
+> non-mutating M1; no interim submission vehicle (pilot/batch require reviewed script; canary may
+> use `POST /api/assets/complete` only); C2 requires GC **and** buyer gated playback.
+
 **Files:**
 - Create: `docs/infra/screener-proxy-backfill.md`
 
 **This task writes a document. It does NOT run a backfill and does not submit any job.**
 
-- [ ] **Step 1: Write it**
+- [x] **Step 1: Write it**
 
-Cover: how to list masters lacking a screener (SQL the founder runs), how to submit jobs in batches with a concurrency limit, how to monitor progress against `transcode_jobs`, the expected cost (~$1 per feature, ~$700 for ~700 titles), and how to re-run safely for failures only.
+Runbook covers: founder-only warning; prod migration + deploy + AWS + ListBucket-order + cron
+preconditions; one-master canary PASS/FAIL; eligibility (current master only; dedicated titles
+still get proxies without flip override; no active/complete job for deterministic key); Glacier
+excluded to a deferred cohort; future dry-run TS script requirements; canary → pilot → controlled
+batches; stop conditions; split-brain / retry / prohibited actions; founder checkpoints.
+Approximate cost prose (~$1 × ~700) retained as order-of-magnitude until dry-run.
 
-State plainly that titles whose `screener_source` is already `'dedicated'` still get a proxy registered but keep their setting, per the founder decision.
-
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Commit** *(pending founder review of this docs slice)*
 
 ```bash
-git add docs/infra/screener-proxy-backfill.md
+git add docs/infra/screener-proxy-backfill.md docs/HANDOFF.md \
+  docs/superpowers/plans/2026-08-06-screener-proxy.md \
+  docs/superpowers/ledgers/2026-08-06-screener-proxy.md
 git commit -m "docs(infra): screener proxy backfill runbook"
 ```
 
