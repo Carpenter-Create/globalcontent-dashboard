@@ -481,30 +481,36 @@ NEXT: Founder review of the corrected runbook → commit/PR docs → founder
   M1/D1/A1/C0/C1 then one canary spend → C2 (GC+buyer) → S1 script slice →
   pilot. Do not spend from the agent.
 
-=== OPEN SECURITY FINDING — founder call, 2026-08-07 ===
-Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the
-merge (both halves are already in these branches; merging does not worsen it),
-but it is a real bypass of a control we deliberately built.
+=== UNNAMED-LINK BYPASS — Option D remediation (2026-08-08) ===
+FOUNDER: rejected shipping the bypass as a production residual. M1 apply BLOCKED
+until this fix is merged to main and included in the production migration plan.
 
-WHAT: unification (20260806000300) removed `not is_gc_staff(created_by)` from
-portal_links_select, so a client can read GC's OWN unnamed screener link on
-their title — including its raw share_token. Separately, the interim stream gate
-exempts unnamed links from the master-source refusal so GC's operational review
-links keep working.
+CHOSEN: Option D — Layer A stream gate + Layer B narrow RLS.
+Migrations (additive; do not amend 003):
+  20260808000100_hide_gc_unnamed_screener_links.sql
+  20260808000200_portal_resolve_screener_asset_kind.sql  — TOCTOU close: RPC returns
+    asset_kind; /api/portal/screener authorizes on resolved asset, not a second
+    titles.screener_source read.
 
-TOGETHER: a client can lift GC's link token, open the portal, pass the OTP with
-any email they control, and stream the master. That is the same bypass
-20260806000500 closed on the WRITE path (a client must name a buyer), reopened
-through the READ path.
+INTENTIONAL: pre-proxy GC portal master review via unnamed links is removed.
+GC portal review resumes when a dedicated screener exists or proxy registers one.
+No in-dashboard master player in this slice. Master download unchanged.
 
-SEVERITY: it is their own title and their own master — they could already
-download it and hand it to anyone — so this is not an escalation of what data
-they can reach. It is a control that can be walked around, which tends to be
-discovered at the worst moment.
+REQUIRED M1 ORDERING (STOP): merge remediations → deploy NEW app first → verify
+fail-closed portal gate → fresh drift/preflight → founder applies all NINE
+migrations in timestamp order → non-mutating verify → then D1/A1.
+Do NOT begin the nine-migration prod apply while the OLD app is serving traffic
+(003 under old app can expose GC unnamed tokens + old master-stream exemption).
+Brief dedicated-playback outage before 080002 is acceptable; master stream reopen
+is not.
 
-LIKELY FIX: stop exempting unnamed links once GC's review flow has a real
-dedicated screener, which the proxy work delivers anyway. Until then, either
-narrow the read policy to hide GC-authored share_tokens (partially reversing a
-founder transparency decision), or accept it knowingly.
+SEPARATE / STILL OPEN: revoke_portal_link title-status gate (not in this slice).
 
-NOT encoded as a B3 probe: same-org, so out of that harness's scope.
+B3: updated to assert clients see named own-title tokens only — never park in
+KNOWN_OPEN.
+
+LOCAL MIGRATION DEVIATION: Cursor ran `supabase migration up --local` for
+20260808000100 during implementation. No production change. Local DB is
+NON-AUTHORITATIVE for migration evidence. Cursor-reported local pgTAP /
+policy-mutation results are not independently reproduced under current
+governance. Agents must not run migrations — rule unchanged.

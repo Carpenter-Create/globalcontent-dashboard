@@ -40,7 +40,7 @@
 -- and the revoke-match); GC's branch is untouched -- omitting the name still succeeds.
 
 begin;
-select plan(101);
+select plan(106);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -334,9 +334,17 @@ select is(
   'orgs/x/titles/m/master/film.mov',
   'master-source title resolves to the master asset storage_key');
 select is(
+  (select asset_kind::text from public.portal_resolve_screener('sess_m')),
+  'master',
+  'master-source resolution returns asset_kind = master (20260808000200 TOCTOU evidence)');
+select is(
   (select storage_key from public.portal_resolve_screener('sess_d')),
   'orgs/x/titles/d/screener/film_screener.mov',
   'dedicated-source title resolves to the screener asset storage_key');
+select is(
+  (select asset_kind::text from public.portal_resolve_screener('sess_d')),
+  'screener',
+  'dedicated-source resolution returns asset_kind = screener (20260808000200 TOCTOU evidence)');
 
 -- unknown / expired session
 select throws_ok($$ select public.portal_resolve_screener('nope') $$,
@@ -424,25 +432,37 @@ select is(
 select is((select count(*) from public.screener_view_events)::int, 0,
   'client SELECT on screener_view_events returns nothing (GC-only policy, unchanged)');
 
--- 20260806000200 widened portal_links_select so a client can re-copy the screener_view link
--- they minted for their own org — that's what "0 screener_view rows visible" used to assert, and
--- was already wrong the moment that migration landed. 20260806000300 widens it further by
--- deleting the author conjunct entirely: a client now sees EVERY screener_view row for their
--- org's title, GC-authored included (tok_c_gc, revoked above, stays visible — RLS is not
--- filtered by revoked_at). That inverts what this assertion used to prove; see the migration
--- header for why hiding GC's outbound activity from the client stopped being defensible once the
--- recipient key made the author partition unnecessary. What still holds unconditionally:
--- master_download rows stay GC-only regardless of org, because a master_download token yields
--- the master itself post-OTP and was never given a share_token.
+-- 20260806000300: clients see NAMED screener_view rows on their titles (incl. GC-authored
+-- named pitches; tok_c_gc is named 'Vudu', revoked — RLS is not filtered by revoked_at).
+-- 20260808000100 (Option D layer B): clients must NOT see GC-authored UNNAMED operational
+-- links (recipient_name IS NULL + is_gc_staff(created_by)). master_download stays GC-only.
 select is(
   (select count(*) from public.portal_links where token_hash = 'tok_c_gc')::int, 1,
-  'client CAN now see GC-authored screener_view rows for their own org''s title (author partition removed)');
+  'client can see GC-authored NAMED screener_view rows on own title (003 transparency retained)');
 select is(
   (select count(*) from public.portal_links where token_hash = 'tok_c_client')::int, 1,
   'client can see their own org''s non-GC-authored screener_view rows (unchanged)');
 select is(
   (select count(*) from public.portal_links where purpose = 'master_download')::int, 0,
   'client SELECT on master_download portal_links returns nothing (GC-only, unchanged)');
+
+-- T1 / T2 / T6 — GC unnamed operational link visibility (20260808000100)
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L) $$,
+         current_setting('t.title_c'), 'tok_c_gc_unnamed', 'share_gc_unnamed'),
+  'GC creates an unnamed operational screener link for RLS assertions');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.owner'), 'role','authenticated')::text, true);
+select is(
+  (select count(*) from public.portal_links where token_hash = 'tok_c_gc_unnamed')::int, 0,
+  'client cannot SELECT GC-authored unnamed operational screener links (20260808000100)');
+select set_config('request.jwt.claims',
+  json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
+select is(
+  (select count(*) from public.portal_links where token_hash = 'tok_c_gc_unnamed')::int, 1,
+  'GC staff still sees its own unnamed operational screener links');
 
 -- Cross-tenant negative on the branch this migration actually widened. Widening
 -- portal_links_select's client branch is exactly the kind of change where a cross-org leak
@@ -839,9 +859,9 @@ select throws_ok(
          current_setting('t.title_v'), 'tok_v_blank', '   '),
   'P0001', 'A buyer name is required', 'a client caller passing a whitespace-only recipient name is refused');
 
--- GC's branch is untouched: the exemption in the buyer-link gate (recipient_name null = GC's
--- own operational link) depends on GC still being able to omit the name entirely, exactly as
--- gc/review/actions.ts's createScreenerLink does.
+-- GC's branch is untouched: GC must still omit the recipient name for ScreenerPanel
+-- operational links (gc/review/actions.ts createScreenerLink). Portal stream no longer
+-- exempts those links from the dedicated-source gate (Option D layer A — app code).
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
 select lives_ok(

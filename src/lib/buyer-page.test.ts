@@ -69,15 +69,11 @@ describe("buyerActionsFor", () => {
     expect(a.canDownloadScreener).toBe(false);
   });
 
-  // Fix round 1, task 9, item 1: on the default screener_source = 'master', "the screener" IS
-  // the master byte-for-byte (lib/assets.ts). Watching stays open for GC's OWN operational
-  // link (no recipient — base's default here); a one-click DOWNLOAD of that same file must
-  // not be — it would hand the unwatermarked deliverable to any prospect holding the link,
-  // bypassing the licence gate the master route enforces. (The buyer-link case — where
-  // watching itself must ALSO close on a master-sourced title — is pinned separately below.)
-  it("withholds the screener DOWNLOAD when the title's screener is master-sourced, even though watching is fine for GC's own link", () => {
+  // Option D: master-sourced titles refuse BOTH watch and download on every portal link,
+  // including GC unnamed operational links (hasRecipientName: false — base default).
+  it("withholds BOTH watch and screener DOWNLOAD when the title's screener is master-sourced, including GC unnamed links", () => {
     const a = buyerActionsFor({ ...base, screenerIsDedicated: false });
-    expect(a.canWatchScreener).toBe(true);
+    expect(a.canWatchScreener).toBe(false);
     expect(a.canDownloadScreener).toBe(false);
     expect(a.canDownloadMetadata).toBe(true);
   });
@@ -104,6 +100,12 @@ describe("buyerActionsFor", () => {
     const a = buyerActionsFor({ ...base, hasRecipientName: true, screenerIsDedicated: true });
     expect(a.canWatchScreener).toBe(true);
     expect(a.canDownloadScreener).toBe(true);
+  });
+
+  // Option D pin: named vs unnamed must not reopen a master-stream path.
+  it("refuses master-sourced watch for both named and unnamed links (no exemption)", () => {
+    expect(buyerActionsFor({ ...base, hasRecipientName: false, screenerIsDedicated: false }).canWatchScreener).toBe(false);
+    expect(buyerActionsFor({ ...base, hasRecipientName: true, screenerIsDedicated: false }).canWatchScreener).toBe(false);
   });
 
   // Fix round 3, item 2 (CLAUDE.md rule 11 — enforce at the point of action, not just at

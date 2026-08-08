@@ -104,7 +104,7 @@ decision, not an implementation detail.
 
 | Item | Notes |
 |---|---|
-| Production migrations | Apply `20260806000100`–`20260807000200` (destructive-ops; founder) |
+| Production migrations | **BLOCKED** until Option D + TOCTOU fix merge; then apply pending package through `20260808000200` (destructive-ops; founder) |
 | AWS runbook verify + canary | Setup runbook, then one-master canary (first controlled spend); **C2** = GC panel **and** buyer gated playback |
 | Backfill / pilot execution | Blocked until C2 + founder-approved TS script (**S1**); script not written yet |
 | Glacier deferred cohort | Separate restore strategy — excluded from initial backfill |
@@ -158,25 +158,58 @@ no production data behind them and should be revisited once there is any.
 
 ---
 
-## Open security finding — founder decision, not yours to close alone
+## Unnamed-link / master-stream bypass — remediation in flight (M1 blocked)
 
-A client can read the raw `share_token` of **GC's own unnamed screener link** on their title.
-Unification (`20260806000300`) deliberately removed the clause hiding GC-authored rows, on the
-founder's reasoning that it is the client's title and their revenue. Separately, the interim stream
-gate exempts unnamed links from the master-source refusal, so GC's operational review links keep
-working.
+**Founder rejected** shipping the bypass as a production residual (2026-08-08).
 
-Together: a client can lift GC's token, open the portal, pass the OTP with any email they control,
-and stream the master. That is the same bypass `20260806000500` closed on the *write* path (a client
-must name a buyer), reopened through the *read* path.
+**Chosen fix: Option D** (authoritative stream gate + narrow RLS/token visibility), plus
+TOCTOU close on resolved-asset evidence:
 
-**Severity:** it is their own title and their own master — they could already download it and hand
-it to anyone — so it is not an escalation of reachable data. It is a control that can be walked
-around, which tends to surface at the worst moment.
+- **Layer A (app):** `/api/portal/screener` authorizes on `portal_resolve_screener.asset_kind ===
+  'screener'` from the **same RPC snapshot** as the key — not a separate
+  `titles.screener_source` re-read. Unnamed master-stream exemption removed. A concurrent
+  master→dedicated flip cannot make an already-resolved master key signable.
+- **Layer B (migration `20260808000100_hide_gc_unnamed_screener_links.sql`):** clients with
+  `operate` may still see **named** `screener_view` links on their titles; they must **not**
+  `SELECT` GC-authored **unnamed** operational links (`recipient_name IS NULL` +
+  `is_gc_staff(created_by)`).
+- **TOCTOU (migration `20260808000200_portal_resolve_screener_asset_kind.sql`):** RPC returns
+  `asset_kind` alongside `storage_key`.
 
-**Likely fix:** stop exempting unnamed links once GC's review flow has a real dedicated screener,
-which the proxy work delivers anyway. Full write-up at the foot of
-`docs/superpowers/ledgers/2026-08-06-screener-proxy.md`.
+**Transition (intentional):** titles without a dedicated screener are no longer portal-watchable
+via GC unnamed links until a dedicated screener exists or the proxy pipeline registers one.
+
+**M1 production migration apply remains BLOCKED** until this remediation is merged to `main` and
+folded into the production apply plan (pending seven + `20260808000100` + `20260808000200`).
+Do not resume M1 from the existence of an unmerged branch.
+
+**REQUIRED production ordering (STOP condition — do not violate):**
+
+1. Merge Option D + TOCTOU remediation and migrations `080001` + `080002` to `main`.
+2. Deploy the **NEW** application code first.
+3. Verify the deployed portal gate is fail-closed before applying pending production migrations
+   (missing `asset_kind` → refuse; must not reopen master streaming).
+4. Fresh production drift/preflight.
+5. Founder applies all **nine** migrations in timestamp order in one controlled package.
+6. Verify schema/RLS/functions/types non-mutatingly.
+7. Only then proceed to D1/A1 — not C2.
+
+**Do not begin the nine-migration production apply while the old application build is serving
+traffic.** Applying `20260806000300` under the old app can expose GC unnamed tokens while the
+unnamed master-stream exemption still exists. A brief dedicated-playback outage between new-app
+deploy and `080002` is acceptable; reopening master streaming is not.
+
+**Local migration governance deviation (Option D implementation):** Cursor ran
+`supabase migration up --local` while applying `20260808000100` for local tests. No production
+state was changed. Repository files show no unintended generated/artifact commits from that
+step. The local Supabase DB is therefore **NON-AUTHORITATIVE** for migration-state evidence.
+Reported local pgTAP 104/104 and policy-widening mutation results from that session are
+Cursor-reported only; independent reviewers must not re-run those DB tests under current
+governance without founder-executed / explicitly permitted procedures. The rule “agents must
+not run migrations” remains correct and is not weakened.
+
+**Still open / separate:** `revoke_portal_link` title-status gate (client can revoke GC `in_review`
+screener via RPC) — not part of Option D.
 
 ---
 
@@ -184,8 +217,10 @@ which the proxy work delivers anyway. Full write-up at the foot of
 
 `scripts/security/b3-cross-org-isolation.mjs` is the required `isolation` CI check. It used to
 assert that `portal_links` was a GC-only table a client sees zero rows in. Unification repealed
-that rule, so the probes were rewritten to assert what is now true: a client sees **exactly** its
-own `screener_view` rows, **zero** `master_download` rows, and **zero** rows for any other org.
+that rule; Option D layer B then narrowed client visibility further. Probes must assert what is
+now true: a client sees the permitted **named** `screener_view` rows on their own titles, **not**
+GC-authored **unnamed** operational screener rows/tokens, **zero** `master_download` rows, and
+**zero** rows for any other org. GC visibility remains separately governed (`gc_can`).
 
 That is strictly stronger than what it replaced. There is a `KNOWN_OPEN` baseline at the foot of
 that file — it is empty and must stay that way. Its own comment says a baseline is a list of known
@@ -203,9 +238,9 @@ in `docs/superpowers/ledgers/`.
 
 | Issue | Where |
 |---|---|
-| Unnamed-link master-stream bypass (see the section above) | screener-proxy ledger, foot |
-| The **production database is 7 migrations behind `main`** (`20260806000100`–`20260807000200`), so the buyer title page and `transcode_jobs` are live as code and absent as schema. Only the founder applies migrations | `migration-drift` CI |
-| `revoke_portal_link` has no status gate, while `create_screener_link` does. A client `account_owner` can revoke GC's chain-of-title review link on an `in_review` title, via the RPC though not the UI. Self-defeating rather than dangerous — GC can re-mint — so it was left open, but never actually decided | buyer-title-page ledger |
+| Unnamed-link master-stream bypass — Option D remediation on branch; **M1 blocked** until merged | HANDOFF section above; `20260808000100` |
+| The **production database is behind `main`** (buyer/share + `transcode_jobs` package; plus remediation migration once merged). Only the founder applies migrations — **not while bypass would land** | `migration-drift` CI |
+| `revoke_portal_link` has no status gate, while `create_screener_link` does. A client `account_owner` can revoke GC's chain-of-title review link on an `in_review` title, via the RPC though not the UI. Self-defeating rather than dangerous — GC can re-mint — **still open; not in Option D** | buyer-title-page ledger |
 | The ~$700 backfill spends real money and is founder-executed; runbook is `docs/infra/screener-proxy-backfill.md` — execution and canary still open | backfill runbook |
 
 **Architectural debt with a known correct fix**
@@ -214,7 +249,7 @@ in `docs/superpowers/ledgers/`.
 |---|---|
 | The rule-12 licence check exists in **three** implementations — `portal_resolve_download` (SQL), `src/lib/master-licence.ts` (TS), `title_vendor_licensed` (SQL). They agree today and a parity test pins the status list, but they have already drifted once. Correct fix is a shared `portal_resolve_buyer_master` RPC | needs a migration |
 | `create_asset` lacks the key-scope check that `create_transcode_job` gained. Same shape of gap, standing repo-wide | needs a migration |
-| TOCTOU between `portal_resolve_screener` resolving a key and the route re-reading `screener_source`. Narrow; closed by having the RPC return the resolved asset's kind | needs a migration |
+| ~~TOCTOU between `portal_resolve_screener` and a separate `screener_source` re-read~~ | **Closed on branch** by `20260808000200` returning `asset_kind`; route authorizes on that field. Pending merge + prod apply. |
 | **A stopped cron is invisible.** A count computed inside the poll cannot report the poll's own absence, and nothing persists one. **Task 6 does not depend on this** — see below | future migration, not a Task 6 blocker |
 
 > **What Task 6 does and does not need here.** Task 6's panel derives stuck state from

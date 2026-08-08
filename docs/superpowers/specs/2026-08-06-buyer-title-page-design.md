@@ -74,20 +74,27 @@ bytes now differ only in how many clicks it takes an external recipient to walk 
 unwatermarked deliverable — a `<video src>` is a directly-copyable signed URL, not a
 copy-protected format. Commit `5892805` closed that gap. **The rule that shipped is:**
 
-- **Watch, on a buyer link** (`portal_links.recipient_name` non-null — the discriminator
-  between a client-minted link and GC's own) — gated on approval **AND**
-  `screener_source = 'dedicated'`, same as download
-  (`src/lib/buyer-page.ts`, `buyerActionsFor.canWatchScreener`; enforced again, independently,
-  in `/api/portal/screener/route.ts` since the page's gate only decides what renders, not what
-  the stream route will serve).
-- **Watch, on GC's own unnamed operational link** — gated on approval only, unchanged. This
-  risk predates this branch — GC's own reviewers and vendor screeners have always had this
-  access — and is GC's own workflow to carry; breaking it as collateral damage of the buyer-link
-  fix would not be a fix, it would be scope creep with a different name.
+- **Watch, on any portal link** (named buyer **or** GC unnamed operational) — requires
+  `screener_source = 'dedicated'` (and a resolvable screener asset). Enforced in
+  `buyerActionsFor.canWatchScreener` and independently in `/api/portal/screener/route.ts`.
 - **Download, on any link** — gated on approval **AND** `screener_source = 'dedicated'`
-  (`src/lib/buyer-page.ts`, `buyerActionsFor.canDownloadScreener`). Absent that, the button does
-  not render; the page shows a notice that a viewable screener isn't available for the title
-  rather than a dead or 403'ing button.
+  (`buyerActionsFor.canDownloadScreener`). Absent that, the button does not render.
+
+### Amendment, 2026-08-08 — Option D closes unnamed-link master-stream bypass
+
+**Founder rejected** shipping the prior GC-unnamed master-stream exemption as a production
+residual. Remediation:
+
+1. **Stream gate:** remove the unnamed-link exemption; dedicated screener is required for all
+   portal playback (GC ops links included).
+2. **Narrow RLS** (`20260808000100_hide_gc_unnamed_screener_links.sql`): clients with `operate`
+   still see named `screener_view` links on their titles; they must not `SELECT` GC-authored
+   unnamed operational links/tokens.
+
+**Intentional transition:** titles without a dedicated screener are not portal-watchable through
+GC unnamed links until a dedicated screener exists or the proxy pipeline registers one. No
+in-dashboard master player is invented as a fallback. Master **download** remains separately
+licence-gated.
 
 This makes §9's "not a hard blocker" wrong as written; it has been promoted to a prerequisite
 below rather than left standing as a doc that disagrees with the code.
@@ -265,7 +272,7 @@ anonymous visitor, which lowers the risk but does not remove the requirement.
 | No trailer | Viewing side shows the screener only. |
 | Missing metadata fields | Omitted, not blanked. |
 | Title not yet approved | Everything works except watching and the screener download. |
-| **Title approved, `screener_source = 'master'` (today's default on every title)** | **On a buyer link (named recipient): neither watch nor download is offered — the page shows a notice that a viewable screener hasn't been provided yet, in place of the whole viewing surface. On GC's own unnamed operational link: watch still works (streams the master); the screener DOWNLOAD button still does not render. A dedicated screener asset is the prerequisite for both, on a buyer link. See the §2 amendment.** |
+| **Title approved, `screener_source = 'master'` (today's default on every title)** | **Neither watch nor download on any portal link (named buyer or GC unnamed). Page shows that a viewable screener hasn't been provided yet. Dedicated screener/proxy is required for portal playback (Option D, 2026-08-08). See the §2 amendments.** |
 | Recipient has no licence | Master absent. This is the normal pitch state, not an error. |
 | Recipient not a known vendor | Screener and metadata work; master never appears. |
 | Missing poster or banner | Layout falls back rather than breaking. |
@@ -319,22 +326,14 @@ untrusted input reaching a response header.
 
 1. **`{ kind: "title" }` export source** — prerequisite. Shared file, own tests.
 2. **Recipient on `portal_links`** plus the narrowed revoke scope (§7).
-3. **Screener proxy (option B)** — **prerequisite for the screener DOWNLOAD always, and for the
-   WATCH itself on a buyer link.** Originally written as "not a hard blocker"; that was wrong as
-   shipped, and wrong twice over. On the `'master'` default, a downloadable screener would hand
-   over the unwatermarked master byte-for-byte (see the §2 amendment) —
-   `buyerActionsFor.canDownloadScreener` therefore refuses until `screener_source = 'dedicated'`
-   and a real screener asset exists. Watching was originally left open regardless (streams the
-   master; no different from any other pitch view) — but for a **buyer** link specifically, a
-   stream and a download of the same master-sourced bytes are the same exposure with different
-   click counts, so `5892805` closed that too: `canWatchScreener` now refuses a buyer link the
-   same way `canDownloadScreener` does. GC's own unnamed operational links are unaffected —
-   that exposure predates this branch. Practically, this makes the screener proxy a
-   prerequisite for the buyer page being useful **at all**, not merely for the download: until
-   a title has a dedicated screener asset, a buyer link to it renders a poster, a synopsis, and
-   a metadata download with no way to watch anything — the pitch itself doesn't work yet, only
-   GC's own internal review of the same title does. Approved separately on 2026-08-06; requires
-   a scoped amendment to `docs/domain-spec.md` §12.
+3. **Screener proxy (option B)** — **prerequisite for portal WATCH and screener DOWNLOAD on every
+   link**, including GC unnamed operational links (Option D, 2026-08-08). On the `'master'`
+   default, "the screener" is the master byte-for-byte; stream and download are the same
+   exposure with different click counts. `canWatchScreener` and `canDownloadScreener` both
+   require `screener_source = 'dedicated'`. Until a title has a dedicated screener, portal
+   playback is unavailable for buyers and for GC unnamed review links — GC portal review
+   resumes when a dedicated screener exists or the proxy registers one. Approved proxy work
+   2026-08-06; Option D closed the prior unnamed exemption 2026-08-08.
 4. **This page.**
 
 ## 10. Open items
