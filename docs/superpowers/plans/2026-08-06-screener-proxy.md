@@ -535,29 +535,35 @@ A failed transcode that nobody can see is the same as no pipeline.
 > amendment exists only because Step 3 below originally said one commit; the two halves fail
 > differently (6A is a bounded read, 6B submits to AWS and writes a row under a role gate) and
 > reviewing them together is how the second one gets skimmed.
+>
+> **Status 2026-08-07:** Step 1 / 6A shipped and merged to `main` as PR #93
+> (`0f4ed6360f45075d8becedd7efbb8f48f3a1cbc7`). Step 2 / 6B is the next implementation slice.
+> 6B remains a separate mutation slice: no new schema expected unless implementation evidence
+> proves otherwise; preserve existing authorization/RPC boundaries; do not retry completed jobs
+> (partial unique index `transcode_jobs_active_key_uidx`); AWS submit and job-recording failure
+> paths must be explicit and tested.
 
 **Files:**
-- Create: `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx`
-- Modify: `src/app/(app)/(operator)/gc/titles/[id]/page.tsx`
-- Modify: `src/app/(app)/(operator)/gc/titles/[id]/actions.ts`
+- Create: `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx` *(6A — done)*
+- Create: `src/lib/transcode-jobs.ts` *(6A — done; stuck/status/copy helpers)*
+- Modify: `src/app/(app)/(operator)/gc/titles/[id]/page.tsx` *(6A — done; 6B may extend)*
+- Modify: `src/app/(app)/(operator)/gc/titles/[id]/actions.ts` *(6B)*
 
-- [ ] **Step 1: Panel**
+- [x] **Step 1: Panel** — done (PR #93 / `0f4ed63`)
 
-List the title's `transcode_jobs`: status, created, failure reason, and the resulting screener asset when complete. Bounded read via `@/lib/list-bounds`, inside the page's existing `Promise.all`. Design tokens only; reuse `Card`, `InlineNotice`, `Button`.
+List the title's `transcode_jobs`: status, created, failure reason, and the resulting screener asset when complete. Bounded read via `@/lib/list-bounds`, inside the page's existing `Promise.all`. Design tokens only; reuse `Card`, `InlineNotice`, `Button`. Shipped with derived stuck state (active + strictly older than 60 minutes), no heartbeat, no retry.
 
 - [ ] **Step 2: Retry action**
 
 A server action that re-submits for the job's source asset and records a new job row. Gate on GC operate — the RPC already enforces it; the UI must not offer it to a role that would be refused.
 
-- [ ] **Step 3: Verify and commit**
+- [ ] **Step 3: Verify and commit** *(6A committed; remaining is 6B)*
 
-Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` before each commit, not
-once at the end — a 6A that does not build is not reviewable on its own.
+Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` before the 6B commit.
 
 ```bash
-# 6A — Step 1
-git add "src/app/(app)/(operator)/gc/titles/[id]"
-git commit -m "feat(gc): transcode job status panel"
+# 6A — Step 1 (SHIPPED — PR #93)
+# git commit -m "feat(gc): add transcode job status panel"  → 0f4ed63
 
 # 6B — Step 2
 git add "src/app/(app)/(operator)/gc/titles/[id]"

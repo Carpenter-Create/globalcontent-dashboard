@@ -222,10 +222,11 @@ RESIDUAL RISK carried deliberately out of T5 — accepted, not forgotten, and no
     production data behind them. Revisit once there is any.
   - NOTHING in this pipeline has run against real AWS. The runbook is unapplied.
     One real master through the real pipeline is the gate, not a polish step.
-MERGED to main 2026-08-07 as PR #89 (12cadf1), at 5 of 8 tasks. Remaining: T6 GC
-  visibility + retry, T7 the narrow domain-spec §12 amendment, T8 the
-  founder-executed backfill. The migrations this slice added are applied LOCALLY;
-  the prod database is behind main (see HANDOFF's Git state section).
+MERGED to main 2026-08-07 as PR #89 (12cadf1), at 5 of 8 tasks. At that point
+  remaining were T6 GC visibility + retry, T7 the narrow domain-spec §12
+  amendment, T8 the founder-executed backfill. The migrations this slice added
+  are applied LOCALLY; the prod database is behind main (see HANDOFF's Git
+  state section). T6A later completed separately — see below.
 
 === REVIEW STATUS: 432ecbb — code review discharged 2026-08-07 ===
 WHAT WAS REVIEWED: fix round 3/5 in full — the reserved write deadline
@@ -340,6 +341,35 @@ WHY: the halves fail differently. 6A is a bounded read plus a derived display
   UNIQUE CONSTRAINT VIOLATION rather than a no-op, because the retry would carry
   the same expected_output_key. Reviewed next to table markup, that is the half
   that gets skimmed.
+
+=== Proxy T6A: complete — MERGED to main 2026-08-07 as PR #93 ===
+Reviewed implementation commit: 0f4ed6360f45075d8becedd7efbb8f48f3a1cbc7
+  (merge commit 0c778eb). Cursor implementation; independent Codex re-review
+  found no remaining findings before merge.
+
+DELIVERED (read-only; no mutation):
+  - Bounded, title-scoped transcode_jobs read on the GC title page, inside the
+    existing Promise.all (DETAIL_LIST / rangeFor).
+  - Panel shows status, created time, failure reason, and output screener
+    (filename or short asset id).
+  - Derived Stuck state for active jobs (submitted|running) when created_at is
+    strictly older than 60 minutes — same inequality as the poll. No heartbeat
+    table and no heartbeat dependency.
+  - Invalid created_at fails closed to an em dash (never "Invalid Date").
+  - Approved copy centralized in src/lib/transcode-jobs.ts.
+  - No retry control; no schema/migrations/RPCs; no AWS/Vercel/dependency changes.
+
+VALIDATION (run, not read): typecheck clean; 318 Vitest tests; eslint 0 errors /
+  5 known warnings; build success. Required isolation check passed; Vercel
+  passed; checks remained red only on the documented pre-existing js-yaml /
+  nanoid dependency audit.
+
+NEXT: Task 6B — the retry mutation, still the plan's Step 2. Separate slice.
+  No new schema expected unless implementation evidence proves otherwise.
+  Preserve existing authorization/RPC boundaries. Do not retry completed jobs
+  (transcode_jobs_active_key_uidx). AWS submit and job-recording failure paths
+  must be explicit and tested. T6 is not done until 6B ships. Remaining after
+  6B: T7 domain-spec §12 amendment, T8 founder-executed backfill.
 
 === OPEN SECURITY FINDING — founder call, 2026-08-07 ===
 Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the
