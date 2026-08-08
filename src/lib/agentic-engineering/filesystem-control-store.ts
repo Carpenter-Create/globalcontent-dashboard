@@ -10,14 +10,14 @@ import {
   EMPTY_CONTROL_TIP,
   LedgerIntegrityError,
   assertControlPaths,
-  cloneObjects,
   tipForObjects,
   type CasResult,
   type ControlSnapshot,
+  type ControlStore,
   type ControlTip,
-  type MutableControlStore,
 } from "./control-store";
 import { parseControlPath } from "./control-paths";
+import { registerWritableControlStore } from "./internal/writable-registry";
 
 export const LEDGER_MARKER_NAME = ".ae-control-ledger";
 export const LEDGER_TIP_NAME = ".control-tip";
@@ -57,14 +57,30 @@ export type OpenFilesystemLedgerFailure = {
 };
 
 export type OpenFilesystemLedgerResult =
-  | { ok: true; store: FilesystemControlStore; root: string }
+  | { ok: true; store: ControlStore; root: string }
   | OpenFilesystemLedgerFailure;
 
+/** @internal Test seam for publish fault injection — not part of package index. */
+export type PublishFaultPoint =
+  | "after_objects_to_prev"
+  | "after_next_to_objects"
+  | "before_tip_update"
+  | "during_prev_cleanup";
+
+let publishFaultPoint: PublishFaultPoint | null = null;
+
+/** @internal */
+export function __testOnly_setPublishFault(
+  point: PublishFaultPoint | null,
+): void {
+  publishFaultPoint = point;
+}
+
 /**
- * Dedicated filesystem ledger adapter.
+ * Dedicated filesystem ledger adapter (constructible only via openFilesystemLedger).
  * Never recursively clears arbitrary user directories; only mutates a marked ledger root.
  */
-export class FilesystemControlStore implements MutableControlStore {
+class FilesystemControlStoreImpl implements ControlStore {
   private constructor(readonly root: string) {}
 
   static async open(
@@ -86,7 +102,11 @@ export class FilesystemControlStore implements MutableControlStore {
       }
       await fs.mkdir(root, { recursive: false });
       await initializeEmptyLedger(root);
-      return { ok: true, store: new FilesystemControlStore(root), root };
+      return {
+        ok: true,
+        store: wrapFilesystemStore(new FilesystemControlStoreImpl(root)),
+        root,
+      };
     }
 
     const markerPath = path.join(root, LEDGER_MARKER_NAME);
@@ -109,13 +129,16 @@ export class FilesystemControlStore implements MutableControlStore {
         };
       }
       await initializeEmptyLedger(root);
-      return { ok: true, store: new FilesystemControlStore(root), root };
+      return {
+        ok: true,
+        store: wrapFilesystemStore(new FilesystemControlStoreImpl(root)),
+        root,
+      };
     }
 
     const markerOk = await readAndValidateMarker(markerPath);
     if (!markerOk.ok) return markerOk;
 
-    // Initialized marked ledger — fail closed on integrity issues.
     const integrity = await loadAndValidateCanonicalState(root);
     if (!integrity.ok) {
       return {
@@ -125,7 +148,11 @@ export class FilesystemControlStore implements MutableControlStore {
       };
     }
 
-    return { ok: true, store: new FilesystemControlStore(root), root };
+    return {
+      ok: true,
+      store: wrapFilesystemStore(new FilesystemControlStoreImpl(root)),
+      root,
+    };
   }
 
   async getTip(): Promise<ControlTip> {
@@ -146,7 +173,7 @@ export class FilesystemControlStore implements MutableControlStore {
     return snap.objects.get(objectPath) ?? null;
   }
 
-  async unsafeCompareAndSwap(
+  async compareAndSwapInternal(
     expectedTip: ControlTip,
     nextObjects: Map<string, string>,
   ): Promise<CasResult> {
@@ -190,7 +217,6 @@ export class FilesystemControlStore implements MutableControlStore {
       const nextTip = tipForObjects(nextObjects);
       await publishObjectsAtomically(this.root, nextObjects, nextTip);
 
-      // Re-validate published state before accepting.
       const published = await loadAndValidateCanonicalState(this.root);
       if (!published.ok) {
         return {
@@ -214,7 +240,8 @@ export class FilesystemControlStore implements MutableControlStore {
         objects: published.objects,
       };
     } catch (err) {
-      await cleanupFailedPublish(this.root);
+      // Never delete objects.prev here — it may hold the last accepted state.
+      await cleanupCandidateArtifacts(this.root);
       return {
         ok: false,
         code: "internal_error",
@@ -226,6 +253,20 @@ export class FilesystemControlStore implements MutableControlStore {
   }
 }
 
+function wrapFilesystemStore(impl: FilesystemControlStoreImpl): ControlStore {
+  // Facade exposes only ControlStore methods — no runtime CAS escape hatch.
+  const store: ControlStore = {
+    getTip: () => impl.getTip(),
+    getSnapshot: () => impl.getSnapshot(),
+    readObject: (objectPath) => impl.readObject(objectPath),
+  };
+  registerWritableControlStore(store, {
+    unsafeCompareAndSwap: (expectedTip, nextObjects) =>
+      impl.compareAndSwapInternal(expectedTip, nextObjects),
+  });
+  return store;
+}
+
 class LockBusyError extends Error {
   constructor(message: string) {
     super(message);
@@ -233,6 +274,18 @@ class LockBusyError extends Error {
   }
 }
 
+class PublishFaultError extends Error {
+  constructor(point: PublishFaultPoint) {
+    super(`injected publish fault: ${point}`);
+    this.name = "PublishFaultError";
+  }
+}
+
+/**
+ * Lexically resolve the path, then lstat every existing ancestor component.
+ * Reject ANY symlink in the ancestor chain or at the ledger root.
+ * Do not rely on realpath() to silently follow symlinks.
+ */
 async function resolveDedicatedLedgerRoot(
   userPath: string,
 ): Promise<
@@ -250,9 +303,9 @@ async function resolveDedicatedLedgerRoot(
   const absolute = path.resolve(userPath);
   const cwd = path.resolve(process.cwd());
   const home = path.resolve(os.homedir());
+  const fsRoot = path.parse(absolute).root;
 
-  // Reject before any mutation.
-  if (absolute === path.parse(absolute).root || absolute === "/") {
+  if (absolute === fsRoot || absolute === "/") {
     return {
       ok: false,
       code: "rejected_root",
@@ -274,7 +327,6 @@ async function resolveDedicatedLedgerRoot(
     };
   }
 
-  const parent = path.dirname(absolute);
   const base = path.basename(absolute);
   if (!base || base === "." || base === "..") {
     return {
@@ -284,82 +336,123 @@ async function resolveDedicatedLedgerRoot(
     };
   }
 
-  // Reject when the immediate parent is a symlink (path escape via
-  // user-controlled symlink components). Ancestors like macOS /var →
-  // /private/var are resolved via realpath and are not user-controlled
-  // ledger components.
-  let parentStat: Awaited<ReturnType<typeof fs.lstat>>;
+  const rel = path.relative(fsRoot, absolute);
+  const parts = rel.split(path.sep).filter((p) => p.length > 0);
+  let current = fsRoot;
+
+  for (let i = 0; i < parts.length; i += 1) {
+    current = path.join(current, parts[i]);
+    let st: Awaited<ReturnType<typeof fs.lstat>>;
+    try {
+      st = await fs.lstat(current);
+    } catch (err) {
+      if (!isEnoent(err)) throw err;
+      // Remaining components (including ledger leaf) do not exist yet.
+      if (i < parts.length - 1) {
+        return {
+          ok: false,
+          code: "not_found",
+          message: `ancestor directory does not exist: ${current}`,
+        };
+      }
+      // Leaf missing — parent chain fully validated as real directories.
+      const parent = path.dirname(absolute);
+      // Confinement: parent has no symlink ancestors; lexical parent is the root parent.
+      const root = absolute;
+      if (root === cwd || root === home || root === fsRoot) {
+        return {
+          ok: false,
+          code: "rejected_root",
+          message: "resolved ledger path is not a dedicated ledger directory",
+        };
+      }
+      // Confirm parent still exists as a directory (not a race to symlink).
+      const parentCheck = await assertRealDirectory(parent);
+      if (!parentCheck.ok) return parentCheck;
+      return { ok: true, root, existed: false };
+    }
+
+    if (st.isSymbolicLink()) {
+      return {
+        ok: false,
+        code: "symlink_rejected",
+        message: `path contains symlink component: ${current}`,
+      };
+    }
+
+    const isLeaf = i === parts.length - 1;
+    if (!isLeaf && !st.isDirectory()) {
+      return {
+        ok: false,
+        code: "not_a_directory",
+        message: `ancestor path is not a directory: ${current}`,
+      };
+    }
+    if (isLeaf) {
+      if (!st.isDirectory()) {
+        return {
+          ok: false,
+          code: "not_a_directory",
+          message: "ledger path exists and is not a directory",
+        };
+      }
+      // After full ancestor+leaf validation with lstat (no symlink follow),
+      // confirm realpath equals lexical path (defense in depth).
+      const real = await fs.realpath(current);
+      if (real !== current) {
+        return {
+          ok: false,
+          code: "symlink_rejected",
+          message: "ledger root resolves through a symlink",
+        };
+      }
+      if (current === cwd || current === home || current === fsRoot) {
+        return {
+          ok: false,
+          code: "rejected_root",
+          message: "resolved ledger path is not a dedicated ledger directory",
+        };
+      }
+      return { ok: true, root: current, existed: true };
+    }
+  }
+
+  return {
+    ok: false,
+    code: "rejected_root",
+    message: "unable to resolve ledger path",
+  };
+}
+
+async function assertRealDirectory(
+  dir: string,
+): Promise<{ ok: true } | OpenFilesystemLedgerFailure> {
+  let st: Awaited<ReturnType<typeof fs.lstat>>;
   try {
-    parentStat = await fs.lstat(parent);
+    st = await fs.lstat(dir);
   } catch (err) {
     if (!isEnoent(err)) throw err;
     return {
       ok: false,
       code: "not_found",
-      message: `parent directory does not exist: ${parent}`,
+      message: `parent directory does not exist: ${dir}`,
     };
   }
-  if (parentStat.isSymbolicLink()) {
+  if (st.isSymbolicLink()) {
     return {
       ok: false,
       code: "symlink_rejected",
-      message: `path contains symlink component: ${parent}`,
+      message: `path contains symlink component: ${dir}`,
     };
   }
-  if (!parentStat.isDirectory()) {
+  if (!st.isDirectory()) {
     return {
       ok: false,
       code: "not_a_directory",
       message: "ledger parent path is not a directory",
     };
   }
-
-  const parentReal = await fs.realpath(parent);
-  const root = path.join(parentReal, base);
-
-  if (root === cwd || root === home || root === "/" || root === path.parse(root).root) {
-    return {
-      ok: false,
-      code: "rejected_root",
-      message: "resolved ledger path is not a dedicated ledger directory",
-    };
-  }
-
-  let existed = true;
-  let leafStat: Awaited<ReturnType<typeof fs.lstat>> | null = null;
-  try {
-    leafStat = await fs.lstat(root);
-  } catch (err) {
-    if (!isEnoent(err)) throw err;
-    existed = false;
-  }
-
-  if (leafStat) {
-    if (leafStat.isSymbolicLink()) {
-      return {
-        ok: false,
-        code: "symlink_rejected",
-        message: "ledger root must not be a symlink",
-      };
-    }
-    if (!leafStat.isDirectory()) {
-      return {
-        ok: false,
-        code: "not_a_directory",
-        message: "ledger path exists and is not a directory",
-      };
-    }
-    const realRoot = await fs.realpath(root);
-    if (realRoot !== root) {
-      return {
-        ok: false,
-        code: "symlink_rejected",
-        message: "ledger root resolves through a symlink",
-      };
-    }
-  }
-
-  return { ok: true, root, existed };
+  return { ok: true };
 }
 
 async function assertEmptyOrAllowedInit(
@@ -430,22 +523,35 @@ type LoadedState =
   | { ok: true; tip: ControlTip; objects: Map<string, string> }
   | { ok: false; message: string };
 
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await fs.lstat(p);
+    return true;
+  } catch (err) {
+    if (isEnoent(err)) return false;
+    throw err;
+  }
+}
+
 async function loadAndValidateCanonicalState(root: string): Promise<LoadedState> {
-  // Residual publish artifacts indicate crash / partial failure.
-  for (const name of [
-    LEDGER_OBJECTS_NEXT_DIR,
-    LEDGER_OBJECTS_PREV_DIR,
-    LEDGER_TIP_NEXT_NAME,
-  ]) {
-    try {
-      await fs.lstat(path.join(root, name));
-      return {
-        ok: false,
-        message: `incomplete publish artifact present: ${name}`,
-      };
-    } catch (err) {
-      if (!isEnoent(err)) throw err;
-    }
+  // Incomplete publish artifacts fail closed — never auto-normalize.
+  if (await pathExists(path.join(root, LEDGER_OBJECTS_NEXT_DIR))) {
+    return {
+      ok: false,
+      message: `incomplete publish artifact present: ${LEDGER_OBJECTS_NEXT_DIR}`,
+    };
+  }
+  if (await pathExists(path.join(root, LEDGER_TIP_NEXT_NAME))) {
+    return {
+      ok: false,
+      message: `incomplete publish artifact present: ${LEDGER_TIP_NEXT_NAME}`,
+    };
+  }
+  if (await pathExists(path.join(root, LEDGER_OBJECTS_PREV_DIR))) {
+    return {
+      ok: false,
+      message: `incomplete publish artifact present: ${LEDGER_OBJECTS_PREV_DIR} (last accepted backup retained; refuse to normalize)`,
+    };
   }
 
   const markerOk = await readAndValidateMarker(
@@ -497,7 +603,6 @@ async function loadAndValidateCanonicalState(root: string): Promise<LoadedState>
     return { ok: false, message: "objects/ must be a directory" };
   }
 
-  // Reject unknown top-level entries (fail closed).
   const topEntries = await fs.readdir(root);
   const allowedTop = new Set([
     LEDGER_MARKER_NAME,
@@ -550,7 +655,6 @@ async function walkObjects(
     const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
     const abs = path.join(absDir, entry.name);
 
-    // Dirent from readdir may follow; use lstat for symlink detection.
     const st = await fs.lstat(abs);
     if (st.isSymbolicLink()) {
       throw new LedgerIntegrityError(`symlink in objects/: ${rel}`);
@@ -580,6 +684,17 @@ async function walkObjects(
   }
 }
 
+/**
+ * Publish phases (under exclusive lock):
+ * 1. Build + validate candidate objects.next (+ tip.next)
+ * 2. Rename objects → objects.prev  (backup of last accepted)
+ * 3. Rename objects.next → objects
+ * 4. Update .control-tip from tip.next
+ * 5. Only then remove objects.prev
+ *
+ * objects.prev is NEVER deleted by candidate cleanup. If publish fails after
+ * creating prev, artifacts remain and subsequent reads fail closed.
+ */
 async function publishObjectsAtomically(
   root: string,
   nextObjects: Map<string, string>,
@@ -591,12 +706,19 @@ async function publishObjectsAtomically(
   const tipNextPath = path.join(root, LEDGER_TIP_NEXT_NAME);
   const tipPath = path.join(root, LEDGER_TIP_NAME);
 
-  await cleanupFailedPublish(root);
+  // Refuse to start if a prior incomplete backup remains.
+  if (await pathExists(prevDir)) {
+    throw new Error(
+      `${LEDGER_OBJECTS_PREV_DIR} already present; refuse to publish over incomplete prior state`,
+    );
+  }
+
+  // Candidates from a failed pre-swap build are safe to clear.
+  await cleanupCandidateArtifacts(root);
 
   await fs.mkdir(nextDir, { recursive: false });
   for (const [objectPath, content] of nextObjects) {
     const abs = path.join(nextDir, objectPath);
-    // Confinement: resolved path must stay under nextDir.
     const resolvedFile = path.resolve(abs);
     if (
       resolvedFile !== nextDir &&
@@ -613,19 +735,45 @@ async function publishObjectsAtomically(
     flag: "wx",
   });
 
-  // Swap objects directory, then tip. Crash between them → tip mismatch → fail closed.
+  // Phase: rename current accepted → backup
   await fs.rename(objectsDir, prevDir);
+  if (publishFaultPoint === "after_objects_to_prev") {
+    throw new PublishFaultError("after_objects_to_prev");
+  }
+
+  // Phase: promote candidate → canonical objects
   await fs.rename(nextDir, objectsDir);
+  if (publishFaultPoint === "after_next_to_objects") {
+    throw new PublishFaultError("after_next_to_objects");
+  }
+
+  if (publishFaultPoint === "before_tip_update") {
+    throw new PublishFaultError("before_tip_update");
+  }
+
+  // Phase: tip update (canonical objects already new)
   await fs.rename(tipNextPath, tipPath);
-  await fs.rm(prevDir, { recursive: true, force: true });
+
+  // Phase: remove backup only after new canonical objects + tip accepted
+  try {
+    if (publishFaultPoint === "during_prev_cleanup") {
+      throw new PublishFaultError("during_prev_cleanup");
+    }
+    await fs.rm(prevDir, { recursive: true, force: false });
+  } catch (err) {
+    // Tip + objects are already the new accepted state. Leaving prev is a
+    // detectable incomplete-cleanup condition (fail closed on next open).
+    throw new Error(
+      `canonical publish succeeded but backup cleanup failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
 }
 
-async function cleanupFailedPublish(root: string): Promise<void> {
-  for (const name of [
-    LEDGER_OBJECTS_NEXT_DIR,
-    LEDGER_OBJECTS_PREV_DIR,
-    LEDGER_TIP_NEXT_NAME,
-  ]) {
+/** Remove disposable candidate artifacts only — never objects.prev. */
+async function cleanupCandidateArtifacts(root: string): Promise<void> {
+  for (const name of [LEDGER_OBJECTS_NEXT_DIR, LEDGER_TIP_NEXT_NAME]) {
     await fs.rm(path.join(root, name), { recursive: true, force: true });
   }
 }
@@ -637,8 +785,6 @@ async function acquireExclusiveLock(
   const token = `${process.pid}:${randomUUID()}\n`;
   const deadline = Date.now() + 2_000;
 
-  // Brief local retry so a waiting writer can re-check tip after the holder
-  // publishes, rather than failing only on lock_busy.
   while (true) {
     try {
       const handle = await fs.open(
@@ -687,22 +833,9 @@ function isEexist(err: unknown): boolean {
   );
 }
 
-/** @deprecated Use FilesystemControlStore.open / openFilesystemLedger. */
-export async function openFilesystemControlStore(
-  rootDir: string,
-): Promise<FilesystemControlStore> {
-  const opened = await FilesystemControlStore.open(rootDir, { create: true });
-  if (!opened.ok) {
-    throw new Error(`${opened.code}: ${opened.message}`);
-  }
-  return opened.store;
-}
-
 export async function openFilesystemLedger(
   userPath: string,
   options: OpenFilesystemLedgerOptions = {},
 ): Promise<OpenFilesystemLedgerResult> {
-  return FilesystemControlStore.open(userPath, options);
+  return FilesystemControlStoreImpl.open(userPath, options);
 }
-
-export { cloneObjects, tipForObjects };

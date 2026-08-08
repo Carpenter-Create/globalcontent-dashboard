@@ -49,21 +49,6 @@ export interface ControlStore {
   readObject(path: string): Promise<string | null>;
 }
 
-/**
- * Internal mutable store used only by the trusted control-ledger writer.
- * Not for CLI / GitHub boundary / general callers.
- */
-export interface MutableControlStore extends ControlStore {
-  /**
-   * @internal Unsafe whole-set CAS after ledger has already validated
-   * protected-delta + chain + fold. Do not call from public surfaces.
-   */
-  unsafeCompareAndSwap(
-    expectedTip: ControlTip,
-    nextObjects: Map<string, string>,
-  ): Promise<CasResult>;
-}
-
 /** Empty ledger tip (no objects). */
 export const EMPTY_CONTROL_TIP = tipForObjects(new Map());
 
@@ -99,12 +84,4 @@ export function contentDigestMap(objects: ControlObjects): Map<string, string> {
     out.set(path, digestUtf8Bytes(content));
   }
   return out;
-}
-
-export function isMutableControlStore(
-  store: ControlStore,
-): store is MutableControlStore {
-  return (
-    typeof (store as MutableControlStore).unsafeCompareAndSwap === "function"
-  );
 }

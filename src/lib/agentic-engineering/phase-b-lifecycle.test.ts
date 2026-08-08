@@ -1,5 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +9,8 @@ import {
   appendControlEvent,
   stageContract,
 } from "./control-ledger";
-import { MemoryControlStore } from "./memory-control-store";
+import { createMemoryControlStore } from "./memory-control-store";
+import type { ControlStore } from "./control-store";
 import {
   recordFounderClose,
   recordFounderFindingDisposition,
@@ -42,7 +42,7 @@ function authComment(taskId: string, version: number, digest: string, baseSha: s
   ].join("\n");
 }
 
-async function stageAndAuthorize(store: MemoryControlStore) {
+async function stageAndAuthorize(store: ControlStore) {
   const { yaml, digest } = digestTaskContract(sampleContract());
   let tip = await store.getTip();
   const staged = await stageContract({
@@ -74,7 +74,7 @@ async function stageAndAuthorize(store: MemoryControlStore) {
 
 describe("Phase B control ledger lifecycle", () => {
   it("runs a realistic authorize → review → disposition → founder_review_ready → closed path", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     const { tip: t0, digest } = await stageAndAuthorize(store);
     let tip = t0;
 
@@ -209,7 +209,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("CAS: first writer wins, second against stale tip fails", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     const { tip } = await stageAndAuthorize(store);
 
     const a = appendControlEvent({
@@ -258,7 +258,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("rejects mutated / deleted prior protected objects at delta layer", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     await stageAndAuthorize(store);
     const snap = await store.getSnapshot();
     const next = cloneObjects(snap.objects);
@@ -285,7 +285,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("authorization binding negatives", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     const { yaml, digest } = digestTaskContract(sampleContract());
     const staged = await stageContract({
       store,
@@ -354,8 +354,8 @@ describe("Phase B control ledger lifecycle", () => {
     }
 
     const missing = await bindFounderAuthorization({
-      store: new MemoryControlStore(),
-      expectedTip: await new MemoryControlStore().getTip(),
+      store: createMemoryControlStore(),
+      expectedTip: await createMemoryControlStore().getTip(),
       commentBody: body,
       observedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
       commentAction: "created",
@@ -396,7 +396,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("stale-review invalidation and reconstruction refuse malformed chain", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     const { tip: t0 } = await stageAndAuthorize(store);
     let tip = t0;
     const ordered = [
@@ -467,13 +467,16 @@ describe("Phase B control ledger lifecycle", () => {
     const broken = cloneObjects(snap.objects);
     const p = [...broken.keys()].find((x) => x.includes("000002-"))!;
     broken.set(p, '{"nope":true}\n');
-    const badStore = new MemoryControlStore(broken);
+    const badStore = createMemoryControlStore(broken);
     const bad = await reconstructTaskState(badStore, "AE-0001");
     expect(bad.ok).toBe(false);
   });
 
   it("CLI happy path and non-zero exits", async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "ae-b-cli-"));
+    // Use cwd-based temp: macOS os.tmpdir() sits under /var (symlink ancestor).
+    const scratch = path.join(process.cwd(), ".ae-test-tmp");
+    await mkdir(scratch, { recursive: true });
+    const dir = await mkdtemp(path.join(scratch, "ae-b-cli-"));
     const { yaml, digest } = digestTaskContract(sampleContract());
     const contractFile = path.join(dir, "contract.yaml");
     const commentFile = path.join(dir, "authorize.txt");
@@ -584,7 +587,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("rejects overwrite of existing frozen contract with different bytes", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     await stageAndAuthorize(store);
     const other = digestTaskContract(sampleContract({ title: "Other" }));
     const tip = await store.getTip();
@@ -600,7 +603,7 @@ describe("Phase B control ledger lifecycle", () => {
   });
 
   it("rejects append with wrong claimed active contract digest", async () => {
-    const store = new MemoryControlStore();
+    const store = createMemoryControlStore();
     const { tip } = await stageAndAuthorize(store);
     const r = await appendControlEvent({
       store,

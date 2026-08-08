@@ -9,10 +9,8 @@ import {
   readTaskEventChain,
 } from "./control-ledger";
 import { assertCanonicalContractYaml } from "./contract-yaml";
-import {
-  openFilesystemLedger,
-  type FilesystemControlStore,
-} from "./filesystem-control-store";
+import type { ControlStore } from "./control-store";
+import { openFilesystemLedger } from "./filesystem-control-store";
 import {
   recordFounderClose,
   recordFounderFindingDisposition,
@@ -96,7 +94,7 @@ function emit(
   };
 }
 
-async function ensureStore(ledger: string): Promise<FilesystemControlStore> {
+async function ensureStore(ledger: string): Promise<ControlStore> {
   const opened = await openFilesystemLedger(ledger, { create: true });
   if (!opened.ok) {
     throw new Error(`${opened.code}: ${opened.message}`);

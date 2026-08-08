@@ -1,10 +1,7 @@
 import { CONFIGURED_FOUNDER_GITHUB_ACTOR_ID } from "./closure-readiness";
 import type { ClosureReadinessResult } from "./closure-readiness";
-import {
-  commitPrivilegedControlEvent,
-  type AppendEventSuccess,
-  type LedgerResult,
-} from "./control-ledger";
+import type { AppendEventSuccess, LedgerResult } from "./control-ledger";
+import { commitPrivilegedControlEvent } from "./internal/commit-control-event";
 import type { ControlStore, ControlTip } from "./control-store";
 import type { ControlEvent } from "./event-schema";
 

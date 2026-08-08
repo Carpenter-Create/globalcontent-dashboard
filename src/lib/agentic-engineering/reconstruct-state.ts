@@ -38,26 +38,31 @@ export type ReconstructResult =
   | { ok: true; value: ReconstructedTaskState }
   | { ok: false; issues: { code: string; message: string }[] };
 
-const AUTHORIZED_OR_LATER: ReadonlySet<FoldedTaskState["state"]> = new Set([
-  "AUTHORIZED",
-  "IMPLEMENTING",
-  "VALIDATING",
-  "REVIEWING",
-  "REMEDIATION_REQUIRED",
-  "REMEDIATING",
-  "FOUNDER_DECISION_REQUIRED",
-  "FOUNDER_REVIEW",
-  "BLOCKED",
-  "CRITICAL_FAILURE",
-  "PAUSED",
-  "CLOSED",
-  "CANCELLED",
-]);
+/**
+ * Derive whether authorization has occurred from verified event history.
+ * Do not use the current fold state name as the authorization test — BLOCKED /
+ * PAUSED / CANCELLED can occur before or after authorize.
+ */
+function findVerifiedAuthorization(events: ControlEvent[]): {
+  version: number;
+  digest: string;
+} | null {
+  let latest: { version: number; digest: string } | null = null;
+  for (const ev of events) {
+    if (ev.event_type === "authorize") {
+      latest = {
+        version: ev.payload.contract_version,
+        digest: ev.payload.contract_digest,
+      };
+    }
+  }
+  return latest;
+}
 
 /**
  * Reconstruct task state from frozen contract + verified event chain.
  * Uses Phase A foldTaskState. No GitHub I/O.
- * For AUTHORIZED and later states, frozen contract authority is required.
+ * Frozen canonical contract is required only when a verified authorize event exists.
  */
 export async function reconstructTaskState(
   store: ControlStore,
@@ -101,24 +106,15 @@ export async function reconstructTaskState(
     }
   }
 
-  const version = fold.state.activeContractVersion;
-  const digest = fold.state.activeContractDigest;
-  const frozenContractPath =
-    version != null ? formatContractPath(taskId, version) : null;
+  const authorization = findVerifiedAuthorization(chain.value);
+  let frozenContractPath: string | null = null;
 
-  if (AUTHORIZED_OR_LATER.has(fold.state.state)) {
-    if (version == null || digest == null || frozenContractPath == null) {
-      return {
-        ok: false,
-        issues: [
-          {
-            code: "frozen_contract_identity_missing",
-            message:
-              "AUTHORIZED+ reconstruction requires active contract version and digest",
-          },
-        ],
-      };
-    }
+  if (authorization) {
+    // Active identity comes from the folded verified chain (rooted in authorize).
+    const activeVersion = fold.state.activeContractVersion ?? authorization.version;
+    const activeDigest = fold.state.activeContractDigest ?? authorization.digest;
+    frozenContractPath = formatContractPath(taskId, activeVersion);
+
     const frozenBytes = snapshot.objects.get(frozenContractPath);
     if (!frozenBytes) {
       return {
@@ -148,33 +144,43 @@ export async function reconstructTaskState(
         ],
       };
     }
-    if (recomputed !== digest) {
+    if (recomputed !== activeDigest) {
       return {
         ok: false,
         issues: [
           {
             code: "frozen_contract_digest_mismatch",
-            message: `frozen digest ${recomputed} != active ${digest}`,
+            message: `frozen digest ${recomputed} != active ${activeDigest}`,
           },
         ],
       };
     }
-    if (parsed.task_id !== taskId || parsed.contract_version !== version) {
+    if (
+      parsed.task_id !== taskId ||
+      parsed.contract_version !== activeVersion
+    ) {
       return {
         ok: false,
         issues: [
           {
             code: "frozen_contract_identity_mismatch",
-            message: `frozen contract identity ${parsed.task_id}/v${parsed.contract_version} != ${taskId}/v${version}`,
+            message: `frozen contract identity ${parsed.task_id}/v${parsed.contract_version} != ${taskId}/v${activeVersion}`,
           },
         ],
       };
     }
+  } else {
+    // Pre-authorization: no frozen contract required.
+    const version = fold.state.activeContractVersion;
+    if (version != null) {
+      const candidate = formatContractPath(taskId, version);
+      if (snapshot.objects.has(candidate)) {
+        frozenContractPath = candidate;
+      }
+    }
   }
 
   const last = chain.value[chain.value.length - 1];
-  const hasFrozen =
-    frozenContractPath != null && snapshot.objects.has(frozenContractPath);
 
   return {
     ok: true,
@@ -183,7 +189,7 @@ export async function reconstructTaskState(
       tip: snapshot.tip,
       activeContractVersion: fold.state.activeContractVersion,
       activeContractDigest: fold.state.activeContractDigest,
-      frozenContractPath: hasFrozen ? frozenContractPath : null,
+      frozenContractPath,
       state: fold.state.state,
       latestSequence: fold.state.lastEventSequence,
       latestEventDigest: last?.event_digest ?? null,

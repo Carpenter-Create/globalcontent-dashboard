@@ -2,11 +2,11 @@ import { parseAuthorizeComment } from "./authorize-comment";
 import { CONFIGURED_FOUNDER_GITHUB_ACTOR_ID } from "./closure-readiness";
 import { digestContractFileBytes } from "./contract-digest";
 import {
-  commitPrivilegedControlEvent,
   type LedgerResult,
   type AppendEventSuccess,
   readTaskEventChain,
 } from "./control-ledger";
+import { commitPrivilegedControlEvent } from "./internal/commit-control-event";
 import {
   formatContractPath,
   formatProposedPath,
