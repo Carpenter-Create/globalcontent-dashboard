@@ -371,6 +371,30 @@ NEXT: Task 6B — the retry mutation, still the plan's Step 2. Separate slice.
   must be explicit and tested. T6 is not done until 6B ships. Remaining after
   6B: T7 domain-spec §12 amendment, T8 founder-executed backfill.
 
+=== Proxy T6B — FOUNDER-ACCEPTED RESIDUAL (concurrent retry), 2026-08-07 ===
+STATUS: ACCEPTED RESIDUAL — not resolved. No mitigation in Task 6B.
+
+ARCHITECTURE: retry follows the approved AWS-submit-before-record path
+  (same as master upload): `submitProxyJob` then `create_transcode_job`.
+  The UI pending state on the mounted Retry control prevents ordinary
+  repeated clicks on that control. It does NOT serialize cross-tab,
+  cross-operator, or direct concurrent calls.
+
+RACE: two concurrent retries can both pass eligibility and both submit
+  paid MediaConvert jobs before either insert claims the output key.
+  `transcode_jobs_active_key_uidx` ensures only one active/complete DB row
+  wins for a given expected_output_key; the loser surfaces the conflict or
+  split-brain record-failure copy and may leave an orphan AWS job.
+  The poll cannot discover orphans (it only reads `transcode_jobs` rows).
+
+EXPLICITLY NOT ADDED in 6B: compensation, AWS cleanup, locking,
+  claim/reservation rows, new schema, migrations, or RPCs. Future mitigation
+  would require architectural/schema/claim/locking work outside this slice.
+
+NON-BLOCKING NOTE: `transcode-panel.tsx` is a client component for Retry
+  pending state. A server panel + client Retry island would be narrower;
+  deferred as non-blocking / not in this correction pass.
+
 === OPEN SECURITY FINDING — founder call, 2026-08-07 ===
 Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the
 merge (both halves are already in these branches; merging does not worsen it),
