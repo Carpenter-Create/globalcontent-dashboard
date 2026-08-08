@@ -528,6 +528,14 @@ git commit -m "feat(transcode): scheduled poll replaces the EventBridge callback
 
 A failed transcode that nobody can see is the same as no pipeline.
 
+> **Amended 2026-08-07 — execution only, scope unchanged.** Task 6 executes as two commits along
+> the Step 1 / Step 2 boundary already written below: **6A** is Step 1 (the read-only panel) and
+> **6B** is Step 2 (the retry mutation). Nothing is added, removed or deferred — 6B is the second
+> half of this task, not a later slice, and the task is not done until both have shipped. The
+> amendment exists only because Step 3 below originally said one commit; the two halves fail
+> differently (6A is a bounded read, 6B submits to AWS and writes a row under a role gate) and
+> reviewing them together is how the second one gets skimmed.
+
 **Files:**
 - Create: `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx`
 - Modify: `src/app/(app)/(operator)/gc/titles/[id]/page.tsx`
@@ -543,9 +551,17 @@ A server action that re-submits for the job's source asset and records a new job
 
 - [ ] **Step 3: Verify and commit**
 
+Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` before each commit, not
+once at the end — a 6A that does not build is not reviewable on its own.
+
 ```bash
+# 6A — Step 1
 git add "src/app/(app)/(operator)/gc/titles/[id]"
-git commit -m "feat(gc): transcode job status and retry"
+git commit -m "feat(gc): transcode job status panel"
+
+# 6B — Step 2
+git add "src/app/(app)/(operator)/gc/titles/[id]"
+git commit -m "feat(gc): retry a failed transcode"
 ```
 
 ---

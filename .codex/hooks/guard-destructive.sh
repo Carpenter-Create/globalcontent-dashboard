@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# guard-destructive.sh — PreToolUse guardrail for Claude Code.
+# guard-destructive.sh — PreToolUse guardrail for Codex.
+#
+# Byte-identical in logic to `.claude/hooks/guard-destructive.sh`; only these comments differ.
+# Both agents send the same PreToolUse payload (`tool_name`, `tool_input.command`) on stdin, and
+# both document exit 2 + stderr as a block, so one script serves both. If the two ever diverge,
+# the parse below fails OPEN (see the note further down) — it will not announce itself.
 #
 # Runs BEFORE the Bash tool executes. If the command matches a destructive pattern,
-# it exits 2 to BLOCK the call (the stderr message is shown to Claude as the reason).
-# Exit 0 = allow. Works even under --dangerously-skip-permissions.
+# it exits 2 to BLOCK the call (the stderr message is shown to the agent as the reason).
+# Exit 0 = allow.
 #
 # This is a BACKSTOP, not a guarantee. Keep it as one layer of defense-in-depth:
 # hook + deny rules + a git commit before risky work. Test it before trusting it (see bottom).
@@ -58,7 +63,11 @@ for p in "${patterns[@]}"; do
 done
 exit 0
 
-# TEST (run once):
-#   chmod +x .claude/hooks/guard-destructive.sh
-#   echo '{"tool_name":"Bash","tool_input":{"command":"drop table users"}}' | .claude/hooks/guard-destructive.sh ; echo "exit=$?"   # expect BLOCKED, exit=2
-#   echo '{"tool_name":"Bash","tool_input":{"command":"npm test"}}'         | .claude/hooks/guard-destructive.sh ; echo "exit=$?"   # expect exit=0
+# TEST (safe — the payload is only string-matched, never executed):
+#   chmod +x .codex/hooks/guard-destructive.sh
+#   echo '{"tool_name":"Bash","tool_input":{"command":"drop table users"}}' | .codex/hooks/guard-destructive.sh ; echo "exit=$?"   # expect BLOCKED, exit=2
+#   echo '{"tool_name":"Bash","tool_input":{"command":"pnpm test"}}'        | .codex/hooks/guard-destructive.sh ; echo "exit=$?"   # expect exit=0
+#
+# Editing this file changes its hash, and Codex skips a non-managed hook until its CURRENT
+# definition has been reviewed and trusted. After any edit here, re-trust it in Codex — otherwise
+# it silently does not run.
