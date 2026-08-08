@@ -7,9 +7,13 @@ import {
   VALIDATION_FLOOR_CHECK_NAMES,
   type AuthorizedContractExpectations,
   type ClosureReadinessInput,
-  type VerifiedFindingDispositionEvent,
 } from "./closure-readiness";
+import { computeEventDigest, withEventDigest } from "./event-digest";
+import { verifyEventChain } from "./event-chain";
+import type { ControlEvent } from "./event-schema";
 import {
+  authorizePayload,
+  chainEvents,
   floorCheckResults,
   SAMPLE_DIGEST,
   SAMPLE_DIGEST_B,
@@ -17,21 +21,44 @@ import {
   SAMPLE_SHA_B,
 } from "./test-fixtures";
 
-function verifiedDisposition(
-  overrides: Partial<VerifiedFindingDispositionEvent> = {},
-): VerifiedFindingDispositionEvent {
-  return {
-    eventType: "finding_disposition",
-    taskId: "AE-0001",
-    findingId: "F2",
-    disposition: "accepted_by_founder",
-    founderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
-    eventDigest: "sha256:" + "e".repeat(64),
-    sequence: 9,
-    activeContractVersion: 1,
-    activeContractDigest: SAMPLE_DIGEST,
-    ...overrides,
-  };
+/** Minimal valid chain (no dispositions). */
+function baseControlChain(): ControlEvent[] {
+  return chainEvents([
+    { type: "contract_staged" },
+    {
+      type: "authorize",
+      payload: authorizePayload({
+        founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+      }),
+    },
+  ]);
+}
+
+/** Valid chain containing a finding_disposition (passes verifyEventChain). */
+function chainWithDisposition(
+  payloadOverrides: Record<string, unknown> = {},
+  eventOverrides: { activeDigest?: string; activeVersion?: number } = {},
+): ControlEvent[] {
+  return chainEvents([
+    { type: "contract_staged" },
+    {
+      type: "authorize",
+      payload: authorizePayload({
+        founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+      }),
+    },
+    {
+      type: "finding_disposition",
+      payload: {
+        finding_id: "F2",
+        disposition: "accepted_by_founder",
+        founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+        ...payloadOverrides,
+      },
+      activeDigest: eventOverrides.activeDigest,
+      activeVersion: eventOverrides.activeVersion,
+    },
+  ]);
 }
 
 function readyInput(
@@ -50,6 +77,7 @@ function readyInput(
   return {
     expectations: {
       authorizedContract: {
+        taskId: "AE-0001",
         version: 1,
         digest: SAMPLE_DIGEST,
         requiredCheckNames: requiredChecksWithFloor(),
@@ -73,7 +101,7 @@ function readyInput(
       checkResults: floorCheckResults(),
       acceptanceResults: [{ id: "AC1", satisfied: true }],
       findings: [],
-      verifiedFindingDispositions: [],
+      controlEvents: baseControlChain(),
       scopeViolations: [],
       unauthorizedProductionOrDestructiveAttempt: false,
       ...overrides.observed,
@@ -354,13 +382,13 @@ describe("evaluateClosureReadiness", () => {
     });
   });
 
-  describe("verified control-chain founder dispositions", () => {
-    it("Important + no verified disposition event → not ready", () => {
+  describe("control-chain provenance for founder dispositions", () => {
+    it("Important + no event chain disposition → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [],
+            controlEvents: baseControlChain(),
           },
         }),
       );
@@ -368,14 +396,89 @@ describe("evaluateClosureReadiness", () => {
       expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + disposition event from wrong actor ID → not ready", () => {
+    it("Important + fabricated standalone disposition object is not accepted", () => {
+      type ObservedKeys = keyof ClosureReadinessInput["observed"];
+      type HasStandalone = "verifiedFindingDispositions" extends ObservedKeys
+        ? true
+        : false;
+      const standaloneStillAnInput: HasStandalone = false;
+      expect(standaloneStillAnInput).toBe(false);
+
+      const fabricated = {
+        eventType: "finding_disposition",
+        taskId: "AE-0001",
+        findingId: "F2",
+        disposition: "accepted_by_founder",
+        founderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+        eventDigest: "sha256:" + "e".repeat(64),
+        sequence: 9,
+        activeContractVersion: 1,
+        activeContractDigest: SAMPLE_DIGEST,
+      };
+      const base = readyInput({
+        observed: {
+          findings: [{ id: "F2", severity: "Important", status: "open" }],
+          controlEvents: baseControlChain(),
+        },
+      });
+      // Smuggle a fabricated parallel authority field — predicate must ignore it.
+      const smuggled = {
+        ...base,
+        observed: {
+          ...base.observed,
+          verifiedFindingDispositions: [fabricated],
+        },
+      };
+      const r = evaluateClosureReadiness(smuggled as ClosureReadinessInput);
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+    });
+
+    it("Important + well-formed random digest not present in verified chain → not ready", () => {
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ founderActorId: 99999 }),
-            ],
+            controlEvents: baseControlChain(),
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("unresolved_important:F2");
+      expect(r.reasons).not.toContain("control_event_chain_invalid");
+    });
+
+    it("Important + correct digest format but wrong positive sequence → not ready", () => {
+      const events = chainWithDisposition();
+      expect(verifyEventChain(events).ok).toBe(true);
+      const broken = { ...events[2], sequence: 9 };
+      delete (broken as { event_digest?: string }).event_digest;
+      const chain = [
+        events[0],
+        events[1],
+        withEventDigest(broken as Parameters<typeof withEventDigest>[0]),
+      ];
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            controlEvents: chain,
+          },
+        }),
+      );
+      expect(r.ready).toBe(false);
+      expect(r.reasons).toContain("control_event_chain_invalid");
+      expect(r.reasons).toContain("control_event_chain:sequence_gap");
+    });
+
+    it("Important + event in chain but wrong founder actor → not ready", () => {
+      const events = chainWithDisposition({ founder_actor_id: 99999 });
+      expect(verifyEventChain(events).ok).toBe(true);
+      const r = evaluateClosureReadiness(
+        readyInput({
+          observed: {
+            findings: [{ id: "F2", severity: "Important", status: "open" }],
+            controlEvents: events,
           },
         }),
       );
@@ -383,14 +486,14 @@ describe("evaluateClosureReadiness", () => {
       expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + correct actor but fake/unverified event digest → not ready", () => {
+    it("Important + event in chain but wrong finding ID → not ready", () => {
+      const events = chainWithDisposition({ finding_id: "OTHER" });
+      expect(verifyEventChain(events).ok).toBe(true);
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ eventDigest: "not-a-digest" }),
-            ],
+            controlEvents: events,
           },
         }),
       );
@@ -398,88 +501,98 @@ describe("evaluateClosureReadiness", () => {
       expect(r.reasons).toContain("unresolved_important:F2");
     });
 
-    it("Important + wrong finding ID → not ready", () => {
+    it("Important + event in chain but wrong contract digest → not ready", () => {
+      const events = chainWithDisposition({}, { activeDigest: SAMPLE_DIGEST_B });
+      expect(verifyEventChain(events).ok).toBe(false);
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ findingId: "OTHER" }),
-            ],
+            controlEvents: events,
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("unresolved_important:F2");
+      expect(r.reasons).toContain("control_event_chain_invalid");
     });
 
-    it("Important + wrong contract digest → not ready", () => {
+    it("Important + event in chain but wrong contract version → not ready", () => {
+      const events = chainWithDisposition({}, { activeVersion: 2 });
+      expect(verifyEventChain(events).ok).toBe(false);
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({
-                activeContractDigest: SAMPLE_DIGEST_B,
-              }),
-            ],
+            controlEvents: events,
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("unresolved_important:F2");
+      expect(r.reasons).toContain("control_event_chain_invalid");
     });
 
-    it("Important + wrong contract version → not ready", () => {
+    it("Important + chain with broken prev digest → not ready", () => {
+      const events = chainWithDisposition();
+      const rest = {
+        ...events[2],
+        prev_event_digest: events[0].event_digest,
+      };
+      delete (rest as { event_digest?: string }).event_digest;
+      const chain = [
+        events[0],
+        events[1],
+        { ...rest, event_digest: computeEventDigest(rest) },
+      ];
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ activeContractVersion: 2 }),
-            ],
+            controlEvents: chain,
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("unresolved_important:F2");
+      expect(r.reasons).toContain("control_event_chain_invalid");
+      expect(r.reasons).toContain("control_event_chain:prev_digest_mismatch");
     });
 
-    it("Important + wrong event type → not ready", () => {
+    it("Important + chain with sequence gap → not ready", () => {
+      const events = chainWithDisposition();
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ eventType: "authorize" }),
-            ],
+            controlEvents: [events[0], events[2]],
           },
         }),
       );
       expect(r.ready).toBe(false);
-      expect(r.reasons).toContain("unresolved_important:F2");
+      expect(r.reasons).toContain("control_event_chain_invalid");
     });
 
-    it("Important + matching verified finding_disposition event → may proceed", () => {
+    it("Important + valid verified chain containing matching finding_disposition → may proceed", () => {
+      const events = chainWithDisposition();
+      expect(verifyEventChain(events).ok).toBe(true);
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [verifiedDisposition()],
+            controlEvents: events,
           },
         }),
       );
       expect(r.ready).toBe(true);
+      expect(r.reasons).toEqual([]);
     });
 
-    it("Critical + matching founder disposition event → still not ready", () => {
+    it("Critical + valid verified founder disposition event → still not ready", () => {
+      const events = chainWithDisposition({ finding_id: "F1" });
+      expect(verifyEventChain(events).ok).toBe(true);
       const r = evaluateClosureReadiness(
         readyInput({
           observed: {
             findings: [{ id: "F1", severity: "Critical", status: "addressed" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ findingId: "F1" }),
-            ],
+            controlEvents: events,
           },
         }),
       );
@@ -493,7 +606,7 @@ describe("evaluateClosureReadiness", () => {
           expectations: { expectedFounderActorId: 0 },
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [verifiedDisposition()],
+            controlEvents: chainWithDisposition(),
           },
         }),
       );
@@ -507,9 +620,7 @@ describe("evaluateClosureReadiness", () => {
           expectations: { expectedFounderActorId: 99999 },
           observed: {
             findings: [{ id: "F2", severity: "Important", status: "open" }],
-            verifiedFindingDispositions: [
-              verifiedDisposition({ founderActorId: 99999 }),
-            ],
+            controlEvents: chainWithDisposition({ founder_actor_id: 99999 }),
           },
         }),
       );
