@@ -17,25 +17,48 @@ export type ControlSnapshot = {
 export type CasFailureCode =
   | "stale_tip"
   | "invalid_path"
+  | "integrity_failure"
+  | "lock_busy"
   | "internal_error";
 
 export type CasResult =
   | { ok: true; tip: ControlTip; objects: ControlObjects }
-  | { ok: false; code: CasFailureCode; message: string; observedTip: ControlTip };
+  | {
+      ok: false;
+      code: CasFailureCode;
+      message: string;
+      observedTip?: ControlTip;
+    };
+
+export class LedgerIntegrityError extends Error {
+  readonly code = "integrity_failure" as const;
+  constructor(message: string) {
+    super(message);
+    this.name = "LedgerIntegrityError";
+  }
+}
 
 /**
- * Repository-like abstraction for the conceptual ae/control object set.
- * No GitHub network. Adapters may be memory or local filesystem.
+ * Read-only repository-like view of the conceptual ae/control object set.
+ * Public callers must not replace the ledger wholesale.
  */
 export interface ControlStore {
   getTip(): Promise<ControlTip>;
+  /** Fail closed on corruption / tip mismatch / unknown paths. */
   getSnapshot(): Promise<ControlSnapshot>;
   readObject(path: string): Promise<string | null>;
+}
+
+/**
+ * Internal mutable store used only by the trusted control-ledger writer.
+ * Not for CLI / GitHub boundary / general callers.
+ */
+export interface MutableControlStore extends ControlStore {
   /**
-   * Replace the entire object set only if current tip equals expectedTip.
-   * Models global serialized CAS on the control tip (spec §4.5.6).
+   * @internal Unsafe whole-set CAS after ledger has already validated
+   * protected-delta + chain + fold. Do not call from public surfaces.
    */
-  compareAndSwap(
+  unsafeCompareAndSwap(
     expectedTip: ControlTip,
     nextObjects: Map<string, string>,
   ): Promise<CasResult>;
@@ -76,4 +99,12 @@ export function contentDigestMap(objects: ControlObjects): Map<string, string> {
     out.set(path, digestUtf8Bytes(content));
   }
   return out;
+}
+
+export function isMutableControlStore(
+  store: ControlStore,
+): store is MutableControlStore {
+  return (
+    typeof (store as MutableControlStore).unsafeCompareAndSwap === "function"
+  );
 }

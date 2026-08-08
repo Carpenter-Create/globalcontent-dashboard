@@ -6,15 +6,14 @@ Companion to `AGENTIC_ENGINEERING_V1.md` and `PHASE_A.md`. Does not replace the 
 
 Supervised **local/dry-run** control-ledger mechanics on top of Phase A primitives:
 
-- Repository-like `ControlStore` (memory + filesystem adapters)
-- Contract staging (`proposed/`) and freeze (`contracts/`)
-- Founder authorization binding (`AE-AUTHORIZE` + actor ID + digest + base SHA)
-- Append-only event writer with protected-delta + chain checks
-- Expected-tip CAS (no silent retry)
-- Task state reconstruction via Phase A `foldTaskState`
-- SHA-pin event payload helpers
+- Repository-like `ControlStore` (read) + internal `MutableControlStore.unsafeCompareAndSwap` (ledger writer only)
+- Dedicated marked filesystem ledger (`.ae-control-ledger`) with realpath confinement, symlink rejection, exclusive lock, temp publish
+- Constrained transactions: `stageContract`, `bindFounderAuthorization`, `appendControlEvent` (operational only), founder record APIs, `addDerivedClosure`
+- Fold-before-write + protected-delta + event-chain + create-once
+- Active contract pins derived from verified chain (claimed pins must match)
+- Staged-store provenance for authorize; frozen-contract authority for AUTHORIZED+ reconstruction
 - Dry-run CLI (`pnpm ae:dry-run`)
-- GitHub boundary **interface** (not activated)
+- GitHub boundary **interface** (not activated; no raw CAS)
 
 ## What remains dry-run
 
@@ -33,6 +32,8 @@ A `ControlStore` holds:
 Authority paths (`contracts/**`, `events/**`) are create-once. Derived paths
 (`proposed/**`, `closures/**`) may refresh. Unknown paths fail closed (Phase A grammar).
 
+Filesystem ledgers are dedicated directories only — never repo root, `/`, home, or arbitrary non-empty trees. Corruption (tip mismatch, symlinks, unknown paths, missing tip) fails closed; tip is never auto-rewritten.
+
 ## Authorization binding
 
 `bindFounderAuthorization` (dry-run inputs only):
@@ -40,9 +41,16 @@ Authority paths (`contracts/**`, `events/**`) are create-once. Derived paths
 1. Parse exact `AE-AUTHORIZE` grammar (Phase A)
 2. Require `observedFounderActorId === CONFIGURED_FOUNDER_GITHUB_ACTOR_ID` (40549435)
 3. Require `commentAction === "created"` (edited rejected)
-4. Recompute staged contract digest; require exact version/digest/base SHA match
-5. Freeze create-once `contracts/<task>/vN.yaml`
-6. Append strict `authorize` event via CAS writer
+4. Load staged bytes from store proposed path only (no caller YAML substitute)
+5. Recompute digest; require exact version/digest/base SHA match
+6. Freeze create-once `contracts/<task>/vN.yaml`
+7. Append strict `authorize` via privileged commit path
+
+## Privileged vs operational events
+
+Generic `appendControlEvent` / CLI `append-event` reject privileged types
+(`authorize`, `finding_disposition`, `founder_review_ready`, `closed`, `paused`,
+`resumed`, `cancelled`, `contract_staged`). Use dedicated APIs.
 
 ## CAS / integrity
 
@@ -51,9 +59,10 @@ Before any write:
 1. Observe current tip; require equals `expectedTip`
 2. Verify protected delta (no modify/delete of prior authority objects)
 3. Verify existing event chain for the task
-4. Build next event (sequence, prev digest, active contract pins, event digest)
-5. Validate schema + proposed delta
-6. `compareAndSwap(expectedTip, nextObjects)` — stale tip → structured failure, no retry
+4. Build next event (sequence, prev digest, derived active contract pins, event digest)
+5. Validate schema + proposed delta + full next chain
+6. `foldTaskState` over proposed chain — reject before CAS if fold fails
+7. Internal `unsafeCompareAndSwap` — stale tip → structured failure, no retry
 
 ## Manual founder actions still required (do not auto-activate)
 

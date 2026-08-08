@@ -11,6 +11,11 @@ import {
   stageContract,
 } from "./control-ledger";
 import { MemoryControlStore } from "./memory-control-store";
+import {
+  recordFounderClose,
+  recordFounderFindingDisposition,
+  recordFounderReviewReady,
+} from "./founder-events";
 import { reconstructTaskState } from "./reconstruct-state";
 import {
   buildFounderReviewReadyPayload,
@@ -22,7 +27,7 @@ import {
 } from "./sha-pin-events";
 import { sampleContract, SAMPLE_SHA, SAMPLE_SHA_B } from "./test-fixtures";
 import { runAeDryRunCli } from "./dry-run-cli";
-import { FilesystemControlStore } from "./filesystem-control-store";
+import { openFilesystemLedger } from "./filesystem-control-store";
 import { formatContractPath } from "./control-paths";
 import { cloneObjects, contentDigestMap } from "./control-store";
 import { verifyProtectedObjectDelta } from "./protected-delta";
@@ -73,7 +78,7 @@ describe("Phase B control ledger lifecycle", () => {
     const { tip: t0, digest } = await stageAndAuthorize(store);
     let tip = t0;
 
-    const steps: Array<{
+    const ops: Array<{
       type: Parameters<typeof appendControlEvent>[0]["eventType"];
       payload: Record<string, unknown>;
       at: string;
@@ -125,39 +130,9 @@ describe("Phase B control ledger lifecycle", () => {
         }),
         at: "2026-08-08T15:06:00.000Z",
       },
-      {
-        type: "finding_disposition",
-        payload: {
-          finding_id: "F2",
-          disposition: "accepted_by_founder",
-          founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
-        },
-        at: "2026-08-08T15:07:00.000Z",
-      },
-      {
-        type: "founder_review_ready",
-        payload: buildFounderReviewReadyPayload({
-          implementationSha: SAMPLE_SHA,
-          validatedSha: SAMPLE_SHA,
-          reviewedSha: SAMPLE_SHA,
-          activeContractVersion: 1,
-          activeContractDigest: digest,
-          closureEvidenceRef: "closure-1",
-          predicateResultId: "pred-1",
-        }),
-        at: "2026-08-08T15:08:00.000Z",
-      },
-      {
-        type: "closed",
-        payload: {
-          merge_sha: SAMPLE_SHA,
-          founder_actor_id: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
-        },
-        at: "2026-08-08T15:09:00.000Z",
-      },
     ];
 
-    for (const step of steps) {
+    for (const step of ops) {
       const r = await appendControlEvent({
         store,
         expectedTip: tip,
@@ -171,13 +146,55 @@ describe("Phase B control ledger lifecycle", () => {
           session_or_run_id: "lifecycle",
           github_actor_id: null,
         },
-        activeContractVersion: 1,
-        activeContractDigest: digest,
       });
       expect(r.ok, JSON.stringify(r)).toBe(true);
       if (!r.ok) throw new Error("append failed");
       tip = r.value.tip;
     }
+
+    const disp = await recordFounderFindingDisposition({
+      store,
+      expectedTip: tip,
+      taskId: "AE-0001",
+      occurredAt: "2026-08-08T15:07:00.000Z",
+      observedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+      findingId: "F2",
+      disposition: "accepted_by_founder",
+    });
+    expect(disp.ok, JSON.stringify(disp)).toBe(true);
+    if (!disp.ok) throw new Error("disposition failed");
+    tip = disp.value.tip;
+
+    const ready = await recordFounderReviewReady({
+      store,
+      expectedTip: tip,
+      taskId: "AE-0001",
+      occurredAt: "2026-08-08T15:08:00.000Z",
+      observedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+      closureReadiness: { ready: true, reasons: [] },
+      payload: buildFounderReviewReadyPayload({
+        implementationSha: SAMPLE_SHA,
+        validatedSha: SAMPLE_SHA,
+        reviewedSha: SAMPLE_SHA,
+        activeContractVersion: 1,
+        activeContractDigest: digest,
+        closureEvidenceRef: "closure-1",
+        predicateResultId: "pred-1",
+      }),
+    });
+    expect(ready.ok, JSON.stringify(ready)).toBe(true);
+    if (!ready.ok) throw new Error("review ready failed");
+    tip = ready.value.tip;
+
+    const closed = await recordFounderClose({
+      store,
+      expectedTip: tip,
+      taskId: "AE-0001",
+      occurredAt: "2026-08-08T15:09:00.000Z",
+      observedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+      mergeSha: SAMPLE_SHA,
+    });
+    expect(closed.ok, JSON.stringify(closed)).toBe(true);
 
     const recon = await reconstructTaskState(store, "AE-0001");
     expect(recon.ok).toBe(true);
@@ -193,7 +210,7 @@ describe("Phase B control ledger lifecycle", () => {
 
   it("CAS: first writer wins, second against stale tip fails", async () => {
     const store = new MemoryControlStore();
-    const { tip, digest } = await stageAndAuthorize(store);
+    const { tip } = await stageAndAuthorize(store);
 
     const a = appendControlEvent({
       store,
@@ -211,8 +228,6 @@ describe("Phase B control ledger lifecycle", () => {
         session_or_run_id: "a",
         github_actor_id: null,
       },
-      activeContractVersion: 1,
-      activeContractDigest: digest,
     });
     const b = appendControlEvent({
       store,
@@ -230,8 +245,6 @@ describe("Phase B control ledger lifecycle", () => {
         session_or_run_id: "b",
         github_actor_id: null,
       },
-      activeContractVersion: 1,
-      activeContractDigest: digest,
     });
 
     const [ra, rb] = await Promise.all([a, b]);
@@ -244,7 +257,7 @@ describe("Phase B control ledger lifecycle", () => {
     }
   });
 
-  it("rejects mutated / deleted prior protected objects", async () => {
+  it("rejects mutated / deleted prior protected objects at delta layer", async () => {
     const store = new MemoryControlStore();
     await stageAndAuthorize(store);
     const snap = await store.getSnapshot();
@@ -384,7 +397,7 @@ describe("Phase B control ledger lifecycle", () => {
 
   it("stale-review invalidation and reconstruction refuse malformed chain", async () => {
     const store = new MemoryControlStore();
-    const { tip: t0, digest } = await stageAndAuthorize(store);
+    const { tip: t0 } = await stageAndAuthorize(store);
     let tip = t0;
     const ordered = [
       {
@@ -439,8 +452,6 @@ describe("Phase B control ledger lifecycle", () => {
           session_or_run_id: "s",
           github_actor_id: null,
         },
-        activeContractVersion: 1,
-        activeContractDigest: digest,
       });
       expect(r.ok).toBe(true);
       if (r.ok) tip = r.value.tip;
@@ -452,7 +463,6 @@ describe("Phase B control ledger lifecycle", () => {
       expect(recon.value.reviewStatus).toBe("stale");
     }
 
-    // Corrupt chain → reconstruct refuses
     const snap = await store.getSnapshot();
     const broken = cloneObjects(snap.objects);
     const p = [...broken.keys()].find((x) => x.includes("000002-"))!;
@@ -551,13 +561,17 @@ describe("Phase B control ledger lifecycle", () => {
     ]);
     expect(verify.exitCode).toBe(0);
 
-    // Break chain on disk
-    const fsStore = new FilesystemControlStore(ledger);
-    const snap = await fsStore.getSnapshot();
-    const next = cloneObjects(snap.objects);
-    const ep = [...next.keys()].find((p) => p.includes("events/"))!;
-    next.set(ep, "{}\n");
-    await fsStore.compareAndSwap(snap.tip, next);
+    // Corrupt object bytes on disk without tip update → integrity fail closed.
+    const opened = await openFilesystemLedger(ledger);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    const snap = await opened.store.getSnapshot();
+    const ep = [...snap.objects.keys()].find((p) => p.includes("events/"))!;
+    await writeFile(
+      path.join(opened.root, "objects", ep),
+      "{}\n",
+      "utf8",
+    );
     const verifyBad = await runAeDryRunCli([
       "verify-chain",
       "--ledger",
@@ -571,7 +585,6 @@ describe("Phase B control ledger lifecycle", () => {
 
   it("rejects overwrite of existing frozen contract with different bytes", async () => {
     const store = new MemoryControlStore();
-    const { yaml, digest } = digestTaskContract(sampleContract());
     await stageAndAuthorize(store);
     const other = digestTaskContract(sampleContract({ title: "Other" }));
     const tip = await store.getTip();
@@ -584,14 +597,11 @@ describe("Phase B control ledger lifecycle", () => {
       occurredAt: "2026-08-08T18:00:00.000Z",
     });
     expect(again.ok).toBe(false);
-    void digest;
-    void yaml;
   });
 
-  it("rejects append with wrong active contract digest", async () => {
+  it("rejects append with wrong claimed active contract digest", async () => {
     const store = new MemoryControlStore();
-    const { tip, digest } = await stageAndAuthorize(store);
-    void digest;
+    const { tip } = await stageAndAuthorize(store);
     const r = await appendControlEvent({
       store,
       expectedTip: tip,
@@ -605,10 +615,15 @@ describe("Phase B control ledger lifecycle", () => {
         session_or_run_id: "x",
         github_actor_id: null,
       },
-      activeContractVersion: 1,
-      activeContractDigest: "sha256:" + "a".repeat(64),
+      claimedActiveContractVersion: 1,
+      claimedActiveContractDigest: "sha256:" + "a".repeat(64),
     });
     expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(
+        r.issues.some((i) => i.code === "active_contract_mismatch"),
+      ).toBe(true);
+    }
   });
 
   it("SHA pin helpers reject short SHAs and equal stale heads", () => {

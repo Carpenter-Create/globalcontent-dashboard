@@ -2,7 +2,7 @@ import { parseAuthorizeComment } from "./authorize-comment";
 import { CONFIGURED_FOUNDER_GITHUB_ACTOR_ID } from "./closure-readiness";
 import { digestContractFileBytes } from "./contract-digest";
 import {
-  appendControlEvent,
+  commitPrivilegedControlEvent,
   type LedgerResult,
   type AppendEventSuccess,
   readTaskEventChain,
@@ -30,11 +30,6 @@ export type AuthorizeBindingInput = {
   commentId: number;
   /** ISO-8601 timestamp for authorized_at / occurred_at. */
   createdAt: string;
-  /**
-   * Staged contract YAML. If omitted, read from proposed/<task>/vN.yaml
-   * using version from the parsed comment.
-   */
-  stagedContractYaml?: string;
 };
 
 export type AuthorizeBindingSuccess = AppendEventSuccess & {
@@ -48,7 +43,8 @@ function fail(code: string, message: string): LedgerResult<AuthorizeBindingSucce
 
 /**
  * Dry-run founder authorization binder (spec §5.2 + §4.5).
- * No network. Freezes contract bytes + appends authorize event under CAS.
+ * No network. Loads staged bytes from the store only — caller-supplied YAML
+ * cannot substitute. Freezes contract bytes + appends authorize under CAS.
  */
 export async function bindFounderAuthorization(
   input: AuthorizeBindingInput,
@@ -113,7 +109,15 @@ export async function bindFounderAuthorization(
   const proposedPath = formatProposedPath(auth.task_id, auth.contract_version);
   const contractPath = formatContractPath(auth.task_id, auth.contract_version);
 
-  const snapshot = await input.store.getSnapshot();
+  let snapshot;
+  try {
+    snapshot = await input.store.getSnapshot();
+  } catch (e) {
+    return fail(
+      "integrity_failure",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
   if (snapshot.tip !== input.expectedTip) {
     return fail(
       "stale_tip",
@@ -121,8 +125,8 @@ export async function bindFounderAuthorization(
     );
   }
 
-  const yaml =
-    input.stagedContractYaml ?? (await input.store.readObject(proposedPath));
+  // Staged-store provenance only — never accept caller-supplied standalone YAML.
+  const yaml = snapshot.objects.get(proposedPath);
   if (!yaml) {
     return fail(
       "missing_staged_contract",
@@ -176,7 +180,6 @@ export async function bindFounderAuthorization(
     }
   }
 
-  // Reject duplicate authorize for same contract version
   const priorChain = readTaskEventChain(snapshot.objects, auth.task_id);
   if (priorChain.ok) {
     for (const ev of priorChain.value) {
@@ -194,14 +197,12 @@ export async function bindFounderAuthorization(
     return { ok: false, issues: priorChain.issues };
   }
 
-  // Comment base_sha is authoritative for authorize payload; caller must supply
-  // matching staged contract that itself declares the same base (validated by digest).
   const extra = new Map<string, string>();
   if (!snapshot.objects.has(contractPath)) {
     extra.set(contractPath, yaml);
   }
 
-  const append = await appendControlEvent({
+  const append = await commitPrivilegedControlEvent({
     store: input.store,
     expectedTip: input.expectedTip,
     taskId: auth.task_id,
@@ -222,8 +223,10 @@ export async function bindFounderAuthorization(
       session_or_run_id: `issue-${input.issueNumber}-comment-${input.commentId}`,
       github_actor_id: input.observedFounderActorId,
     },
-    activeContractVersion: auth.contract_version,
-    activeContractDigest: auth.contract_digest,
+    overrideActiveContract: {
+      version: auth.contract_version,
+      digest: auth.contract_digest,
+    },
     extraObjects: extra,
   });
 

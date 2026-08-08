@@ -1,29 +1,22 @@
 import {
+  assertControlPaths,
+  cloneObjects,
+  tipForObjects,
   type CasResult,
   type ControlObjects,
   type ControlSnapshot,
-  type ControlStore,
   type ControlTip,
-  assertControlPaths,
-  EMPTY_CONTROL_TIP,
-  tipForObjects,
+  type MutableControlStore,
 } from "./control-store";
 
-/**
- * In-memory ControlStore for tests and dry-run CAS simulations.
- * Only one logical writer succeeds per tip (global serialization model).
- */
-export class MemoryControlStore implements ControlStore {
-  private tip: ControlTip = EMPTY_CONTROL_TIP;
-  private objects: Map<string, string> = new Map();
+/** In-memory mutable store for unit tests and dry-run without a ledger directory. */
+export class MemoryControlStore implements MutableControlStore {
+  private tip: ControlTip;
+  private objects: Map<string, string>;
 
   constructor(initial?: ControlObjects) {
-    if (initial) {
-      const bad = assertControlPaths(initial);
-      if (bad) throw new Error(`invalid initial control path: ${bad}`);
-      this.objects = new Map(initial);
-      this.tip = tipForObjects(this.objects);
-    }
+    this.objects = initial ? cloneObjects(initial) : new Map();
+    this.tip = tipForObjects(this.objects);
   }
 
   async getTip(): Promise<ControlTip> {
@@ -31,14 +24,14 @@ export class MemoryControlStore implements ControlStore {
   }
 
   async getSnapshot(): Promise<ControlSnapshot> {
-    return { tip: this.tip, objects: new Map(this.objects) };
+    return { tip: this.tip, objects: cloneObjects(this.objects) };
   }
 
   async readObject(path: string): Promise<string | null> {
-    return this.objects.has(path) ? this.objects.get(path)! : null;
+    return this.objects.get(path) ?? null;
   }
 
-  async compareAndSwap(
+  async unsafeCompareAndSwap(
     expectedTip: ControlTip,
     nextObjects: Map<string, string>,
   ): Promise<CasResult> {
@@ -46,21 +39,29 @@ export class MemoryControlStore implements ControlStore {
       return {
         ok: false,
         code: "stale_tip",
-        message: `expected tip ${expectedTip}, observed ${this.tip}`,
+        message: "expected tip does not match current tip",
         observedTip: this.tip,
       };
     }
-    const bad = assertControlPaths(nextObjects);
-    if (bad) {
+    const pathErr = assertControlPaths(nextObjects);
+    if (pathErr) {
       return {
         ok: false,
         code: "invalid_path",
-        message: bad,
+        message: pathErr,
         observedTip: this.tip,
       };
     }
-    this.objects = new Map(nextObjects);
+    this.objects = cloneObjects(nextObjects);
     this.tip = tipForObjects(this.objects);
-    return { ok: true, tip: this.tip, objects: new Map(this.objects) };
+    return {
+      ok: true,
+      tip: this.tip,
+      objects: cloneObjects(this.objects),
+    };
   }
+}
+
+export function emptyMemoryStore(): MemoryControlStore {
+  return new MemoryControlStore();
 }

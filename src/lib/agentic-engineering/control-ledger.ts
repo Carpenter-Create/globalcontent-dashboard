@@ -1,9 +1,15 @@
+import {
+  assertCanonicalContractYaml,
+  parseCanonicalContractYaml,
+} from "./contract-yaml";
 import { digestContractFileBytes } from "./contract-digest";
 import {
   type ControlStore,
   type ControlTip,
+  type MutableControlStore,
   cloneObjects,
   contentDigestMap,
+  isMutableControlStore,
 } from "./control-store";
 import {
   formatContractPath,
@@ -19,8 +25,12 @@ import type {
   ControlEventType,
 } from "./event-schema";
 import { genesisPrevEventDigest } from "./genesis";
+import {
+  isOperationalEventType,
+  isPrivilegedEventType,
+} from "./privileged-events";
 import { verifyProtectedObjectDelta } from "./protected-delta";
-import { assertCanonicalContractYaml } from "./contract-yaml";
+import { foldTaskState } from "./state-fold";
 
 export type LedgerIssue = { code: string; message: string };
 
@@ -37,14 +47,12 @@ export type AppendEventInput = {
   occurredAt: string;
   actor: ControlEvent["actor"];
   /**
-   * Active contract pins for the new event.
-   * For authorize, these must match the newly frozen contract.
-   * For other events, must continue the chain's active contract.
+   * Optional claimed active-contract pins. When provided they must match the
+   * pins derived from the verified current chain (caller cannot select an
+   * arbitrary contract). Prefer omitting and letting the ledger derive them.
    */
-  activeContractVersion: number;
-  activeContractDigest: string;
-  /** Extra object writes applied in the same CAS (e.g. frozen contract bytes). */
-  extraObjects?: Map<string, string>;
+  claimedActiveContractVersion?: number;
+  claimedActiveContractDigest?: string;
 };
 
 export type AppendEventSuccess = {
@@ -54,8 +62,38 @@ export type AppendEventSuccess = {
   objects: ReadonlyMap<string, string>;
 };
 
+type InternalCommitInput = {
+  store: ControlStore;
+  expectedTip: ControlTip;
+  taskId: string;
+  eventType: ControlEventType;
+  payload: Record<string, unknown>;
+  occurredAt: string;
+  actor: ControlEvent["actor"];
+  /**
+   * When set, use these pins (authorize / first contract_staged).
+   * Otherwise derive from prior chain.
+   */
+  overrideActiveContract?: { version: number; digest: string };
+  claimedActiveContractVersion?: number;
+  claimedActiveContractDigest?: string;
+  extraObjects?: Map<string, string>;
+  /** Allow privileged event types (dedicated founder / stage APIs only). */
+  allowPrivileged: boolean;
+};
+
 function fail<T = never>(code: string, message: string): LedgerResult<T> {
   return { ok: false, issues: [{ code, message }] };
+}
+
+function requireMutable(store: ControlStore): LedgerResult<MutableControlStore> {
+  if (!isMutableControlStore(store)) {
+    return fail(
+      "store_not_writable",
+      "control store does not expose an internal writable CAS surface",
+    );
+  }
+  return { ok: true, value: store };
 }
 
 function listTaskEvents(
@@ -85,14 +123,61 @@ function listTaskEvents(
   return events;
 }
 
+function deriveActiveContract(
+  priorEvents: ControlEvent[],
+  override: { version: number; digest: string } | undefined,
+): LedgerResult<{ version: number; digest: string }> {
+  if (override) {
+    return { ok: true, value: override };
+  }
+  if (priorEvents.length === 0) {
+    return fail(
+      "no_active_contract",
+      "cannot append without an active contract; stage and authorize first",
+    );
+  }
+  const last = priorEvents[priorEvents.length - 1];
+  return {
+    ok: true,
+    value: {
+      version: last.active_contract_version,
+      digest: last.active_contract_digest,
+    },
+  };
+}
+
 /**
- * Append a control event under CAS + integrity rules (spec §4.5).
- * Does not silently retry on stale tip.
+ * Trusted commit path used by stage / authorize / operational / founder APIs.
+ * Never expose as unrestricted whole-ledger replacement.
  */
-export async function appendControlEvent(
-  input: AppendEventInput,
+async function commitControlEvent(
+  input: InternalCommitInput,
 ): Promise<LedgerResult<AppendEventSuccess>> {
-  const snapshot = await input.store.getSnapshot();
+  if (!input.allowPrivileged && isPrivilegedEventType(input.eventType)) {
+    return fail(
+      "privileged_event_rejected",
+      `event type ${input.eventType} cannot be appended via the generic API`,
+    );
+  }
+  if (!input.allowPrivileged && !isOperationalEventType(input.eventType)) {
+    return fail(
+      "event_type_not_operational",
+      `event type ${input.eventType} is not allowed on the operational append path`,
+    );
+  }
+
+  const mutable = requireMutable(input.store);
+  if (!mutable.ok) return mutable;
+
+  let snapshot;
+  try {
+    snapshot = await input.store.getSnapshot();
+  } catch (e) {
+    return fail(
+      "integrity_failure",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
   if (snapshot.tip !== input.expectedTip) {
     return fail(
       "stale_tip",
@@ -121,18 +206,30 @@ export async function appendControlEvent(
     }
   }
 
-  const sequence = priorEvents.length + 1;
-  const prev =
-    sequence === 1
-      ? genesisPrevEventDigest(input.taskId)
-      : priorEvents[priorEvents.length - 1].event_digest;
+  const active = deriveActiveContract(priorEvents, input.overrideActiveContract);
+  if (!active.ok) return active;
 
-  if (sequence > 1) {
+  if (
+    input.claimedActiveContractVersion !== undefined ||
+    input.claimedActiveContractDigest !== undefined
+  ) {
+    if (
+      input.claimedActiveContractVersion !== active.value.version ||
+      input.claimedActiveContractDigest !== active.value.digest
+    ) {
+      return fail(
+        "active_contract_mismatch",
+        "claimed active contract does not match verified chain / frozen contract pins",
+      );
+    }
+  }
+
+  // Non-authorize events must not change active pins relative to prior tip.
+  if (priorEvents.length > 0 && input.eventType !== "authorize") {
     const last = priorEvents[priorEvents.length - 1];
     if (
-      input.eventType !== "authorize" &&
-      (input.activeContractVersion !== last.active_contract_version ||
-        input.activeContractDigest !== last.active_contract_digest)
+      active.value.version !== last.active_contract_version ||
+      active.value.digest !== last.active_contract_digest
     ) {
       return fail(
         "active_contract_drift",
@@ -140,6 +237,12 @@ export async function appendControlEvent(
       );
     }
   }
+
+  const sequence = priorEvents.length + 1;
+  const prev =
+    sequence === 1
+      ? genesisPrevEventDigest(input.taskId)
+      : priorEvents[priorEvents.length - 1].event_digest;
 
   let event: ControlEvent;
   try {
@@ -150,8 +253,8 @@ export async function appendControlEvent(
       event_type: input.eventType,
       occurred_at: input.occurredAt,
       actor: input.actor,
-      active_contract_version: input.activeContractVersion,
-      active_contract_digest: input.activeContractDigest,
+      active_contract_version: active.value.version,
+      active_contract_digest: active.value.digest,
       prev_event_digest: prev,
       payload: input.payload,
     } as ControlEventPreimage;
@@ -188,7 +291,6 @@ export async function appendControlEvent(
     };
   }
 
-  // Re-verify full task chain including new event
   let nextEvents: ControlEvent[];
   try {
     nextEvents = listTaskEvents(next, input.taskId);
@@ -206,7 +308,22 @@ export async function appendControlEvent(
     };
   }
 
-  const cas = await input.store.compareAndSwap(input.expectedTip, next);
+  // Fold before persistence — reject invalid lifecycle before any CAS write.
+  const fold = foldTaskState(nextEvents);
+  if (!fold.ok) {
+    return {
+      ok: false,
+      issues: fold.issues.map((i) => ({
+        code: `fold_${i.code}`,
+        message: i.message,
+      })),
+    };
+  }
+
+  const cas = await mutable.value.unsafeCompareAndSwap(
+    input.expectedTip,
+    next,
+  );
   if (!cas.ok) {
     return fail(cas.code, cas.message);
   }
@@ -222,6 +339,35 @@ export async function appendControlEvent(
   };
 }
 
+/**
+ * Append an operational control event under CAS + integrity rules (spec §4.5).
+ * Rejects privileged / founder-only event types.
+ * Does not silently retry on stale tip.
+ */
+export async function appendControlEvent(
+  input: AppendEventInput,
+): Promise<LedgerResult<AppendEventSuccess>> {
+  return commitControlEvent({
+    store: input.store,
+    expectedTip: input.expectedTip,
+    taskId: input.taskId,
+    eventType: input.eventType,
+    payload: input.payload,
+    occurredAt: input.occurredAt,
+    actor: input.actor,
+    claimedActiveContractVersion: input.claimedActiveContractVersion,
+    claimedActiveContractDigest: input.claimedActiveContractDigest,
+    allowPrivileged: false,
+  });
+}
+
+/** @internal Privileged commit for dedicated APIs only. */
+export async function commitPrivilegedControlEvent(
+  input: Omit<InternalCommitInput, "allowPrivileged">,
+): Promise<LedgerResult<AppendEventSuccess>> {
+  return commitControlEvent({ ...input, allowPrivileged: true });
+}
+
 export type StageContractInput = {
   store: ControlStore;
   expectedTip: ControlTip;
@@ -234,21 +380,47 @@ export type StageContractInput = {
 
 /**
  * Stage canonical contract bytes under proposed/ and append contract_staged.
+ * Destination path task/version must match YAML contents.
  */
 export async function stageContract(
   input: StageContractInput,
-): Promise<LedgerResult<AppendEventSuccess & { proposedPath: string; digest: string }>> {
+): Promise<
+  LedgerResult<AppendEventSuccess & { proposedPath: string; digest: string }>
+> {
   let digest: string;
+  let parsed;
   try {
     assertCanonicalContractYaml(input.contractYaml);
+    parsed = parseCanonicalContractYaml(input.contractYaml);
     digest = digestContractFileBytes(input.contractYaml);
   } catch (e) {
     return fail("invalid_contract", (e as Error).message);
   }
 
+  if (parsed.task_id !== input.taskId) {
+    return fail(
+      "staged_path_task_mismatch",
+      `contract.task_id ${parsed.task_id} != destination ${input.taskId}`,
+    );
+  }
+  if (parsed.contract_version !== input.contractVersion) {
+    return fail(
+      "staged_path_version_mismatch",
+      `contract.contract_version ${parsed.contract_version} != destination ${input.contractVersion}`,
+    );
+  }
+
   const proposedPath = formatProposedPath(input.taskId, input.contractVersion);
   const contractPath = formatContractPath(input.taskId, input.contractVersion);
-  const snapshot = await input.store.getSnapshot();
+  let snapshot;
+  try {
+    snapshot = await input.store.getSnapshot();
+  } catch (e) {
+    return fail(
+      "integrity_failure",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
   if (snapshot.objects.has(contractPath)) {
     return fail(
       "contract_version_exists",
@@ -256,8 +428,7 @@ export async function stageContract(
     );
   }
 
-  // Active pins for contract_staged use the staged digest/version
-  const result = await appendControlEvent({
+  const result = await commitPrivilegedControlEvent({
     store: input.store,
     expectedTip: input.expectedTip,
     taskId: input.taskId,
@@ -273,8 +444,10 @@ export async function stageContract(
       session_or_run_id: "stage-contract",
       github_actor_id: null,
     },
-    activeContractVersion: input.contractVersion,
-    activeContractDigest: digest,
+    overrideActiveContract: {
+      version: input.contractVersion,
+      digest,
+    },
     extraObjects: new Map([[proposedPath, input.contractYaml]]),
   });
 
@@ -285,63 +458,44 @@ export async function stageContract(
   };
 }
 
-export type FreezeContractInput = {
+export type AddDerivedClosureInput = {
   store: ControlStore;
   expectedTip: ControlTip;
-  taskId: string;
-  contractVersion: number;
-  /** If omitted, read from proposed path. */
-  contractYaml?: string;
+  path: string;
+  content: string;
 };
 
 /**
- * Promote proposed contract bytes to create-once contracts/ path (no event).
- * Prefer bindFounderAuthorization which freezes + authorize atomically.
+ * Add/refresh a derived closure object (closures/** only) under CAS.
+ * Does not rewrite authority objects.
  */
-export async function freezeContractBytes(
-  input: FreezeContractInput,
-): Promise<LedgerResult<{ tip: ControlTip; contractPath: string; digest: string }>> {
-  const snapshot = await input.store.getSnapshot();
+export async function addDerivedClosure(
+  input: AddDerivedClosureInput,
+): Promise<LedgerResult<{ tip: ControlTip; path: string }>> {
+  if (!input.path.startsWith("closures/") || input.path.includes("..")) {
+    return fail("invalid_derived_path", "path must be under closures/");
+  }
+  const mutable = requireMutable(input.store);
+  if (!mutable.ok) return mutable;
+
+  let snapshot;
+  try {
+    snapshot = await input.store.getSnapshot();
+  } catch (e) {
+    return fail(
+      "integrity_failure",
+      e instanceof Error ? e.message : String(e),
+    );
+  }
   if (snapshot.tip !== input.expectedTip) {
     return fail(
       "stale_tip",
       `expected tip ${input.expectedTip}, observed ${snapshot.tip}`,
     );
   }
-  const proposedPath = formatProposedPath(input.taskId, input.contractVersion);
-  const contractPath = formatContractPath(input.taskId, input.contractVersion);
-  const yaml =
-    input.contractYaml ?? (await input.store.readObject(proposedPath));
-  if (!yaml) {
-    return fail("missing_staged_contract", `missing ${proposedPath}`);
-  }
-  if (snapshot.objects.has(contractPath)) {
-    const existing = snapshot.objects.get(contractPath)!;
-    if (existing !== yaml) {
-      return fail(
-        "contract_digest_conflict",
-        `frozen contract exists with different bytes: ${contractPath}`,
-      );
-    }
-    return {
-      ok: true,
-      value: {
-        tip: snapshot.tip,
-        contractPath,
-        digest: digestContractFileBytes(existing),
-      },
-    };
-  }
-
-  let digest: string;
-  try {
-    digest = digestContractFileBytes(yaml);
-  } catch (e) {
-    return fail("invalid_contract", (e as Error).message);
-  }
 
   const next = cloneObjects(snapshot.objects);
-  next.set(contractPath, yaml);
+  next.set(input.path, input.content);
   const delta = verifyProtectedObjectDelta(
     contentDigestMap(snapshot.objects),
     contentDigestMap(next),
@@ -352,9 +506,13 @@ export async function freezeContractBytes(
       issues: delta.issues.map((i) => ({ code: i.code, message: i.message })),
     };
   }
-  const cas = await input.store.compareAndSwap(input.expectedTip, next);
+
+  const cas = await mutable.value.unsafeCompareAndSwap(
+    input.expectedTip,
+    next,
+  );
   if (!cas.ok) return fail(cas.code, cas.message);
-  return { ok: true, value: { tip: cas.tip, contractPath, digest } };
+  return { ok: true, value: { tip: cas.tip, path: input.path } };
 }
 
 export function readTaskEventChain(

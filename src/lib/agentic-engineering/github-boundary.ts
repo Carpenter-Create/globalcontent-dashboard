@@ -2,7 +2,8 @@ import type { ControlSnapshot, ControlStore, ControlTip } from "./control-store"
 
 /**
  * Future Phase C/D GitHub integration boundary.
- * Phase B provides the interface + local adapter only — no authenticated writes.
+ * Phase B provides the interface + local adapter only — no authenticated writes,
+ * no token loading, no network, and no unrestricted whole-ledger replacement.
  */
 
 export type GitHubCommentAction = "created" | "edited" | "deleted";
@@ -36,6 +37,21 @@ export type ReviewMetadata = {
   reviewerSessionOrRunId: string | null;
 };
 
+/** Constrained future write kinds — never raw object-set replacement. */
+export type ConstrainedControlTransactionKind =
+  | "stage_contract"
+  | "freeze_contract"
+  | "append_operational_event"
+  | "bind_founder_authorization"
+  | "record_founder_event"
+  | "add_derived_closure";
+
+export type ConstrainedControlTransaction = {
+  kind: ConstrainedControlTransactionKind;
+  /** Opaque dry-run / future payload — not executed in Phase B remote client. */
+  description: string;
+};
+
 /**
  * Conceptual operations for a future privileged orchestrator.
  * Real GitHub mutation methods must remain unimplemented until founder-approved activation.
@@ -43,10 +59,14 @@ export type ReviewMetadata = {
 export interface GitHubControlPlaneClient {
   readBranchTip(branch: string): Promise<string>;
   readControlObjects(tip: string): Promise<ControlSnapshot>;
-  compareAndSwapBranchTip(
+  /**
+   * Future constrained transaction entrypoint.
+   * Phase B always refuses — never performs unrestricted CAS.
+   */
+  proposeConstrainedTransaction(
     branch: string,
     expectedTip: string,
-    nextObjects: Map<string, string>,
+    transaction: ConstrainedControlTransaction,
   ): Promise<{ ok: true; tip: string } | { ok: false; code: string; message: string }>;
   readIssueComment(
     issueNumber: number,
@@ -81,21 +101,16 @@ export class LocalGitHubBoundaryAdapter implements GitHubControlPlaneClient {
     return snap;
   }
 
-  async compareAndSwapBranchTip(
-    branch: string,
-    expectedTip: string,
-    nextObjects: Map<string, string>,
+  async proposeConstrainedTransaction(
+    _branch: string,
+    _expectedTip: string,
+    transaction: ConstrainedControlTransaction,
   ): Promise<{ ok: true; tip: string } | { ok: false; code: string; message: string }> {
-    if (branch !== this.controlBranch) {
-      return {
-        ok: false,
-        code: "not_activated",
-        message: "Phase B dry-run: remote GitHub branch CAS is not activated",
-      };
-    }
-    const cas = await this.store.compareAndSwap(expectedTip, nextObjects);
-    if (!cas.ok) return { ok: false, code: cas.code, message: cas.message };
-    return { ok: true, tip: cas.tip };
+    return {
+      ok: false,
+      code: "not_activated",
+      message: `Phase B dry-run: GitHub constrained transaction ${transaction.kind} is not activated (no credentials, no network writes, no raw CAS)`,
+    };
   }
 
   async readIssueComment(): Promise<IssueCommentMetadata | null> {
@@ -125,34 +140,34 @@ export class LocalGitHubBoundaryAdapter implements GitHubControlPlaneClient {
 
 /** Explicit not-activated client — all methods refuse remote operations. */
 export class UnimplementedGitHubBoundaryClient implements GitHubControlPlaneClient {
-  private refuse(op: string): never {
-    throw new Error(
+  private refuse(op: string): Error {
+    return new Error(
       `Phase B dry-run: GitHub ${op} is not activated (no credentials, no network writes)`,
     );
   }
 
   readBranchTip(): Promise<string> {
-    return this.refuse("readBranchTip");
+    return Promise.reject(this.refuse("readBranchTip"));
   }
   readControlObjects(): Promise<ControlSnapshot> {
-    return this.refuse("readControlObjects");
+    return Promise.reject(this.refuse("readControlObjects"));
   }
-  compareAndSwapBranchTip(): Promise<
+  proposeConstrainedTransaction(): Promise<
     { ok: true; tip: string } | { ok: false; code: string; message: string }
   > {
-    return this.refuse("compareAndSwapBranchTip");
+    return Promise.reject(this.refuse("proposeConstrainedTransaction"));
   }
   readIssueComment(): Promise<IssueCommentMetadata | null> {
-    return this.refuse("readIssueComment");
+    return Promise.reject(this.refuse("readIssueComment"));
   }
   readPullRequestHead(): Promise<PullRequestHead | null> {
-    return this.refuse("readPullRequestHead");
+    return Promise.reject(this.refuse("readPullRequestHead"));
   }
   readCheckRuns(): Promise<CheckRunEvidence[]> {
-    return this.refuse("readCheckRuns");
+    return Promise.reject(this.refuse("readCheckRuns"));
   }
   readReviewMetadata(): Promise<ReviewMetadata | null> {
-    return this.refuse("readReviewMetadata");
+    return Promise.reject(this.refuse("readReviewMetadata"));
   }
 }
 

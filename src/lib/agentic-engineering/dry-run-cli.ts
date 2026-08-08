@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 
 import { bindFounderAuthorization } from "./authorize-binding";
 import { CONFIGURED_FOUNDER_GITHUB_ACTOR_ID } from "./closure-readiness";
@@ -7,11 +6,22 @@ import { digestContractFileBytes } from "./contract-digest";
 import {
   appendControlEvent,
   stageContract,
+  readTaskEventChain,
 } from "./control-ledger";
-import { FilesystemControlStore } from "./filesystem-control-store";
-import { readTaskEventChain } from "./control-ledger";
-import { reconstructTaskState } from "./reconstruct-state";
 import { assertCanonicalContractYaml } from "./contract-yaml";
+import {
+  openFilesystemLedger,
+  type FilesystemControlStore,
+} from "./filesystem-control-store";
+import {
+  recordFounderClose,
+  recordFounderFindingDisposition,
+  recordFounderPause,
+  recordFounderResume,
+  recordFounderCancel,
+} from "./founder-events";
+import { isPrivilegedEventType } from "./privileged-events";
+import { reconstructTaskState } from "./reconstruct-state";
 import type { ControlEventType } from "./event-schema";
 
 export type CliResult = {
@@ -87,14 +97,16 @@ function emit(
 }
 
 async function ensureStore(ledger: string): Promise<FilesystemControlStore> {
-  const store = new FilesystemControlStore(path.resolve(ledger));
-  await store.initEmpty();
-  return store;
+  const opened = await openFilesystemLedger(ledger, { create: true });
+  if (!opened.ok) {
+    throw new Error(`${opened.code}: ${opened.message}`);
+  }
+  return opened.store;
 }
 
 /**
  * Supervised Phase B dry-run CLI dispatcher.
- * Local files only — no GitHub network writes.
+ * Local files only — no GitHub network writes, no env/secret reads.
  */
 export async function runAeDryRunCli(argv: string[]): Promise<CliResult> {
   const args = parseArgs(argv);
@@ -107,11 +119,18 @@ export async function runAeDryRunCli(argv: string[]): Promise<CliResult> {
         "  validate-contract --file <path>",
         "  stage-contract --file <path> --task <AE-####> --version <n>",
         "  authorize --comment-file <path> --actor <id> --issue <n> --comment-id <n> --created-at <iso>",
-        "  append-event --type <event_type> --payload-file <path> --task <id> --contract-version <n> --contract-digest <d>",
+        "  append-event --type <operational_event_type> --payload-file <path> --task <id>",
+        "              [--contract-version <n> --contract-digest <d>]  (must match derived pins)",
+        "  founder-disposition --task <id> --finding-id <id> --disposition <d> --actor <id> --occurred-at <iso>",
+        "  founder-pause --task <id> --reason <r> --actor <id> --occurred-at <iso>",
+        "  founder-resume --task <id> --actor <id> --occurred-at <iso>",
+        "  founder-cancel --task <id> --reason <r> --actor <id> --occurred-at <iso>",
+        "  founder-close --task <id> --merge-sha <sha> --actor <id> --occurred-at <iso>",
         "  verify-chain --task <AE-####>",
         "  reconstruct-state --task <AE-####>",
         "",
-        "Flags: --ledger <dir>  --json",
+        "Flags: --ledger <dedicated-dir>  --json",
+        "Ledger must be a dedicated marked directory (not repo root / home / arbitrary non-empty).",
       ].join("\n"),
     );
   }
@@ -196,13 +215,18 @@ export async function runAeDryRunCli(argv: string[]): Promise<CliResult> {
         const type = args.flags.type as ControlEventType | undefined;
         const payloadFile = args.flags["payload-file"];
         const task = args.flags.task;
-        const contractVersion = Number(args.flags["contract-version"]);
-        const contractDigest = args.flags["contract-digest"];
-        if (!type || !payloadFile || !task || !contractDigest || !contractVersion) {
+        if (!type || !payloadFile || !task) {
           return emit(
             args.json,
             false,
-            "usage: append-event --type <t> --payload-file <p> --task <id> --contract-version <n> --contract-digest <d>",
+            "usage: append-event --type <operational> --payload-file <p> --task <id> [--contract-version <n> --contract-digest <d>]",
+          );
+        }
+        if (isPrivilegedEventType(type)) {
+          return emit(
+            args.json,
+            false,
+            `privileged event type rejected on append-event: ${type} (use dedicated founder / stage / authorize commands)`,
           );
         }
         const store = await ensureStore(args.ledger);
@@ -211,6 +235,8 @@ export async function runAeDryRunCli(argv: string[]): Promise<CliResult> {
           string,
           unknown
         >;
+        const claimedVersion = args.flags["contract-version"];
+        const claimedDigest = args.flags["contract-digest"];
         const result = await appendControlEvent({
           store,
           expectedTip: tip,
@@ -224,14 +250,95 @@ export async function runAeDryRunCli(argv: string[]): Promise<CliResult> {
             session_or_run_id: args.flags.session ?? "cli",
             github_actor_id: null,
           },
-          activeContractVersion: contractVersion,
-          activeContractDigest: contractDigest,
+          claimedActiveContractVersion: claimedVersion
+            ? Number(claimedVersion)
+            : undefined,
+          claimedActiveContractDigest: claimedDigest,
         });
         if (!result.ok) return emit(args.json, false, result.issues);
         return emit(args.json, true, {
           tip: result.value.tip,
           eventPath: result.value.eventPath,
           eventDigest: result.value.event.event_digest,
+        });
+      }
+      case "founder-disposition": {
+        const task = args.flags.task;
+        const findingId = args.flags["finding-id"];
+        const disposition = args.flags.disposition as
+          | "accepted_by_founder"
+          | "deferred"
+          | "wont_fix_founder"
+          | undefined;
+        const actor = Number(args.flags.actor);
+        const occurredAt = args.flags["occurred-at"];
+        if (!task || !findingId || !disposition || !actor || !occurredAt) {
+          return emit(
+            args.json,
+            false,
+            "usage: founder-disposition --task <id> --finding-id <id> --disposition <d> --actor <id> --occurred-at <iso>",
+          );
+        }
+        const store = await ensureStore(args.ledger);
+        const tip = await store.getTip();
+        const result = await recordFounderFindingDisposition({
+          store,
+          expectedTip: tip,
+          taskId: task,
+          occurredAt,
+          observedFounderActorId: actor,
+          findingId,
+          disposition,
+        });
+        if (!result.ok) return emit(args.json, false, result.issues);
+        return emit(args.json, true, {
+          tip: result.value.tip,
+          eventPath: result.value.eventPath,
+        });
+      }
+      case "founder-pause":
+      case "founder-resume":
+      case "founder-cancel":
+      case "founder-close": {
+        const task = args.flags.task;
+        const actor = Number(args.flags.actor);
+        const occurredAt = args.flags["occurred-at"];
+        if (!task || !actor || !occurredAt) {
+          return emit(
+            args.json,
+            false,
+            `usage: ${args.command} --task <id> --actor <id> --occurred-at <iso> ...`,
+          );
+        }
+        const store = await ensureStore(args.ledger);
+        const tip = await store.getTip();
+        const base = {
+          store,
+          expectedTip: tip,
+          taskId: task,
+          occurredAt,
+          observedFounderActorId: actor,
+        };
+        let result;
+        if (args.command === "founder-pause") {
+          const reason = args.flags.reason;
+          if (!reason) return emit(args.json, false, "missing --reason");
+          result = await recordFounderPause({ ...base, reason });
+        } else if (args.command === "founder-resume") {
+          result = await recordFounderResume(base);
+        } else if (args.command === "founder-cancel") {
+          const reason = args.flags.reason;
+          if (!reason) return emit(args.json, false, "missing --reason");
+          result = await recordFounderCancel({ ...base, reason });
+        } else {
+          const mergeSha = args.flags["merge-sha"];
+          if (!mergeSha) return emit(args.json, false, "missing --merge-sha");
+          result = await recordFounderClose({ ...base, mergeSha });
+        }
+        if (!result.ok) return emit(args.json, false, result.issues);
+        return emit(args.json, true, {
+          tip: result.value.tip,
+          eventPath: result.value.eventPath,
         });
       }
       case "verify-chain": {
