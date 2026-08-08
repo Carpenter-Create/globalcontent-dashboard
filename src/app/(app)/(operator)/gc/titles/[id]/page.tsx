@@ -16,6 +16,7 @@ import { LinkControls, type Suggestion } from "@/app/(app)/(operator)/gc/review/
 import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/(app)/(operator)/gc/review/screener-panel";
 import { GcAssets, type GcAsset } from "./gc-assets";
 import { BuyerLinks, type BuyerLink, type VendorOption } from "./buyer-links";
+import { TranscodePanel, type TranscodeJobRow } from "./transcode-panel";
 import { UNPAGINATED_MAX, DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
 import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-licence";
 
@@ -52,6 +53,7 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
     { data: assets },
     { data: deliveries },
     { data: activeVendors },
+    { data: transcodeJobs },
   ] = await Promise.all([
       supabase
         .from("rights_grants")
@@ -99,6 +101,17 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
       // vendors are excluded here (not just refused by the RPC) so GC never even sees a dead
       // option in the picker.
       supabase.from("vendors").select("id, name").eq("active", true).order("name").range(...rangeFor(UNPAGINATED_MAX)),
+      // Task 6A — bounded, title-scoped proxy-job read. Stuck state is derived in the panel
+      // from status + created_at; no heartbeat. Retry is Task 6B and is not wired here.
+      // Disambiguate the assets join: this table has two FKs to assets (source + output).
+      supabase
+        .from("transcode_jobs")
+        .select(
+          "id, status, created_at, failure_reason, output_asset_id, assets!transcode_jobs_output_asset_id_fkey(original_filename)",
+        )
+        .eq("title_id", id)
+        .order("created_at", { ascending: false })
+        .range(...rangeFor(DETAIL_LIST)),
     ]);
 
   // Widened to include recipient_name/vendor_id/vendors so the same read also feeds
@@ -157,6 +170,25 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
 
   const meta = (metaRow?.data as Record<string, unknown>) ?? {};
   const inReview = t.status === "in_review";
+
+  type TranscodeJobQueryRow = {
+    id: string;
+    status: TranscodeJobRow["status"];
+    created_at: string;
+    failure_reason: string | null;
+    output_asset_id: string | null;
+    assets: { original_filename: string | null } | null;
+  };
+  const proxyJobs: TranscodeJobRow[] = ((transcodeJobs ?? []) as TranscodeJobQueryRow[]).map(
+    (j) => ({
+      id: j.id,
+      status: j.status,
+      created_at: j.created_at,
+      failure_reason: j.failure_reason,
+      output_asset_id: j.output_asset_id,
+      output_filename: j.assets?.original_filename ?? null,
+    }),
+  );
 
   return (
     <>
@@ -259,6 +291,13 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
             </CardBody>
           </Card>
         ) : null}
+
+        {/* Screener proxy jobs — Task 6A read-only visibility. Retry is Task 6B. */}
+        <Card>
+          <CardBody>
+            <TranscodePanel jobs={proxyJobs} />
+          </CardBody>
+        </Card>
 
         {/* Screener (external pitch link) + engagement */}
         <Card>
