@@ -536,63 +536,71 @@ A failed transcode that nobody can see is the same as no pipeline.
 > differently (6A is a bounded read, 6B submits to AWS and writes a row under a role gate) and
 > reviewing them together is how the second one gets skimmed.
 >
-> **Status 2026-08-07:** Step 1 / 6A shipped and merged to `main` as PR #93
-> (`0f4ed6360f45075d8becedd7efbb8f48f3a1cbc7`). Step 2 / 6B is the next implementation slice.
-> 6B remains a separate mutation slice: no new schema expected unless implementation evidence
-> proves otherwise; preserve existing authorization/RPC boundaries; do not retry completed jobs
-> (partial unique index `transcode_jobs_active_key_uidx`); AWS submit and job-recording failure
-> paths must be explicit and tested.
+> **Status 2026-08-07:** Task 6 complete on `main`. Step 1 / 6A — PR #93
+> (`0f4ed6360f45075d8becedd7efbb8f48f3a1cbc7`). Step 2 / 6B — PR #95
+> (`0f4b07aa2b20b66557bec2fae0bf309dfb007f19`, merge `a63c1c7`). Next slice is Task 7
+> (documentation/governance only).
 
 **Files:**
 - Create: `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx` *(6A — done)*
-- Create: `src/lib/transcode-jobs.ts` *(6A — done; stuck/status/copy helpers)*
-- Modify: `src/app/(app)/(operator)/gc/titles/[id]/page.tsx` *(6A — done; 6B may extend)*
-- Modify: `src/app/(app)/(operator)/gc/titles/[id]/actions.ts` *(6B)*
+- Create: `src/lib/transcode-jobs.ts` *(6A/6B — done; stuck/status/retry copy helpers)*
+- Modify: `src/app/(app)/(operator)/gc/titles/[id]/page.tsx` *(6A/6B — done)*
+- Modify: `src/app/(app)/(operator)/gc/titles/[id]/actions.ts` *(6B — done)*
 
 - [x] **Step 1: Panel** — done (PR #93 / `0f4ed63`)
 
-List the title's `transcode_jobs`: status, created, failure reason, and the resulting screener asset when complete. Bounded read via `@/lib/list-bounds`, inside the page's existing `Promise.all`. Design tokens only; reuse `Card`, `InlineNotice`, `Button`. Shipped with derived stuck state (active + strictly older than 60 minutes), no heartbeat, no retry.
+List the title's `transcode_jobs`: status, created, failure reason, and the resulting screener asset when complete. Bounded read via `@/lib/list-bounds`, inside the page's existing `Promise.all`. Design tokens only; reuse `Card`, `InlineNotice`, `Button`. Shipped with derived stuck state (active + strictly older than 60 minutes), no heartbeat dependency.
 
-- [ ] **Step 2: Retry action**
+- [x] **Step 2: Retry action** — done (PR #95 / `0f4b07a`)
 
-A server action that re-submits for the job's source asset and records a new job row. Gate on GC operate — the RPC already enforces it; the UI must not offer it to a role that would be refused.
+Server action re-submits for the job's source asset and records a new job row. Pre-AWS
+`gc_can(operate)` safety gate; RPC remains the DB write boundary. Retry only `failed` /
+`submit_failed`. Trusted inputs from server-read job/master state. Explicit AWS failure,
+split-brain record-failure, and exact `transcode_jobs_active_key_uidx` conflict handling.
+Old job history preserved. Founder-accepted concurrent-retry residual remains open (ledger).
 
-- [ ] **Step 3: Verify and commit** *(6A committed; remaining is 6B)*
-
-Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` before the 6B commit.
+- [x] **Step 3: Verify and commit** — done for both halves
 
 ```bash
 # 6A — Step 1 (SHIPPED — PR #93)
 # git commit -m "feat(gc): add transcode job status panel"  → 0f4ed63
 
-# 6B — Step 2
-git add "src/app/(app)/(operator)/gc/titles/[id]"
-git commit -m "feat(gc): retry a failed transcode"
+# 6B — Step 2 (SHIPPED — PR #95)
+# git commit -m "feat(gc): add transcode job retry"  → 0f4b07a
 ```
 
 ---
 
 ### Task 7: The domain-spec amendment
 
+> **Status 2026-08-07:** Complete in the documentation/governance slice (with Task 6 bookkeeping).
+> Documentation/governance only — no product behavior change. Exception limited to the approved
+> internal viewing screener-proxy pipeline. Next slice is Task 8.
+
 **Files:**
-- Modify: `docs/domain-spec.md` §12
+- Modify: `docs/domain-spec.md` §12 + later “out of scope entirely” transcoding statement
+- Modify: `CLAUDE.md` (deferred list)
+- Modify: `AGENTS.md` (same deferred-list wording as `CLAUDE.md`)
+- Modify: `docs/HANDOFF.md`, plan, ledger (Task 6 complete / Task 7 state)
 
-- [ ] **Step 1: Add the exception**
+- [x] **Step 1: Add the exception**
 
-Insert under §12, after the existing "GC does not transcode" paragraph, the wording from the design spec §3 verbatim:
+Under §12, after the platform-ready materials rule: design-spec §3 exception wording (internal
+viewing proxies). Also reconciled the later absolute “out of scope entirely … transcoding”
+statement with the same narrow exception. General-purpose / delivery transcoding remains out of
+scope.
 
-> **Exception — internal viewing proxies.** GC generates one low-bitrate screener proxy per master, for viewing and evaluation only. It is never delivered to a vendor and never satisfies a delivery requirement. This is not a transcoding pipeline in the sense above: GC still does not re-encode deliverables, and clients still deliver platform-ready masters.
+- [x] **Step 2: Update `CLAUDE.md`'s deferred list** (and the matching line in `AGENTS.md`)
 
-Do not soften or broaden it. The point is that §12's original rule survives.
+Replaced absolute “GC never transcodes” with: general-purpose / delivery transcoding remains
+deferred; internal viewing screener proxies are the §12 exception — already built; do not broaden.
 
-- [ ] **Step 2: Update `CLAUDE.md`'s deferred list**
-
-It currently reads `**transcoding** (clients deliver platform-ready; GC never transcodes)`. Amend to record that internal viewing proxies are now built, deliverable re-encoding is still never done.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Commit** *(pending founder review of this docs slice)*
 
 ```bash
-git add docs/domain-spec.md CLAUDE.md
+git add docs/domain-spec.md CLAUDE.md AGENTS.md docs/HANDOFF.md \
+  docs/superpowers/plans/2026-08-06-screener-proxy.md \
+  docs/superpowers/ledgers/2026-08-06-screener-proxy.md
 git commit -m "docs(spec): §12 exception for internal viewing proxies"
 ```
 

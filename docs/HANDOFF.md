@@ -44,15 +44,19 @@ it accordingly.
 
 ## Git state
 
-All merged. PR #87 (buyer title page, complete), PR #89 (screener proxy through Task 5), and
-PR #93 (Task 6A — read-only GC proxy-job panel) are on `main`. #88 was auto-closed when its base
-branch was removed by the #87 merge and is superseded by #89 — ignore it.
+All merged. PR #87 (buyer title page, complete), PR #89 (screener proxy through Task 5),
+PR #93 (Task 6A — read-only GC proxy-job panel), and PR #95 (Task 6B — retry mutation) are on
+`main`. Task 6 is complete. #88 was auto-closed when its base branch was removed by the #87 merge
+and is superseded by #89 — ignore it.
 
-Verified on `main` after PR #93 (`0c778eb`, reviewed implementation `0f4ed63`): typecheck clean,
-**318 Vitest tests**, **504 pgTAP assertions**, build compiles, `pnpm exec eslint src` reports 0
-errors and exactly 5 pre-existing warnings. Required CI `isolation` passed; Vercel passed; `checks`
-stayed red only on the documented pre-existing `pnpm audit` advisories (`js-yaml` / `nanoid`). All
-migrations applied to the **local** database — the production database is a separate matter, below.
+Verified on `main` after PR #95 (merge `a63c1c7`, reviewed implementation `0f4b07a`; 6A was
+`0f4ed63` / PR #93): typecheck clean, **356 Vitest tests**, build compiles, `pnpm exec eslint src`
+reports 0 errors and exactly 5 pre-existing warnings. Required CI `isolation` passed; Vercel
+passed; `checks` stayed red only on the documented pre-existing `pnpm audit` advisories
+(`js-yaml` / `nanoid`). Previously recorded local baseline also includes **504 pgTAP
+assertions** (not re-run in the Task 6B / Task 7 docs slices — retain as the last founder/local
+pgTAP figure). All migrations applied to the **local** database — the production database is a
+separate matter, below.
 
 **CI on `main` is partly red, in two independent places, and neither is a regression you
 introduced.**
@@ -91,23 +95,23 @@ decision, not an implementation detail.
 | 3 | Deterministic output-key derivation — `src/lib/mediaconvert-settings.ts` |
 | 4 | Job submission on master upload — `src/lib/mediaconvert.ts`, hooked in `src/app/api/assets/complete/route.ts` |
 | 5 | Scheduled poll — `src/app/api/cron/transcode-poll/route.ts`, `vercel.json` |
-| 6A | Read-only GC “Proxy jobs” panel — PR #93 (`0f4ed63`). Bounded title-scoped `transcode_jobs` read inside the page `Promise.all`; status, created time, failure reason, output screener; stuck when active and strictly older than 60 minutes. No heartbeat; no retry. |
+| 6A | Read-only GC “Proxy jobs” panel — PR #93 (`0f4ed63`). Bounded title-scoped `transcode_jobs` read inside the page `Promise.all`; status, created time, failure reason, output screener; stuck when active and strictly older than 60 minutes. No heartbeat dependency. |
+| 6B | Retry mutation — PR #95 (`0f4b07a`). Retry only `failed` / `submit_failed`; pre-AWS `gc_can(operate)` gate; RPC remains DB write boundary; trusted inputs from server-read job/master; AWS submit → new job row; old history preserved; explicit AWS / record-failure / `transcode_jobs_active_key_uidx` conflict handling. |
+| 7 | Domain-spec §12 + out-of-scope + `CLAUDE.md` / `AGENTS.md` deferred-list reconciliation for the approved internal viewing screener-proxy exception. Docs/governance only; no product behavior change. |
 
 ### Remaining
 
 | Task | Deliverable |
 |---|---|
-| 6B | Retry action on that panel — mutation |
-| 7 | Narrow amendment to `docs/domain-spec.md` §12, which currently states GC never transcodes |
 | 8 | Backfill runbook for ~700 existing masters — founder-executed, spends real money |
 
-**Next slice is Task 6B.** 6A/6B was an execution split of the plan’s existing Step 1 / Step 2
-boundary, not a scope change. 6A is done; 6B is the second half of Task 6 and Task 6 is not done
-until it ships. 6B is a separate mutation slice: no new schema expected unless implementation
-evidence proves otherwise; preserve existing authorization/RPC boundaries; get retry eligibility
-right against the partial unique index `transcode_jobs_active_key_uidx` (retrying an already-
-`complete` job is a unique-constraint violation, not a no-op — **do not retry completed jobs**);
-AWS submit and job-recording failure paths must be explicit and tested.
+**Next slice is Task 8.** Tasks 6 and 7 are complete. Task 8 writes a backfill runbook; it does
+**not** run a backfill and does not submit jobs. Founder-executed; spends real money when run.
+
+**Open residuals from Task 6 (documented, not resolved in 6B):** founder-accepted concurrent
+retry race (cross-tab/operator/direct calls may double-submit AWS before the unique index claims
+the key; no compensation/locking added); full-panel client component retained as a non-blocking
+future refinement.
 
 ### Review status of `432ecbb` — code review satisfied, production validation **not**
 
@@ -330,9 +334,11 @@ master through the real pipeline as the gate before trusting any of it — not a
 
 1. Read `docs/superpowers/ledgers/2026-08-06-screener-proxy.md` end to end.
 2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline
-   (318 Vitest tests after Task 6A).
-3. Read the shipped Task 6A surface — `src/lib/transcode-jobs.ts` and
-   `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx` — then Task 6B.
+   (356 Vitest tests after Task 6).
+3. Tasks 6–7 are shipped. Pipeline code: `src/lib/transcode-jobs.ts`,
+   `src/app/(app)/(operator)/gc/titles/[id]/transcode-panel.tsx`, and
+   `retryTranscodeJob` in `actions.ts`. Spec/governance: domain-spec §12 exception + CLAUDE/
+   AGENTS deferred-list wording. Next slice is Task 8 (backfill runbook only — do not execute).
 
 Ask the founder before: any schema change, anything touching money or rights, any user-facing copy,
 and any decision the spec does not already settle. Record decisions in the spec in the same change

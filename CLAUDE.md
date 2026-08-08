@@ -201,7 +201,8 @@ end-to-end before widening.
 ## Do NOT build yet (deferred — design the seam, don't build it)
 Revenue/accounting module · statements · payouts · metadata paths 2 & 3 · AI findings · health
 score · Ask Globee · dashboard insights · 24Frame entitlement grant · anything public-facing ·
-mobile · **transcoding** (clients deliver platform-ready; GC never transcodes).
+mobile · **general-purpose / delivery transcoding** (clients deliver platform-ready masters;
+internal viewing screener proxies are the §12 exception — already built; do not broaden).
 
 ## Conventions
 - UUID PKs (`gen_random_uuid()`), `timestamptz` everywhere, `snake_case`.

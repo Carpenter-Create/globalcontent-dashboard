@@ -364,15 +364,34 @@ VALIDATION (run, not read): typecheck clean; 318 Vitest tests; eslint 0 errors /
   passed; checks remained red only on the documented pre-existing js-yaml /
   nanoid dependency audit.
 
-NEXT: Task 6B — the retry mutation, still the plan's Step 2. Separate slice.
-  No new schema expected unless implementation evidence proves otherwise.
-  Preserve existing authorization/RPC boundaries. Do not retry completed jobs
-  (transcode_jobs_active_key_uidx). AWS submit and job-recording failure paths
-  must be explicit and tested. T6 is not done until 6B ships. Remaining after
-  6B: T7 domain-spec §12 amendment, T8 founder-executed backfill.
+=== Proxy T6B: complete — MERGED to main 2026-08-07 as PR #95 ===
+Reviewed implementation commit: 0f4b07aa2b20b66557bec2fae0bf309dfb007f19
+  (merge commit a63c1c7). Cursor implementation; independent Codex re-review
+  approved with minor non-blocking notes before merge.
+
+DELIVERED (mutation; no schema/RPC/RLS/AWS-infra changes):
+  - Retry only for failed / submit_failed (never submitted / running / complete).
+  - Pre-AWS gc_can(operate) safety gate after getAuthUser(); fail closed.
+  - create_transcode_job / member_can(operate) remains the DB write boundary.
+  - Client supplies only titleId + jobId; org/title/source/master key/expected
+    output key/MediaConvert args derived from server-read state.
+  - Sequence: trusted read → submitProxyJob → create_transcode_job (new row) →
+    revalidate only on successful recording. Old job untouched.
+  - Explicit failure copy: AWS submit failure; split-brain record failure /
+    rejection / unknown; exact transcode_jobs_active_key_uidx conflict only.
+  - Panel Retry affordance gated by canRetry && eligibility; pending disables
+    ordinary repeat clicks on the mounted control.
+
+VALIDATION (run, not read): typecheck clean; 356 Vitest tests; eslint 0 errors /
+  5 known warnings; build success. Required isolation check passed; Vercel
+  passed; checks remained red only on the documented pre-existing js-yaml /
+  nanoid dependency audit.
+
+TASK 6 COMPLETE (6A + 6B). Next slice is Task 7.
 
 === Proxy T6B — FOUNDER-ACCEPTED RESIDUAL (concurrent retry), 2026-08-07 ===
-STATUS: ACCEPTED RESIDUAL — not resolved. No mitigation in Task 6B.
+STATUS: ACCEPTED RESIDUAL — remains open/documented. Not resolved by 6B merge.
+  No mitigation was added and none should be backfilled into this slice.
 
 ARCHITECTURE: retry follows the approved AWS-submit-before-record path
   (same as master upload): `submitProxyJob` then `create_transcode_job`.
@@ -391,9 +410,36 @@ EXPLICITLY NOT ADDED in 6B: compensation, AWS cleanup, locking,
   claim/reservation rows, new schema, migrations, or RPCs. Future mitigation
   would require architectural/schema/claim/locking work outside this slice.
 
-NON-BLOCKING NOTE: `transcode-panel.tsx` is a client component for Retry
-  pending state. A server panel + client Retry island would be narrower;
-  deferred as non-blocking / not in this correction pass.
+NON-BLOCKING NOTE (accepted for 6B; future refinement): `transcode-panel.tsx`
+  is a full-panel client component for Retry pending state. A server panel +
+  client Retry island would be narrower; not refactored before merge.
+
+=== Proxy T7: complete — documentation/governance (uncommitted pending review) ===
+DATE: 2026-08-07. Docs/governance only; no application code, schema, RPC, RLS,
+  AWS/Vercel, dependency, CI, or production-state change.
+
+DELIVERED:
+  - domain-spec §12: general-purpose / delivery transcoding remains out of scope;
+    design-spec §3 “Exception — internal viewing proxies” added; client master
+    remains delivery/source; H.264 proxy is viewing derivative only.
+  - domain-spec later “out of scope entirely” line: same narrow exception;
+    explicitly excludes platform delivery encoding, mezzanine/master prep,
+    client-requested format conversion, arbitrary derivatives.
+  - CLAUDE.md + AGENTS.md deferred lists: materially aligned — absolute
+    “GC never transcodes” replaced; viewing screener proxies noted as built
+    §12 exception; do not broaden.
+  - HANDOFF / plan / ledger: Task 6 complete bookkeeping retained; Task 7
+    marked done; next slice Task 8.
+
+NOT TOUCHED (intentionally — non-governing historical / open issues preserved):
+  - Historical design notes that once said “GC never transcodes” (e.g. older
+    superpowers specs) left as period documents.
+  - Production migration drift, real-AWS validation, s3:ListBucket ordering,
+    unnamed-link finding, revoke_portal_link founder call, concurrent-retry
+    residual, heartbeat debt, architectural/test debt, Task 8 backfill.
+
+NEXT: Task 8 — backfill runbook (write document only; founder-executed;
+  spends real money when run). Do not begin until this docs slice ships.
 
 === OPEN SECURITY FINDING — founder call, 2026-08-07 ===
 Surfaced while rewriting the B3 cross-org isolation harness. Not blocking the

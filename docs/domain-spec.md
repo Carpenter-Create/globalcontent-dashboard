@@ -492,15 +492,23 @@ catastrophic here.** Titles, assets, and revenue belong to the **org**, not the 
 
 ## 12. Intake
 
-### Platform-ready materials — GC does not transcode
+### Platform-ready materials — no general-purpose / delivery transcoding
 
-**Clients deliver platform-ready materials.** GC runs no transcoding pipeline. Most premium
-vendors want a mezzanine master and encode themselves, so "platform-ready" is realistically
-**one correct master plus captions, artwork, and metadata to spec** — not 20 variants.
+**Clients deliver platform-ready materials.** GC does not provide general-purpose transcoding or
+delivery-encoding services. Most premium vendors want a mezzanine master and encode themselves, so
+"platform-ready" is realistically **one correct master plus captions, artwork, and metadata to
+spec** — not 20 variants.
 
-> **Consequence: intake QC is the only defense.** Not re-encoding means the client's mistake
-> becomes GC's rejection — days later, from a vendor's queue. QC findings (§19) are load-bearing,
-> not a nice-to-have. Automated QC tooling (Vidchecker, Baton class) is **buy, not build** (§21).
+> **Exception — internal viewing proxies.** GC generates one low-bitrate screener proxy per master,
+> for viewing and evaluation only. It is never delivered to a vendor and never satisfies a delivery
+> requirement. This is not a transcoding pipeline in the sense above: GC still does not re-encode
+> deliverables, and clients still deliver platform-ready masters. The client-supplied master remains
+> the delivery/source master; the generated H.264 proxy is a viewing derivative only.
+
+> **Consequence: intake QC is the only defense.** Not re-encoding deliverables means the client's
+> mistake becomes GC's rejection — days later, from a vendor's queue. QC findings (§19) are
+> load-bearing, not a nice-to-have. Automated QC tooling (Vidchecker, Baton class) is **buy, not
+> build** (§21).
 
 ### Order of operations
 
@@ -1094,4 +1102,7 @@ queue** · notifications (Resend + in-app) · GC master queue · **Cloudflare Tu
   cross-project identity problem is unsolved — see the 24Frame repo's open items.
 
 **Out of scope entirely:** anything public-facing (that's `globalcontent-web`), any 24Frame
-functionality, mobile, transcoding.
+functionality, mobile, and general-purpose / delivery transcoding. The sole exception is the
+dedicated internal viewing screener-proxy pipeline (§12) — a browser-compatible viewing
+derivative from the client-supplied master; not platform delivery encoding, mezzanine/master
+preparation, client-requested format conversion, or arbitrary derivative creation.
