@@ -1,5 +1,11 @@
 # First-slice implementation spec — auth → org + membership + roles + RLS + provenance
 
+> **HISTORICAL / SUPERSEDED.** This document is preserved as slice evidence. Do **not** use it as
+> current implementation authority without fresh verification against the live repository and
+> explicit founder authorization. Active operating posture:
+> [`docs/status/CURRENT.md`](status/CURRENT.md). Current product and schema doctrine:
+> [`docs/domain-spec.md`](domain-spec.md).
+
 > **Status: spec pending founder approval to build.** Produced via `/init` (Step 2–3). No code
 > written yet; build begins only on "Approved — begin building."
 >
