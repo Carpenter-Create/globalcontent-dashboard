@@ -40,6 +40,8 @@ export function verifyEventChain(rawEvents: unknown[]): EventChainResult {
   const taskId = events[0].task_id;
   let activeVersion = events[0].active_contract_version;
   let activeDigest = events[0].active_contract_digest;
+  /** Once authorize appears, only further authorize may change active pins. */
+  let hasAuthorized = false;
 
   if (events[0].sequence !== 1) {
     issues.push({
@@ -111,14 +113,39 @@ export function verifyEventChain(rawEvents: unknown[]): EventChainResult {
       }
       activeVersion = ev.active_contract_version;
       activeDigest = ev.active_contract_digest;
+      hasAuthorized = true;
+    } else if (ev.event_type === "contract_staged" && !hasAuthorized) {
+      // Pre-authorization: proposed identity may advance via explicit stage.
+      // contract_staged is not founder authorization.
+      if (
+        ev.payload.contract_version !== ev.active_contract_version ||
+        ev.payload.contract_digest !== ev.active_contract_digest
+      ) {
+        issues.push({
+          code: "staged_digest_bind",
+          message:
+            "contract_staged payload must bind active_contract_* fields (proposed identity)",
+          sequence: ev.sequence,
+        });
+      }
+      if (i > 0 && ev.active_contract_version < activeVersion) {
+        issues.push({
+          code: "contract_version_regression",
+          message: "active_contract_version must not decrease",
+          sequence: ev.sequence,
+        });
+      }
+      activeVersion = ev.active_contract_version;
+      activeDigest = ev.active_contract_digest;
     } else if (
       ev.active_contract_version !== activeVersion ||
       ev.active_contract_digest !== activeDigest
     ) {
       issues.push({
         code: "active_contract_drift",
-        message:
-          "active_contract_* changed without authorize event (silent migration forbidden)",
+        message: hasAuthorized
+          ? "active_contract_* changed without authorize event (authorized identity immutable)"
+          : "active_contract_* changed without authorize or pre-auth contract_staged",
         sequence: ev.sequence,
       });
     }

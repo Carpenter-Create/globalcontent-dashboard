@@ -190,6 +190,43 @@ describe("verifyEventChain", () => {
     }
   });
 
+  it("allows pre-auth contract_staged to advance proposed active pins", () => {
+    const events = chainEvents([
+      {
+        type: "contract_staged",
+        activeVersion: 1,
+        activeDigest: SAMPLE_DIGEST,
+        payload: { contract_version: 1, contract_digest: SAMPLE_DIGEST },
+      },
+      {
+        type: "contract_staged",
+        activeVersion: 2,
+        activeDigest: SAMPLE_DIGEST_B,
+        payload: { contract_version: 2, contract_digest: SAMPLE_DIGEST_B },
+      },
+    ]);
+    const r = verifyEventChain(events);
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects post-auth pin change via contract_staged", () => {
+    const events = chainEvents([
+      { type: "contract_staged" },
+      { type: "authorize", payload: authorizePayload() },
+      {
+        type: "contract_staged",
+        activeVersion: 2,
+        activeDigest: SAMPLE_DIGEST_B,
+        payload: { contract_version: 2, contract_digest: SAMPLE_DIGEST_B },
+      },
+    ]);
+    const r = verifyEventChain(events);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.issues.some((i) => i.code === "active_contract_drift")).toBe(true);
+    }
+  });
+
   it("enforces authorize binding to active_contract_*", () => {
     const events = chainEvents([
       { type: "contract_staged" },

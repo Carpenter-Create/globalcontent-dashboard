@@ -26,3 +26,6 @@ next-env.d.ts
 # Superpowers SDD scratch workspace (briefs, per-task reports, diffs).
 # The durable ledgers are copied into docs/superpowers/ledgers/ and tracked there.
 .superpowers/
+
+# Agentic engineering filesystem ledger test scratch (symlink-free under cwd).
+.ae-test-tmp/
