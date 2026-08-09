@@ -12,6 +12,8 @@ allowBuilds:
 # pinned here rather than added to package.json:
 #   postcss  >=8.5.18  arbitrary file read + path traversal (+ XSS in CSS stringify)
 #   sharp    >=0.35.0  inherited libvips CVE-2026-33327
+#   js-yaml  4.x <4.3.1 → ^4.3.1  (GHSA-5p4m-2wfm-xmqj; ESLint tooling only)
+#   nanoid   3.x <3.3.17 → ^3.3.17 (GHSA-2v37-7h3g-55p8; postcss → next/tailwind/geist/vite)
 #
 # brace-expansion — NOW ACTUALLY FIXED, no longer an accepted exception.
 #   Reached only as: exceljs > archiver > (archiver-utils|zip-stream) > glob@7 > minimatch@3,
@@ -42,6 +44,10 @@ overrides:
   brace-expansion@<1.1.18: '^1.1.18'
   brace-expansion@>=2.0.0 <2.1.4: '^2.1.4'
   brace-expansion@>=4.0.0 <5.0.9: '^5.0.9'
+  # Range-scoped within major — bare '>=' / unscoped caret can jump lines (see brace-expansion
+  # note above). js-yaml is only 4.x here; nanoid is only 3.x via postcss.
+  js-yaml@>=4.0.0 <4.3.1: '^4.3.1'
+  nanoid@>=3.0.0 <3.3.17: '^3.3.17'
 
 # No auditConfig.ignoreGhsas. The brace-expansion exception that lived here is gone because
 # the advisory is fixed rather than tolerated — `pnpm audit --audit-level high` passes on its
