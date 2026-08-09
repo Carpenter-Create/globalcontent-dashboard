@@ -2,6 +2,9 @@
 
 Companion to `AGENTIC_ENGINEERING_V1.md`. Does not replace the architecture.
 
+**Status:** merged to `main` via PR #100. Remains valid. Live `ae/control` / GitHub writes
+are **not** activated by Phase A (see `docs/status/CURRENT.md`).
+
 ## Location
 
 Pure TypeScript modules: `src/lib/agentic-engineering/`.

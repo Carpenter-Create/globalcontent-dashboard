@@ -50,8 +50,10 @@ trusted, and Codex skips a non-managed hook until its current definition has bee
 trusted — so an untrusted checkout, or an edit to the hook itself, leaves you unguarded with no
 error and no log line. Never rely on being stopped.
 
-Fuller repo-specific rules, and every known open issue, are in **`docs/HANDOFF.md`**. Read it before
-touching this codebase.
+**Active operating status** lives in **`docs/status/CURRENT.md`** — read it for current
+branch/phase/safety state before acting on repo status claims. **`docs/HANDOFF.md`** is
+**historical evidence** (originally written 2026-08-07 and subsequently updated); consult it
+only when that history is relevant, never as standing mandatory authority.
 
 ## Project Tier
 **Tier 3.** Real external users, PII, signed contracts, rights-holder revenue data, payouts.
