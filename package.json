@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "ae:dry-run": "node scripts/agentic-engineering/dry-run.mjs"
+    "ae:dry-run": "node scripts/agentic-engineering/dry-run.mjs",
+    "ae:control": "node scripts/agentic-engineering/control.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-mediaconvert": "^3.1104.0",

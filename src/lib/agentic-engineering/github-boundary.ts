@@ -1,9 +1,9 @@
 import type { ControlSnapshot, ControlStore, ControlTip } from "./control-store";
 
 /**
- * Future Phase C/D GitHub integration boundary.
- * Phase B provides the interface + local adapter only — no authenticated writes,
- * no token loading, no network, and no unrestricted whole-ledger replacement.
+ * GitHub control-plane boundary.
+ * Phase B: LocalGitHubBoundaryAdapter / UnimplementedGitHubBoundaryClient.
+ * Phase C: LiveGitHubBoundaryClient (reads + supervised control store; no raw CAS).
  */
 
 export type GitHubCommentAction = "created" | "edited" | "deleted";
