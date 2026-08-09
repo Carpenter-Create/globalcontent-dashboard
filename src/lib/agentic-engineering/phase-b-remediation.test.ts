@@ -842,6 +842,139 @@ describe("Phase B Codex remediation", () => {
     });
   });
 
+  describe("pre-auth proposed contract version advance", () => {
+    it("stage v1 then v2 pre-auth; authorize v2; post-auth stage cannot mutate pins", async () => {
+      const store = createMemoryControlStore();
+      const v1 = digestTaskContract(
+        sampleContract({ contract_version: 1, title: "V1" }),
+      );
+      const stage1 = await stageContract({
+        store,
+        expectedTip: await store.getTip(),
+        taskId: "AE-0001",
+        contractVersion: 1,
+        contractYaml: v1.yaml,
+        occurredAt: "2026-08-08T15:00:00.000Z",
+      });
+      expect(stage1.ok).toBe(true);
+      if (!stage1.ok) throw new Error("stage v1 failed");
+
+      const v2 = digestTaskContract(
+        sampleContract({ contract_version: 2, title: "V2" }),
+      );
+      const stage2 = await stageContract({
+        store,
+        expectedTip: stage1.value.tip,
+        taskId: "AE-0001",
+        contractVersion: 2,
+        contractYaml: v2.yaml,
+        occurredAt: "2026-08-08T15:00:30.000Z",
+      });
+      expect(stage2.ok, JSON.stringify(stage2)).toBe(true);
+      if (!stage2.ok) throw new Error("stage v2 failed");
+
+      // Staging is not authorization.
+      const preAuth = await reconstructTaskState(store, "AE-0001");
+      expect(preAuth.ok).toBe(true);
+      if (preAuth.ok) {
+        expect(preAuth.value.state).toBe("FOUNDER_AUTHORIZATION_REQUIRED");
+        expect(preAuth.value.activeContractVersion).toBe(2);
+        expect(preAuth.value.activeContractDigest).toBe(v2.digest);
+        expect(preAuth.value.frozenContractPath).toBeNull();
+      }
+      expect(
+        await store.readObject(formatProposedPath("AE-0001", 1)),
+      ).toBe(v1.yaml);
+      expect(
+        await store.readObject(formatProposedPath("AE-0001", 2)),
+      ).toBe(v2.yaml);
+      expect(
+        await store.readObject(formatContractPath("AE-0001", 1)),
+      ).toBeNull();
+      expect(
+        await store.readObject(formatContractPath("AE-0001", 2)),
+      ).toBeNull();
+
+      const auth = await bindFounderAuthorization({
+        store,
+        expectedTip: stage2.value.tip,
+        commentBody: authComment("AE-0001", 2, v2.digest, SAMPLE_SHA),
+        observedFounderActorId: CONFIGURED_FOUNDER_GITHUB_ACTOR_ID,
+        commentAction: "created",
+        issueNumber: 1,
+        commentId: 1,
+        createdAt: "2026-08-08T15:01:00.000Z",
+      });
+      expect(auth.ok, JSON.stringify(auth)).toBe(true);
+      if (!auth.ok) throw new Error("authorize v2 failed");
+
+      const frozenV2 = await store.readObject(formatContractPath("AE-0001", 2));
+      expect(frozenV2).toBe(v2.yaml);
+      const frozenV1 = await store.readObject(formatContractPath("AE-0001", 1));
+      expect(frozenV1).toBeNull();
+
+      const tipAfterAuth = auth.value.tip;
+      const v3 = digestTaskContract(
+        sampleContract({ contract_version: 3, title: "V3" }),
+      );
+      const stageAfterAuth = await stageContract({
+        store,
+        expectedTip: tipAfterAuth,
+        taskId: "AE-0001",
+        contractVersion: 3,
+        contractYaml: v3.yaml,
+        occurredAt: "2026-08-08T15:02:00.000Z",
+      });
+      expect(stageAfterAuth.ok).toBe(false);
+      if (!stageAfterAuth.ok) {
+        expect(
+          stageAfterAuth.issues.some(
+            (i) =>
+              i.code === "active_contract_drift" ||
+              i.code.startsWith("fold_"),
+          ),
+        ).toBe(true);
+      }
+
+      // Authorized frozen contract unchanged; active pins unchanged.
+      expect(await store.getTip()).toBe(tipAfterAuth);
+      expect(await store.readObject(formatContractPath("AE-0001", 2))).toBe(
+        v2.yaml,
+      );
+      const recon = await reconstructTaskState(store, "AE-0001");
+      expect(recon.ok).toBe(true);
+      if (recon.ok) {
+        expect(recon.value.state).toBe("AUTHORIZED");
+        expect(recon.value.activeContractVersion).toBe(2);
+        expect(recon.value.activeContractDigest).toBe(v2.digest);
+      }
+
+      // Unauthorized operational event cannot swap active authorized contract.
+      const swap = await appendControlEvent({
+        store,
+        expectedTip: tipAfterAuth,
+        taskId: "AE-0001",
+        eventType: "implementation_started",
+        payload: { session_or_run_id: "x", provider: "cursor" },
+        occurredAt: "2026-08-08T15:03:00.000Z",
+        actor: {
+          kind: "orchestrator",
+          provider: "t",
+          session_or_run_id: "x",
+          github_actor_id: null,
+        },
+        claimedActiveContractVersion: 3,
+        claimedActiveContractDigest: v3.digest,
+      });
+      expect(swap.ok).toBe(false);
+      if (!swap.ok) {
+        expect(
+          swap.issues.some((i) => i.code === "active_contract_mismatch"),
+        ).toBe(true);
+      }
+    });
+  });
+
   describe("staged provenance + authorize", () => {
     it("staged path task mismatch → fail", async () => {
       const store = createMemoryControlStore();

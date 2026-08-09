@@ -197,7 +197,12 @@ async function commitControlEvent(
     }
   }
 
-  if (priorEvents.length > 0 && input.eventType !== "authorize") {
+  const hasAuthorized = priorEvents.some((e) => e.event_type === "authorize");
+  const mayChangeActivePins =
+    input.eventType === "authorize" ||
+    (input.eventType === "contract_staged" && !hasAuthorized);
+
+  if (priorEvents.length > 0 && !mayChangeActivePins) {
     const last = priorEvents[priorEvents.length - 1];
     if (
       active.value.version !== last.active_contract_version ||
@@ -205,7 +210,23 @@ async function commitControlEvent(
     ) {
       return fail(
         "active_contract_drift",
-        "active contract pins must continue prior chain (only authorize may change them)",
+        hasAuthorized
+          ? "active authorized contract pins are immutable without authorize"
+          : "active contract pins must continue prior chain",
+      );
+    }
+  }
+
+  if (
+    priorEvents.length > 0 &&
+    input.eventType === "contract_staged" &&
+    !hasAuthorized
+  ) {
+    const last = priorEvents[priorEvents.length - 1];
+    if (active.value.version < last.active_contract_version) {
+      return fail(
+        "contract_version_regression",
+        "pre-auth staged contract version must not decrease",
       );
     }
   }

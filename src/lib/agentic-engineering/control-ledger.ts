@@ -114,6 +114,17 @@ export async function stageContract(
     );
   }
 
+  // Proposed path is create-once per version (derived refresh of same bytes is
+  // ok; different version uses a distinct path — never silently rewrite another
+  // version's proposed object).
+  const existingProposed = snapshot.objects.get(proposedPath);
+  if (existingProposed != null && existingProposed !== input.contractYaml) {
+    return fail(
+      "proposed_version_conflict",
+      `proposed object already exists with different bytes: ${proposedPath}`,
+    );
+  }
+
   const result = await commitPrivilegedControlEvent({
     store: input.store,
     expectedTip: input.expectedTip,
@@ -130,6 +141,8 @@ export async function stageContract(
       session_or_run_id: "stage-contract",
       github_actor_id: null,
     },
+    // Pre-auth: advances proposed identity pins. Post-auth: commit/fold reject
+    // pin mutation — authorized identity stays immutable without authorize.
     overrideActiveContract: {
       version: input.contractVersion,
       digest,
