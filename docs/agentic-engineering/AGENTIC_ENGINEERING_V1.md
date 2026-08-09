@@ -1,13 +1,25 @@
 # Global Content Agentic Engineering v1
 
-- **Status:** specification only — not implemented
-- **Branch target for this doc:** `feat/agentic-engineering-v1`
+- **Status (architecture):** accepted specification on `main` (merged PR #99)
+- **Implementation status (repo facts — see also `docs/status/CURRENT.md`):**
+  - **Phase A merged** (PR #100) — control-plane primitives in
+    `src/lib/agentic-engineering/`; see `PHASE_A.md`
+  - **Phase B merged** (PR #101) — supervised local/dry-run control ledger; see `PHASE_B.md`
+  - **Phase C abandoned / not merged** — experimental work on
+    `feat/agentic-engineering-phase-c` failed independent safety review; do not resume or
+    repair that branch without a **new founder-authorized design and contract**
+  - **Live control plane not activated** — real `ae/control` branch does not exist; no
+    GitHub App/control-writer credential installed or verified; no live GitHub control
+    writes, Slack notifications, unattended agent routing, autonomous remediation,
+    autonomous merge, or production agent access
+- **Branch target at authoring:** `feat/agentic-engineering-v1` (historical; content is on `main`)
 - **Base at authoring:** `db0de83dfd7da483ded7233446df7da553c66233`
 - **Revision:** post–Codex architecture/governance review (CHANGES REQUIRED → remediated in-spec)
 - **Audience:** founder + any engineer/agent implementing the orchestration system
 - **Authority:** This document defines *coordination automation*. It does not override
-  `AGENTS.md`, `CLAUDE.md`, `docs/domain-spec.md`, or `docs/HANDOFF.md`. Where those
-  conflict with convenience, those win.
+  `AGENTS.md`, `CLAUDE.md`, `docs/domain-spec.md`, or active status in
+  `docs/status/CURRENT.md`. `docs/HANDOFF.md` is historical evidence, not active status.
+  Where governance docs conflict with automation convenience, governance wins.
 
 ---
 
@@ -1092,7 +1104,14 @@ integrity addition.
 
 ## 25. Document control
 
-- Spec-only. Implementation plans land only after founder approval of this document.
+- This file remains the **accepted architecture/specification**. Phases A and B are
+  merged on `main` as dry-run / library foundations; that does **not** mean the live
+  orchestration system described here is activated.
+- Do not claim live Agentic Engineering (control branch, GitHub writes, Slack, unattended
+  routing, autonomous merge, or production access) is active because this file exists or
+  because Phases A/B merged.
+- Future Phase C (or any live activation) requires a **new founder-authorized design and
+  contract** — not repair of the abandoned experimental branch.
 - Amendments to authority, SHA invariants, authorize mechanism, or control-plane choice
   require founder approval.
-- Do not claim Agentic Engineering is implemented because this file exists.
+- Active operating status: `docs/status/CURRENT.md`.

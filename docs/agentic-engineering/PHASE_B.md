@@ -2,6 +2,11 @@
 
 Companion to `AGENTIC_ENGINEERING_V1.md` and `PHASE_A.md`. Does not replace the architecture.
 
+**Status:** merged to `main` via PR #101. Remains valid as **local/dry-run** control-ledger
+mechanics only. Does **not** activate live GitHub control writes. Phase C experimental
+implementation was abandoned unmerged — do not treat Phase B as permission to resume it
+(see `docs/status/CURRENT.md`).
+
 ## What Phase B adds
 
 Supervised **local/dry-run** control-ledger mechanics on top of Phase A primitives:

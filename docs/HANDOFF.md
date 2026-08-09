@@ -1,9 +1,18 @@
 # Handoff — globalcontent-dashboard
 
-**Written 2026-08-07.** Everything described here is merged to `main`. No feature branches remain.
-Work from `main`, and `git pull` before you trust any state described below.
-
-You are taking over a partly-built feature. Read this whole file before touching anything.
+> ## Historical handoff — not current operating authority
+>
+> **Originally written 2026-08-07 and subsequently updated.** The preserved body includes
+> later updates and evidence through at least 2026-08-08, so this is a mixed historical
+> record — not a single-date snapshot. Dates and evidence below retain their historical meaning.
+>
+> **Agents must use [`docs/status/CURRENT.md`](status/CURRENT.md) as the sole active-status
+> authority.** None of this handoff is current operating authority or mandatory pre-work.
+>
+> Stale branch, SHA, production-migration, CI, or “task in flight” statements below
+> **must not be acted on** without fresh verification against the repository and CURRENT.md.
+> In particular, “No feature branches remain” is preserved as a historical claim and is
+> **not** a standing claim about the repository today.
 
 ---
 
@@ -21,16 +30,21 @@ it accordingly.
 
 ---
 
-## Read these first, in order
+## Historical reading order (2026-08-07 screener-proxy handoff)
+
+> **Not mandatory for every agent session.** For current operating status use
+> [`docs/status/CURRENT.md`](status/CURRENT.md). The list below was the handoff’s
+> recommended order when this section was written; consult it only when working that
+> historical slice.
 
 1. **`CLAUDE.md`** (repo root) — non-negotiable rules. Read "Golden rules" and "Known Gotchas" twice.
 2. **`docs/domain-spec.md`** — the domain model. The spec beats the code; if they disagree, the code is wrong.
 3. **`docs/superpowers/specs/2026-08-06-buyer-title-page-design.md`** — shipped, and amended
    post-ship; and **`docs/superpowers/specs/2026-08-06-screener-proxy-design.md`** — the feature
-   still in flight.
-4. **`docs/superpowers/plans/2026-08-06-screener-proxy.md`** — the plan you are executing.
+   still in flight *(as recorded in this historical handoff)*.
+4. **`docs/superpowers/plans/2026-08-06-screener-proxy.md`** — the plan you are executing *(as recorded in this historical handoff)*.
 5. **`docs/superpowers/ledgers/2026-08-06-screener-proxy.md`** — the execution ledger.
-   **This is the highest-value file in the repo for context.** There is a sibling ledger,
+   **Highest-value file for that historical slice.** There is a sibling ledger,
    `docs/superpowers/ledgers/2026-08-06-buyer-title-page.md`, covering the other branch.
    (These were promoted out of a gitignored scratch workspace at `.superpowers/` precisely so
    that a new reader actually receives them.)
@@ -370,7 +384,10 @@ master through the real pipeline as the gate before trusting any of it — not a
 
 ---
 
-## Start here
+## Historical next steps recorded at the time
+
+This section is preserved as historical evidence. Do not execute these steps without fresh
+verification and current founder authorization.
 
 1. Read `docs/superpowers/ledgers/2026-08-06-screener-proxy.md` end to end.
 2. Run `pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build` to confirm the baseline
