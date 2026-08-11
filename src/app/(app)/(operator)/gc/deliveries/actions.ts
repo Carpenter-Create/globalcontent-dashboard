@@ -80,11 +80,12 @@ export async function setDeliveryStatus(
       });
       // §20 email leg: same message, to every active member of the org (best-effort).
       const copy = NOTIFICATION_EMAIL.delivery_update;
+      const { cta, path } = copy.link({ titleId: d.title_id });
       await sendOrgNotificationEmail(supabase, d.org_id, {
         subject: copy.subject({ title }),
         body,
-        ctaLabel: copy.cta,
-        ctaPath: copy.path({ titleId: d.title_id }),
+        ctaLabel: cta,
+        ctaPath: path,
       });
     }
   } catch (e) {
