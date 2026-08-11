@@ -4,8 +4,9 @@
  * Captures Supabase CLI status in memory; never forwards raw CLI output.
  */
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   loadHarnessConfig,
   loadHarnessConfigWithApp,
@@ -279,6 +280,23 @@ export function runHarness(harnessId, options = {}) {
   return result.status ?? 1;
 }
 
+/**
+ * True when this module is the process entrypoint (not merely imported).
+ * Normalizes relative argv paths and symlinks before comparison.
+ *
+ * @param {string | undefined} [entryArg]
+ */
+export function isDirectExecution(entryArg = process.argv[1]) {
+  if (!entryArg) return false;
+  try {
+    const modulePath = realpathSync(fileURLToPath(import.meta.url));
+    const entryPath = realpathSync(resolve(entryArg));
+    return modulePath === entryPath;
+  } catch {
+    return false;
+  }
+}
+
 function main() {
   const parsed = parseWrapperArgs(process.argv);
   if ("error" in parsed) {
@@ -302,6 +320,6 @@ function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (isDirectExecution()) {
   main();
 }

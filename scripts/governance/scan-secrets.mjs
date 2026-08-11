@@ -34,7 +34,7 @@ export const ScanOutcome = Object.freeze({
 });
 
 const CONTROL_AND_ESCAPE_RE =
-  /[\u0000-\u001F\u007F-\u009F]|\u2028|\u2029|\u001B\[[0-9;?]*[ -/]*[@-~]/g;
+  /[\u0000-\u001F\u007F-\u009F]|\u2028|\u2029|\u001B\[[0-9;?]*[ -/]*[@-~]/;
 const SAFE_RULE_ID_RE = /^[A-Za-z0-9._-]{1,64}$/;
 const SAFE_PATH_RE = /^[A-Za-z0-9._/@+-]{1,256}$/;
 

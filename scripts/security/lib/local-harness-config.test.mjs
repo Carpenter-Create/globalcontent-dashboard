@@ -30,6 +30,8 @@ import {
   buildChildEnv,
   pickEnv,
   runHarness,
+  isDirectExecution,
+  HARNESS_SCRIPTS,
   SUPABASE_CLI_ENV_KEYS,
   HARNESS_CHILD_ENV_KEYS,
   DEFAULT_APP_URL,
@@ -480,9 +482,12 @@ describe("wrapper process-boundary raw-output proof", () => {
 
   /**
    * @param {string} fixtureRoot
+   * @param {string} [harnessId]
    */
-  function writeFakeHarness(fixtureRoot) {
-    const harnessPath = join(fixtureRoot, "scripts/security/b3-cross-org-isolation.mjs");
+  function writeFakeHarness(fixtureRoot, harnessId = "b3") {
+    const scriptRel = HARNESS_SCRIPTS[harnessId];
+    const harnessPath = join(fixtureRoot, scriptRel);
+    mkdirSync(dirname(harnessPath), { recursive: true });
     writeFileSync(
       harnessPath,
       `#!/usr/bin/env node
@@ -610,6 +615,197 @@ exit 0
       assert.match(combined, /supabase-status-unavailable|wrapper-operational-error/);
       assert.notEqual(result.status, 0);
     });
+  });
+
+  /**
+   * @param {string} fixtureRoot
+   * @param {string} binDir
+   * @param {string} ambientValue
+   * @param {string[]} args
+   * @param {string} [wrapperArg]
+   */
+  function runWrapperSubprocess(fixtureRoot, binDir, ambientValue, args, wrapperArg) {
+    const entry =
+      wrapperArg ?? join("scripts", "security", "run-local-harness.mjs");
+    return spawnSync(NODE_EXECUTABLE, [entry, ...args], {
+      cwd: fixtureRoot,
+      env: buildMinimalWrapperEnv(binDir, ambientValue),
+      encoding: "utf8",
+      timeout: 15_000,
+    });
+  }
+
+  it("relative-path CLI invocation enters main and executes harness (CI shape)", () => {
+    withExternalWrapperFixture(({ fixtureRoot, binDir }) => {
+      const ambientValue = `ambient-${randomBytes(8).toString("hex")}`;
+      writeFakeSupabase(
+        binDir,
+        `#!/bin/sh
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"${synthKey("anon-")}","SERVICE_ROLE_KEY":"${synthKey("svc-")}"}'
+exit 0
+`,
+      );
+      const result = runWrapperSubprocess(fixtureRoot, binDir, ambientValue, ["b3"]);
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.match(combined, new RegExp(HARNESS_EXECUTION_MARKER));
+      assert.match(combined, /run-local-harness: harness completed/);
+      assert.equal(result.status, 0);
+    });
+  });
+
+  it("absolute-path CLI invocation enters main and executes harness", () => {
+    withExternalWrapperFixture(({ fixtureRoot, binDir }) => {
+      const ambientValue = `ambient-${randomBytes(8).toString("hex")}`;
+      writeFakeSupabase(
+        binDir,
+        `#!/bin/sh
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"${synthKey("anon-")}","SERVICE_ROLE_KEY":"${synthKey("svc-")}"}'
+exit 0
+`,
+      );
+      const wrapperPath = realpathSync(join(fixtureRoot, "scripts/security/run-local-harness.mjs"));
+      const result = runWrapperSubprocess(fixtureRoot, binDir, ambientValue, ["b3"], wrapperPath);
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.match(combined, new RegExp(HARNESS_EXECUTION_MARKER));
+      assert.match(combined, /run-local-harness: harness completed/);
+      assert.equal(result.status, 0);
+    });
+  });
+
+  it("relative-path l7 invocation matches CI entry shape", () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "wrapper-fixture-"));
+    try {
+      assertOutsideRepo(fixtureRoot);
+      const binDir = join(fixtureRoot, "bin");
+      mkdirSync(binDir, { recursive: true });
+      copyProductionWrapperFixture(fixtureRoot);
+      writeFakeHarness(fixtureRoot, "l7");
+      const ambientValue = `ambient-${randomBytes(8).toString("hex")}`;
+      writeFakeSupabase(
+        binDir,
+        `#!/bin/sh
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"${synthKey("anon-")}","SERVICE_ROLE_KEY":"${synthKey("svc-")}"}'
+exit 0
+`,
+      );
+      const result = runWrapperSubprocess(fixtureRoot, binDir, ambientValue, ["l7"]);
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.match(combined, new RegExp(HARNESS_EXECUTION_MARKER));
+      assert.match(combined, /run-local-harness: harness completed/);
+      assert.equal(result.status, 0);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("relative-path CLI invocation with spaces in fixture path executes harness", () => {
+    const parent = mkdtempSync(join(tmpdir(), "wrapper-parent-"));
+    const fixtureRoot = join(parent, "fixture dir with spaces");
+    mkdirSync(fixtureRoot, { recursive: true });
+    try {
+      assertOutsideRepo(fixtureRoot);
+      const binDir = join(fixtureRoot, "bin");
+      mkdirSync(binDir, { recursive: true });
+      copyProductionWrapperFixture(fixtureRoot);
+      writeFakeHarness(fixtureRoot, "b3");
+      const ambientValue = `ambient-${randomBytes(8).toString("hex")}`;
+      writeFakeSupabase(
+        binDir,
+        `#!/bin/sh
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"${synthKey("anon-")}","SERVICE_ROLE_KEY":"${synthKey("svc-")}"}'
+exit 0
+`,
+      );
+      const result = runWrapperSubprocess(fixtureRoot, binDir, ambientValue, ["b3"]);
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.match(combined, new RegExp(HARNESS_EXECUTION_MARKER));
+      assert.equal(result.status, 0);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("importing copied wrapper module does not execute harness", async () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "wrapper-import-"));
+    try {
+      assertOutsideRepo(fixtureRoot);
+      copyProductionWrapperFixture(fixtureRoot);
+      writeFakeHarness(fixtureRoot, "b3");
+      const wrapperUrl = pathToFileURL(
+        join(fixtureRoot, "scripts/security/run-local-harness.mjs"),
+      ).href;
+      const mod = await import(`${wrapperUrl}?import=${Date.now()}`);
+      assert.equal(typeof mod.runHarness, "function");
+      assert.equal(typeof mod.isDirectExecution, "function");
+      assert.equal(mod.isDirectExecution(), false);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("legacy argv string equality diverges from normalized direct-execution check", () => {
+    const modulePath = realpathSync(WRAPPER_SOURCE);
+    const relativeEntry = join("scripts", "security", "run-local-harness.mjs");
+    const previousCwd = process.cwd();
+    try {
+      process.chdir(REPO_ROOT);
+      assert.equal(modulePath === relativeEntry, false);
+      assert.equal(isDirectExecution(relativeEntry), true);
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
+  it("disabled direct-execution guard exits 0 without harness lifecycle evidence", () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "wrapper-disabled-guard-"));
+    try {
+      assertOutsideRepo(fixtureRoot);
+      const binDir = join(fixtureRoot, "bin");
+      mkdirSync(binDir, { recursive: true });
+      const securityDir = join(fixtureRoot, "scripts/security");
+      const libDir = join(securityDir, "lib");
+      mkdirSync(libDir, { recursive: true });
+      const disabledGuardSource = readFileSync(WRAPPER_SOURCE, "utf8").replace(
+        "if (isDirectExecution()) {",
+        "if (false) {",
+      );
+      writeFileSync(join(securityDir, "run-local-harness.mjs"), disabledGuardSource);
+      writeFileSync(join(libDir, "local-harness-config.mjs"), readFileSync(CONFIG_SOURCE, "utf8"));
+      writeFakeHarness(fixtureRoot, "b3");
+      writeFakeSupabase(
+        binDir,
+        `#!/bin/sh
+printf '%s\\n' '{"API_URL":"http://127.0.0.1:54321","ANON_KEY":"${synthKey("anon-")}","SERVICE_ROLE_KEY":"${synthKey("svc-")}"}'
+exit 0
+`,
+      );
+      const ambientValue = `ambient-${randomBytes(8).toString("hex")}`;
+      const result = runWrapperSubprocess(fixtureRoot, binDir, ambientValue, ["b3"]);
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.equal(combined.includes(HARNESS_EXECUTION_MARKER), false);
+      assert.equal(combined.includes("run-local-harness: harness completed"), false);
+      assert.equal(combined.includes("run-local-harness: starting harness"), false);
+      assert.equal(result.status, 0);
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("isDirectExecution", () => {
+  it("matches absolute and cwd-relative argv paths to the wrapper module", () => {
+    const wrapperPath = realpathSync(WRAPPER_SOURCE);
+    const relativeFromRepo = join("scripts", "security", "run-local-harness.mjs");
+    const previousCwd = process.cwd();
+    try {
+      process.chdir(REPO_ROOT);
+      assert.equal(isDirectExecution(wrapperPath), true);
+      assert.equal(isDirectExecution(relativeFromRepo), true);
+      assert.equal(isDirectExecution(join(REPO_ROOT, relativeFromRepo)), true);
+      assert.equal(isDirectExecution(process.execPath), false);
+    } finally {
+      process.chdir(previousCwd);
+    }
   });
 });
 

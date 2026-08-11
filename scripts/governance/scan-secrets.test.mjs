@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import {
   resolveBinary,
   assertCompatibleBinary,
@@ -25,6 +26,7 @@ import {
   printScanResult,
   finalizeScanResult,
   sanitizeFindingForLog,
+  sanitizeLogScalar,
   ScanOutcome,
   GITLEAKS_VERSION,
   REPO_ROOT,
@@ -182,6 +184,98 @@ describe("finding metadata log safety", () => {
       assert.equal(logs.length, 2);
     } finally {
       console.error = originalError;
+    }
+  });
+});
+
+const SCAN_SOURCE = join(REPO_ROOT, "scripts/governance/scan-secrets.mjs");
+const PERMISSIVE_SCALAR_RE = /^[\s\S]+$/;
+
+/**
+ * @param {typeof sanitizeLogScalar} sanitizeImpl
+ */
+function assertConsecutiveControlScalarProbe(sanitizeImpl) {
+  sanitizeImpl("a\u001b[0m", PERMISSIVE_SCALAR_RE, "unknown");
+  assert.equal(sanitizeImpl("\u2028INJECT", PERMISSIVE_SCALAR_RE, "unknown"), "unknown");
+}
+
+describe("stateless control-character sanitization", () => {
+  const RULE_INJECT = "jwt\u001b[31mRULE-INJECT";
+  const PATH_INJECT = "ok.txt\r\nPATH-INJECT";
+
+  it("rejects consecutive unsafe RuleID and File without printed leakage", () => {
+    const malicious = {
+      RuleID: RULE_INJECT,
+      File: PATH_INJECT,
+      StartLine: 1,
+    };
+    const sanitized = sanitizeFindingForLog(malicious);
+    assert.equal(sanitized.RuleID, "unknown");
+    assert.equal(sanitized.File, "unknown");
+
+    const logs = [];
+    const originalError = console.error;
+    console.error = (...args) => logs.push(args.join(" "));
+    try {
+      printScanResult({
+        outcome: ScanOutcome.FINDINGS,
+        findings: [malicious],
+      });
+      const joined = logs.join("\n");
+      assert.equal(joined.includes("RULE-INJECT"), false);
+      assert.equal(joined.includes("PATH-INJECT"), false);
+      assert.equal(joined.includes("\u001b[31m"), false);
+      assert.equal(joined.includes("\r\n"), false);
+    } finally {
+      console.error = originalError;
+    }
+  });
+
+  it("alternates safe and unsafe fields across repeated sanitization calls", () => {
+    const sequences = [
+      { RuleID: RULE_INJECT, File: "safe.txt", expectRule: "unknown", expectFile: "safe.txt" },
+      { RuleID: "github-pat", File: PATH_INJECT, expectRule: "github-pat", expectFile: "unknown" },
+      { RuleID: "safe-rule", File: "safe.txt", expectRule: "safe-rule", expectFile: "safe.txt" },
+      { RuleID: RULE_INJECT, File: PATH_INJECT, expectRule: "unknown", expectFile: "unknown" },
+      { RuleID: "jwt", File: "a.txt\u2028tail", expectRule: "jwt", expectFile: "unknown" },
+    ];
+    for (const entry of sequences) {
+      const sanitized = sanitizeFindingForLog({
+        RuleID: entry.RuleID,
+        File: entry.File,
+        StartLine: 1,
+      });
+      assert.equal(sanitized.RuleID, entry.expectRule);
+      assert.equal(sanitized.File, entry.expectFile);
+    }
+  });
+
+  it("consecutive control-character probe stays deterministic across repeated calls", () => {
+    for (let i = 0; i < 5; i++) {
+      assertConsecutiveControlScalarProbe(sanitizeLogScalar);
+    }
+  });
+
+  it("mutation restoring global regex flag reintroduces cross-call control detection miss", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "scan-secrets-mut-"));
+    try {
+      assertOutsideRepo(dir);
+      const copyPath = join(dir, "scan-secrets.mjs");
+      writeFileSync(
+        copyPath,
+        readFileSync(SCAN_SOURCE, "utf8").replace("[@-~]/;", "[@-~]/g;"),
+      );
+      const mod = await import(`${pathToFileURL(copyPath).href}?t=${Date.now()}`);
+      assert.throws(() => assertConsecutiveControlScalarProbe(mod.sanitizeLogScalar));
+      assert.notEqual(
+        (() => {
+          mod.sanitizeLogScalar("a\u001b[0m", PERMISSIVE_SCALAR_RE, "unknown");
+          return mod.sanitizeLogScalar("\u2028INJECT", PERMISSIVE_SCALAR_RE, "unknown");
+        })(),
+        "unknown",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
