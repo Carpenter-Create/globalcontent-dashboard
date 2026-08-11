@@ -1,0 +1,63 @@
+# Slack CI-exception notifications for #global-content-dev.
+#
+# Advisory notification-only workflow. GitHub remains authoritative. Branch-
+# protection settings are external to this repository and are not proven here.
+# This workflow is not itself a required check and must never approve, merge,
+# remediate, or route work. Agentic Engineering remains inactive.
+#
+# Monitors the two CI jobs named governance and isolation. Slack copy says
+# "ATTENTION REQUIRED" for operator awareness — not a durable control state.
+#
+# Trust boundary: workflow_run always loads this file from the default branch.
+# Checkout explicitly pins ref: main so notifier code never comes from a PR head.
+# Never use untrusted PR-head workflow triggers. Never execute PR-controlled code.
+#
+# Delivery contract (no persistent cross-invocation deduplication):
+# - At most one Slack POST per notifier orchestration invocation.
+# - This notification workflow runs only when github.run_attempt == 1.
+# - A distinct source ci rerun (new source run_attempt) may alert.
+# - Independently duplicated first-attempt delivery of the same workflow_run
+#   event may produce another notification (platform replay limitation).
+# Jobs are fetched from the attempt-specific GitHub API path for the source
+# workflow_run.id and workflow_run.run_attempt.
+#
+# Delivery requires the founder-configured repository secret SLACK_WEBHOOK_URL
+# after merge. This workflow does not create or mutate that secret.
+
+name: slack-ci-exceptions
+
+on:
+  workflow_run:
+    workflows:
+      - ci
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  notify:
+    name: notify
+    if: ${{ github.run_attempt == 1 }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Notify CI exception
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          NOTIFICATION_WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          SOURCE_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_WORKFLOW_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: node scripts/governance/notify-ci-exception.mjs
