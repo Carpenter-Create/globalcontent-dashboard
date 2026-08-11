@@ -17,18 +17,16 @@
  * suggests is unenforced.
  *
  * Usage (local Supabase must be running):
- *   node scripts/security/l7-chain-of-title-gate.mjs
+ *   node scripts/security/run-local-harness.mjs l7
  *
  * Creates its own fixtures. Mutates nothing pre-existing. Never truncates or drops.
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, createHash } from "node:crypto";
+import { loadHarnessConfig } from "./lib/local-harness-config.mjs";
 
-const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const { supabaseUrl: URL, supabaseAnonKey: ANON, supabaseServiceRoleKey: SERVICE } =
+  loadHarnessConfig(process.env);
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const run = randomUUID().slice(0, 8);

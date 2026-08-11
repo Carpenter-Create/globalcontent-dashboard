@@ -1,0 +1,24 @@
+# Founder-classified canonical Supabase local-demo JWTs removed from current harness source.
+# Exact historical Gitleaks fingerprints only — not a broad allowlist.
+# 10 unique locations; 20 commit-specific fingerprints required for clean full-history scan.
+
+275921437ba6452036b488a97570dc8b8260038b:scripts/security/b3-cross-org-isolation.mjs:jwt:37
+275921437ba6452036b488a97570dc8b8260038b:scripts/security/b3-cross-org-isolation.mjs:jwt:39
+795f8dd20f03ae0963d2f24aa4b9af2ff23ed366:scripts/security/c-group-1-auth-failures.mjs:jwt:21
+795f8dd20f03ae0963d2f24aa4b9af2ff23ed366:scripts/security/c-group-1-auth-failures.mjs:jwt:23
+906d3ffbf916d52ddf96d99d0af973ff9dec40cf:scripts/security/c-group-1-auth-failures.mjs:jwt:21
+906d3ffbf916d52ddf96d99d0af973ff9dec40cf:scripts/security/c-group-1-auth-failures.mjs:jwt:23
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/b3-cross-org-isolation.mjs:jwt:37
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/b3-cross-org-isolation.mjs:jwt:39
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/client-asset-routes-cross-org.mjs:jwt:31
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/client-asset-routes-cross-org.mjs:jwt:33
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/l7-chain-of-title-gate.mjs:jwt:29
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/l7-chain-of-title-gate.mjs:jwt:31
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/portal-cross-org.mjs:jwt:43
+b9aea3604c1cefabb109dc0f04c86ad5f7b9c659:scripts/security/portal-cross-org.mjs:jwt:45
+d8ed40252c8b7c16f466e8a63fc9889faf2b1716:scripts/security/portal-cross-org.mjs:jwt:43
+d8ed40252c8b7c16f466e8a63fc9889faf2b1716:scripts/security/portal-cross-org.mjs:jwt:45
+ddc622d40573c098b6f608f824bc760a25075b66:scripts/security/c-group-1-auth-failures.mjs:jwt:21
+ddc622d40573c098b6f608f824bc760a25075b66:scripts/security/c-group-1-auth-failures.mjs:jwt:23
+e3441ece37d7a769865f5371268b011d8bfc6da9:scripts/security/l7-chain-of-title-gate.mjs:jwt:29
+e3441ece37d7a769865f5371268b011d8bfc6da9:scripts/security/l7-chain-of-title-gate.mjs:jwt:31

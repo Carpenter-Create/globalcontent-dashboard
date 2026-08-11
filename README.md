@@ -62,3 +62,28 @@ pnpm typecheck && pnpm test && pnpm exec eslint src && pnpm build
 Baseline: 0 eslint errors in `src` (known pre-existing warnings may exist). Lint `src` only — full `pnpm lint` can fail on unrelated worktree files.
 
 Agentic Engineering local dry-run: `pnpm ae:dry-run`.
+
+## Governance
+
+Repository policy and secret scanning live in `scripts/governance/`.
+
+```bash
+pnpm governance
+```
+
+**Requires:** a locally installed Gitleaks CLI pinned to **v8.30.0** (v8.30.1 is disqualified). Set
+`GITLEAKS_BIN` to the binary path when `gitleaks` is not on `PATH`. The command does not download
+binaries.
+
+**What `pnpm governance` checks:**
+
+- `AGENTS.md` word/byte budgets and `CLAUDE.md` shim integrity
+- durable-posture rules in `docs/status/CURRENT.md`
+- tracked Cursor rule manifest approval
+- routed Markdown link targets and legacy banners
+- governance tests (Node built-in test runner)
+- scanner canary and **staged Git content only** secret scan (ignored `.env*` files are not read from disk)
+
+CI job **`governance`** performs the same policy suite, verifies the pinned Linux Gitleaks asset by
+SHA-256, runs the canary, then a sanitized **full-history** scan. Findings report rule ID, path, and
+line only — never secret values.

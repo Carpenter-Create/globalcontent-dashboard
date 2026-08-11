@@ -24,7 +24,7 @@
  *   (see /tmp/gc-dev-env.sh — AWS/CloudFront/Stripe are pinned to fakes so no
  *   production infrastructure can be touched).
  *
- *   APP_URL=http://127.0.0.1:3100 node scripts/security/portal-cross-org.mjs
+ *   node scripts/security/run-local-harness.mjs portal
  *
  * Reading the status codes on /download and /screener: CloudFront and S3 are
  * deliberately unconfigured here, so a request that PASSES authorization fails
@@ -36,13 +36,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { loadHarnessConfigWithApp } from "./lib/local-harness-config.mjs";
 
-const APP = process.env.APP_URL ?? "http://127.0.0.1:3100";
-const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const {
+  supabaseUrl: URL,
+  supabaseAnonKey: ANON,
+  supabaseServiceRoleKey: SERVICE,
+  appUrl: APP,
+} = loadHarnessConfigWithApp(process.env);
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const run = randomUUID().slice(0, 8);

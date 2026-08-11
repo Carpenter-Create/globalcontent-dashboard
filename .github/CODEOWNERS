@@ -30,6 +30,15 @@
 # CI and repo automation. The gate itself.
 /.github/                   @acarpcreate
 
+# Governance automation — policy checker, secret scanner adapter, and routed authority docs.
+/scripts/governance/        @acarpcreate
+/.gitleaks.toml             @acarpcreate
+/.gitleaksignore            @acarpcreate
+/AGENTS.md                  @acarpcreate
+/CLAUDE.md                  @acarpcreate
+/docs/status/CURRENT.md     @acarpcreate
+/.cursor/rules/             @acarpcreate
+
 # Service-role call sites. Six of the seven sit on unauthenticated, publicly reachable
 # paths (audit row B6); a bug in any one of them is an RLS bypass rather than a 403.
 /src/lib/supabase/admin.ts  @acarpcreate

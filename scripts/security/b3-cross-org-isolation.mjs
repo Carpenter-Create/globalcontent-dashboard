@@ -21,9 +21,9 @@
  *      in that table first; otherwise the test is reported VACUOUS, not PASS.
  *
  * Usage (local Supabase must be running):
- *   node scripts/security/b3-cross-org-isolation.mjs
+ *   node scripts/security/run-local-harness.mjs b3
  *
- * Env (defaults are the standard `supabase start` local demo keys — not secrets):
+ * Env (required — supplied by the wrapper or explicit export):
  *   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
  *
  * The script never TRUNCATEs, DROPs, or migrates. It only ever mutates rows it
@@ -31,12 +31,10 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, createHash } from "node:crypto";
+import { loadHarnessConfig } from "./lib/local-harness-config.mjs";
 
-const URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const { supabaseUrl: URL, supabaseAnonKey: ANON, supabaseServiceRoleKey: SERVICE } =
+  loadHarnessConfig(process.env);
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const run = randomUUID().slice(0, 8);

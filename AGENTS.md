@@ -93,11 +93,14 @@ Spec beats reference repos and older code.
   a sixth warning or any increase is a validation failure unless separately founder-authorized.
   Lint `src` only — full `pnpm lint` can fail on unrelated worktree files.
 - When you write a test, **mutate the code it covers and confirm it actually fails.**
-- Before shipping: run the repository-configured automated secret/leak scanner if one exists.
-  This repository currently has **no actionable `leak-check` command** — that absence is an explicit
-  governance gap deferred to a separately founder-authorized automation/CI PR. Do not claim leak
-  scanning passed when no scanner ran. Manual inspection is not equivalent to automated secret
-  scanning. Existing prohibitions against reading, printing, or committing secrets remain binding.
+- Before shipping: run **`pnpm governance`** when touching governance-sensitive paths or before handoff.
+  Local **`pnpm governance`** runs repository policy checks, governance tests, the scanner canary suite,
+  and a **staged-only** secret scan through a founder-pinned Gitleaks CLI (**v8.30.0**; **v8.30.1** is
+  disqualified). Install the matching binary locally and set `GITLEAKS_BIN` if needed — the command never
+  downloads it. CI job **`governance`** runs the same policy suite plus a checksum-verified Gitleaks install
+  and a sanitized **full-history** scan. Do not claim leak scanning passed when no scanner ran. Manual
+  inspection is not equivalent to automated secret scanning. Existing prohibitions against reading,
+  printing, or committing secrets remain binding.
 
 ## Project tier and scope
 

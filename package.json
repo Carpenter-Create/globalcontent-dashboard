@@ -11,7 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "ae:dry-run": "node scripts/agentic-engineering/dry-run.mjs"
+    "ae:dry-run": "node scripts/agentic-engineering/dry-run.mjs",
+    "governance:check:policy": "node scripts/governance/check.mjs && node --test scripts/governance/check.test.mjs && node --test scripts/governance/scan-secrets.test.mjs && node --test scripts/security/lib/local-harness-config.test.mjs",
+    "governance:archive-test": "PYTHONDONTWRITEBYTECODE=1 python3 -B scripts/governance/gitleaks-archive.test.py",
+    "governance:check": "pnpm run governance:check:policy && pnpm run governance:archive-test",
+    "governance:ci:scans": "node scripts/governance/scan-secrets.mjs --canary && node scripts/governance/scan-secrets.mjs --mode full-history",
+    "governance": "pnpm run governance:check && node scripts/governance/scan-secrets.mjs --mode staged",
+    "governance:ci": "pnpm run governance:check && pnpm run governance:ci:scans"
   },
   "dependencies": {
     "@aws-sdk/client-mediaconvert": "^3.1104.0",
