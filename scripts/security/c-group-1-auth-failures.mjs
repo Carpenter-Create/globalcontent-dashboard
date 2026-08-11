@@ -11,17 +11,14 @@
  *   * a "no difference" result is only evidence if the two sides were actually compared,
  *     so C2/C4 diff the full response objects rather than eyeballing a message.
  *
- * Usage: node scripts/security/c-group-1-auth-failures.mjs
+ * Usage: node scripts/security/run-local-harness.mjs c-group-1
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
+import { loadHarnessConfig } from "./lib/local-harness-config.mjs";
 
-const URL_ = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-const MAILPIT = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
+const { supabaseUrl: URL_, supabaseAnonKey: ANON, supabaseServiceRoleKey: SERVICE } =
+  loadHarnessConfig(process.env);
 
 const admin = createClient(URL_, SERVICE, { auth: { persistSession: false } });
 const anon = () => createClient(URL_, ANON, { auth: { persistSession: false } });

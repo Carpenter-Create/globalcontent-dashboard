@@ -20,17 +20,18 @@
  *   202 = passed auth AND RLS, object is restoring        -> resource WAS visible
  *   200 = passed everything and signed a URL              -> resource WAS visible
  *
- * Usage: APP_URL=http://127.0.0.1:3100 node scripts/security/client-asset-routes-cross-org.mjs
+ * Usage: node scripts/security/run-local-harness.mjs client-assets
  */
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID, createHash } from "node:crypto";
+import { loadHarnessConfigWithApp } from "./lib/local-harness-config.mjs";
 
-const APP = process.env.APP_URL ?? "http://127.0.0.1:3100";
-const URL_ = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const ANON = process.env.SUPABASE_ANON_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
+const {
+  supabaseUrl: URL_,
+  supabaseAnonKey: ANON,
+  supabaseServiceRoleKey: SERVICE,
+  appUrl: APP,
+} = loadHarnessConfigWithApp(process.env);
 
 const admin = createClient(URL_, SERVICE, { auth: { persistSession: false } });
 const run = randomUUID().slice(0, 8);

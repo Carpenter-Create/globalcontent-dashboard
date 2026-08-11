@@ -114,7 +114,7 @@ jobs:
       # Baselined: fails on a NEW isolation failure, not on the known-open ones. The
       # baseline and the reason for each entry live at the foot of the script.
       - name: Cross-org isolation (B3)
-        run: node scripts/security/b3-cross-org-isolation.mjs
+        run: node scripts/security/run-local-harness.mjs b3
 
       # Exits non-zero if any path can deliver a title that never passed chain-of-title
       # review.
@@ -134,10 +134,68 @@ jobs:
       # The 2 SKIPPED are declared unproven, not passed. See the script's own footer; a
       # SKIP must never be allowed to read as a pass.
       - name: Chain-of-title delivery gate (L7)
-        run: node scripts/security/l7-chain-of-title-gate.mjs
+        run: node scripts/security/run-local-harness.mjs l7
 
       # `if: always()` also runs when an earlier step failed before the CLI was installed,
       # where `supabase stop` is exit 127 and turns a clear failure into two. Tolerate it.
       - name: Stop Supabase
         if: always()
         run: supabase stop || true
+
+  # Non-required advisory job. Full-history secret scan and repository policy checks use only Node
+  # built-ins plus a checksum-pinned Gitleaks CLI download — no pnpm install.
+  governance:
+    name: governance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install pinned Gitleaks v8.30.0
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          VERSION=8.30.0
+          ASSET="gitleaks_${VERSION}_linux_x64.tar.gz"
+          CHECKSUM=79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${ASSET}"
+          ARCHIVE_PATH="${RUNNER_TEMP}/${ASSET}"
+          EXTRACT_DIR="${RUNNER_TEMP}/gitleaks-${VERSION}"
+          MODULE="${GITHUB_WORKSPACE}/scripts/governance/gitleaks-archive.py"
+
+          for tool in curl python3; do
+            command -v "${tool}" >/dev/null
+          done
+
+          python3 -B scripts/governance/gitleaks-archive.test.py
+
+          curl -fsSL -o "${ARCHIVE_PATH}" "${URL}"
+          case "${ARCHIVE_PATH}" in
+            "${RUNNER_TEMP}"/*) ;;
+            *) echo "governance: archive path must stay under RUNNER_TEMP"; exit 1 ;;
+          esac
+          case "${ARCHIVE_PATH}" in
+            "${GITHUB_WORKSPACE}"/*) echo "governance: archive must not live in checkout"; exit 1 ;;
+          esac
+
+          python3 -B "${MODULE}" verify-digest "${ARCHIVE_PATH}" "${CHECKSUM}"
+
+          python3 -B "${MODULE}" install "${ARCHIVE_PATH}" "${EXTRACT_DIR}/gitleaks" --runner-temp "${RUNNER_TEMP}"
+
+          test -f "${EXTRACT_DIR}/gitleaks"
+          test -s "${EXTRACT_DIR}/gitleaks"
+          test -x "${EXTRACT_DIR}/gitleaks"
+          test "$("${EXTRACT_DIR}/gitleaks" version)" = "${VERSION}"
+          test ! -e "${GITHUB_WORKSPACE}/gitleaks"
+          test ! -e "${GITHUB_WORKSPACE}/${ASSET}"
+          echo "GITLEAKS_BIN=${EXTRACT_DIR}/gitleaks" >> "${GITHUB_ENV}"
+
+      - name: Governance CI suite
+        run: pnpm run governance:check:policy && pnpm run governance:ci:scans

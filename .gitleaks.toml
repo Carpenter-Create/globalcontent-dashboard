@@ -1,0 +1,7 @@
+# Global Content Dashboard — minimal Gitleaks configuration.
+# Preserves upstream default detectors; no broad allowlists or inline allow directives.
+
+title = "globalcontent-dashboard"
+
+[extend]
+useDefault = true
