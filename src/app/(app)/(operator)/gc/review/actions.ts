@@ -50,11 +50,12 @@ export async function reviewTitle(
         });
         // §20 email leg: same message, to every active member of the org (best-effort).
         const copy = NOTIFICATION_EMAIL.title_rejected;
+        const { cta, path } = copy.link({ titleId });
         await sendOrgNotificationEmail(supabase, t.org_id, {
           subject: copy.subject({ title: t.title }),
           body,
-          ctaLabel: copy.cta,
-          ctaPath: copy.path({ titleId }),
+          ctaLabel: cta,
+          ctaPath: path,
         });
       }
     } catch (e) {
