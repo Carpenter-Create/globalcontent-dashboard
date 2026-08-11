@@ -87,3 +87,21 @@ binaries.
 CI job **`governance`** performs the same policy suite, verifies the pinned Linux Gitleaks asset by
 SHA-256, runs the canary, then a sanitized **full-history** scan. Findings report rule ID, path, and
 line only — never secret values.
+
+### Slack CI-exception notifications
+
+Optional **advisory** workflow (`slack-ci-exceptions`) posts to **`#global-content-dev`** when a
+pull-request `ci` run fails either of the two monitored CI jobs/checks: **`governance`** or
+**`isolation`**. The Slack workflow itself is not a required check. GitHub branch-protection
+settings are external; GitHub remains authoritative. Slack cannot approve, route, remediate, or
+merge. Agentic Engineering remains inactive (not Phase C / not live control).
+
+Slack heading **ATTENTION REQUIRED** means a monitored CI job failed and needs operator inspection
+on GitHub — not a durable Agentic Engineering control state, and not a repository-proven merge block.
+
+Delivery contract (no persistent cross-invocation deduplication): at most one Slack POST per
+notifier orchestration invocation; rerunning the notification workflow is blocked by
+`github.run_attempt == 1`; a distinct source `ci` rerun may alert; an independently duplicated
+first-attempt delivery of the same `workflow_run` event may produce another notification
+(platform replay limitation). Jobs are read from the attempt-specific GitHub API path. Requires
+founder-configured repository secret **`SLACK_WEBHOOK_URL`** after merge.
