@@ -27,6 +27,10 @@
 -- revoke_portal_link title-status gate is a SEPARATE open founder issue — not this
 -- migration.
 --
+-- IDEMPOTENT REINSTALL. 20260806000300 already ships this exact terminal policy so a
+-- mid-batch stop after 000300 is already safe. This file DROP + CREATE the same text
+-- so an accidental edit to 000300 cannot be the last word. Not verification-only.
+--
 -- DESTRUCTIVE OPS: DROP + CREATE of portal_links_select only. No table/column/data
 -- change. Forward-only policy replace. Do not apply from an agent.
 

@@ -81,3 +81,75 @@ The guard is intentional: an unset bucket silently became `Bucket: undefined`, w
 with the same 404 a genuinely missing object gets, misfiring `headObjectMeta`'s absence check.
 The consequence — runtime gap becomes build-time failure — needs to be known going in, not
 discovered via a failed deploy.
+
+---
+
+## Trigger: Production migration apply (the nine 20260806–20260808 files)
+
+**When:** Applying or rehearsing pending dashboard migrations; comparing local files to a
+database ledger; choosing a Supabase CLI.
+
+Use [`scripts/db/prod-migrate.sh`](../../scripts/db/prod-migrate.sh) only. It requires
+Supabase CLI **exactly 2.102.0** on PATH and never invokes `npx` (bare or pinned). Default
+is rehearsal: git + file checks, no database connection. Proven 2.102.0 rehearsal against a
+database is `supabase db push --dry-run --local` or `--linked` — that flag exists on 2.102.0;
+do not invent another.
+
+`--apply` is founder-only, requires `--target`, and requires typing `APPLY NINE MIGRATIONS`.
+Agents must not apply, repair, or mark migrations.
+
+`--apply` also requires `GC_PROD_APPROVED_SHA`: the founder-approved 40-character
+commit SHA of the exact release that is checked out. Export it immediately before
+production execution. The wrapper will not derive it from `HEAD`, will not accept
+a short SHA, and fails closed if the value is missing, empty, malformed, not a
+commit in this repository, or not equal to the current `HEAD`. Clean `main` is
+still required; the branch name alone is not sufficient.
+
+`--apply` then asks pinned CLI 2.102.0 `db push --dry-run` what it would apply
+to the selected target. The wrapper walks that plan line by line using the same
+filename grammar as CLI 2.102.0 (`^([0-9]+)_(.*)\.sql$`): any numeric version
+length and any suffix the CLI would accept, including hyphens, periods, spaces,
+Unicode, and an empty name. Expected banner/info lines are ignored; any other
+line fails closed. The complete ordered pending set must be exactly the
+approved nine versions. A count of nine is not enough. Extra, missing, reordered,
+or unparseable pending migrations fail closed. After typed confirmation the
+wrapper dry-runs again; if the pending set changed, it stops and does not
+`db push`.
+
+Before a production apply of these nine:
+
+1. Run [`scripts/security/preflight-screener-active-dupes.sql`](../../scripts/security/preflight-screener-active-dupes.sql)
+   as a privileged SELECT. Aggregates only. If `conflicting_title_count > 0`, stop. Do not
+   auto-revoke. Founder remediates with separately approved SQL, then re-runs the preflight.
+2. Take a current production dump (founder). The 2026-07-27 dump is not sufficient for the
+   current ledger.
+3. Check out clean `main` at the approved release commit. Export
+   `GC_PROD_APPROVED_SHA=<that exact SHA>` and apply only via the wrapper.
+4. After apply, run [`scripts/security/verify-nine-20260806.sql`](../../scripts/security/verify-nine-20260806.sql)
+   (catalog only) and [`scripts/security/verify-prod-end-state.sql`](../../scripts/security/verify-prod-end-state.sql)
+   with the same pinned CLI 2.102.0 (`supabase db query --local` or founder
+   `--linked`). Never `npx`.
+
+Do not use `--linked` from an agent session. Never pass `--include-roles`.
+
+`screener_concurrency_test.sql` needs a **superuser** session (`supabase_admin`
+on the local image). The `postgres` role is not superuser; `dblink_connect`
+then fails 2F003 and `dblink_connect_u` cannot be granted from `roles.sql`.
+CI `isolation` writes the ordinary inventory with
+`scripts/db/ordinary-pgtap-files.sh > "$inventory"` (every
+`supabase/tests/*.sql` except this file). The helper is a normal command;
+a nonzero exit is not consumed. Only after that success does CI run
+`supabase test db` on the list, then a separate blocking step runs this
+harness against the already-started local CI database as `supabase_admin`
+with the documented local default credentials (not a production secret).
+B3 and L7 run only after both database steps succeed.
+A default local `supabase test db` that still discovers this file as
+`postgres` must fail closed — do not skip it.
+
+If that test creates `dblink` and then aborts before its owned cleanup, a local
+superuser may run `drop extension if exists dblink;` only when no other local
+session needs it and no other copy of this harness is running (invocations
+serialize the extension lifecycle on a session-level advisory lock). Do not
+drop a pre-existing `dblink`. Stale `__pgtap_scc__*` orgs/vendors from a
+crashed run are not auto-swept (a sweep would delete a parallel invocation).
+Delete only the leftover nonce you own, locally.

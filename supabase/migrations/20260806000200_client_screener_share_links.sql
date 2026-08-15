@@ -78,16 +78,48 @@
 -- a human retyping the name, not two. Matching exact-case would mean a client who re-types a
 -- name with different casing gets a SECOND live link instead of resetting the first — the
 -- already-emailed URL for the first stays resolvable indefinitely, which is precisely the
--- leak single-active exists to prevent. The column stores the name AS TYPED (it is display
--- text, shown back to the client), and only the revoke comparison folds case — see the
--- `lower(...)` in the UPDATE below and in the index, which must match the comparison to stay
--- usable for it.
+-- leak single-active exists to prevent. The column stores the name AS TYPED after trim
+-- (`nullif(btrim(p_recipient_name), '')`). Lookup, revoke, uniqueness, and verification all
+-- use one canonical key: `nullif(lower(btrim(recipient_name)), '')`. Blank and whitespace-only
+-- values fold to NULL and share the unnamed key.
+--
+-- UNIQUENESS + TITLE LOCK (2026-08-14 repair, unapplied). Concurrent create_screener_link
+-- calls can both pass the revoke-then-insert window. The title row is locked FOR UPDATE
+-- before revoke/insert. A partial unique index on (title_id, canonical key) WHERE live
+-- screener_view, NULLS NOT DISTINCT, is the security invariant. Unexpected unique_violation
+-- is converted to a stable, non-disclosing P0001. Before the index is created, an
+-- aggregate-only DO fails closed if any title already has multiple live screener_view rows
+-- — no row is modified, revoked, or selected by identifier.
 alter table public.portal_links
   add column if not exists vendor_id      uuid references public.vendors(id) on delete restrict,
   add column if not exists recipient_name text;
 
 create index if not exists portal_links_title_recipient_idx
-  on public.portal_links (title_id, lower(recipient_name));
+  on public.portal_links (title_id, (nullif(lower(btrim(recipient_name)), '')));
+
+do $$
+declare
+  v_titles int;
+begin
+  select count(*) into v_titles from (
+    select title_id
+      from public.portal_links
+     where purpose = 'screener_view'
+       and revoked_at is null
+     group by title_id
+    having count(*) > 1
+  ) s;
+  if v_titles > 0 then
+    raise exception
+      'portal_links_active_screener_recipient_uidx: % titles have multiple live screener_view rows; founder remediation required; no rows changed',
+      v_titles;
+  end if;
+end $$;
+
+create unique index if not exists portal_links_active_screener_recipient_uidx
+  on public.portal_links (title_id, (nullif(lower(btrim(recipient_name)), '')))
+  nulls not distinct
+  where purpose = 'screener_view' and revoked_at is null;
 
 -- The 4-arg signature is being replaced by a 5-arg one (p_recipient_name added). A plain CREATE
 -- OR REPLACE with a different argument list creates a SECOND overload instead of replacing the
@@ -108,13 +140,16 @@ declare
   v_org    uuid;
   v_is_gc  boolean;
   v_id     uuid;
+  v_recipient_key text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
   -- org_id and status are needed for authorization, so read them with the source.
+  -- FOR UPDATE serializes concurrent mints on this title (unique index is the invariant).
   select screener_source, status, org_id
     into v_source, v_status, v_org
-    from public.titles where id = p_title_id;
+    from public.titles where id = p_title_id
+    for update;
   if not found then raise exception 'Title not found'; end if;
 
   if not public.member_can(auth.uid(), v_org, 'operate') then
@@ -144,28 +179,32 @@ begin
   end if;
 
   -- Single active link per (title, recipient, side). Replacing Tubi's link must not touch
-  -- Roku's, and neither may touch GC's outstanding vendor link. `is not distinct from` is
-  -- required, not cosmetic: in SQL's three-valued logic `null = null` evaluates to null (not
-  -- true), so a plain `=` would never match two of GC's unnamed links to each other and they
-  -- would accumulate forever instead of single-active resetting. `lower(...)` on both sides
-  -- makes the match case-insensitive — 'Tubi' and 'tubi' are the same buyer to whoever retyped
-  -- the name, and matching exact-case would leave the first casing's link live and resolvable
-  -- forever instead of resetting it (see header). The stored column itself keeps the case as
-  -- typed; only the comparison folds it.
-  update public.portal_links
-     set revoked_at = now()
-   where title_id = p_title_id
-     and purpose = 'screener_view'
-     and revoked_at is null
-     and public.is_gc_staff(created_by) = v_is_gc
-     and lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''));
+  -- Roku's, and neither may touch GC's outstanding vendor link. Canonical key
+  -- `nullif(lower(btrim(recipient_name)), '')` is required for lookup, revoke, and the
+  -- unique index: NULL and blank/whitespace share the unnamed key; 'Tubi'/'tubi'/' Tubi '
+  -- are one buyer. `is not distinct from` is required so two unnamed keys match.
+  -- Display storage stays `nullif(btrim(p_recipient_name), '')` (case-preserving).
+  v_recipient_key := nullif(lower(btrim(p_recipient_name)), '');
 
-  insert into public.portal_links
-    (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
-  values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
-          coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
-  returning id into v_id;
-  return v_id;
+  begin
+    update public.portal_links
+       set revoked_at = now()
+     where title_id = p_title_id
+       and purpose = 'screener_view'
+       and revoked_at is null
+       and public.is_gc_staff(created_by) = v_is_gc
+       and nullif(lower(btrim(recipient_name)), '') is not distinct from v_recipient_key;
+
+    insert into public.portal_links
+      (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
+    values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
+            coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
+    returning id into v_id;
+    return v_id;
+  exception
+    when unique_violation then
+      raise exception 'Unable to create screener link';
+  end;
 end; $$;
 
 revoke execute on function public.create_screener_link(uuid, text, timestamptz, text, text) from public, anon;

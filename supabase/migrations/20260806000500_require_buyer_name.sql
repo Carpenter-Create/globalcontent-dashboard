@@ -43,11 +43,9 @@
 -- but its comment now says what it actually is: a UX nicety duplicating a rule the database
 -- enforces regardless, not the rule itself.
 --
--- EVERYTHING ELSE IS BYTE-IDENTICAL to 20260806000300's create_screener_link body — this
--- migration's diff against that one is exactly the six new lines below (a blank comment line,
--- a two-line comment, and the three-line `if` block) and nothing else. No other function in
--- 20260806000300 (revoke_portal_link, the portal_links_select policy) or in 20260806000400
--- (title_vendor_licensed, attach_link_vendor) is touched.
+-- EVERYTHING ELSE matches 20260806000300's create_screener_link (title FOR UPDATE,
+-- canonical recipient key, unique_violation mapping) plus the buyer-name guard below.
+-- No other function in 20260806000300 or 20260806000400 is touched.
 --
 -- DESTRUCTIVE OPS (approved before apply): CREATE OR REPLACE of public.create_screener_link,
 -- IDENTICAL 5-argument signature to 20260806000300/20260806000200 — no drop, no overload, no
@@ -68,13 +66,16 @@ declare
   v_org    uuid;
   v_is_gc  boolean;
   v_id     uuid;
+  v_recipient_key text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
   -- org_id and status are needed for authorization, so read them with the source.
+  -- FOR UPDATE serializes concurrent mints on this title (unique index is the invariant).
   select screener_source, status, org_id
     into v_source, v_status, v_org
-    from public.titles where id = p_title_id;
+    from public.titles where id = p_title_id
+    for update;
   if not found then raise exception 'Title not found'; end if;
 
   if not public.member_can(auth.uid(), v_org, 'operate') then
@@ -120,27 +121,29 @@ begin
   end if;
 
   -- Single active link per (title, recipient) — full stop. No author partition: whoever shares
-  -- with a given buyer next revokes whoever shared with that buyer last, GC included. `is not
-  -- distinct from` is required, not cosmetic: in SQL's three-valued logic `null = null` evaluates
-  -- to null (not true), so a plain `=` would never match two unnamed links to each other and they
-  -- would accumulate forever instead of single-active resetting. `lower(...)` on both sides makes
-  -- the match case-insensitive — 'Tubi' and 'tubi' are the same buyer to whoever retyped the
-  -- name, and matching exact-case would leave the first casing's link live and resolvable forever
-  -- instead of resetting it. The stored column itself keeps the case as typed; only the
-  -- comparison folds it.
-  update public.portal_links
-     set revoked_at = now()
-   where title_id = p_title_id
-     and purpose = 'screener_view'
-     and revoked_at is null
-     and lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''));
+  -- with a given buyer next revokes whoever shared with that buyer last, GC included.
+  -- Canonical key `nullif(lower(btrim(recipient_name)), '')` matches the unique index.
+  -- Display storage stays `nullif(btrim(p_recipient_name), '')` (case-preserving).
+  v_recipient_key := nullif(lower(btrim(p_recipient_name)), '');
 
-  insert into public.portal_links
-    (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
-  values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
-          coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
-  returning id into v_id;
-  return v_id;
+  begin
+    update public.portal_links
+       set revoked_at = now()
+     where title_id = p_title_id
+       and purpose = 'screener_view'
+       and revoked_at is null
+       and nullif(lower(btrim(recipient_name)), '') is not distinct from v_recipient_key;
+
+    insert into public.portal_links
+      (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
+    values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
+            coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
+    returning id into v_id;
+    return v_id;
+  exception
+    when unique_violation then
+      raise exception 'Unable to create screener link';
+  end;
 end; $$;
 
 -- Signature unchanged from 20260806000300/200 (5 args) — no revoke/grant statements needed;

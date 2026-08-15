@@ -52,21 +52,20 @@
 --   unused local, this drops `created_by` from the SELECT and the `v_created_by` declaration
 --   entirely, per the "don't leave dead code" instruction — a smaller function, not a stale one.
 --
---   portal_links_select. The client branch's `and not public.is_gc_staff(created_by)` conjunct is
---   deleted, so a client with 'operate' on a title's org now sees every screener_view row for
---   that title — GC-authored included. The `purpose = 'screener_view'` conjunct is untouched and
---   still does the real gatekeeping: master_download rows remain visible only through the first
---   branch (`gc_can(auth.uid(), 'view')`), because that purpose was never given the widened
---   client branch to begin with. Removing the author conjunct doesn't touch that — the two
---   conjuncts were independent restrictions ANDed together, not one condition standing in for
---   both purposes.
+--   portal_links_select. Named GC buyer links are client-visible (founder transparency).
+--   GC-authored UNNAMED operational screener links (recipient_name IS NULL +
+--   is_gc_staff(created_by)) stay hidden from clients — those rows carry plaintext
+--   share_token for GC's ScreenerPanel. This IS the terminal safe policy; 20260808000100
+--   reinstalls the same text so an accidental edit here cannot be the last word. No
+--   committed version of this file may expose GC unnamed links to client users.
+--   master_download remains GC-only via the first branch (`gc_can(..., 'view')`).
+--   is_gc_staff(created_by) classifies the ROW AUTHOR, not the viewer.
 --
--- WHAT DOES NOT CHANGE. The case-insensitive, trim-then-fold recipient match (`lower(...) is
--- not distinct from lower(nullif(btrim(...), ''))`) — untouched, still required for the same
--- reason 20260806000200 documented it (three-valued NULL comparison, and 'Tubi'/'tubi' being the
--- same human buyer). The 14-day default expiry, the screenable-asset guard, the token/expiry
--- validation, the pre-approval status gate, and master_download's GC-only revoke and read path —
--- none of that is this migration's concern and none of it moves.
+-- WHAT DOES NOT CHANGE. Canonical recipient key `nullif(lower(btrim(recipient_name)), '')`
+-- for lookup/revoke (display storage remains case-preserving trim). The 14-day default
+-- expiry, the screenable-asset guard, the token/expiry validation, the pre-approval status
+-- gate, the title FOR UPDATE, unique_violation mapping, and master_download's GC-only
+-- revoke and read path — none of that is this migration's concern and none of it moves.
 --
 -- DESTRUCTIVE OPS (approved before apply): CREATE OR REPLACE of create_screener_link (same name,
 -- same 5-arg list — no overload, no grant change, no revoke/grant statements needed). CREATE OR
@@ -92,13 +91,16 @@ declare
   v_org    uuid;
   v_is_gc  boolean;
   v_id     uuid;
+  v_recipient_key text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
   -- org_id and status are needed for authorization, so read them with the source.
+  -- FOR UPDATE serializes concurrent mints on this title (unique index is the invariant).
   select screener_source, status, org_id
     into v_source, v_status, v_org
-    from public.titles where id = p_title_id;
+    from public.titles where id = p_title_id
+    for update;
   if not found then raise exception 'Title not found'; end if;
 
   if not public.member_can(auth.uid(), v_org, 'operate') then
@@ -130,27 +132,29 @@ begin
   end if;
 
   -- Single active link per (title, recipient) — full stop. No author partition: whoever shares
-  -- with a given buyer next revokes whoever shared with that buyer last, GC included. `is not
-  -- distinct from` is required, not cosmetic: in SQL's three-valued logic `null = null` evaluates
-  -- to null (not true), so a plain `=` would never match two unnamed links to each other and they
-  -- would accumulate forever instead of single-active resetting. `lower(...)` on both sides makes
-  -- the match case-insensitive — 'Tubi' and 'tubi' are the same buyer to whoever retyped the
-  -- name, and matching exact-case would leave the first casing's link live and resolvable forever
-  -- instead of resetting it. The stored column itself keeps the case as typed; only the
-  -- comparison folds it.
-  update public.portal_links
-     set revoked_at = now()
-   where title_id = p_title_id
-     and purpose = 'screener_view'
-     and revoked_at is null
-     and lower(recipient_name) is not distinct from lower(nullif(btrim(p_recipient_name), ''));
+  -- with a given buyer next revokes whoever shared with that buyer last, GC included.
+  -- Canonical key `nullif(lower(btrim(recipient_name)), '')` matches the unique index.
+  -- Display storage stays `nullif(btrim(p_recipient_name), '')` (case-preserving).
+  v_recipient_key := nullif(lower(btrim(p_recipient_name)), '');
 
-  insert into public.portal_links
-    (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
-  values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
-          coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
-  returning id into v_id;
-  return v_id;
+  begin
+    update public.portal_links
+       set revoked_at = now()
+     where title_id = p_title_id
+       and purpose = 'screener_view'
+       and revoked_at is null
+       and nullif(lower(btrim(recipient_name)), '') is not distinct from v_recipient_key;
+
+    insert into public.portal_links
+      (purpose, title_id, token_hash, share_token, created_by, expires_at, recipient_name)
+    values ('screener_view', p_title_id, btrim(p_token_hash), p_share_token, auth.uid(),
+            coalesce(p_expires_at, now() + interval '14 days'), nullif(btrim(p_recipient_name), ''))
+    returning id into v_id;
+    return v_id;
+  exception
+    when unique_violation then
+      raise exception 'Unable to create screener link';
+  end;
 end; $$;
 
 -- Signature unchanged from 20260806000200 (5 args) — no revoke/grant statements needed; CREATE OR
@@ -192,7 +196,7 @@ end; $$;
 
 -- Signature unchanged from 20260727000100 (1 arg) — no revoke/grant statements needed.
 
--- ---- read side: an org sees every screener link on its own title, GC's included -------
+-- ---- read side: named buyer links visible; GC unnamed operational links hidden -------
 drop policy if exists portal_links_select on public.portal_links;
 create policy portal_links_select on public.portal_links for select to authenticated
   using (
@@ -204,6 +208,10 @@ create policy portal_links_select on public.portal_links for select to authentic
         select 1 from public.titles t
         where t.id = portal_links.title_id
           and public.member_can(auth.uid(), t.org_id, 'operate')
+      )
+      and not (
+        recipient_name is null
+        and public.is_gc_staff(created_by)
       )
     )
   );

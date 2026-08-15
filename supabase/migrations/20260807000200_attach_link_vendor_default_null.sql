@@ -36,9 +36,8 @@
 -- `if p_vendor_id is null then ... -- DETACH` branch below runs completely unchanged. This
 -- migration changes no application logic, only how "no vendor" is spelled at the call boundary.
 --
--- The function body below is copied verbatim from 20260806000400_attach_link_vendor.sql. The
--- ONLY change is the added `default null` on the p_vendor_id parameter line. Diffed against the
--- original before committing; nothing else moved.
+-- The function body below is the locked 20260806000400 attach_link_vendor (portal_links
+-- row FOR UPDATE before any vendor_id decision) plus `default null` on p_vendor_id.
 --
 -- DESTRUCTIVE OPS (approved before apply): none. This is a CREATE OR REPLACE of an existing
 -- function with an identical signature and body, adding one parameter default. No table
@@ -70,9 +69,13 @@ begin
     raise exception 'Not authorized';
   end if;
 
+  -- FOR UPDATE before any vendor_id decision. Concurrent first-attaches otherwise both
+  -- read NULL and both write, producing two attach_vendor audits and a last-writer win
+  -- without force. All subsequent branches use only these locked-row values.
   select purpose, revoked_at, expires_at, vendor_id, title_id
     into v_purpose, v_revoked_at, v_expires_at, v_current_vendor, v_title_id
-    from public.portal_links where id = p_link_id;
+    from public.portal_links where id = p_link_id
+    for update;
   if not found then raise exception 'Link not found'; end if;
 
   -- master_download links get their vendor from the delivery they were minted against

@@ -40,7 +40,7 @@
 -- and the revoke-match); GC's branch is untouched -- omitting the name still succeeds.
 
 begin;
-select plan(106);
+select plan(112);
 
 -- ---- fixtures (as superuser / owner) --------------------------------------
 select set_config('t.org',     gen_random_uuid()::text, false);
@@ -244,6 +244,17 @@ select is(
 select is(
   (select revoked_at from public.portal_links where token_hash = 'tok_buyer_b'),
   null, 'buyer B''s link is untouched by buyer A''s casing change');
+
+-- Canonical key also folds surrounding whitespace; display storage stays trimmed
+-- and case-preserving (`nullif(btrim(p_recipient_name), '')`).
+select lives_ok(
+  format($$ select public.create_screener_link(%L, %L, null::timestamptz, %L, %L) $$,
+         current_setting('t.title_c'), 'tok_hulu', 'share_hulu', ' Hulu '),
+  'client creates a link with a whitespace-padded recipient name');
+select is(
+  (select recipient_name from public.portal_links where token_hash = 'tok_hulu'),
+  'Hulu',
+  'display storage is trimmed and case-preserving; uniqueness uses the canonical key');
 
 select set_config('request.jwt.claims',
   json_build_object('sub', current_setting('t.gc'), 'role','authenticated')::text, true);
@@ -868,6 +879,41 @@ select lives_ok(
   format($$ select public.create_screener_link(%L, %L) $$,
          current_setting('t.title_v'), 'tok_v_gc_noname'),
   'GC omitting the recipient name still succeeds');
+
+-- Direct-write unique index (security invariant). Owner INSERT, not the RPC.
+-- Mutation: DROP portal_links_active_screener_recipient_uidx must make the
+-- second INSERT succeed (this test then fails). Restore the index afterwards.
+reset role;
+select lives_ok(
+  format($$ insert into public.portal_links
+              (purpose, title_id, token_hash, created_by, expires_at, recipient_name)
+            values ('screener_view', %L, 'tok_uidx_1', %L, now() + interval '14 days', 'IndexDup') $$,
+         current_setting('t.title_x'), current_setting('t.owner')),
+  'owner can insert the first live screener_view for a canonical recipient');
+select throws_ok(
+  format($$ insert into public.portal_links
+              (purpose, title_id, token_hash, created_by, expires_at, recipient_name)
+            values ('screener_view', %L, 'tok_uidx_2', %L, now() + interval '14 days', 'indexdup') $$,
+         current_setting('t.title_x'), current_setting('t.owner')),
+  '23505',
+  null,
+  'unique index rejects a second live screener_view for the same canonical recipient'
+);
+select lives_ok(
+  format($$ insert into public.portal_links
+              (purpose, title_id, token_hash, created_by, expires_at)
+            values ('screener_view', %L, 'tok_uidx_null', %L, now() + interval '14 days') $$,
+         current_setting('t.title_x'), current_setting('t.owner')),
+  'owner can insert one live unnamed screener_view');
+select throws_ok(
+  format($$ insert into public.portal_links
+              (purpose, title_id, token_hash, created_by, expires_at, recipient_name)
+            values ('screener_view', %L, 'tok_uidx_blank', %L, now() + interval '14 days', '   ') $$,
+         current_setting('t.title_x'), current_setting('t.owner')),
+  '23505',
+  null,
+  'unique index treats whitespace-only recipient_name as the unnamed canonical key'
+);
 
 reset role;
 select * from finish();
