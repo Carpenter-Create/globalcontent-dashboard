@@ -14,7 +14,7 @@ import { gcTitleStatusLabel, DELIVERY_STATUS_ROW_LABELS, type TitleStatus } from
 import { ReviewControls } from "@/app/(app)/(operator)/gc/review/review-controls";
 import { LinkControls, type Suggestion } from "@/app/(app)/(operator)/gc/review/link-controls";
 import { ScreenerPanel, type ScreenerLink, type ScreenerViewer } from "@/app/(app)/(operator)/gc/review/screener-panel";
-import { GcAssets, type GcAsset } from "./gc-assets";
+import { GC_ASSETS_HEADING, GcAssets, type GcAsset } from "./gc-assets";
 import { BuyerLinks, type BuyerLink, type VendorOption } from "./buyer-links";
 import { TranscodePanel, type TranscodeJobRow } from "./transcode-panel";
 import { UNPAGINATED_MAX, DETAIL_LIST, rangeFor } from "@/lib/list-bounds";
@@ -22,8 +22,8 @@ import { isMasterLicensed, type DeliveryForLicenceCheck } from "@/lib/master-lic
 
 // The GC per-title detail = the internal review page (folds in /gc/review). Review actions
 // (approve/reject, same-work linking) show only while in_review; screener panel + metadata +
-// rights + findings always. Cross-org read via RLS's is_gc_staff bypass. Internal asset viewer
-// + delivery-from-here land in later phases of the GC-operator pass.
+// rights + findings + the existing internal asset viewer always. Cross-org read via RLS's
+// is_gc_staff bypass. Delivery-from-here remains a later phase.
 function fmtMeta(v: unknown): string {
   if (v == null || v === "") return "—";
   if (Array.isArray(v)) return v.length ? v.join(", ") : "—";
@@ -266,6 +266,13 @@ export default async function GcTitleDetail({ params }: { params: Promise<{ id: 
             ) : (
               <span className="t-body-sm text-ink-3">Not yet delivered.</span>
             )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody className="flex flex-col gap-2">
+            <span className="t-label text-ink-3">{GC_ASSETS_HEADING}</span>
+            <GcAssets assets={(assets ?? []) as GcAsset[]} />
           </CardBody>
         </Card>
 
