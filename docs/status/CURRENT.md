@@ -22,7 +22,7 @@ Architecture and phase detail: [`docs/agentic-engineering/AGENTIC_ENGINEERING_V1
 
 ## Agent roles and merge authority
 
-- **Founder** authorizes scope, merge to `main`, production actions, and destructive operations.
+- **Founder** authorizes scope. Founder alone authorizes merge to `main`, production actions, and destructive operations.
 - **Global Content Dev** may implement bounded repository work after explicit founder authorization. Planning is not implementation permission. Implementation is not merge permission.
 - **Cursor** is an available implementer, not mandatory.
 - **Codex** independently reviews the exact diff/SHA regardless of implementer.
