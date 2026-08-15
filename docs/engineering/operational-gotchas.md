@@ -105,6 +105,17 @@ a short SHA, and fails closed if the value is missing, empty, malformed, not a
 commit in this repository, or not equal to the current `HEAD`. Clean `main` is
 still required; the branch name alone is not sufficient.
 
+`--apply` then asks pinned CLI 2.102.0 `db push --dry-run` what it would apply
+to the selected target. The wrapper walks that plan line by line using the same
+filename grammar as CLI 2.102.0 (`^([0-9]+)_(.*)\.sql$`): any numeric version
+length and any suffix the CLI would accept, including hyphens, periods, spaces,
+Unicode, and an empty name. Expected banner/info lines are ignored; any other
+line fails closed. The complete ordered pending set must be exactly the
+approved nine versions. A count of nine is not enough. Extra, missing, reordered,
+or unparseable pending migrations fail closed. After typed confirmation the
+wrapper dry-runs again; if the pending set changed, it stops and does not
+`db push`.
+
 Before a production apply of these nine:
 
 1. Run [`scripts/security/preflight-screener-active-dupes.sql`](../../scripts/security/preflight-screener-active-dupes.sql)
@@ -124,9 +135,16 @@ Do not use `--linked` from an agent session. Never pass `--include-roles`.
 `screener_concurrency_test.sql` needs a **superuser** session (`supabase_admin`
 on the local image). The `postgres` role is not superuser; `dblink_connect`
 then fails 2F003 and `dblink_connect_u` cannot be granted from `roles.sql`.
-Run that file via `supabase test db --db-url` as `supabase_admin` using the
-documented local default credentials (not a production secret). Default
-`supabase test db` as `postgres` must fail closed on this file — do not skip it.
+CI `isolation` writes the ordinary inventory with
+`scripts/db/ordinary-pgtap-files.sh > "$inventory"` (every
+`supabase/tests/*.sql` except this file). The helper is a normal command;
+a nonzero exit is not consumed. Only after that success does CI run
+`supabase test db` on the list, then a separate blocking step runs this
+harness against the already-started local CI database as `supabase_admin`
+with the documented local default credentials (not a production secret).
+B3 and L7 run only after both database steps succeed.
+A default local `supabase test db` that still discovers this file as
+`postgres` must fail closed — do not skip it.
 
 If that test creates `dblink` and then aborts before its owned cleanup, a local
 superuser may run `drop extension if exists dblink;` only when no other local

@@ -106,10 +106,38 @@ jobs:
       - name: Start Supabase
         run: supabase start
 
-      # 275 assertions across 22 files, including rls_tenant_isolation_test.sql, which
-      # correctly drops to `set local role authenticated` rather than testing as owner.
+      # Ordinary pgTAP only. `screener_concurrency_test.sql` needs supabase_admin
+      # (dblink); the default `postgres` role is not superuser and that file must
+      # not run in this step. The helper lists every supabase/tests/*.sql except
+      # that one name, sorted, so a new ordinary test is included automatically.
       - name: Database tests (pgTAP)
-        run: supabase test db
+        run: |
+          set -euo pipefail
+          inventory="$(mktemp)"
+          cleanup_inventory() { rm -f "$inventory"; }
+          trap cleanup_inventory EXIT
+          # Helper is a normal command. Its exit status is required. Do not
+          # consume a partially written inventory from a failed helper.
+          scripts/db/ordinary-pgtap-files.sh > "$inventory"
+          files=()
+          file_count=0
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            files+=("$f")
+            file_count=$((file_count + 1))
+          done < "$inventory"
+          test "$file_count" -gt 0
+          supabase test db "${files[@]}"
+
+      # Real 26-assertion two-session harness against the already-started local
+      # CI database. Uses the image's documented local supabase_admin default
+      # (not a production secret). Fails this required job if the harness fails.
+      - name: Concurrent screener harness (privileged, local)
+        run: |
+          set -euo pipefail
+          supabase test db \
+            --db-url "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" \
+            supabase/tests/screener_concurrency_test.sql
 
       # Baselined: fails on a NEW isolation failure, not on the known-open ones. The
       # baseline and the reason for each entry live at the foot of the script.
