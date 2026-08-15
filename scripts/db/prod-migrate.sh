@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# prod-migrate.sh — founder-executed wrapper for the nine 20260806–20260808 migrations.
+# prod-migrate.sh — founder-executed wrapper for a reusable production apply.
 #
 # Requires Supabase CLI exactly 2.102.0 on PATH. Never invokes npx.
 # Default is rehearsal: repository checks only. No database connection.
@@ -10,9 +10,10 @@
 #
 # --apply requires GC_PROD_APPROVED_SHA, supplied by the founder immediately
 # before production execution. The script never defaults that value from HEAD.
-# --apply also requires the target's complete pending set (from
-# `db push --dry-run`) to equal the approved nine, in order, both before
-# typed confirmation and again immediately before the mutating push.
+# --apply also requires a complete pending set from `db push --dry-run`.
+# That ordered set is pinned for the run (founder-visible) and re-checked
+# immediately before the mutating push. This script does not invent or
+# hardcode a pending list.
 #
 # Usage:
 #   scripts/db/prod-migrate.sh
@@ -21,22 +22,12 @@
 #   GC_PROD_APPROVED_SHA=<40-char sha> scripts/db/prod-migrate.sh --apply --target linked
 #
 # --apply writes the remote (or local) database. Founder-only. Requires typing
-# APPLY NINE MIGRATIONS. Agents must not pass --apply.
+# the confirmation string for the pinned pending set of that run. Agents must
+# not pass --apply.
 
 set -euo pipefail
 
 REQUIRED_CLI='2.102.0'
-PENDING_VERSIONS=(
-  20260806000100
-  20260806000200
-  20260806000300
-  20260806000400
-  20260806000500
-  20260807000100
-  20260807000200
-  20260808000100
-  20260808000200
-)
 
 TARGET=''
 APPLY=0
@@ -46,25 +37,27 @@ usage() {
   cat <<'EOF'
 Usage: scripts/db/prod-migrate.sh [--target local|linked] [--apply]
 
-Default (no flags): rehearsal. Verifies CLI 2.102.0, git state, and the nine
-pending migration files. Does not connect to any database and does not apply.
+Default (no flags): rehearsal. Verifies CLI 2.102.0 and a clean working tree.
+Does not connect to any database, does not invent a pending list, and does
+not apply.
 
   --target local    supabase db push --dry-run --local
   --target linked   supabase db push --dry-run --linked
   --apply           actually push (requires --target, GC_PROD_APPROVED_SHA,
-                    clean main at that SHA, exact pending nine, and typed
-                    confirmation)
+                    clean main at that SHA, a parseable pending set from
+                    dry-run, and typed confirmation of that exact set)
 
 --apply requires the founder-approved production release SHA in
 GC_PROD_APPROVED_SHA (40-character hexadecimal commit). The script will not
 derive that value from HEAD. The variable must name an existing commit that
 equals the currently checked-out HEAD.
 
---apply asks CLI 2.102.0 `db push --dry-run` what it would apply, requires
-that complete ordered set to be exactly the approved nine, then asks again
-after typed confirmation before any mutating push.
+--apply asks CLI 2.102.0 `db push --dry-run` what it would apply, pins that
+complete ordered set for the run, then asks again after typed confirmation
+before any mutating push. An empty pending set (database up to date) is a
+clean stop, not an apply. Ambiguous or unparseable dry-run output is refused.
 
-Never uses npx. Never embeds credentials.
+Never uses npx. Never embeds credentials. Never --include-roles.
 EOF
 }
 
@@ -119,6 +112,10 @@ is_expected_dry_run_info_line() {
     '') return 0 ;;
   esac
   return 1
+}
+
+is_up_to_date_line() {
+  [[ "$1" == 'Local database is up to date.' || "$1" == 'Remote database is up to date.' ]]
 }
 
 # State 0 — linked connection/setup, before the dry-run banner only.
@@ -189,14 +186,16 @@ normalize_pending_list_line() {
 CLI_DRY_RUN_FINISHED='Finished supabase db push.'
 
 # Parse CLI 2.102.0 `db push --dry-run` text into PENDING_ACTUAL (version
-# numbers in listed order).
+# numbers in listed order). Empty PENDING_ACTUAL means the dry-run reported
+# the database up to date.
 #
 # State 0: optional one exact non-debug login-role line, only before the banner.
-# State A: command plan — required banner, info, and pending filenames.
+# State A: command plan — required banner, info, pending filenames or an
+#          exact up-to-date line.
 # State B: exact terminal footer `Finished supabase db push.`
 # State C: optional one complete two-line root upgrade notice.
 # After the footer, no migration, setup, or command-plan line is accepted.
-# Does not read application rows.
+# Does not read application rows. Does not invent a pending list.
 parse_pending_versions() {
   local text="$1"
   local -a found=()
@@ -205,14 +204,11 @@ parse_pending_versions() {
   local epilogue=0
   local banner_seen=0
   local setup_seen=0
+  local up_to_date_seen=0
   PENDING_ACTUAL=()
 
   if [[ "$text" != *"${CLI_DRY_RUN_BANNER}"* ]]; then
     echo "error: dry-run output missing required non-mutating banner; refusing to parse" >&2
-    return 1
-  fi
-  if [[ "$text" == *" is up to date."* ]]; then
-    echo "error: dry-run reports database up to date; pending set is empty, not the approved nine" >&2
     return 1
   fi
 
@@ -251,8 +247,12 @@ parse_pending_versions() {
     fi
 
     if [[ "$line" == "$CLI_DRY_RUN_FINISHED" ]]; then
-      if [[ "${#found[@]}" -eq 0 ]]; then
+      if [[ "${#found[@]}" -eq 0 && "$up_to_date_seen" -ne 1 ]]; then
         echo "error: dry-run completion footer appeared before any pending migration; refusing" >&2
+        return 1
+      fi
+      if [[ "${#found[@]}" -ne 0 && "$up_to_date_seen" -eq 1 ]]; then
+        echo "error: dry-run reports both pending migrations and up to date; refusing" >&2
         return 1
       fi
       footer_seen=1
@@ -277,6 +277,23 @@ parse_pending_versions() {
       continue
     fi
 
+    if is_up_to_date_line "$line"; then
+      if [[ "$banner_seen" -eq 0 ]]; then
+        echo "error: up-to-date line before dry-run banner; refusing" >&2
+        return 1
+      fi
+      if [[ "${#found[@]}" -ne 0 ]]; then
+        echo "error: dry-run reports both pending migrations and up to date; refusing" >&2
+        return 1
+      fi
+      if [[ "$up_to_date_seen" -ne 0 ]]; then
+        echo "error: duplicate up-to-date line; refusing" >&2
+        return 1
+      fi
+      up_to_date_seen=1
+      continue
+    fi
+
     if is_expected_dry_run_info_line "$line"; then
       if [[ "$banner_seen" -eq 0 ]]; then
         echo "error: command-plan info before dry-run banner; refusing" >&2
@@ -289,6 +306,10 @@ parse_pending_versions() {
     if is_cli_migration_filename "$candidate"; then
       if [[ "$banner_seen" -eq 0 ]]; then
         echo "error: migration listed before dry-run banner; refusing" >&2
+        return 1
+      fi
+      if [[ "$up_to_date_seen" -eq 1 ]]; then
+        echo "error: dry-run reports both pending migrations and up to date; refusing" >&2
         return 1
       fi
       found+=("${BASH_REMATCH[1]}")
@@ -309,6 +330,10 @@ parse_pending_versions() {
   fi
 
   if [[ "${#found[@]}" -eq 0 ]]; then
+    if [[ "$up_to_date_seen" -eq 1 ]]; then
+      PENDING_ACTUAL=()
+      return 0
+    fi
     echo "error: dry-run banner present but no pending migration filenames could be parsed" >&2
     return 1
   fi
@@ -327,24 +352,8 @@ parse_pending_versions() {
   return 0
 }
 
-assert_pending_equals_approved() {
-  local expected actual
-  expected="$(printf '%s\n' "${PENDING_VERSIONS[@]}")"
-  actual="$(printf '%s\n' "${PENDING_ACTUAL[@]}")"
-  if [[ "$expected" != "$actual" ]]; then
-    echo "error: complete pending set is not the approved nine (exact versions and order required)" >&2
-    echo "expected (${#PENDING_VERSIONS[@]}):" >&2
-    printf '  %s\n' "${PENDING_VERSIONS[@]}" >&2
-    echo "actual (${#PENDING_ACTUAL[@]}):" >&2
-    printf '  %s\n' "${PENDING_ACTUAL[@]}" >&2
-    return 1
-  fi
-  return 0
-}
-
 require_exact_pending_set_from_text() {
-  parse_pending_versions "$1" || return 1
-  assert_pending_equals_approved
+  parse_pending_versions "$1"
 }
 
 require_exact_pending_set_from_cli() {
@@ -369,7 +378,65 @@ require_exact_pending_set_from_cli() {
 }
 
 pending_fingerprint() {
+  if [[ "${#PENDING_ACTUAL[@]}" -eq 0 ]]; then
+    printf ''
+    return 0
+  fi
   printf '%s\n' "${PENDING_ACTUAL[@]}"
+}
+
+# Typed founder confirmation for the pinned pending set of this run.
+# Digits and versions only — never a frozen "nine" and never a baked list.
+pending_confirmation() {
+  local n="${#PENDING_ACTUAL[@]}"
+  local joined=''
+  if [[ "$n" -eq 0 ]]; then
+    echo "error: pending_confirmation called with an empty pending set" >&2
+    return 1
+  fi
+  joined="${PENDING_ACTUAL[*]}"
+  if [[ "$n" -eq 1 ]]; then
+    printf 'APPLY 1 MIGRATION: %s' "$joined"
+  else
+    printf 'APPLY %s MIGRATIONS: %s' "$n" "$joined"
+  fi
+}
+
+require_pending_files() {
+  local ver match count
+  if [[ "${#PENDING_ACTUAL[@]}" -eq 0 ]]; then
+    return 0
+  fi
+  for ver in "${PENDING_ACTUAL[@]}"; do
+    match="$(find supabase/migrations -maxdepth 1 -name "${ver}_*.sql" -print)"
+    if [[ -z "$match" ]]; then
+      echo "error: missing migration file for pending version $ver" >&2
+      return 1
+    fi
+    count="$(printf '%s\n' "$match" | grep -c .)"
+    if [[ "$count" -ne 1 ]]; then
+      echo "error: pending version $ver matched $count migration files; refusing" >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
+print_pinned_pending_set() {
+  local ver match
+  echo "pinned pending set (${#PENDING_ACTUAL[@]}):"
+  if [[ "${#PENDING_ACTUAL[@]}" -eq 0 ]]; then
+    echo "  (empty)"
+    return 0
+  fi
+  for ver in "${PENDING_ACTUAL[@]}"; do
+    match="$(find supabase/migrations -maxdepth 1 -name "${ver}_*.sql" -print 2>/dev/null || true)"
+    if [[ -n "$match" ]]; then
+      echo "  $ver  $match"
+    else
+      echo "  $ver"
+    fi
+  done
 }
 
 # Sourced by scripts/db/prod-migrate.test.sh. Does not run apply.
@@ -463,19 +530,10 @@ if [[ "$APPLY" -eq 1 ]]; then
   fi
 fi
 
-echo "pending migration files:"
-for ver in "${PENDING_VERSIONS[@]}"; do
-  match="$(find supabase/migrations -maxdepth 1 -name "${ver}_*.sql" -print)"
-  if [[ -z "$match" ]]; then
-    echo "error: missing migration file for $ver" >&2
-    exit 1
-  fi
-  echo "  $match"
-done
-
 if [[ "$APPLY" -eq 0 && -z "$TARGET" ]]; then
   echo "rehearsal complete (no database connection)."
   echo "CLI 2.102.0 supported rehearsal: supabase db push --dry-run --local|--linked"
+  echo "pending set is taken from that dry-run; this rehearsal does not invent one."
   exit 0
 fi
 
@@ -487,13 +545,21 @@ fi
 
 echo "checking complete pending set via $CLI db push --dry-run --$TARGET"
 require_exact_pending_set_from_cli
+if [[ "${#PENDING_ACTUAL[@]}" -eq 0 ]]; then
+  echo "pending set is empty; nothing to apply."
+  exit 0
+fi
+require_pending_files
 FIRST_PENDING_FP="$(pending_fingerprint)"
-echo "pending set matches the approved nine."
+EXPECTED_CONFIRM="$(pending_confirmation)"
+print_pinned_pending_set
+echo "pending set pinned from dry-run for this run."
 
 echo "APPLY will run: $CLI db push --$TARGET"
-echo "This writes the selected database. Type APPLY NINE MIGRATIONS to continue."
+echo "This writes the selected database. Type the confirmation string for this pending set to continue."
+echo "$EXPECTED_CONFIRM"
 read -r -p '> ' CONFIRM
-if [[ "$CONFIRM" != 'APPLY NINE MIGRATIONS' ]]; then
+if [[ "$CONFIRM" != "$EXPECTED_CONFIRM" ]]; then
   echo "error: confirmation mismatch; nothing applied" >&2
   exit 1
 fi

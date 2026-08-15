@@ -113,6 +113,102 @@ NINE_NAMES=(
   20260808000100_hide_gc_unnamed_screener_links.sql
   20260808000200_portal_resolve_screener_asset_kind.sql
 )
+NINE_VERSIONS=(
+  20260806000100
+  20260806000200
+  20260806000300
+  20260806000400
+  20260806000500
+  20260807000100
+  20260807000200
+  20260808000100
+  20260808000200
+)
+# Later pending-set fixture. Deliberately not the 20260815 client-directory
+# versions — those must not become a baked next apply list.
+TWO_NAMES=(
+  20260999000100_later_pending_a.sql
+  20260999000200_later_pending_b.sql
+)
+TWO_VERSIONS=(
+  20260999000100
+  20260999000200
+)
+TWO_BODY="$(cat <<'EOF'
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to local database...
+Would push these migrations:
+ • 20260999000100_later_pending_a.sql
+ • 20260999000200_later_pending_b.sql
+EOF
+)"
+TWO_DRY_RUN="${TWO_BODY}
+${FINISHED}"
+ONE_DRY_RUN="$(cat <<EOF
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to local database...
+Would push this migration:
+ • 20260999000100_later_pending_a.sql
+${FINISHED}
+EOF
+)"
+UP_TO_DATE_LOCAL="$(cat <<EOF
+DRY RUN: migrations will *not* be pushed to the database.
+Local database is up to date.
+${FINISHED}
+EOF
+)"
+UP_TO_DATE_REMOTE="$(cat <<EOF
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Remote database is up to date.
+${FINISHED}
+${UPGRADE}
+EOF
+)"
+UP_TO_DATE_INCOMPLETE=$'DRY RUN: migrations will *not* be pushed to the database.\nLocal database is up to date.\n'
+
+confirm_for() {
+  PENDING_ACTUAL=("$@")
+  pending_confirmation
+}
+
+NINE_CONFIRM="$(confirm_for "${NINE_VERSIONS[@]}")"
+TWO_CONFIRM="$(confirm_for "${TWO_VERSIONS[@]}")"
+ONE_CONFIRM="$(confirm_for 20260999000100)"
+TEN_HYPHEN_CONFIRM="$(confirm_for "${NINE_VERSIONS[@]}" 20260809000100)"
+TEN_EXTRA_NAME='20260809000100_unexpected-extra.sql'
+
+expect_parse_ok() {
+  local name="$1"
+  local text="$2"
+  if require_exact_pending_set_from_text "$text"; then
+    pass "$name"
+  else
+    fail "$name"
+  fi
+}
+
+expect_pending_versions() {
+  local name="$1"
+  shift
+  local expected actual
+  if [[ "$#" -eq 0 ]]; then
+    expected=''
+  else
+    expected="$(printf '%s\n' "$@")"
+  fi
+  if [[ "${#PENDING_ACTUAL[@]}" -eq 0 ]]; then
+    actual=''
+  else
+    actual="$(printf '%s\n' "${PENDING_ACTUAL[@]}")"
+  fi
+  if [[ "$expected" == "$actual" ]]; then
+    pass "$name"
+  else
+    fail "$name"
+  fi
+}
 
 expect_parse_fail() {
   local name="$1"
@@ -126,8 +222,36 @@ expect_parse_fail() {
 
 if require_exact_pending_set_from_text "$NINE_DRY_RUN"; then
   pass 'exact_nine_with_completion_footer'
+  expect_pending_versions 'exact_nine_versions_from_dry_run' "${NINE_VERSIONS[@]}"
 else
   fail 'exact_nine_with_completion_footer'
+  fail 'exact_nine_versions_from_dry_run'
+fi
+
+if [[ "$NINE_CONFIRM" == 'APPLY NINE MIGRATIONS' ]]; then
+  fail 'nine_confirm_is_not_frozen_phrase'
+else
+  pass 'nine_confirm_is_not_frozen_phrase'
+fi
+if [[ "$NINE_CONFIRM" == "APPLY 9 MIGRATIONS: ${NINE_VERSIONS[*]}" ]]; then
+  pass 'nine_confirm_describes_actual_set'
+else
+  fail 'nine_confirm_describes_actual_set'
+fi
+if [[ "$TWO_CONFIRM" == "APPLY 2 MIGRATIONS: ${TWO_VERSIONS[*]}" ]]; then
+  pass 'two_confirm_describes_actual_set'
+else
+  fail 'two_confirm_describes_actual_set'
+fi
+if [[ "$ONE_CONFIRM" == 'APPLY 1 MIGRATION: 20260999000100' ]]; then
+  pass 'one_confirm_describes_actual_set'
+else
+  fail 'one_confirm_describes_actual_set'
+fi
+if [[ "$NINE_CONFIRM" == "$TWO_CONFIRM" ]]; then
+  fail 'confirmations_differ_across_pending_sets'
+else
+  pass 'confirmations_differ_across_pending_sets'
 fi
 
 expect_parse_fail 'nine_without_completion_footer_must_fail' "$NINE_BODY"
@@ -324,16 +448,27 @@ ${NO_SETUP_LINKED_DRY_RUN}"
 CAPTURED_NO_BANNER="$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | grep -v -F 'DRY RUN: migrations will *not* be pushed to the database.')"
 expect_parse_fail 'captured_missing_banner_must_fail' "$CAPTURED_NO_BANNER"
 CAPTURED_EIGHT="$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | grep -v '20260808000200')"
-expect_parse_fail 'captured_eight_pending_must_fail' "$CAPTURED_EIGHT"
-expect_parse_fail 'captured_tenth_conventional_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected_extra.sql
+expect_parse_ok 'captured_eight_pending_parses_as_reported' "$CAPTURED_EIGHT"
+expect_pending_versions 'captured_eight_versions' \
+  20260806000100 20260806000200 20260806000300 20260806000400 20260806000500 \
+  20260807000100 20260807000200 20260808000100
+expect_parse_ok 'captured_tenth_conventional_parses_as_reported' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected_extra.sql
 Finished supabase db push.}"
-expect_parse_fail 'captured_tenth_hyphenated_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected-extra.sql
+expect_pending_versions 'captured_tenth_conventional_versions' "${NINE_VERSIONS[@]}" 20260809000100
+expect_parse_ok 'captured_tenth_hyphenated_parses_as_reported' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected-extra.sql
 Finished supabase db push.}"
-expect_parse_fail 'captured_replaced_version_must_fail' "${CAPTURED_LINKED_DRY_RUN/20260808000200_portal_resolve_screener_asset_kind.sql/20260809000100_unexpected_swap.sql}"
+expect_pending_versions 'captured_tenth_hyphenated_versions' "${NINE_VERSIONS[@]}" 20260809000100
+expect_parse_ok 'captured_replaced_version_parses_as_reported' "${CAPTURED_LINKED_DRY_RUN/20260808000200_portal_resolve_screener_asset_kind.sql/20260809000100_unexpected_swap.sql}"
+expect_pending_versions 'captured_replaced_versions' \
+  20260806000100 20260806000200 20260806000300 20260806000400 20260806000500 \
+  20260807000100 20260807000200 20260808000100 20260809000100
 CAPTURED_REORDERED="${CAPTURED_LINKED_DRY_RUN/ • 20260806000100_asset_kind_add_trailer.sql
  • 20260806000200_client_screener_share_links.sql/ • 20260806000200_client_screener_share_links.sql
  • 20260806000100_asset_kind_add_trailer.sql}"
-expect_parse_fail 'captured_reordered_must_fail' "$CAPTURED_REORDERED"
+expect_parse_ok 'captured_reordered_parses_as_reported' "$CAPTURED_REORDERED"
+expect_pending_versions 'captured_reordered_versions' \
+  20260806000200 20260806000100 20260806000300 20260806000400 20260806000500 \
+  20260807000100 20260807000200 20260808000100 20260808000200
 expect_parse_fail 'captured_duplicate_version_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260806000100_duplicate-name.sql
 Finished supabase db push.}"
 expect_parse_fail 'captured_malformed_list_must_fail' "${CAPTURED_LINKED_DRY_RUN/ • 20260808000200_portal_resolve_screener_asset_kind.sql/ • not-a-migration.sql}"
@@ -359,46 +494,59 @@ fi
 
 EIGHT="$(printf '%s\n' "$NINE_BODY" | grep -v '20260808000200')
 ${FINISHED}"
-expect_parse_fail 'eight_pending_must_fail' "$EIGHT"
+expect_parse_ok 'eight_pending_parses_as_reported' "$EIGHT"
+expect_pending_versions 'eight_pending_versions' \
+  20260806000100 20260806000200 20260806000300 20260806000400 20260806000500 \
+  20260807000100 20260807000200 20260808000100
 
 TEN_CONVENTIONAL="${NINE_BODY}
  • 20260809000100_unexpected_extra.sql
 ${FINISHED}"
-expect_parse_fail 'ten_conventional_must_fail' "$TEN_CONVENTIONAL"
+expect_parse_ok 'ten_conventional_parses_as_reported' "$TEN_CONVENTIONAL"
+expect_pending_versions 'ten_conventional_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 TEN_HYPHEN="${NINE_BODY}
  • 20260809000100_unexpected-extra.sql
 ${FINISHED}"
-expect_parse_fail 'ten_hyphenated_exploit_must_fail' "$TEN_HYPHEN"
+expect_parse_ok 'ten_hyphenated_parses_as_reported' "$TEN_HYPHEN"
+expect_pending_versions 'ten_hyphenated_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 TEN_DOT="${NINE_BODY}
  • 20260809000100_unexpected.extra.sql
 ${FINISHED}"
-expect_parse_fail 'ten_dotted_must_fail' "$TEN_DOT"
+expect_parse_ok 'ten_dotted_parses_as_reported' "$TEN_DOT"
+expect_pending_versions 'ten_dotted_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 TEN_SPACE="${NINE_BODY}
  • 20260809000100_unexpected extra.sql
 ${FINISHED}"
-expect_parse_fail 'ten_spaced_must_fail' "$TEN_SPACE"
+expect_parse_ok 'ten_spaced_parses_as_reported' "$TEN_SPACE"
+expect_pending_versions 'ten_spaced_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 TEN_EMPTY="${NINE_BODY}
  • 20260809000100_.sql
 ${FINISHED}"
-expect_parse_fail 'ten_empty_suffix_must_fail' "$TEN_EMPTY"
+expect_parse_ok 'ten_empty_suffix_parses_as_reported' "$TEN_EMPTY"
+expect_pending_versions 'ten_empty_suffix_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 TEN_SHORTVER="${NINE_BODY}
  • 123_extra.sql
 ${FINISHED}"
-expect_parse_fail 'ten_short_version_must_fail' "$TEN_SHORTVER"
+expect_parse_ok 'ten_short_version_parses_as_reported' "$TEN_SHORTVER"
+expect_pending_versions 'ten_short_version_versions' "${NINE_VERSIONS[@]}" 123
 
 TEN_UNICODE="${NINE_BODY}
  • 20260809000100_意外.sql
 ${FINISHED}"
-expect_parse_fail 'ten_unicode_must_fail' "$TEN_UNICODE"
+expect_parse_ok 'ten_unicode_parses_as_reported' "$TEN_UNICODE"
+expect_pending_versions 'ten_unicode_versions' "${NINE_VERSIONS[@]}" 20260809000100
 
 REPLACED="${NINE_BODY/20260808000200_portal_resolve_screener_asset_kind.sql/20260809000100_unexpected_swap.sql}
 ${FINISHED}"
-expect_parse_fail 'replaced_version_must_fail' "$REPLACED"
+expect_parse_ok 'replaced_version_parses_as_reported' "$REPLACED"
+expect_pending_versions 'replaced_versions' \
+  20260806000100 20260806000200 20260806000300 20260806000400 20260806000500 \
+  20260807000100 20260807000200 20260808000100 20260809000100
 
 REORDERED="$(cat <<EOF
 DRY RUN: migrations will *not* be pushed to the database.
@@ -415,7 +563,10 @@ Would push these migrations:
 ${FINISHED}
 EOF
 )"
-expect_parse_fail 'invalid_order_must_fail' "$REORDERED"
+expect_parse_ok 'reordered_parses_as_reported' "$REORDERED"
+expect_pending_versions 'reordered_versions' \
+  20260808000200 20260806000100 20260806000200 20260806000300 20260806000400 \
+  20260806000500 20260807000100 20260807000200 20260808000100
 
 DUP="${NINE_BODY}
  • 20260806000100_duplicate-name.sql
@@ -423,8 +574,18 @@ ${FINISHED}"
 expect_parse_fail 'duplicate_version_must_fail' "$DUP"
 
 expect_parse_fail 'missing_banner_must_fail' 'Connecting to local database...'
-expect_parse_fail 'up_to_date_must_fail' \
-  $'DRY RUN: migrations will *not* be pushed to the database.\nLocal database is up to date.\n'
+expect_parse_fail 'up_to_date_without_footer_must_fail' "$UP_TO_DATE_INCOMPLETE"
+expect_parse_ok 'up_to_date_local_is_empty_pending' "$UP_TO_DATE_LOCAL"
+expect_pending_versions 'up_to_date_local_versions'
+expect_parse_ok 'up_to_date_remote_is_empty_pending' "$UP_TO_DATE_REMOTE"
+expect_pending_versions 'up_to_date_remote_versions'
+expect_parse_ok 'two_pending_parses_from_dry_run' "$TWO_DRY_RUN"
+expect_pending_versions 'two_pending_versions' "${TWO_VERSIONS[@]}"
+expect_parse_ok 'one_pending_parses_from_dry_run' "$ONE_DRY_RUN"
+expect_pending_versions 'one_pending_versions' 20260999000100
+expect_parse_fail 'up_to_date_and_pending_must_fail' "${NINE_BODY}
+Local database is up to date.
+${FINISHED}"
 expect_parse_fail 'unparseable_must_fail' \
   $'DRY RUN: migrations will *not* be pushed to the database.\nConnecting...\nno filenames here\n'
 expect_parse_fail 'ambiguous_sql_line_must_fail' \
@@ -649,7 +810,7 @@ init_temp_repo() {
   cp "$ROOT/scripts/db/prod-migrate.sh" "$work/scripts/db/prod-migrate.sh"
   chmod +x "$work/scripts/db/prod-migrate.sh"
   local name
-  for name in "${NINE_NAMES[@]}"; do
+  for name in "${NINE_NAMES[@]}" "${TWO_NAMES[@]}" "$TEN_EXTRA_NAME"; do
     : > "$work/supabase/migrations/$name"
   done
   (
@@ -706,7 +867,7 @@ APPROVED="$(cd "$WORK" && git rev-parse HEAD)"
 
 # Successful controlled path: exactly one fake mutating push.
 reset_fake "$FAKE"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
   if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
     pass 'e2e_success_one_fake_mutation'
@@ -728,7 +889,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "$NINE_WITH_UPGRADE" > "$FAKE/dry_first"
 printf '%s\n' "$NINE_WITH_UPGRADE" > "$FAKE/dry_second"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
   if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
     pass 'e2e_success_with_upgrade_notice_one_mutation'
@@ -749,7 +910,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" > "$FAKE/dry_first"
 printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" > "$FAKE/dry_second"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null; then
   if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
     pass 'e2e_success_c_captured_linked_one_mutation'
@@ -770,7 +931,7 @@ fi
 # Second dry-run contains an extra migration after confirmation.
 reset_fake "$FAKE"
 printf '%s\n' "$TEN_HYPHEN" > "$FAKE/dry_second"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_second_plan_changed_must_fail'
 else
@@ -786,7 +947,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "${NINE_DRY_RUN}
  • 20260809000100_unexpected-extra.sql" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_migration_after_footer_must_fail'
 else
@@ -802,7 +963,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "${NINE_DRY_RUN}
 ${UPGRADE_L1}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_partial_upgrade_notice_must_fail'
 else
@@ -819,7 +980,7 @@ reset_fake "$FAKE"
 printf '%s\n' "${NINE_DRY_RUN}
 A new version of Supabase CLI is available: v2.114.0 (currently installed v2.99.0)
 ${UPGRADE_L2}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_altered_installed_version_must_fail'
 else
@@ -835,7 +996,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "${NINE_DRY_RUN}
 unexpected trailing line" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_arbitrary_post_footer_must_fail'
 else
@@ -850,7 +1011,7 @@ fi
 # First dry-run has the footer mid-list (after migration 1).
 reset_fake "$FAKE"
 printf '%s\n' "$MID_LIST_AFTER_FIRST" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_mid_list_footer_must_fail'
 else
@@ -866,7 +1027,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "Checking project health...
 ${NINE_WITH_UPGRADE}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_unknown_pre_banner_must_fail'
 else
@@ -895,7 +1056,7 @@ Would push these migrations:
  • 20260808000200_portal_resolve_screener_asset_kind.sql
 ${FINISHED}
 ${UPGRADE}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_setup_after_banner_must_fail'
 else
@@ -912,7 +1073,7 @@ reset_fake "$FAKE"
 printf '%s\n' "${LINKED_SETUP_LOGIN}
 ${LINKED_SETUP_LOGIN}
 ${NINE_WITH_UPGRADE}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_duplicate_setup_must_fail'
 else
@@ -928,7 +1089,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' "${LINKED_SETUP_DB_PASSWORD}
 ${NO_SETUP_LINKED_DRY_RUN}" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null 2>&1; then
   fail 'e2e_debug_only_db_password_must_fail'
 else
@@ -943,7 +1104,7 @@ fi
 # Full debug preamble is outside the approved non-debug grammar.
 reset_fake "$FAKE"
 printf '%s\n' "$DEBUG_PREAMBLE_DRY_RUN" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null 2>&1; then
   fail 'e2e_debug_preamble_must_fail'
 else
@@ -955,10 +1116,10 @@ else
   fail 'e2e_debug_preamble_zero_mutation'
 fi
 
-# Hyphenated extra on the first plan — the reproduced exploit.
+# Hyphenated extra is part of the pending set. A stale nine confirmation fails.
 reset_fake "$FAKE"
 printf '%s\n' "$TEN_HYPHEN" > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_hyphenated_exploit_must_fail'
 else
@@ -970,9 +1131,24 @@ else
   fail 'e2e_hyphenated_exploit_zero_mutation'
 fi
 
+# Matching confirmation for that ten-item hyphenated set applies it.
+reset_fake "$FAKE"
+printf '%s\n' "$TEN_HYPHEN" > "$FAKE/dry_first"
+printf '%s\n' "$TEN_HYPHEN" > "$FAKE/dry_second"
+if printf '%s\n' "$TEN_HYPHEN_CONFIRM" | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
+    pass 'e2e_hyphenated_set_matching_confirm_one_mutation'
+  else
+    fail "e2e_hyphenated_set_matching_confirm_one_mutation (mutations=$(mutation_count "$FAKE"))"
+  fi
+else
+  fail 'e2e_hyphenated_set_matching_confirm_one_mutation'
+fi
+
 # Release gates through the real executable.
 reset_fake "$FAKE"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     env -u GC_PROD_APPROVED_SHA PATH="$FAKE:$PATH" \
     "$WORK/scripts/db/prod-migrate.sh" --apply --target local >/dev/null 2>&1; then
   fail 'e2e_missing_sha_must_fail'
@@ -986,7 +1162,7 @@ else
 fi
 
 reset_fake "$FAKE"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA='notasha' run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_malformed_sha_must_fail'
 else
@@ -1006,7 +1182,7 @@ fi
 )
 HEAD2="$(cd "$WORK" && git rev-parse HEAD)"
 reset_fake "$FAKE"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_wrong_sha_must_fail'
 else
@@ -1025,7 +1201,7 @@ fi
 
 reset_fake "$FAKE"
 echo dirty > "$WORK/dirty.txt"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_dirty_tree_must_fail'
 else
@@ -1043,7 +1219,7 @@ rm -f "$WORK/dirty.txt"
   git checkout -B not-main >/dev/null 2>&1
 )
 reset_fake "$FAKE"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_non_main_must_fail'
 else
@@ -1061,7 +1237,7 @@ fi
 
 reset_fake "$FAKE"
 echo '2.99.0' > "$FAKE/version"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_wrong_cli_version_must_fail'
 else
@@ -1076,7 +1252,7 @@ echo '2.102.0' > "$FAKE/version"
 
 reset_fake "$FAKE"
 : > "$FAKE/dry_fail_1"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_dry_run_failure_must_fail'
 else
@@ -1091,7 +1267,7 @@ fi
 reset_fake "$FAKE"
 printf '%s\n' $'DRY RUN: migrations will *not* be pushed to the database.\nConnecting...\nno filenames here\n' \
   > "$FAKE/dry_first"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_malformed_plan_must_fail'
 else
@@ -1118,7 +1294,7 @@ fi
 
 reset_fake "$FAKE"
 : > "$FAKE/dry_fail_2"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
   fail 'e2e_second_dry_run_failure_must_fail'
 else
@@ -1130,10 +1306,153 @@ else
   fail 'e2e_second_dry_run_failure_zero_mutation'
 fi
 
+# Frozen phrase is never the confirmation, even when the pending set is the old nine.
+reset_fake "$FAKE"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_frozen_nine_phrase_must_fail'
+else
+  pass 'e2e_frozen_nine_phrase_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_frozen_nine_phrase_zero_mutation'
+else
+  fail 'e2e_frozen_nine_phrase_zero_mutation'
+fi
+
+# Stale confirmation from a different pending set must fail.
+reset_fake "$FAKE"
+if printf '%s\n' "$TWO_CONFIRM" | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_stale_two_confirm_on_nine_must_fail'
+else
+  pass 'e2e_stale_two_confirm_on_nine_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_stale_two_confirm_on_nine_zero_mutation'
+else
+  fail 'e2e_stale_two_confirm_on_nine_zero_mutation'
+fi
+
+# A later pending set (not the closed nine, not the 20260815 files) can apply
+# when confirmation matches the dry-run set.
+reset_fake "$FAKE"
+printf '%s\n' "$TWO_DRY_RUN" > "$FAKE/dry_first"
+printf '%s\n' "$TWO_DRY_RUN" > "$FAKE/dry_second"
+if printf '%s\n' "$TWO_CONFIRM" | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
+    pass 'e2e_later_pending_set_one_mutation'
+  else
+    fail "e2e_later_pending_set_one_mutation (mutations=$(mutation_count "$FAKE"))"
+  fi
+else
+  fail 'e2e_later_pending_set_one_mutation'
+fi
+if [[ "$(grep -c 'db push --dry-run --local' "$FAKE/invocations" || true)" == '2' ]] \
+  && [[ "$(grep -c '^db push --local$' "$FAKE/invocations" || true)" == '1' ]]; then
+  pass 'e2e_later_pending_set_two_dry_runs_then_one_push'
+else
+  fail 'e2e_later_pending_set_two_dry_runs_then_one_push'
+fi
+
+# Nine confirmation is stale against that later set.
+reset_fake "$FAKE"
+printf '%s\n' "$TWO_DRY_RUN" > "$FAKE/dry_first"
+printf '%s\n' "$TWO_DRY_RUN" > "$FAKE/dry_second"
+if printf '%s\n' "$NINE_CONFIRM" | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_stale_nine_confirm_on_later_set_must_fail'
+else
+  pass 'e2e_stale_nine_confirm_on_later_set_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_stale_nine_confirm_on_later_set_zero_mutation'
+else
+  fail 'e2e_stale_nine_confirm_on_later_set_zero_mutation'
+fi
+
+# Empty pending set is a clean stop, not an apply.
+reset_fake "$FAKE"
+printf '%s\n' "$UP_TO_DATE_LOCAL" > "$FAKE/dry_first"
+if GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+    pass 'e2e_empty_pending_clean_stop'
+  else
+    fail "e2e_empty_pending_clean_stop (mutations=$(mutation_count "$FAKE"))"
+  fi
+else
+  fail 'e2e_empty_pending_clean_stop'
+fi
+if [[ "$(grep -c 'db push --dry-run --local' "$FAKE/invocations" || true)" == '1' ]] \
+  && [[ "$(grep -c '^db push --local$' "$FAKE/invocations" || true)" == '0' ]]; then
+  pass 'e2e_empty_pending_dry_run_only'
+else
+  fail 'e2e_empty_pending_dry_run_only'
+fi
+
+# Default rehearsal does not mutate and does not dry-run.
+reset_fake "$FAKE"
+if (
+  cd "$WORK"
+  export PATH="$FAKE:$PATH"
+  ./scripts/db/prod-migrate.sh
+) >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+    pass 'e2e_rehearsal_default_zero_mutation'
+  else
+    fail 'e2e_rehearsal_default_zero_mutation'
+  fi
+else
+  fail 'e2e_rehearsal_default_zero_mutation'
+fi
+if [[ "$(grep -c '^--version$' "$FAKE/invocations" || true)" == '1' ]] \
+  && [[ "$(grep -c 'db push' "$FAKE/invocations" || true)" == '0' ]]; then
+  pass 'e2e_rehearsal_default_version_only'
+else
+  fail 'e2e_rehearsal_default_version_only'
+fi
+
+# --target dry-run uses pinned CLI only; no mutating push.
+reset_fake "$FAKE"
+if (
+  cd "$WORK"
+  export PATH="$FAKE:$PATH"
+  ./scripts/db/prod-migrate.sh --target local
+) >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+    pass 'e2e_target_dry_run_zero_mutation'
+  else
+    fail 'e2e_target_dry_run_zero_mutation'
+  fi
+else
+  fail 'e2e_target_dry_run_zero_mutation'
+fi
+if [[ "$(grep -c 'db push --dry-run --local' "$FAKE/invocations" || true)" == '1' ]] \
+  && [[ "$(grep -c '^db push --local$' "$FAKE/invocations" || true)" == '0' ]]; then
+  pass 'e2e_target_dry_run_one_dry_run'
+else
+  fail 'e2e_target_dry_run_one_dry_run'
+fi
+
+# Successful apply never passes --include-roles.
+reset_fake "$FAKE"
+if printf '%s\n' "$NINE_CONFIRM" | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null; then
+  if grep -F -- '--include-roles' "$FAKE/invocations" >/dev/null \
+    || grep -F -- '--include-roles' "$FAKE/mutated_args" >/dev/null; then
+    fail 'e2e_success_never_include_roles'
+  else
+    pass 'e2e_success_never_include_roles'
+  fi
+else
+  fail 'e2e_success_never_include_roles'
+fi
+
 # Load-bearing source order: first check, confirm, second check, then mutate.
 SRC="$ROOT/scripts/db/prod-migrate.sh"
 first_line="$(grep -n 'checking complete pending set via' "$SRC" | head -n 1 | cut -d: -f1)"
-confirm_line="$(grep -n 'Type APPLY NINE MIGRATIONS' "$SRC" | head -n 1 | cut -d: -f1)"
+confirm_line="$(grep -n 'Type the confirmation string for this pending set' "$SRC" | head -n 1 | cut -d: -f1)"
 second_line="$(grep -n 'rechecking complete pending set before mutation' "$SRC" | head -n 1 | cut -d: -f1)"
 push_line="$(grep -n '"\$CLI" db push "--\$TARGET"' "$SRC" | tail -n 1 | cut -d: -f1)"
 if [[ -n "$first_line" && -n "$confirm_line" && -n "$second_line" && -n "$push_line" \
@@ -1177,7 +1496,7 @@ MUT_SHA="$(cd "$MUT_WORK" && git rev-parse HEAD)"
 MUT_SHA="$(cd "$MUT_WORK" && git rev-parse HEAD)"
 reset_fake "$MUT_FAKE"
 printf '%s\n' "$TEN_HYPHEN" > "$MUT_FAKE/dry_second"
-if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+if printf '%s\n' "$NINE_CONFIRM" | \
     GC_PROD_APPROVED_SHA="$MUT_SHA" run_apply "$MUT_WORK" "$MUT_FAKE" >/dev/null 2>&1; then
   :
 fi
@@ -1192,10 +1511,42 @@ fi
 if grep -F 'GC_PROD_APPROVED_SHA does not match checked-out HEAD' "$SRC" >/dev/null \
   && grep -F 'working tree is not clean' "$SRC" >/dev/null \
   && grep -F -- '--apply requires branch main' "$SRC" >/dev/null \
-  && grep -F 'require_exact_pending_set_from_cli' "$SRC" >/dev/null; then
+  && grep -F 'require_exact_pending_set_from_cli' "$SRC" >/dev/null \
+  && grep -F 'pending_confirmation' "$SRC" >/dev/null; then
   pass 'load_bearing_guards_present_in_real_wrapper'
 else
   fail 'load_bearing_guards_present_in_real_wrapper'
+fi
+
+if grep -E '^PENDING_VERSIONS=' "$SRC" >/dev/null \
+  || grep -F 'APPLY NINE MIGRATIONS' "$SRC" >/dev/null; then
+  fail 'wrapper_must_not_hardcode_nine_apply_set'
+else
+  pass 'wrapper_must_not_hardcode_nine_apply_set'
+fi
+
+if grep -E '20260815000100|20260815000200' "$SRC" >/dev/null; then
+  fail 'wrapper_must_not_hardcode_20260815_client_directory'
+else
+  pass 'wrapper_must_not_hardcode_20260815_client_directory'
+fi
+
+if grep -E 'GC_PROD_APPROVED_SHA:-|GC_PROD_APPROVED_SHA=\$\{HEAD|GC_PROD_APPROVED_SHA=\$\(git' "$SRC" >/dev/null; then
+  fail 'wrapper_must_not_default_approved_sha_from_head'
+else
+  pass 'wrapper_must_not_default_approved_sha_from_head'
+fi
+
+if grep -E 'npx[[:space:]]+(supabase|--yes|-y)' "$SRC" >/dev/null; then
+  fail 'wrapper_must_not_invoke_npx'
+else
+  pass 'wrapper_must_not_invoke_npx'
+fi
+
+if grep -E 'db push.*--include-roles|\$CLI.*--include-roles' "$SRC" >/dev/null; then
+  fail 'wrapper_must_not_pass_include_roles'
+else
+  pass 'wrapper_must_not_pass_include_roles'
 fi
 
 if [[ "$failures" -ne 0 ]]; then
