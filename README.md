@@ -39,7 +39,7 @@ Do not print or commit `.env`, `.env.*`, or anything under `secrets/`.
 | `supabase/` | Migrations, config, pgTAP |
 | `docs/` | Specs, plans, ledgers, status |
 | `scripts/` | Repo tooling (including Agentic Engineering dry-run) |
-| `AGENTS.md` | Shared Cursor/Codex governance |
+| `AGENTS.md` | Shared implementer and Codex governance |
 | `CLAUDE.md` | Claude Code compatibility shim (`@AGENTS.md`) |
 
 ## Source of truth
