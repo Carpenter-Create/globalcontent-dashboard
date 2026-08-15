@@ -117,7 +117,7 @@ which role, the org carries the consequence. Same logic that removed the stakeho
 
 ### Tiers
 
-Three tiers: **Access** (free) · **Pro** (mid) · **Premium** (top).
+Three tiers: **Access** ($397/title) · **Pro** (mid) · **Premium** (top).
 
 ```sql
 create type tier_enum as enum ('access', 'pro', 'premium');
@@ -136,14 +136,14 @@ Each tier defines three things with **three different lifetimes** — do not sto
 | `features` | current tier, read live | No | Nobody asks what features they had last February. |
 | `annual_price` | subscription record (snapshotted at purchase) | No, but frozen | Repricing a tier must not change existing subs. |
 
-Term increments follow the tier, not the name: **Access = 1 year · Pro = 1 year · Premium = 2 years.**
-Annual price: **Access = $0 · Pro = $497/yr · Premium = $997/yr** (prices end in 7 — §7). Rate
-direction: Access gives GC the **highest** share; Premium the lowest. (75/25 was illustrative only.)
+Term increments follow the tier, not the name: **Access = 1 year · Pro = 1 year · Premium = 3 years.**
+Price: **Access = $397/title · Pro = $797/yr · Premium = $1,997/yr** (prices end in 7 — §7). Rate
+direction: Access/Pro give GC the **higher** share (20%); Premium the lowest (15%). Live `tier_revenue_share_bp` is 8000 / 8000 / 8500, matching the current sheet. (75/25 was illustrative only.)
 
-> **Premium is billed ANNUALLY inside a 2-year term (decided — §21.16, option B).** $997 is per
-> **year**, not for the whole term: $997 covering 24 months would be ~$498.50/yr — i.e. Pro with a
-> lock, which is not the product. So Premium has **two dates**: an annual charge at month 12 and term
-> expiry at month 24. `term_length_months = 24`, `annual_price` literally annual. This is the
+> **Premium is billed ANNUALLY inside a 3-year term (decided — §21.16, option B, term updated to the current sheet).** $1,997 is per
+> **year**, not for the whole term: $1,997 covering 36 months would be ~$665.67/yr — i.e. cheaper than Pro with a
+> lock, which is not the product. So Premium has annual charges at months 12 and 24, and term
+> expiry at month 36. App `TIER_META.termMonths = 36`. Live SQL still writes `term_length_months = 24` until the founder-approved SQL pack is applied. `annual_price` is literally annual. This is the
 > exception to §6's "one date" — see §6.
 
 ### contract_terms
@@ -225,9 +225,9 @@ the system.
 - **Term = the tier's increment, reset on any move.** Renewal cadence, **not a commitment lock.**
   Do not put commitment language in the contract — it won't be enforced.
 - **Billing anniversary vs. term boundary.** For **Access and Pro** (1-year term, annual billing)
-  they coincide — one date. For **Premium** they do **not**: it's billed annually inside a 2-year
-  term (§5, §21.16), so there are **two dates** — the annual charge at month 12 and term expiry at
-  month 24. Model both; don't assume the anniversary equals the term boundary.
+  they coincide — one date. For **Premium** they do **not**: it's billed annually inside a 3-year
+  term (§5, §21.16), so there are annual charges at months 12 and 24, and term expiry at
+  month 36. Model both; don't assume the anniversary equals the term boundary.
 - **Credit applies against future annual charges**, drawn down before new charges. **Open (§21.19):**
   on a downgrade to **Access** (no annual charge) the credit has nothing to draw against — decide what
   happens to it.
@@ -943,10 +943,8 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
 3. **Reinstatement (§8).** Lapsed → Access → pays two months later. Upgrade differential, or old
    tier resumes?
 4. **Does takedown end the licence (§11)?** Can a client re-submit later without signing again?
-5. **Revenue-share rates (§5) — prices SET, rates still OPEN.** Prices: **Access $0 · Pro $497/yr ·
-   Premium $997/yr** (test + live catalogs are separate; test uses these real numbers to surface
-   integer-cents rounding). **Still open:** the three revenue-share rates (Access highest GC share →
-   Premium lowest).
+5. **Revenue-share rates (§5) — prices and bp rates match the current Tier Plan Pricing sheet.** Prices: **Access $397/title · Pro $797/yr ·
+   Premium $1,997/yr**. Client share bp (already in `tier_revenue_share_bp`, confirmed): **Access 8000 · Pro 8000 · Premium 8500**. Counsel agreement text remains placeholder. This is a number sync, not Brief 2.
 6. **~~E-sign vendor~~ — CLOSED.** Clickwrap replaces e-sign; there is no vendor (§5). (Number kept,
    not renumbered, to preserve the §21.9 / §21.10 cross-references.)
 7. **Globee escalation reply path (§20)** — dashboard or email?
@@ -989,16 +987,16 @@ what Globee couldn't resolve**. Not a mailto link — a feature with a design.
     pre-agreed-consent question that clickwrap makes load-bearing.
 15. **Purge window `N` (§21.10 / §11).** How many days a title may sit rejected/abandoned at
     `in_review` before its S3 asset is purged. Founder decision.
-16. **Premium: 2-year term vs. annual charge (§5/§6) — DECIDED: option B.** Premium is billed
-    **annually** ($997/yr) inside a **2-year term** — two dates (annual charge at month 12, term
-    expiry at month 24). §6's "one date" is a documented exception for Premium (reworded in §6).
-    Stripe Premium Price = annual-recurring; `term_length_months = 24`.
+16. **Premium: multi-year term vs. annual charge (§5/§6) — DECIDED: option B; term length now 3 years to match the current sheet.** Premium is billed
+    **annually** ($1,997/yr) inside a **3-year term** — annual charges at months 12 and 24, term
+    expiry at month 36. §6's "one date" is a documented exception for Premium (reworded in §6).
+    Stripe Premium Price = annual-recurring; app `termMonths = 36`. Live SQL still writes `term_length_months = 24` until the founder-approved SQL pack is applied.
 17. **Downgrade credit basis for Premium (§6) — propose, not picked.** Voluntary downgrade credits
-    "unused prepaid value." For Premium (annual $997 charge inside a 2-year term), what's the base?
-    - **(a) Unused of the current ANNUAL charge** — pro-rate the most recent $997 by remaining days
+    "unused prepaid value." For Premium (annual $1,997 charge inside a 3-year term), what's the base?
+    - **(a) Unused of the current ANNUAL charge** — pro-rate the most recent $1,997 by remaining days
       in that 12-month billing period. Credits only what was actually prepaid; consistent with annual
       billing.
-    - **(b) Unused of the full 2-year TERM** — treats the 24-month term as the prepaid unit. But under
+    - **(b) Unused of the full 3-year TERM** — treats the 36-month term as the prepaid unit. But under
       annual billing only one year is paid at a time, so this either over-credits (year 2 isn't paid
       yet) or, if "prepaid" means "already charged," collapses back to (a).
     Founder decision. **Does not block this slice** — downgrade/credit is a later flow (§6 fees); the

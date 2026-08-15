@@ -17,24 +17,24 @@ export const TIER_META: Record<
 > = {
   access: {
     label: "Access",
-    priceLabel: "Free",
+    priceLabel: "$397 / title",
     annualPriceCents: 0,
     termMonths: 12,
-    blurb: "Get started at no cost.",
+    blurb: "Per-title plan. No annual Stripe price in this cycle.",
   },
   pro: {
     label: "Pro",
-    priceLabel: "$497 / year",
-    annualPriceCents: 49700,
+    priceLabel: "$797 / year",
+    annualPriceCents: 79700,
     termMonths: 12,
     blurb: "For active catalogs.",
   },
   premium: {
     label: "Premium",
-    priceLabel: "$997 / year",
-    annualPriceCents: 99700,
-    termMonths: 24,
-    blurb: "Best rate, two-year term.",
+    priceLabel: "$1,997 / year",
+    annualPriceCents: 199700,
+    termMonths: 36,
+    blurb: "Best rate, three-year term.",
   },
 };
 
