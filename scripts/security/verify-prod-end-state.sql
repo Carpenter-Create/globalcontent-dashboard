@@ -11,8 +11,10 @@
 -- READ-ONLY. Catalog SELECTs only. No DDL, no DML, no fixtures, nothing to roll back.
 -- Safe against production.
 --
--- Run:  npx supabase db query --linked -f scripts/security/verify-prod-end-state.sql
--- Local comparison:  npx supabase db query --local -f scripts/security/verify-prod-end-state.sql
+-- Requires Supabase CLI exactly 2.102.0 on PATH. Never npx.
+-- Local:     supabase db query --local -f scripts/security/verify-prod-end-state.sql
+-- Production (founder only): supabase db query --linked -f scripts/security/verify-prod-end-state.sql
+-- Do not run --linked from an agent.
 --
 -- NEGATIVE CONTROLS are first-class rows here, not a footnote. Every check whose pass
 -- condition is "count = 0" is paired with an `n` row that must be NON-zero using the SAME
@@ -329,14 +331,113 @@ with checks(sort, id, what, expected, actual, pass) as (
            where n.nspname='public' and p.proname='member_can')
 
   union all
-  select 46, 'G3', 'no function retains a bare is_gc_staff gate (is_gc_staff/member_can aside)',
+  -- G3 detects caller-identity is_gc_staff used as an authorization gate
+  -- (auth.uid() / p_uid / v_uid). Classifier-only assignment
+  -- `v_is_gc := [public.]is_gc_staff(auth.uid());` is stripped first so
+  -- create_screener_link's client-status / buyer-name branch may classify
+  -- without failing. is_gc_staff(created_by) (row-author classifier) is
+  -- not a caller-identity gate. Definitions is_gc_staff and member_can
+  -- are excluded; writers are not excluded by name.
+  select 46, 'G3', 'no function uses caller-identity is_gc_staff as a bare authorization gate',
          '0',
          (select count(*)::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-           where n.nspname='public' and p.prosrc like '%is_gc_staff%'
-             and p.proname not in ('is_gc_staff','member_can')),
+           where n.nspname='public' and p.proname not in ('is_gc_staff','member_can')
+             and regexp_replace(
+                   p.prosrc,
+                   '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                   '',
+                   'g'
+                 ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)'),
          (select count(*) = 0 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-           where n.nspname='public' and p.prosrc like '%is_gc_staff%'
-             and p.proname not in ('is_gc_staff','member_can'))
+           where n.nspname='public' and p.proname not in ('is_gc_staff','member_can')
+             and regexp_replace(
+                   p.prosrc,
+                   '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                   '',
+                   'g'
+                 ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)')
+
+  union all
+  -- CONTROL: the remainder predicate must catch planted bare-staff gates,
+  -- including unqualified and positive-allow shapes. If this is false the
+  -- G3 zero is a blind probe, not a clean catalog.
+  select 46.1, 'G3n', 'CONTROL — planted caller-identity is_gc_staff gates are detected',
+         'true',
+         (select bool_and(
+                   regexp_replace(
+                     src,
+                     '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                     '',
+                     'g'
+                   ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)'
+                 )::text
+            from (values
+              ('if not public.is_gc_staff(auth.uid()) then raise exception ''Not authorized'';'),
+              ('if not is_gc_staff(p_uid) then raise exception ''Not authorized'';'),
+              ('if is_gc_staff(auth.uid()) then insert into x values (1);')
+            ) s(src)),
+         (select bool_and(
+                   regexp_replace(
+                     src,
+                     '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                     '',
+                     'g'
+                   ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)'
+                 )
+            from (values
+              ('if not public.is_gc_staff(auth.uid()) then raise exception ''Not authorized'';'),
+              ('if not is_gc_staff(p_uid) then raise exception ''Not authorized'';'),
+              ('if is_gc_staff(auth.uid()) then insert into x values (1);')
+            ) s(src))
+
+  union all
+  -- CONTROL: classifier-only assignment must NOT trip G3 after the strip.
+  select 46.2, 'G3c', 'CONTROL — classifier-only is_gc_staff(auth.uid()) assignment is not a gate',
+         'true',
+         (select (not (
+                   regexp_replace(
+                     'v_is_gc := public.is_gc_staff(auth.uid()); if not v_is_gc then raise exception ''A screener can be shared once GC has approved the title'';',
+                     '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                     '',
+                     'g'
+                   ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)'
+                 ))::text),
+         (select not (
+                   regexp_replace(
+                     'v_is_gc := public.is_gc_staff(auth.uid()); if not v_is_gc then raise exception ''A screener can be shared once GC has approved the title'';',
+                     '[A-Za-z_][A-Za-z0-9_]*\s*:=\s*(public\.)?is_gc_staff\s*\(\s*auth\.uid\s*\(\s*\)\s*\)\s*;',
+                     '',
+                     'g'
+                   ) ~* 'is_gc_staff\s*\(\s*(auth\.uid\s*\(\s*\)|p_uid|v_uid)\s*\)'
+                 ))
+
+  union all
+  -- Positive evidence for the terminal 5-arg function when deployed. Current
+  -- production (pre-20260806) has only the 4-arg form — that is 'absent', not a fail.
+  -- After the nine land, this must read member_can. The nine-file verifier requires
+  -- member_can unconditionally.
+  select 46.3, 'G3p', 'create_screener_link 5-arg authorizes via member_can operate when present',
+         'absent|member_can',
+         (select case
+                   when to_regprocedure('public.create_screener_link(uuid,text,timestamptz,text,text)') is null
+                     then 'absent'
+                   when (select p.prosrc like '%member_can(auth.uid(), v_org, ''operate'')%'
+                              and p.prosrc like '%Not authorized%'
+                           from pg_proc p
+                          where p.oid = to_regprocedure('public.create_screener_link(uuid,text,timestamptz,text,text)'))
+                     then 'member_can'
+                   else 'bad'
+                 end),
+         (select case
+                   when to_regprocedure('public.create_screener_link(uuid,text,timestamptz,text,text)') is null
+                     then true
+                   when (select p.prosrc like '%member_can(auth.uid(), v_org, ''operate'')%'
+                              and p.prosrc like '%Not authorized%'
+                           from pg_proc p
+                          where p.oid = to_regprocedure('public.create_screener_link(uuid,text,timestamptz,text,text)'))
+                     then true
+                   else false
+                 end)
 
   union all
   select 47, 'G4', 'no policy gates on bare is_gc_staff except the gc_staff identity read',

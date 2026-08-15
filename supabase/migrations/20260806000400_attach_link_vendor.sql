@@ -163,9 +163,13 @@ begin
     raise exception 'Not authorized';
   end if;
 
+  -- FOR UPDATE before any vendor_id decision. Concurrent first-attaches otherwise both
+  -- read NULL and both write, producing two attach_vendor audits and a last-writer win
+  -- without force. All subsequent branches use only these locked-row values.
   select purpose, revoked_at, expires_at, vendor_id, title_id
     into v_purpose, v_revoked_at, v_expires_at, v_current_vendor, v_title_id
-    from public.portal_links where id = p_link_id;
+    from public.portal_links where id = p_link_id
+    for update;
   if not found then raise exception 'Link not found'; end if;
 
   -- master_download links get their vendor from the delivery they were minted against
