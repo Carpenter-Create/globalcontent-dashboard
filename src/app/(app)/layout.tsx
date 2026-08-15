@@ -24,7 +24,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // (operator) group). We must not bounce them to onboarding, and must not redirect them to
   // /queue either — /queue now lives under this same layout, so that would loop.
   if (ctx.rows.length === 0 && !ctx.isGcStaff) redirect("/onboarding");
-  if (ctx.activeOrg && ctx.activeOrg.status !== "active") {
+  // Same exemption on the mid-onboarding branch. Without it, a GC operator who also holds a
+  // non-active client org is bounced to the wizard on every request — and because the wizard
+  // itself has no way back for staff, that is a loop with no exit. Observed 2026-08-15 while
+  // provisioning a gc_delivery_ops account.
+  if (ctx.activeOrg && ctx.activeOrg.status !== "active" && !ctx.isGcStaff) {
     redirect("/onboarding");
   }
 
