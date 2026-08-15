@@ -52,7 +52,7 @@ Full doctrine: [`AGENTS.md`](../../AGENTS.md). Domain truth: [`docs/domain-spec.
 | Release verification suites | **Passed** |
 | Duplicate invariant | **Clean** |
 | Safe unauthenticated smoke checks | **Passed** |
-| Authenticated operator/client smoke checks | **Deferred** |
+| Authenticated operator/client smoke checks | **Passed** |
 | Fresh pre-deployment logical backup | **Retained outside the repository** |
 | Managed/PITR posture | **Not independently confirmed** |
 | Earlier failed apply attempt | **No production mutation** |
