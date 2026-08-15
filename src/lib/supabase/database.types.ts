@@ -1492,6 +1492,19 @@ export type Database = {
         Returns: boolean
       }
       gc_check_digit: { Args: { p_n: number }; Returns: number }
+      gc_client_directory: {
+        Args: { p_limit?: number }
+        Returns: {
+          email: string
+          joined_at: string
+          last_sign_in: string
+          org_id: string
+          org_status: Database["public"]["Enums"]["org_status"]
+          organization: string
+          role: Database["public"]["Enums"]["org_role"]
+          user_id: string
+        }[]
+      }
       is_gc_staff: { Args: { p_uid: string }; Returns: boolean }
       lapse_org: {
         Args: { p_first_failure: string; p_org: string }
@@ -1573,6 +1586,7 @@ export type Database = {
       portal_resolve_screener: {
         Args: { p_session_token_hash: string }
         Returns: {
+          asset_kind: Database["public"]["Enums"]["asset_kind"]
           link_id: string
           session_id: string
           storage_key: string
