@@ -8,6 +8,7 @@ import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-her
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
 import { isUpcoming, isJustIn } from "@/lib/releases";
 import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
+import { GcClientsDirectory } from "@/app/(app)/(operator)/gc/clients/clients-directory";
 
 const ROLE_LABELS: Record<string, string> = {
   account_owner: "Account Owner",
@@ -39,11 +40,13 @@ export default async function DashboardPage() {
   // Resolved once per request and shared with the layout above (React cache()).
   const ctx = await getOrgContext();
   if (!ctx) redirect("/login");
-  // Client dashboard needs an org. A GC operator is not a client — the new ops seat has
-  // no organization, and sending them here is how they re-enter the wizard after #114
-  // already exempted the layout. Queue is the operator home; it does not need a client org.
+  // Client dashboard needs an org. A GC operator is not a client and must not be
+  // given a manufactured one. Staff without a client org stay on `/` and see the
+  // existing GC-wide clients roster. Queue stays the focused work queue at /queue.
+  // Non-staff without an org still go to the client wizard.
   if (ctx.rows.length === 0 || !ctx.activeOrg) {
-    redirect(ctx.isGcStaff ? "/queue" : "/onboarding");
+    if (!ctx.isGcStaff) redirect("/onboarding");
+    return GcClientsDirectory();
   }
   const org = ctx.activeOrg;
 

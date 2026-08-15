@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import { GC_NAV, NAV } from "./nav";
 
 describe("client NAV", () => {
-  it("keeps client Deliveries on /deliveries and never exposes operator routes", () => {
+  it("keeps Dashboard at / and never exposes operator routes", () => {
     const hrefs = NAV.map((item) => item.href);
+    expect(hrefs[0]).toBe("/");
     expect(hrefs).toContain("/deliveries");
     expect(hrefs).not.toContain("/gc/deliveries");
     expect(hrefs).not.toContain("/queue");
     expect(hrefs).not.toContain("/vendors");
+    expect(hrefs).not.toContain("/gc/clients");
   });
 });
 
