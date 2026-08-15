@@ -4,6 +4,8 @@ import {
   Send,
   Activity,
   MessageSquare,
+  Inbox,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 
@@ -17,4 +19,12 @@ export const NAV: NavItem[] = [
   { label: "Deliveries", href: "/deliveries", icon: Send },
   { label: "Catalog Health", href: "/catalog-health", icon: Activity },
   { label: "Messages", href: "/messages", icon: MessageSquare },
+];
+
+// Staff-only operator surfaces. Rendered by SideNav only when isGcStaff is true;
+// the (operator) layout remains the authorization gate for these hrefs.
+export const GC_NAV: NavItem[] = [
+  { label: "Queue", href: "/queue", icon: Inbox },
+  { label: "GC Deliveries", href: "/gc/deliveries", icon: Send },
+  { label: "Vendors", href: "/vendors", icon: Store },
 ];

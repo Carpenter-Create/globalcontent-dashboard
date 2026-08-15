@@ -5,6 +5,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineNotice } from "@/components/ui/inline-notice";
 
+export const GC_ASSETS_HEADING = "Assets";
+export const GC_ASSETS_EMPTY = "No assets uploaded yet.";
+
 export type GcAsset = {
   id: string;
   kind: string;
@@ -57,7 +60,7 @@ export function GcAssets({ assets }: { assets: GcAsset[] }) {
     }
   }
 
-  if (assets.length === 0) return <p className="t-body-sm text-ink-3">No assets uploaded yet.</p>;
+  if (assets.length === 0) return <p className="t-body-sm text-ink-3">{GC_ASSETS_EMPTY}</p>;
 
   return (
     <div className="flex flex-col gap-1.5">

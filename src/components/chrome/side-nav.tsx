@@ -3,17 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, use, useRef } from "react";
-import { Inbox, Store, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
-import { NAV } from "@/lib/nav";
+import { GC_NAV, NAV } from "@/lib/nav";
 import { cn } from "@/lib/cn";
-
-// GC operator surfaces — shown only to GC staff, rendered INSIDE this same shell. The delivery
-// QUEUE is reached from the Queue's "Ready to deliver" section, not a second "Deliveries" here.
-const GC_NAV: { label: string; href: string; icon: LucideIcon }[] = [
-  { label: "Queue", href: "/queue", icon: Inbox },
-  { label: "Vendors", href: "/vendors", icon: Store },
-];
 
 // Tightened nav (2026-07-22): px-2.5 py-1.5, 16px icons, 13px medium text. Collapsed mode
 // renders an icon-only rail (labels/badges hidden; title tooltips; unread → accent dot).
