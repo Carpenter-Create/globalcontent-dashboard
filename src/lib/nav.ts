@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Inbox,
   Store,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,4 +28,5 @@ export const GC_NAV: NavItem[] = [
   { label: "Queue", href: "/queue", icon: Inbox },
   { label: "GC Deliveries", href: "/gc/deliveries", icon: Send },
   { label: "Vendors", href: "/vendors", icon: Store },
+  { label: "Clients", href: "/gc/clients", icon: Users },
 ];
