@@ -37,6 +37,71 @@ ${FINISHED}"
 NINE_WITH_UPGRADE="${NINE_DRY_RUN}
 ${UPGRADE}"
 
+# Canonical captured production --linked dry-run from pinned CLI 2.102.0
+# (combined 2>&1). Do not abbreviate.
+CAPTURED_LINKED_DRY_RUN="$(cat <<'EOF'
+Initialising login role...
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.114.0 (currently installed v2.102.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+EOF
+)"
+LINKED_SETUP_LOGIN='Initialising login role...'
+LINKED_SETUP_DB_PASSWORD='Using database password from env var...'
+# Valid non-debug linked dry-run when DB_PASSWORD is already present: no State-0
+# line. Do not insert the debug-only password line.
+NO_SETUP_LINKED_DRY_RUN="$(cat <<'EOF'
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.114.0 (currently installed v2.102.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+EOF
+)"
+DEBUG_PREAMBLE_DRY_RUN="$(cat <<'EOF'
+Supabase CLI 2.102.0
+Using profile: supabase (<sanitized-host>)
+Using database password from env var...
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+Finished supabase db push.
+A new version of Supabase CLI is available: v2.114.0 (currently installed v2.102.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+EOF
+)"
+
 NINE_NAMES=(
   20260806000100_asset_kind_add_trailer.sql
   20260806000200_client_screener_share_links.sql
@@ -192,6 +257,105 @@ ${UPGRADE_L2}"
 expect_parse_fail 'upgrade_notice_before_footer_must_fail' "${NINE_BODY}
 ${UPGRADE}
 ${FINISHED}"
+
+if require_exact_pending_set_from_text "$CAPTURED_LINKED_DRY_RUN"; then
+  pass 'captured_linked_16_line_production_dry_run'
+else
+  fail 'captured_linked_16_line_production_dry_run'
+fi
+if require_exact_pending_set_from_text "$NO_SETUP_LINKED_DRY_RUN"; then
+  pass 'no_setup_non_debug_linked_dry_run'
+else
+  fail 'no_setup_non_debug_linked_dry_run'
+fi
+expect_parse_fail 'debug_only_db_password_line_must_fail' "${LINKED_SETUP_DB_PASSWORD}
+${NO_SETUP_LINKED_DRY_RUN}"
+expect_parse_fail 'debug_preamble_must_fail' "$DEBUG_PREAMBLE_DRY_RUN"
+
+expect_parse_fail 'setup_missing_period_must_fail' "Initialising login role
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'setup_prefixed_must_fail' "Note: ${LINKED_SETUP_LOGIN}
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'setup_suffixed_must_fail' "${LINKED_SETUP_LOGIN} extra
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'setup_after_banner_must_fail' "DRY RUN: migrations will *not* be pushed to the database.
+${LINKED_SETUP_LOGIN}
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+${FINISHED}
+${UPGRADE}"
+expect_parse_fail 'setup_inside_migration_list_must_fail' "DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+${LINKED_SETUP_LOGIN}
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+${FINISHED}"
+expect_parse_fail 'setup_after_footer_must_fail' "${NINE_DRY_RUN}
+${LINKED_SETUP_LOGIN}"
+expect_parse_fail 'duplicate_setup_line_must_fail' "${LINKED_SETUP_LOGIN}
+${LINKED_SETUP_LOGIN}
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'unknown_pre_banner_line_must_fail' "Checking project health...
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'access_token_env_is_not_linked_setup' "Using access token from env var...
+${NINE_WITH_UPGRADE}"
+expect_parse_fail 'cli_version_preamble_is_not_linked_setup' "Supabase CLI 2.102.0
+${NO_SETUP_LINKED_DRY_RUN}"
+expect_parse_fail 'using_profile_is_not_linked_setup' "Using profile: supabase (<sanitized-host>)
+${NO_SETUP_LINKED_DRY_RUN}"
+
+CAPTURED_NO_BANNER="$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | grep -v -F 'DRY RUN: migrations will *not* be pushed to the database.')"
+expect_parse_fail 'captured_missing_banner_must_fail' "$CAPTURED_NO_BANNER"
+CAPTURED_EIGHT="$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | grep -v '20260808000200')"
+expect_parse_fail 'captured_eight_pending_must_fail' "$CAPTURED_EIGHT"
+expect_parse_fail 'captured_tenth_conventional_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected_extra.sql
+Finished supabase db push.}"
+expect_parse_fail 'captured_tenth_hyphenated_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260809000100_unexpected-extra.sql
+Finished supabase db push.}"
+expect_parse_fail 'captured_replaced_version_must_fail' "${CAPTURED_LINKED_DRY_RUN/20260808000200_portal_resolve_screener_asset_kind.sql/20260809000100_unexpected_swap.sql}"
+CAPTURED_REORDERED="${CAPTURED_LINKED_DRY_RUN/ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql/ • 20260806000200_client_screener_share_links.sql
+ • 20260806000100_asset_kind_add_trailer.sql}"
+expect_parse_fail 'captured_reordered_must_fail' "$CAPTURED_REORDERED"
+expect_parse_fail 'captured_duplicate_version_must_fail' "${CAPTURED_LINKED_DRY_RUN/Finished supabase db push./ • 20260806000100_duplicate-name.sql
+Finished supabase db push.}"
+expect_parse_fail 'captured_malformed_list_must_fail' "${CAPTURED_LINKED_DRY_RUN/ • 20260808000200_portal_resolve_screener_asset_kind.sql/ • not-a-migration.sql}"
+expect_parse_fail 'captured_footer_mid_list_must_fail' "${CAPTURED_LINKED_DRY_RUN/ • 20260808000200_portal_resolve_screener_asset_kind.sql
+Finished supabase db push./Finished supabase db push.
+ • 20260808000200_portal_resolve_screener_asset_kind.sql}"
+expect_parse_fail 'captured_migration_after_footer_must_fail' "${CAPTURED_LINKED_DRY_RUN}
+ • 20260809000100_unexpected-extra.sql"
+expect_parse_fail 'captured_partial_upgrade_must_fail' "$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | grep -v 'We recommend updating')"
+expect_parse_fail 'captured_reversed_upgrade_must_fail' "${CAPTURED_LINKED_DRY_RUN/${UPGRADE}/${UPGRADE_L2}
+${UPGRADE_L1}}"
+expect_parse_fail 'captured_arbitrary_post_footer_must_fail' "${CAPTURED_LINKED_DRY_RUN}
+unexpected trailing line"
+expect_parse_fail 'captured_malformed_installed_version_must_fail' "${CAPTURED_LINKED_DRY_RUN/currently installed v2.102.0/currently installed v2.99.0}"
+CAPTURED_BAD_URL="$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | sed 's|#updating-the-supabase-cli|#not-the-official-cli-url|')"
+expect_parse_fail 'captured_malformed_recommendation_url_must_fail' "$CAPTURED_BAD_URL"
+
+if [[ "$(printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" | wc -l | tr -d '[:space:]')" == '16' ]]; then
+  pass 'captured_fixture_is_exactly_16_lines'
+else
+  fail 'captured_fixture_is_exactly_16_lines'
+fi
 
 EIGHT="$(printf '%s\n' "$NINE_BODY" | grep -v '20260808000200')
 ${FINISHED}"
@@ -511,6 +675,7 @@ mutation_count() {
 run_apply() {
   local work="$1"
   local fake="$2"
+  local target="${3:-local}"
   (
     cd "$work"
     export PATH="$fake:$PATH"
@@ -519,7 +684,7 @@ run_apply() {
     else
       unset GC_PROD_APPROVED_SHA
     fi
-    ./scripts/db/prod-migrate.sh --apply --target local
+    ./scripts/db/prod-migrate.sh --apply --target "$target"
   )
 }
 
@@ -578,6 +743,28 @@ if [[ "$(grep -c 'db push --dry-run --local' "$FAKE/invocations" || true)" == '2
   pass 'e2e_success_with_upgrade_notice_two_dry_runs_then_one_push'
 else
   fail 'e2e_success_with_upgrade_notice_two_dry_runs_then_one_push'
+fi
+
+# Success C: captured linked production dry-run through --target linked.
+reset_fake "$FAKE"
+printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" > "$FAKE/dry_first"
+printf '%s\n' "$CAPTURED_LINKED_DRY_RUN" > "$FAKE/dry_second"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null; then
+  if [[ "$(mutation_count "$FAKE")" == '1' ]]; then
+    pass 'e2e_success_c_captured_linked_one_mutation'
+  else
+    fail "e2e_success_c_captured_linked_one_mutation (mutations=$(mutation_count "$FAKE"))"
+  fi
+else
+  fail 'e2e_success_c_captured_linked_one_mutation'
+fi
+if [[ "$(grep -c 'db push --dry-run --linked' "$FAKE/invocations" || true)" == '2' ]] \
+  && [[ "$(grep -c '^db push --linked$' "$FAKE/invocations" || true)" == '1' ]] \
+  && [[ "$(grep -c -- '--local' "$FAKE/invocations" || true)" == '0' ]]; then
+  pass 'e2e_success_c_two_linked_dry_runs_then_one_linked_push'
+else
+  fail 'e2e_success_c_two_linked_dry_runs_then_one_linked_push'
 fi
 
 # Second dry-run contains an extra migration after confirmation.
@@ -673,6 +860,99 @@ if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
   pass 'e2e_mid_list_footer_zero_mutation'
 else
   fail 'e2e_mid_list_footer_zero_mutation'
+fi
+
+# Unknown pre-banner setup line.
+reset_fake "$FAKE"
+printf '%s\n' "Checking project health...
+${NINE_WITH_UPGRADE}" > "$FAKE/dry_first"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_unknown_pre_banner_must_fail'
+else
+  pass 'e2e_unknown_pre_banner_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_unknown_pre_banner_zero_mutation'
+else
+  fail 'e2e_unknown_pre_banner_zero_mutation'
+fi
+
+# Setup line after the dry-run banner.
+reset_fake "$FAKE"
+printf '%s\n' "DRY RUN: migrations will *not* be pushed to the database.
+${LINKED_SETUP_LOGIN}
+Connecting to remote database...
+Would push these migrations:
+ • 20260806000100_asset_kind_add_trailer.sql
+ • 20260806000200_client_screener_share_links.sql
+ • 20260806000300_unify_screener_links.sql
+ • 20260806000400_attach_link_vendor.sql
+ • 20260806000500_require_buyer_name.sql
+ • 20260807000100_transcode_jobs.sql
+ • 20260807000200_attach_link_vendor_default_null.sql
+ • 20260808000100_hide_gc_unnamed_screener_links.sql
+ • 20260808000200_portal_resolve_screener_asset_kind.sql
+${FINISHED}
+${UPGRADE}" > "$FAKE/dry_first"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_setup_after_banner_must_fail'
+else
+  pass 'e2e_setup_after_banner_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_setup_after_banner_zero_mutation'
+else
+  fail 'e2e_setup_after_banner_zero_mutation'
+fi
+
+# Duplicate setup line.
+reset_fake "$FAKE"
+printf '%s\n' "${LINKED_SETUP_LOGIN}
+${LINKED_SETUP_LOGIN}
+${NINE_WITH_UPGRADE}" > "$FAKE/dry_first"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" >/dev/null 2>&1; then
+  fail 'e2e_duplicate_setup_must_fail'
+else
+  pass 'e2e_duplicate_setup_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_duplicate_setup_zero_mutation'
+else
+  fail 'e2e_duplicate_setup_zero_mutation'
+fi
+
+# Debug-only password line is not State-0 setup. Linked target, zero mutation.
+reset_fake "$FAKE"
+printf '%s\n' "${LINKED_SETUP_DB_PASSWORD}
+${NO_SETUP_LINKED_DRY_RUN}" > "$FAKE/dry_first"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null 2>&1; then
+  fail 'e2e_debug_only_db_password_must_fail'
+else
+  pass 'e2e_debug_only_db_password_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_debug_only_db_password_zero_mutation'
+else
+  fail 'e2e_debug_only_db_password_zero_mutation'
+fi
+
+# Full debug preamble is outside the approved non-debug grammar.
+reset_fake "$FAKE"
+printf '%s\n' "$DEBUG_PREAMBLE_DRY_RUN" > "$FAKE/dry_first"
+if printf '%s\n' 'APPLY NINE MIGRATIONS' | \
+    GC_PROD_APPROVED_SHA="$APPROVED" run_apply "$WORK" "$FAKE" linked >/dev/null 2>&1; then
+  fail 'e2e_debug_preamble_must_fail'
+else
+  pass 'e2e_debug_preamble_must_fail'
+fi
+if [[ "$(mutation_count "$FAKE")" == '0' ]]; then
+  pass 'e2e_debug_preamble_zero_mutation'
+else
+  fail 'e2e_debug_preamble_zero_mutation'
 fi
 
 # Hyphenated extra on the first plan — the reproduced exploit.

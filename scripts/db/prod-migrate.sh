@@ -107,9 +107,11 @@ is_cli_migration_filename() {
   [[ "$1" =~ ^([0-9]+)_(.*)\.sql$ ]]
 }
 
+CLI_DRY_RUN_BANNER='DRY RUN: migrations will *not* be pushed to the database.'
+
 is_expected_dry_run_info_line() {
   case "$1" in
-    'DRY RUN: migrations will *not* be pushed to the database.') return 0 ;;
+    "$CLI_DRY_RUN_BANNER") return 0 ;;
     'Connecting to local database...') return 0 ;;
     'Connecting to remote database...') return 0 ;;
     'Would push these migrations:') return 0 ;;
@@ -117,6 +119,21 @@ is_expected_dry_run_info_line() {
     '') return 0 ;;
   esac
   return 1
+}
+
+# State 0 — linked connection/setup, before the dry-run banner only.
+# Pinned CLI 2.102.0 non-debug linked execution writes exactly this to stderr
+# from initLoginRole() (supabase-go 2.102.0):
+#   Initialising login role...
+# When DB_PASSWORD is already present and DEBUG is off, GetDebugLogger() is
+# io.Discard, so no State-0 line is emitted. That is valid.
+# Debug-only lines such as "Using database password from env var..." are not
+# accepted. The wrapper does not invoke --debug. At most one login-role line.
+# Not a migration. Not a banner substitute.
+CLI_LINKED_SETUP_LOGIN='Initialising login role...'
+
+is_cli_linked_setup_line() {
+  [[ "$1" == "$CLI_LINKED_SETUP_LOGIN" ]]
 }
 
 # Root Execute() upgrade notice after a successful command. Installed version
@@ -174,10 +191,11 @@ CLI_DRY_RUN_FINISHED='Finished supabase db push.'
 # Parse CLI 2.102.0 `db push --dry-run` text into PENDING_ACTUAL (version
 # numbers in listed order).
 #
-# State A: command plan — banner/info and pending filenames.
+# State 0: optional one exact non-debug login-role line, only before the banner.
+# State A: command plan — required banner, info, and pending filenames.
 # State B: exact terminal footer `Finished supabase db push.`
 # State C: optional one complete two-line root upgrade notice.
-# After the footer, no migration or command-plan line is accepted.
+# After the footer, no migration, setup, or command-plan line is accepted.
 # Does not read application rows.
 parse_pending_versions() {
   local text="$1"
@@ -185,9 +203,11 @@ parse_pending_versions() {
   local raw line candidate
   local footer_seen=0
   local epilogue=0
+  local banner_seen=0
+  local setup_seen=0
   PENDING_ACTUAL=()
 
-  if [[ "$text" != *"DRY RUN: migrations will *not* be pushed to the database."* ]]; then
+  if [[ "$text" != *"${CLI_DRY_RUN_BANNER}"* ]]; then
     echo "error: dry-run output missing required non-mutating banner; refusing to parse" >&2
     return 1
   fi
@@ -206,6 +226,10 @@ parse_pending_versions() {
     fi
 
     if [[ "$footer_seen" -eq 1 ]]; then
+      if is_cli_linked_setup_line "$line"; then
+        echo "error: linked setup line after terminal footer; refusing" >&2
+        return 1
+      fi
       if is_cli_upgrade_notice_line1 "$line"; then
         if [[ "$epilogue" -ne 0 ]]; then
           echo "error: duplicate or out-of-order CLI upgrade notice; refusing" >&2
@@ -235,12 +259,38 @@ parse_pending_versions() {
       continue
     fi
 
+    if is_cli_linked_setup_line "$line"; then
+      if [[ "$banner_seen" -eq 1 ]]; then
+        echo "error: linked setup line after dry-run banner; refusing" >&2
+        return 1
+      fi
+      if [[ "$setup_seen" -ne 0 ]]; then
+        echo "error: duplicate linked setup line; refusing" >&2
+        return 1
+      fi
+      setup_seen=1
+      continue
+    fi
+
+    if [[ "$line" == "$CLI_DRY_RUN_BANNER" ]]; then
+      banner_seen=1
+      continue
+    fi
+
     if is_expected_dry_run_info_line "$line"; then
+      if [[ "$banner_seen" -eq 0 ]]; then
+        echo "error: command-plan info before dry-run banner; refusing" >&2
+        return 1
+      fi
       continue
     fi
 
     candidate="$(normalize_pending_list_line "$line")"
     if is_cli_migration_filename "$candidate"; then
+      if [[ "$banner_seen" -eq 0 ]]; then
+        echo "error: migration listed before dry-run banner; refusing" >&2
+        return 1
+      fi
       found+=("${BASH_REMATCH[1]}")
       continue
     fi
