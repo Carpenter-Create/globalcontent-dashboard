@@ -39,7 +39,12 @@ export default async function DashboardPage() {
   // Resolved once per request and shared with the layout above (React cache()).
   const ctx = await getOrgContext();
   if (!ctx) redirect("/login");
-  if (ctx.rows.length === 0 || !ctx.activeOrg) redirect("/onboarding");
+  // Client dashboard needs an org. A GC operator is not a client — the new ops seat has
+  // no organization, and sending them here is how they re-enter the wizard after #114
+  // already exempted the layout. Queue is the operator home; it does not need a client org.
+  if (ctx.rows.length === 0 || !ctx.activeOrg) {
+    redirect(ctx.isGcStaff ? "/queue" : "/onboarding");
+  }
   const org = ctx.activeOrg;
 
   // Portfolio reads for the active org (RLS-scoped; counts computed here per spec).
