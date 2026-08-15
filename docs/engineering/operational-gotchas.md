@@ -84,19 +84,21 @@ discovered via a failed deploy.
 
 ---
 
-## Trigger: Production migration apply (the nine 20260806–20260808 files)
+## Trigger: Production migration apply (founder-gated wrapper)
 
 **When:** Applying or rehearsing pending dashboard migrations; comparing local files to a
 database ledger; choosing a Supabase CLI.
 
 Use [`scripts/db/prod-migrate.sh`](../../scripts/db/prod-migrate.sh) only. It requires
 Supabase CLI **exactly 2.102.0** on PATH and never invokes `npx` (bare or pinned). Default
-is rehearsal: git + file checks, no database connection. Proven 2.102.0 rehearsal against a
-database is `supabase db push --dry-run --local` or `--linked` — that flag exists on 2.102.0;
+is rehearsal: CLI version and a clean working tree, no database connection, and no
+invented pending list. Proven 2.102.0 rehearsal against a database is
+`supabase db push --dry-run --local` or `--linked` — that flag exists on 2.102.0;
 do not invent another.
 
-`--apply` is founder-only, requires `--target`, and requires typing `APPLY NINE MIGRATIONS`.
-Agents must not apply, repair, or mark migrations.
+`--apply` is founder-only, requires `--target`, and requires typing the confirmation
+string generated for the pinned pending set of that run. Agents must not apply,
+repair, or mark migrations.
 
 `--apply` also requires `GC_PROD_APPROVED_SHA`: the founder-approved 40-character
 commit SHA of the exact release that is checked out. Export it immediately before
@@ -110,13 +112,17 @@ to the selected target. The wrapper walks that plan line by line using the same
 filename grammar as CLI 2.102.0 (`^([0-9]+)_(.*)\.sql$`): any numeric version
 length and any suffix the CLI would accept, including hyphens, periods, spaces,
 Unicode, and an empty name. Expected banner/info lines are ignored; any other
-line fails closed. The complete ordered pending set must be exactly the
-approved nine versions. A count of nine is not enough. Extra, missing, reordered,
-or unparseable pending migrations fail closed. After typed confirmation the
-wrapper dry-runs again; if the pending set changed, it stops and does not
-`db push`.
+line fails closed. The complete ordered pending set is whatever that dry-run
+reports. The wrapper does not invent or hardcode a pending list. Ambiguous or
+unparseable output fails closed. An empty pending set (database up to date) is
+a clean stop, not an apply. After typed confirmation the wrapper dry-runs
+again; if the pending set changed, it stops and does not `db push`.
 
-Before a production apply of these nine:
+The 20260806–20260808 nine were a closed morning release. This wrapper no longer
+pins that list. Files present under `supabase/migrations` are not an apply set
+by themselves.
+
+Before a production apply of the closed 20260806–20260808 nine:
 
 1. Run [`scripts/security/preflight-screener-active-dupes.sql`](../../scripts/security/preflight-screener-active-dupes.sql)
    as a privileged SELECT. Aggregates only. If `conflicting_title_count > 0`, stop. Do not
