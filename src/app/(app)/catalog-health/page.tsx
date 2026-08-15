@@ -17,7 +17,11 @@ export default async function CatalogHealthPage() {
   // Resolved once per request and shared with the layout above (React cache()).
   const ctx = await getOrgContext();
   if (!ctx) redirect("/login");
-  if (!ctx.activeOrg) redirect("/onboarding");
+  // Same identity split as the dashboard: no client org is onboarding for a client,
+  // and Queue for GC staff. Do not send staff back into the wizard.
+  if (!ctx.activeOrg) {
+    redirect(ctx.isGcStaff ? "/queue" : "/onboarding");
+  }
   const activeOrgId = ctx.activeOrg.id;
 
   const { data: allFindings } = await supabase.rpc("my_findings");
