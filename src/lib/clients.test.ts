@@ -4,7 +4,8 @@ import { Constants } from "@/lib/supabase/database.types";
 import {
   ORG_ROLE_LABELS,
   ORG_STATUS_LABELS,
-  toClientRows,
+  tierCell,
+  toClientOrgs,
   type ClientDirectoryRow,
 } from "./clients";
 
@@ -18,6 +19,9 @@ function row(over: Partial<ClientDirectoryRow> = {}): ClientDirectoryRow {
     role: "account_owner",
     joined_at: "2026-08-03T10:00:00Z",
     last_sign_in: "2026-08-14T09:00:00Z",
+    tier: "pro",
+    term_expires_at: "2027-08-03T10:00:00Z",
+    subscription_status: "active",
     ...over,
   };
 }
@@ -39,47 +43,98 @@ describe("label maps cover the schema", () => {
   });
 });
 
-describe("toClientRows", () => {
-  it("labels role and status and formats the dates", () => {
-    expect(toClientRows([row()])).toEqual([
-      {
-        userId: "11111111-1111-4111-8111-111111111111",
-        email: "jane@acmefilms.com",
-        organization: "Acme Films",
-        role: "Account owner",
-        status: "Active",
-        joined: "Aug 3, 2026",
-        lastSeen: "Aug 14, 2026",
-      },
+/**
+ * Contract tier and Stripe status are two facts. The tier cell shows the contract, and adds
+ * the billing status only when it is abnormal — a failing card is invisible in the contract
+ * for the 30 days before lapse_org appends the access term.
+ */
+describe("tierCell", () => {
+  it("shows the contract tier label on its own when billing is healthy", () => {
+    expect(tierCell("premium", "active")).toBe("Premium");
+  });
+
+  it("appends the Stripe status when it is not active", () => {
+    expect(tierCell("pro", "past_due")).toBe("Pro · past_due");
+  });
+
+  it("stays clean for Access, which has no Stripe subscription at all", () => {
+    // $0 annual: a missing subscription row is the normal state, not a payment problem.
+    expect(tierCell("access", null)).toBe("Access");
+  });
+
+  it("never defaults a missing contract to a tier", () => {
+    // Either "signed up, never contracted" or the unregistered live webhook (SECURITY-STATUS
+    // B5). Both are unknown, and unknown is not Access.
+    expect(tierCell(null, null)).toBe("—");
+  });
+
+  it("still flags a bad status even when the contract row is missing", () => {
+    expect(tierCell(null, "canceled")).toBe("— · canceled");
+  });
+});
+
+/**
+ * Organization, tier, and org status are facts about the ORG, not the person. Grouping states
+ * them once per org so a client with three seats does not repeat its tier three times.
+ */
+describe("toClientOrgs", () => {
+  it("collapses an org's seats under one entry with the org facts stated once", () => {
+    const orgs = toClientOrgs([
+      row({ user_id: "u1", email: "jane@acmefilms.com", role: "account_owner" }),
+      row({ user_id: "u2", email: "sam@acmefilms.com", role: "viewer" }),
+    ]);
+
+    expect(orgs).toHaveLength(1);
+    expect(orgs[0]).toMatchObject({
+      organization: "Acme Films",
+      tier: "Pro",
+      status: "Active",
+      termEnds: "Aug 2027",
+    });
+    expect(orgs[0].seats).toEqual([
+      { userId: "u1", email: "jane@acmefilms.com", role: "Account owner", lastSeen: "Aug 14, 2026" },
+      { userId: "u2", email: "sam@acmefilms.com", role: "Viewer", lastSeen: "Aug 14, 2026" },
     ]);
   });
 
-  it("preserves the order the RPC returned (org, then email)", () => {
-    const rows = toClientRows([
-      row({ organization: "Acme Films", email: "a@acme.test" }),
-      row({ organization: "Acme Films", email: "b@acme.test" }),
-      row({ organization: "Northlight", email: "c@north.test" }),
+  it("keeps the RPC's ordering for both orgs and the seats inside them", () => {
+    const orgs = toClientOrgs([
+      row({ org_id: "a", organization: "Aaa Films", user_id: "u1", email: "a@test" }),
+      row({ org_id: "a", organization: "Aaa Films", user_id: "u2", email: "b@test" }),
+      row({ org_id: "z", organization: "Zzz Pictures", user_id: "u3", email: "c@test" }),
     ]);
-    expect(rows.map((r) => `${r.organization}/${r.email}`)).toEqual([
-      "Acme Films/a@acme.test",
-      "Acme Films/b@acme.test",
-      "Northlight/c@north.test",
-    ]);
+    expect(orgs.map((o) => o.organization)).toEqual(["Aaa Films", "Zzz Pictures"]);
+    expect(orgs[0].seats.map((s) => s.email)).toEqual(["a@test", "b@test"]);
   });
 
-  it("does not invent a value for a user with no email or no sign-in yet", () => {
-    const [only] = toClientRows([row({ email: null, last_sign_in: null })]);
-    expect(only.email).toBe("—");
-    expect(only.lastSeen).toBe("—");
+  it("does not merge two orgs that happen to share a name", () => {
+    // Org names are free text and not unique; grouping on the name would silently fuse two
+    // separate clients into one row.
+    const orgs = toClientOrgs([
+      row({ org_id: "one", organization: "Northlight", user_id: "u1", email: "a@test" }),
+      row({ org_id: "two", organization: "Northlight", user_id: "u2", email: "b@test" }),
+    ]);
+    expect(orgs).toHaveLength(2);
   });
 
-  it("keeps a non-active org's status visible rather than hiding the row", () => {
-    const [only] = toClientRows([row({ org_status: "payment_lapsed" })]);
-    expect(only.status).toBe("Payment lapsed");
+  it("carries a billing divergence at the org level", () => {
+    const [org] = toClientOrgs([row({ tier: "pro", subscription_status: "past_due" })]);
+    expect(org.tier).toBe("Pro · past_due");
+  });
+
+  it("has no term line for an org that never contracted", () => {
+    const [org] = toClientOrgs([row({ tier: null, term_expires_at: null, subscription_status: null })]);
+    expect(org.tier).toBe("—");
+    expect(org.termEnds).toBeNull();
+  });
+
+  it("does not invent a last-seen date for a user who never signed in", () => {
+    const [org] = toClientOrgs([row({ last_sign_in: null })]);
+    expect(org.seats[0].lastSeen).toBe("—");
   });
 
   it("returns nothing when the RPC returned nothing", () => {
-    expect(toClientRows(null)).toEqual([]);
-    expect(toClientRows([])).toEqual([]);
+    expect(toClientOrgs(null)).toEqual([]);
+    expect(toClientOrgs([])).toEqual([]);
   });
 });

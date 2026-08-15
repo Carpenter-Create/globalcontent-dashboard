@@ -1502,6 +1502,9 @@ export type Database = {
           org_status: Database["public"]["Enums"]["org_status"]
           organization: string
           role: Database["public"]["Enums"]["org_role"]
+          subscription_status: string
+          term_expires_at: string
+          tier: Database["public"]["Enums"]["tier_enum"]
           user_id: string
         }[]
       }

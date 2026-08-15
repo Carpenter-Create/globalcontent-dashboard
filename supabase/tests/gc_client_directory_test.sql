@@ -1,15 +1,18 @@
 -- gc_client_directory_test.sql
--- gc_client_directory(): GC-only gate, email↔role pairing, active-seat scoping, bound.
+-- gc_client_directory(): GC-only gate, email↔role pairing, active-seat scoping, bound,
+-- current-contract-tier selection, and Stripe billing status passthrough.
 
 begin;
-select plan(9);
+select plan(13);
 
 select set_config('t.orgA',     gen_random_uuid()::text, false);
 select set_config('t.orgB',     gen_random_uuid()::text, false);
+select set_config('t.orgC',     gen_random_uuid()::text, false);
 select set_config('t.ownerA',   gen_random_uuid()::text, false);
 select set_config('t.viewerA',  gen_random_uuid()::text, false);
 select set_config('t.removedA', gen_random_uuid()::text, false);
 select set_config('t.ownerB',   gen_random_uuid()::text, false);
+select set_config('t.ownerC',   gen_random_uuid()::text, false);
 select set_config('t.gc',       gen_random_uuid()::text, false);
 
 insert into auth.users (id, email) values
@@ -17,18 +20,38 @@ insert into auth.users (id, email) values
   (current_setting('t.viewerA')::uuid,  'viewerA@test.example'),
   (current_setting('t.removedA')::uuid, 'removedA@test.example'),
   (current_setting('t.ownerB')::uuid,   'ownerB@test.example'),
+  (current_setting('t.ownerC')::uuid,   'ownerC@test.example'),
   (current_setting('t.gc')::uuid,       'gc@test.example');
 -- 'Zzz' sorts after 'Aaa' so the org ordering is actually exercised, not coincidental.
 insert into public.organizations (id, name, status) values
   (current_setting('t.orgA')::uuid, 'Aaa Films',   'active'),
-  (current_setting('t.orgB')::uuid, 'Zzz Pictures','payment_lapsed');
+  (current_setting('t.orgB')::uuid, 'Zzz Pictures','payment_lapsed'),
+  (current_setting('t.orgC')::uuid, 'Mmm Media',   'registered');
 insert into public.memberships (user_id, org_id, role, status) values
   (current_setting('t.ownerA')::uuid,   current_setting('t.orgA')::uuid, 'account_owner', 'active'),
   (current_setting('t.viewerA')::uuid,  current_setting('t.orgA')::uuid, 'viewer',        'active'),
   (current_setting('t.removedA')::uuid, current_setting('t.orgA')::uuid, 'viewer',        'removed'),
-  (current_setting('t.ownerB')::uuid,   current_setting('t.orgB')::uuid, 'account_owner', 'active');
+  (current_setting('t.ownerB')::uuid,   current_setting('t.orgB')::uuid, 'account_owner', 'active'),
+  (current_setting('t.ownerC')::uuid,   current_setting('t.orgC')::uuid, 'account_owner', 'active');
 insert into public.gc_staff (user_id, role) values
   (current_setting('t.gc')::uuid, 'gc_delivery_ops');
+
+-- Org A has been through a lapse: the older 'pro' term is still on file (terms are immutable)
+-- and an 'access' term was appended. effective_to is null on BOTH, which is exactly why the
+-- function selects on effective_from instead.
+insert into public.contract_terms
+  (org_id, tier, revenue_share_rate_bp, effective_from, term_length_months, expires_at, trigger)
+values
+  (current_setting('t.orgA')::uuid, 'pro',    8000, now() - interval '60 days', 12,
+   now() + interval '305 days', 'signup'),
+  (current_setting('t.orgA')::uuid, 'access', 8000, now() - interval '1 day',   12,
+   now() + interval '364 days', 'lapse'),
+  (current_setting('t.orgB')::uuid, 'premium',8500, now() - interval '10 days', 36,
+   now() + interval '1085 days','signup');
+-- Org B's card is failing; the contract still says premium. Org A (Access) has no Stripe
+-- subscription at all, and org C has neither a term nor a subscription.
+insert into public.subscriptions (org_id, tier, status, annual_price_cents) values
+  (current_setting('t.orgB')::uuid, 'premium', 'past_due', 199700);
 
 -- ---- gate: a client cannot read the directory ------------------------------
 set local role authenticated;
@@ -90,6 +113,28 @@ select is(
   (select count(*)::int from public.gc_client_directory(1)),
   1,
   'p_limit bounds the result set');
+
+-- ---- current contract tier, not the superseded one -------------------------
+select is(
+  (select tier::text from public.gc_client_directory() where email = 'ownerA@test.example'),
+  'access',
+  'the lapsed org reports its CURRENT access term, not the older pro term');
+
+select is(
+  (select tier::text from public.gc_client_directory() where email = 'ownerB@test.example'),
+  'premium',
+  'a single-term org reports that term');
+
+-- ---- billing status is a separate fact from the tier ------------------------
+select is(
+  (select subscription_status from public.gc_client_directory() where email = 'ownerB@test.example'),
+  'past_due',
+  'a failing card surfaces while the contract still says premium');
+
+select ok(
+  (select tier is null and subscription_status is null
+   from public.gc_client_directory() where email = 'ownerC@test.example'),
+  'an org with no contract and no subscription reports null for both, never a defaulted tier');
 
 select * from finish();
 rollback;
