@@ -22,10 +22,11 @@ Architecture and phase detail: [`docs/agentic-engineering/AGENTIC_ENGINEERING_V1
 
 ## Agent roles and merge authority
 
-- **Cursor** — primary implementer.
-- **Codex** — independent reviewer of the exact diff/SHA.
-- Only one of Cursor or Codex edits a given working tree at a time.
-- **Founder** alone controls production actions, destructive operations, and merge to `main`.
+- **Founder** authorizes scope. Founder alone authorizes merge to `main`, production actions, and destructive operations.
+- **Global Content Dev** may implement bounded repository work after explicit founder authorization. Planning is not implementation permission. Implementation is not merge permission.
+- **Cursor** is an available implementer, not mandatory.
+- **Codex** independently reviews the exact diff/SHA regardless of implementer.
+- Only one agent edits a given working tree at a time.
 
 ---
 

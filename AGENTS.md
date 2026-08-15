@@ -1,6 +1,6 @@
 # AGENTS.md — Global Content Dashboard
 
-> Shared repository authority for **Cursor** (implementer) and **Codex** (independent reviewer).
+> Shared repository authority for **Global Content Dev**, **Cursor**, and **Codex** (independent reviewer).
 > `CLAUDE.md` is a compatibility shim that includes this file — do not maintain separate governance.
 
 ## Authority hierarchy
@@ -26,10 +26,11 @@ Do not route active work into `docs/HANDOFF.md`. Do not treat historical documen
 
 ## Agent roles
 
-- **Cursor** implements changes in the working tree.
-- **Codex** independently reviews the exact diff/SHA — it does not edit the same tree concurrently.
+- **Founder** decides and authorizes scope. Founder alone authorizes merge to `main`, production, destructive operations, deployment, credential changes, and applying SQL.
+- **Global Content Dev** may analyze and plan without implementation permission. After explicit founder authorization, it may implement bounded docs, tests, application code, refactors, branches, commits, and PRs. Planning is not implementation permission. Implementation is not merge permission. Possession of legal or commercial inputs is not permission to alter them.
+- **Cursor** is an available implementer, not mandatory. Founder or Global Content Dev may route authorized work there.
+- **Codex** independently reviews the exact resulting diff, commit, or PR regardless of implementer. Implementation and independent review must not collapse. Codex does not edit the same tree concurrently.
 - **Only one agent** may edit a working tree at a time.
-- **Founder** alone authorizes production actions, destructive operations, and merge to `main`.
 
 ## Working contract
 
