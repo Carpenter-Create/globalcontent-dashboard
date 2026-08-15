@@ -41,6 +41,25 @@ Full doctrine: [`AGENTS.md`](../../AGENTS.md). Domain truth: [`docs/domain-spec.
 
 ---
 
+## Production posture
+
+| Item | Status |
+| --- | --- |
+| Production database release | **Complete** |
+| Migration state | **Fully applied; no pending migrations** |
+| Terminal catalog and RLS state | **Verified** |
+| Release verification suites | **Passed** |
+| Duplicate invariant | **Clean** |
+| Safe unauthenticated smoke checks | **Passed** |
+| Authenticated operator/client smoke checks | **Deferred** |
+| Fresh pre-deployment logical backup | **Retained outside the repository** |
+| Managed/PITR posture | **Not independently confirmed** |
+| Earlier failed apply attempt | **No production mutation** |
+| Wrapper compatibility repair | **Merged before the successful apply** |
+| Successful apply | **No post-apply repair, retry, or restore** |
+
+---
+
 ## Not authority
 
 - [`docs/HANDOFF.md`](../HANDOFF.md) — historical handoff; preserve as evidence; do not act on its branch, SHA, production, or task statements without fresh verification.
