@@ -58,9 +58,9 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="dashboard-home flex flex-col gap-[var(--space-10)]" data-dashboard-home="">
-      <div className="flex flex-col gap-[var(--space-8)]">
-        <div className="flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-end sm:justify-between">
+    <div className="dashboard-home flex flex-col gap-[var(--space-16)]" data-dashboard-home="">
+      <div className="flex flex-col gap-[var(--space-10)]">
+        <div className="flex flex-col gap-[var(--space-8)] sm:flex-row sm:items-end sm:justify-between sm:gap-[var(--space-10)]">
           <DashboardOrgIdentity name={org.name} status={org.status} role={ctx.activeRole} />
           <DashboardHomePillLink href="/catalog-health">
             {DASHBOARD_HOME.catalogHealthCta}
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-[var(--space-10)] lg:grid-cols-2 lg:items-start">
+      <div className="grid grid-cols-1 gap-[var(--space-8)] lg:grid-cols-2 lg:items-stretch">
         <DashboardDoNext attentionTitleCount={snapshot.needsAttention} drafts={snapshot.drafts} />
         <DashboardJustIn titles={snapshot.justIn} />
       </div>
