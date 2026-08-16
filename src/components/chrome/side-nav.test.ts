@@ -25,14 +25,23 @@ describe("SideNav Access rail", () => {
     ]);
   });
 
-  it("uses 14px labels, 16px Lucide at 1.33, and an 8px item gap", () => {
-    expect(navSrc).toContain("text-[0.875rem] leading-4");
+  it("uses 13px labels via --text-sm / t-body-sm, 16px Lucide at 1.33, and an 8px item gap", () => {
+    const tokens = readFileSync("src/app/tokens.css", "utf8");
+    const globals = readFileSync("src/app/globals.css", "utf8");
+    const itemClass = navSrc.match(
+      /"relative flex items-center rounded-\[var\(--radius\)\] [^"]+"/,
+    )?.[0];
+    expect(navSrc).toContain("13px labels (--text-sm / t-body-sm)");
+    expect(tokens).toMatch(/--text-sm:\s*0\.8125rem;/);
+    expect(globals).toMatch(/\.t-body-sm\s*\{[\s\S]*?font-size:\s*var\(--text-sm\)/);
+    expect(itemClass).toContain("t-body-sm leading-4");
+    expect(itemClass).not.toContain("text-[0.875rem]");
+    expect(itemClass).not.toMatch(/(?:^|[\s"])t-body(?:[\s"]|$)/);
+    expect(navSrc).not.toContain("text-[0.875rem]");
     expect(navSrc).toContain("size-4 shrink-0");
     expect(navSrc).toContain("strokeWidth={1.33}");
     expect(navSrc).toContain('flex flex-col gap-2');
     expect(navSrc).toContain('collapsed ? "px-1.5" : "px-3"');
-    expect(navSrc).not.toContain("t-body leading-4");
-    expect(navSrc).not.toContain("t-body-sm font-medium leading-5");
     expect(navSrc).not.toContain("strokeWidth={1.5}");
   });
 
