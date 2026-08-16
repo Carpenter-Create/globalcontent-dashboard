@@ -118,7 +118,7 @@ export function DashboardSnapshot({
           <dd
             data-dashboard-stat={stat.key}
             className={cn(
-              "t-heading t-data",
+              "t-title t-data",
               stat.highlight ? "text-accent" : "text-ink",
             )}
           >

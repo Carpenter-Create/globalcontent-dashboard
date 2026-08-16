@@ -74,9 +74,10 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <DashboardDoNext attentionTitleCount={snapshot.needsAttention} drafts={snapshot.drafts} />
-
-      <DashboardJustIn titles={snapshot.justIn} />
+      <div className="grid grid-cols-1 gap-[var(--space-10)] lg:grid-cols-2 lg:items-start">
+        <DashboardDoNext attentionTitleCount={snapshot.needsAttention} drafts={snapshot.drafts} />
+        <DashboardJustIn titles={snapshot.justIn} />
+      </div>
     </div>
   );
 }
