@@ -4,7 +4,6 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import { OrganizationSwitcher } from "./organization-switcher";
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
 import { cn } from "@/lib/cn";
@@ -17,8 +16,6 @@ type Org = { id: string; name: string };
 // flash) and, when collapsed, overrides `--sidebar-width` so the header + main follow.
 export function AppShell({
   email,
-  orgs,
-  activeOrgId,
   messagesUnread,
   isGcStaff = false,
   defaultCollapsed = false,
@@ -38,7 +35,9 @@ export function AppShell({
   const pathname = usePathname();
   // The catalog opts out of the centered width cap so its hero can bleed full-width
   // (edge of sidebar → right edge). That page then manages its own content max-width.
-  const fullBleed = pathname === "/titles";
+  // Client `/` uses the locked Access frame (48 / 32) without restyling other pages.
+  const titlesBleed = pathname === "/titles";
+  const homePage = pathname === "/";
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -58,27 +57,28 @@ export function AppShell({
       }
     >
       <aside
-        className="fixed left-0 top-0 z-30 flex h-dvh flex-col border-r border-hairline bg-surface-muted"
+        className="fixed left-0 top-0 z-30 flex h-dvh flex-col border-r border-hairline bg-surface"
+        data-app-rail=""
         style={{ width: "var(--sidebar-width)" }}
       >
         <div
-          className={cn("flex items-center px-2", collapsed ? "justify-center" : "gap-2")}
+          className={cn("flex items-center px-3", collapsed ? "justify-center" : "gap-2")}
           style={{ height: "var(--header-height)" }}
         >
           {!collapsed ? (
-            <span className="flex-1 truncate pl-1 t-label text-ink-2">Global Content</span>
+            <span className="flex-1 truncate t-body font-medium text-ink">Global Content</span>
           ) : null}
           <button
             type="button"
             onClick={toggle}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-pressed={collapsed}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-ink-3 transition-colors hover:bg-surface hover:text-ink-2"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-ink-3 transition-colors hover:bg-surface-muted hover:text-ink-2"
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" strokeWidth={1.5} />
+              <PanelLeftOpen className="size-4" strokeWidth={1.33} />
             ) : (
-              <PanelLeftClose className="h-4 w-4" strokeWidth={1.5} />
+              <PanelLeftClose className="size-4" strokeWidth={1.33} />
             )}
           </button>
         </div>
@@ -87,16 +87,12 @@ export function AppShell({
         </div>
       </aside>
 
+      {/* Access header is avatar / account menu only — no org switcher on any route. */}
       <header
-        className={cn(
-          "sticky top-0 z-40 flex items-center gap-4 border-b border-hairline bg-canvas/80 px-6 backdrop-blur",
-          pathname === "/" ? "justify-end" : "justify-between",
-        )}
+        className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur"
+        data-app-header=""
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
-        {pathname === "/" ? null : (
-          <OrganizationSwitcher orgs={orgs} activeOrgId={activeOrgId} />
-        )}
         <div className="flex items-center gap-3">
           <UserMenu email={email} />
         </div>
@@ -108,8 +104,15 @@ export function AppShell({
           minHeight: "calc(100dvh - var(--header-height))",
         }}
       >
-        {fullBleed ? (
+        {titlesBleed ? (
           <div className="w-full pb-24">{children}</div>
+        ) : homePage ? (
+          <div
+            className="w-full px-[var(--content-inset)] py-[var(--space-8)]"
+            data-app-home-frame=""
+          >
+            {children}
+          </div>
         ) : (
           <div className="mx-auto w-full px-6 pb-24 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
             {children}

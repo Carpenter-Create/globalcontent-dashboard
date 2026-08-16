@@ -100,12 +100,16 @@ describe("DashboardPage modes", () => {
     expect(html).toContain("Acme");
     expect(html).toMatch(/<h1 class="t-section text-ink">Acme<\/h1>/);
     expect(html).not.toMatch(/<h1[^>]*t-display/);
-    expect(html).toContain(ORG_STATUS_LABELS.active);
-    expect(html).toContain(ORG_ROLE_LABELS.account_owner);
+    expect(html).not.toContain(ORG_STATUS_LABELS.active);
+    expect(html).not.toContain(ORG_ROLE_LABELS.account_owner);
+    expect(html).not.toMatch(/Active · Account owner/);
     expect(html).toContain(DASHBOARD_ATTENTION_CLEAR);
     expect(html).toContain("/catalog-health");
     expect(html).toContain("data-dashboard-home");
     expect(html).toContain("dashboard-home-pill");
+    expect(html).toContain('href="/catalog-health"');
+    expect(html).toContain("h-9");
+    expect(html).toContain("size-[14px]");
     expect(html).toContain(DASHBOARD_HOME.justInEmpty);
     expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
     expect(html).toContain("bg-accent");
@@ -117,6 +121,8 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain(dashboardAttentionSummary(1));
     expect(html).not.toContain("titles need your attention");
     expect(html).not.toContain("Meridian Pictures");
+    expect(html).not.toContain("The Winter Line");
+    expect(html).not.toContain(">248<");
     expect(html).not.toContain("Accounts");
   });
 
@@ -267,10 +273,12 @@ describe("client home information model", () => {
     expect(html).toContain("data-dashboard-status-pill");
     expect(html).toContain("data-dashboard-do-next");
     expect(html).toContain("data-dashboard-just-in");
-    expect(html).toContain("flex flex-col gap-[var(--space-8)]");
+    expect(html).toContain("flex flex-col gap-[var(--space-6)]");
     expect(html).not.toContain("lg:grid-cols-2");
     expect(html).toContain(DASHBOARD_HOME.justIn);
-    expect(html).toContain(`${ORG_STATUS_LABELS.active} · ${ORG_ROLE_LABELS.account_owner}`);
+    expect(html).not.toContain(`${ORG_STATUS_LABELS.active} · ${ORG_ROLE_LABELS.account_owner}`);
+    expect(html).not.toContain(ORG_STATUS_LABELS.active);
+    expect(html).not.toContain(ORG_ROLE_LABELS.account_owner);
     expect(html).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
     expect(html).not.toContain("Revenue");
     expect(html).not.toContain("Upcoming");

@@ -59,10 +59,10 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="dashboard-home flex flex-col gap-[var(--space-16)]" data-dashboard-home="">
-      <div className="flex flex-col gap-[var(--space-10)]">
-        <div className="flex flex-col gap-[var(--space-8)] sm:flex-row sm:items-end sm:justify-between sm:gap-[var(--space-10)]">
-          <DashboardOrgIdentity name={org.name} status={org.status} role={ctx.activeRole} />
+    <div className="dashboard-home flex flex-col gap-[var(--space-6)]" data-dashboard-home="">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-center sm:justify-between">
+          <DashboardOrgIdentity name={org.name} />
           <DashboardHomePillLink href="/catalog-health">
             {DASHBOARD_HOME.catalogHealthCta}
           </DashboardHomePillLink>

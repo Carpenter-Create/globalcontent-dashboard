@@ -8,8 +8,8 @@ import { type LucideIcon } from "lucide-react";
 import { GC_NAV, NAV } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
-// Tightened nav (2026-07-22): px-2.5 py-1.5, 16px icons, 13px medium text. Collapsed mode
-// renders an icon-only rail (labels/badges hidden; title tooltips; unread → accent dot).
+// Access rail: 15px labels, 16px Lucide at 1.33, muted grey wash when active.
+// Collapsed mode is icon-only (labels/badges hidden; title tooltips; unread → accent dot).
 export function SideNav({
   messagesUnread,
   isGcStaff = false,
@@ -52,12 +52,14 @@ export function SideNav({
         title={collapsed ? item.label : undefined}
         aria-label={collapsed ? item.label : undefined}
         className={cn(
-          "relative flex items-center rounded-[var(--radius-sm)] t-body-sm font-medium leading-5 transition-colors",
-          collapsed ? "justify-center px-0 py-2" : "gap-2.5 px-2.5 py-1.5",
-          active ? "bg-surface text-ink" : "text-ink-3 hover:bg-surface hover:text-ink-2",
+          "relative flex items-center rounded-[var(--radius)] t-body leading-4 transition-colors",
+          collapsed ? "justify-center px-0 py-2" : "gap-2.5 px-3 py-2",
+          active
+            ? "bg-surface-muted font-medium text-ink"
+            : "font-normal text-ink-2 hover:bg-surface-muted hover:text-ink",
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+        <Icon className="size-4 shrink-0" strokeWidth={1.33} />
         {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
         {badge}
       </Link>
@@ -65,7 +67,7 @@ export function SideNav({
   };
 
   return (
-    <nav className={cn("flex flex-col gap-px", collapsed ? "px-1.5" : "px-2")}>
+    <nav className={cn("flex flex-col gap-2", collapsed ? "px-1.5" : "px-3")} data-side-nav="">
       {NAV.map((item) =>
         row(
           item,
