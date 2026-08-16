@@ -81,8 +81,8 @@ describe("clientHomeSnapshot", () => {
       bound: UNPAGINATED_MAX,
     });
     expect(snap.catalogIsPartial).toBe(true);
-    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).toBe(String(UNPAGINATED_MAX));
-    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).not.toMatch(/\+/);
+    expect(dashboardCatalogValue(snap.catalog)).toBe(String(UNPAGINATED_MAX));
+    expect(dashboardCatalogValue(snap.catalog)).not.toMatch(/\+/);
   });
 
   it("lists finding rows before leftover drafts and ignores other lifecycle states as drafts", () => {
@@ -183,14 +183,47 @@ describe("clientHomeSnapshot", () => {
       bound: UNPAGINATED_MAX,
     });
     expect(snap.doNext).toHaveLength(DASHBOARD_HOME_DO_NEXT);
-    expect(snap.justIn.map((t) => t.id)).toEqual([
-      ...titles.map((t) => t.id).reverse(),
-      "new",
-    ].slice(0, 5));
-    expect(snap.justIn.find((t) => t.id === "new")?.status).toBe("live");
+    expect(snap.justIn.map((t) => t.id)).toEqual(titles.map((t) => t.id).reverse().slice(0, 5));
+    expect(snap.justIn.every((t) => t.status === "draft")).toBe(true);
+    expect(snap.justIn.some((t) => t.id === "new")).toBe(false);
     expect(snap).not.toHaveProperty("upcoming");
     expect(snap).not.toHaveProperty("revenue");
     expect(snap).not.toHaveProperty("createdAt");
+  });
+
+  it("keeps the real title status on Just in rows", () => {
+    const snap = clientHomeSnapshot({
+      titles: [
+        title({
+          id: "new",
+          status: "live",
+          created_at: "2026-08-10T00:00:00.000Z",
+        }),
+        title({
+          id: "review",
+          status: "in_review",
+          created_at: "2026-08-12T00:00:00.000Z",
+        }),
+      ],
+      findings: [],
+      orgId: "org-1",
+      now: NOW,
+      bound: UNPAGINATED_MAX,
+    });
+    expect(snap.justIn).toEqual([
+      {
+        id: "review",
+        title: "review",
+        status: "in_review",
+        created_at: "2026-08-12T00:00:00.000Z",
+      },
+      {
+        id: "new",
+        title: "new",
+        status: "live",
+        created_at: "2026-08-10T00:00:00.000Z",
+      },
+    ]);
   });
 });
 

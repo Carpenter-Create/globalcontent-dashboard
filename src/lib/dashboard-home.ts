@@ -66,7 +66,7 @@ export function dashboardIdentityMeta(statusLabel: string, roleLabel: string | n
 }
 
 /** Integers only on `/`. Partial catalogs stay a floor in data; the +N mark is forbidden here. */
-export function dashboardCatalogValue(catalog: number, _catalogIsPartial?: boolean): string {
+export function dashboardCatalogValue(catalog: number): string {
   return String(catalog);
 }
 

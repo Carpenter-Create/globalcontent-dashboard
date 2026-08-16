@@ -69,7 +69,7 @@ export default async function DashboardPage() {
         </div>
 
         <DashboardSnapshot
-          catalog={dashboardCatalogValue(snapshot.catalog, snapshot.catalogIsPartial)}
+          catalog={dashboardCatalogValue(snapshot.catalog)}
           needsAttention={snapshot.needsAttention}
           live={snapshot.live}
         />
