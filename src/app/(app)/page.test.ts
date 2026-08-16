@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
 import { CLIENTS_PAGE } from "@/lib/clients";
+import { DASHBOARD_HOME } from "@/lib/dashboard-home";
 import { DASHBOARD_ATTENTION_CLEAR } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
 import DashboardPage from "./page";
@@ -35,7 +36,16 @@ function ctx({ isGcStaff, orgStatus }: { isGcStaff: boolean; orgStatus: Status |
   };
 }
 
-function stubClient() {
+function stubClient(
+  titles: {
+    id: string;
+    title: string;
+    catalog_id: string | null;
+    status: string;
+    release_date: string | null;
+    created_at: string;
+  }[] = [],
+) {
   const eq = vi.fn();
   const titlesChain = {
     select: vi.fn(() => titlesChain),
@@ -44,7 +54,7 @@ function stubClient() {
       return titlesChain;
     },
     order: vi.fn(() => titlesChain),
-    range: vi.fn(async () => ({ data: [], error: null })),
+    range: vi.fn(async () => ({ data: titles, error: null })),
   };
   const from = vi.fn((table: string) => {
     if (table === "titles") return titlesChain;
@@ -84,8 +94,37 @@ describe("DashboardPage modes", () => {
     expect(html).toContain("Acme");
     expect(html).toContain(DASHBOARD_ATTENTION_CLEAR);
     expect(html).toContain("/catalog-health");
+    expect(html).toContain("dashboard-home");
+    expect(html).toContain("dashboard-home-pill");
+    expect(html).toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
+    expect(html).not.toContain("text-accent");
     expect(html).not.toContain(CLIENTS_PAGE.title);
     expect(html).not.toContain(CLIENTS_PAGE.subtitle);
+  });
+
+  it("lists just-in titles as ink links, not accent body copy", async () => {
+    stubClient([
+      {
+        id: "title-1",
+        title: "Winter Light",
+        catalog_id: null,
+        status: "live",
+        release_date: null,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(html).toContain("Winter Light");
+    expect(html).toContain("/titles/title-1");
+    expect(html).toContain("dashboard-home-panel");
+    expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain("text-accent");
   });
 
   it("still renders the client portfolio when GC staff also hold a client org", async () => {
@@ -118,6 +157,9 @@ describe("DashboardPage modes", () => {
     expect(html).toContain(CLIENTS_PAGE.empty);
     expect(html).not.toContain("Dashboard —");
     expect(html).not.toContain("/catalog-health");
+    expect(html).not.toContain("dashboard-home");
+    expect(html).not.toContain("dashboard-home-pill");
+    expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
   });
 
   it("does not send GC staff with no client org to /queue or the wizard", async () => {

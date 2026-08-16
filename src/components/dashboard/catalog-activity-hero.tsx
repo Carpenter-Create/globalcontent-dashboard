@@ -118,14 +118,14 @@ export function CatalogActivityHero({ createdAt, nowMs, stats }: CatalogActivity
 
   return (
     <section
-      className="rounded-[var(--radius-lg)] bg-band px-6 py-6 text-band-ink sm:px-8 sm:py-7"
+      className="dashboard-home-hero rounded-[var(--radius-lg)] bg-band px-[var(--space-8)] py-[var(--space-8)] text-band-ink sm:px-[var(--space-10)] sm:py-[var(--space-10)]"
       aria-label="Catalog activity"
     >
       {/* Headline + range selector */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-start justify-between gap-[var(--space-6)]">
+        <div className="flex flex-col gap-[var(--space-2)]">
           <span className="t-label text-band-ink/50">Catalog activity</span>
-          <span className="t-data text-4xl font-medium leading-none sm:text-5xl">
+          <span className="t-title t-data text-band-ink">
             {stats.catalog}
           </span>
           <span className="t-body-sm text-band-ink/60">
@@ -167,10 +167,10 @@ export function CatalogActivityHero({ createdAt, nowMs, stats }: CatalogActivity
       </div>
 
       {/* The chart */}
-      <div ref={plotRef} className="relative mt-5" style={{ height: H }}>
+      <div ref={plotRef} className="relative mt-[var(--space-8)]" style={{ height: H }}>
         {!hasData ? (
           <div className="flex h-full items-center justify-center text-center">
-            <p className="t-body-sm text-band-ink/60">
+            <p className="t-body text-band-ink/60">
               Your catalog activity charts here as titles are added.
             </p>
           </div>
@@ -318,7 +318,7 @@ export function CatalogActivityHero({ createdAt, nowMs, stats }: CatalogActivity
       </div>
 
       {/* Stats row — the shared Stat primitive on the band surface (layout standard) */}
-      <StatGrid surface="band" className="mt-6">
+      <StatGrid surface="band" className="mt-[var(--space-8)]">
         <Stat surface="band" label="Catalog" value={stats.catalog} />
         <Stat surface="band" label="Upcoming" value={stats.upcoming} />
         <Stat surface="band" label="Live" value={stats.live} />
