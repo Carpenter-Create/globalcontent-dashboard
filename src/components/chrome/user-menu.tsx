@@ -21,7 +21,7 @@ export function onUserMenuLogOut(): void {
 }
 
 // Mercury quiet: house tokens and .t-* only. More air than the default
-// shadcn item (px-2.5 py-1.5 / p-1). Do not restyle the shared primitive.
+// shadcn item padding. Do not restyle the shared primitive.
 const USER_MENU_ITEM_CLASS =
   "rounded-[var(--radius-sm)] px-[var(--space-3)] py-[var(--space-2)] t-body-sm text-ink-2";
 
