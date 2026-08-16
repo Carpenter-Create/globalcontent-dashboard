@@ -80,10 +80,10 @@ export default async function TitlesPage({
       <TitlesCatalogHeader
         action={
           list.length > 0 || canOperate ? (
-            <div className="flex items-center gap-[var(--space-3)]">
+            <>
               {list.length > 0 ? <SearchField /> : null}
               {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
-            </div>
+            </>
           ) : undefined
         }
       />
