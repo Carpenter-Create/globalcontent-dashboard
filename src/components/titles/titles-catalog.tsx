@@ -50,7 +50,7 @@ export function TitlesCatalogEmpty({ children }: { children: React.ReactNode }) 
 export function TitlesCatalogGrid({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="titles-catalog-grid grid grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-10)] lg:grid-cols-3"
+      className="titles-catalog-grid grid grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-10)] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
       data-titles-catalog-grid=""
     >
       {children}
@@ -64,12 +64,14 @@ export function TitlesCatalogStill({
   stillUrl,
   status,
   statusLabel,
+  year,
 }: {
   href: string;
   title: string;
   stillUrl: string | null;
   status: string;
   statusLabel: string;
+  year?: string | null;
 }) {
   return (
     <Link
@@ -89,7 +91,7 @@ export function TitlesCatalogStill({
             title={title}
             rounded="rounded-none"
             className="h-full w-full"
-            sizes="(max-width: 1024px) 100vw, 33vw"
+            sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
           />
         ) : (
           <div className="h-full w-full bg-surface-muted" data-titles-catalog-empty-art="" />
@@ -99,12 +101,19 @@ export function TitlesCatalogStill({
         <span className="min-w-0 truncate t-body font-medium text-ink">
           {title}
         </span>
-        <span
-          className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
-          data-titles-catalog-status=""
-        >
-          {statusLabel}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]">
+          <span
+            className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
+            data-titles-catalog-status=""
+          >
+            {statusLabel}
+          </span>
+          {year ? (
+            <span className="t-body-sm font-normal text-ink-2" data-titles-catalog-year="">
+              {year}
+            </span>
+          ) : null}
+        </div>
       </div>
     </Link>
   );
