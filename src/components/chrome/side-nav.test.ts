@@ -25,12 +25,13 @@ describe("SideNav Access rail", () => {
     ]);
   });
 
-  it("uses 15px labels, 16px Lucide at 1.33, and an 8px item gap", () => {
-    expect(navSrc).toContain("t-body leading-4");
+  it("uses 14px labels, 16px Lucide at 1.33, and an 8px item gap", () => {
+    expect(navSrc).toContain("text-[0.875rem] leading-4");
     expect(navSrc).toContain("size-4 shrink-0");
     expect(navSrc).toContain("strokeWidth={1.33}");
     expect(navSrc).toContain('flex flex-col gap-2');
     expect(navSrc).toContain('collapsed ? "px-1.5" : "px-3"');
+    expect(navSrc).not.toContain("t-body leading-4");
     expect(navSrc).not.toContain("t-body-sm font-medium leading-5");
     expect(navSrc).not.toContain("strokeWidth={1.5}");
   });
