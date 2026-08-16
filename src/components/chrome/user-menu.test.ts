@@ -28,6 +28,8 @@ describe("UserMenuIdentity", () => {
     expect(html).toContain('data-user-menu-email=""');
     expect(html).toContain("ada@example.com");
     expect(html).toContain(">A<");
+    expect(html).toContain("px-[var(--space-4)] py-[var(--space-4)]");
+    expect(html).toContain("t-body-sm text-ink-3");
     expect(html).not.toContain("data-user-menu-name");
     expect(visibleText(html)).not.toMatch(/Profile|Notifications|Privacy/);
   });
@@ -38,8 +40,9 @@ describe("UserMenuIdentity", () => {
     );
     expect(html).toContain('data-user-menu-name=""');
     expect(html).toContain("Ada Lovelace");
-    expect(html).toContain("t-body font-medium text-ink");
-    expect(html).toContain("t-body-sm text-ink-2");
+    expect(html).toContain("t-body-sm font-medium text-ink");
+    expect(html).toContain("t-body-sm text-ink-3");
+    expect(html).not.toContain("t-body font-medium");
   });
 
   it("does not invent a name from the email local-part", () => {
@@ -91,6 +94,7 @@ describe("UserMenu item lock (source)", () => {
     }
     expect(menuSrc).not.toContain("/account/profile");
     expect(menuSrc).not.toContain("/settings");
+    expect(menuSrc).not.toContain("lucide-react");
   });
 
   it("keeps Agreements on the existing href", () => {
@@ -116,6 +120,47 @@ describe("UserMenu actions", () => {
     expect(onUserMenuAppearance).toBe(toggleDocumentTheme);
     expect(menuSrc).toContain("onUserMenuAppearance()");
     expect(menuSrc).toContain("event.preventDefault()");
+    expect(menuSrc).toContain("ThemeGlyph");
+  });
+});
+
+describe("UserMenu Mercury quiet craft", () => {
+  it("uses house type and air, not the default shadcn item padding", () => {
+    expect(menuSrc).toContain("t-body-sm font-medium text-ink");
+    expect(menuSrc).toContain("t-body-sm text-ink-3");
+    expect(menuSrc).toContain("px-[var(--space-4)] py-[var(--space-4)]");
+    expect(menuSrc).toContain("p-[var(--space-2)]");
+    expect(menuSrc).toContain(
+      "px-[var(--space-3)] py-[var(--space-2)] t-body-sm text-ink-2",
+    );
+    expect(menuSrc).toContain("rounded-[var(--radius)]");
+    expect(menuSrc).not.toContain("px-2.5 py-1.5");
+    expect(menuSrc).not.toContain("p-[var(--space-1)]");
+    expect(menuSrc).not.toContain("t-body font-medium");
+  });
+
+  it("keeps the identity hairline and adds a divider before Log out", () => {
+    const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
+    const agreements = menuSrc.indexOf('data-user-menu-item="agreements"');
+    const appearance = menuSrc.indexOf('data-user-menu-item="appearance"');
+    const logoutRule = menuSrc.indexOf('data-user-menu-logout-hairline=""');
+    const logOut = menuSrc.indexOf('data-user-menu-item="logOut"');
+    expect(hairline).toBeGreaterThan(-1);
+    expect(agreements).toBeGreaterThan(hairline);
+    expect(appearance).toBeGreaterThan(agreements);
+    expect(logoutRule).toBeGreaterThan(appearance);
+    expect(logOut).toBeGreaterThan(logoutRule);
+  });
+
+  it("does not restore a standalone header sun", () => {
+    const shellSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"),
+      "utf8",
+    );
+    expect(shellSrc).not.toContain("ThemeToggle");
+    expect(shellSrc).not.toContain("theme-toggle");
+    expect(shellSrc).not.toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("ThemeToggle");
     expect(menuSrc).toContain("ThemeGlyph");
   });
 });
