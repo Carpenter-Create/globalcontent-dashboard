@@ -94,11 +94,13 @@ describe("DashboardPage modes", () => {
     expect(html).toContain("Acme");
     expect(html).toContain(DASHBOARD_ATTENTION_CLEAR);
     expect(html).toContain("/catalog-health");
-    expect(html).toContain("dashboard-home");
+    expect(html).toContain("data-dashboard-home");
     expect(html).toContain("dashboard-home-pill");
     expect(html).toContain(DASHBOARD_HOME.justInEmpty);
     expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
-    expect(html).not.toContain("text-accent");
+    expect(html).toContain("bg-accent");
+    expect(html).toContain("text-accent-contrast");
+    expect(html).not.toContain("t-body-sm text-accent");
     expect(html).not.toContain(CLIENTS_PAGE.title);
     expect(html).not.toContain(CLIENTS_PAGE.subtitle);
   });
@@ -123,8 +125,9 @@ describe("DashboardPage modes", () => {
     expect(html).toContain("Winter Light");
     expect(html).toContain("/titles/title-1");
     expect(html).toContain("dashboard-home-panel");
+    expect(html).toContain("t-body font-medium text-ink");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
-    expect(html).not.toContain("text-accent");
+    expect(html).not.toContain("t-body-sm text-accent");
   });
 
   it("still renders the client portfolio when GC staff also hold a client org", async () => {
@@ -157,7 +160,7 @@ describe("DashboardPage modes", () => {
     expect(html).toContain(CLIENTS_PAGE.empty);
     expect(html).not.toContain("Dashboard —");
     expect(html).not.toContain("/catalog-health");
-    expect(html).not.toContain("dashboard-home");
+    expect(html).not.toContain("data-dashboard-home");
     expect(html).not.toContain("dashboard-home-pill");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
   });

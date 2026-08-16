@@ -65,7 +65,7 @@ export default async function DashboardPage() {
   ).size;
 
   return (
-    <div className="dashboard-home flex flex-col gap-[var(--space-10)]">
+    <div className="dashboard-home flex flex-col gap-[var(--space-10)]" data-dashboard-home="">
       <h1 className="sr-only">Dashboard — {org.name}</h1>
 
       <CatalogActivityHero
