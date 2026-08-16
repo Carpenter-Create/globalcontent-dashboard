@@ -18,9 +18,10 @@ import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 import { GcClientsDirectory } from "@/app/(app)/(operator)/gc/clients/clients-directory";
 
 // Client `/` is the organization-scoped portfolio: identity, three live numbers,
-// what to do next, and what just arrived. No chart, no revenue seam, no upcoming
-// or platform-placement row. Findings stay owned by Catalog Health — we only
-// point there. Staff without a client org still see the GC-wide clients roster.
+// what to do next (findings + drafts), and what just arrived. No chart, no
+// revenue seam, no upcoming or platform-placement row. Catalog Health remains
+// the full findings surface — the blue pill is the one action. Staff without a
+// client org still see the GC-wide clients roster.
 export default async function DashboardPage() {
   const supabase = await createClient();
   // Resolved once per request and shared with the layout above (React cache()).
@@ -70,12 +71,12 @@ export default async function DashboardPage() {
         <DashboardSnapshot
           catalog={dashboardCatalogValue(snapshot.catalog, snapshot.catalogIsPartial)}
           needsAttention={snapshot.needsAttention}
-          live={snapshot.live}
+          live={dashboardCatalogValue(snapshot.live, snapshot.catalogIsPartial)}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-[var(--space-8)] lg:grid-cols-2 lg:items-stretch">
-        <DashboardDoNext attentionTitleCount={snapshot.needsAttention} drafts={snapshot.drafts} />
+      <div className="flex flex-col gap-[var(--space-8)]">
+        <DashboardDoNext items={snapshot.doNext} />
         <DashboardJustIn titles={snapshot.justIn} />
       </div>
     </div>

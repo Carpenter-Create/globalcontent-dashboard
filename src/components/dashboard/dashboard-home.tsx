@@ -1,16 +1,17 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
-import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
+import { DASHBOARD_ATTENTION_CLEAR } from "@/lib/findings";
 import {
   DASHBOARD_HOME,
   dashboardIdentityMeta,
+  dashboardJustInDate,
+  dashboardTitleStatusLabel,
+  type ClientHomeDoNextItem,
+  type ClientHomeJustInItem,
 } from "@/lib/dashboard-home";
 import { ORG_ROLE_LABELS, ORG_STATUS_LABELS } from "@/lib/clients";
-import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import type { OrgRole, OrgStatus } from "@/lib/supabase/context";
-
-const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
 // Client-home chrome only. Not the shared Card — a Card/table change must not
 // restyle Titles, Deliveries, Catalog Health, or staff surfaces.
@@ -52,6 +53,17 @@ export function DashboardHomePillLink({
   );
 }
 
+export function DashboardHomeStatusPill({ label }: { label: string }) {
+  return (
+    <span
+      data-dashboard-status-pill=""
+      className="inline-flex shrink-0 items-center rounded-full border border-hairline px-[var(--space-3)] py-[var(--space-1)] t-body-sm text-ink-3"
+    >
+      {label}
+    </span>
+  );
+}
+
 export function DashboardHomeEmpty({ children }: { children: React.ReactNode }) {
   return (
     <div className="dashboard-home-empty flex flex-1 flex-col justify-center py-[var(--space-10)]">
@@ -87,7 +99,7 @@ export function DashboardSnapshot({
 }: {
   catalog: string;
   needsAttention: number;
-  live: number;
+  live: string;
 }) {
   const stats = [
     { key: "catalog", label: DASHBOARD_HOME.catalog, value: catalog, highlight: false },
@@ -95,9 +107,9 @@ export function DashboardSnapshot({
       key: "needsAttention",
       label: DASHBOARD_HOME.needsAttention,
       value: String(needsAttention),
-      highlight: needsAttention > 0,
+      highlight: true,
     },
-    { key: "live", label: DASHBOARD_HOME.live, value: String(live), highlight: false },
+    { key: "live", label: DASHBOARD_HOME.live, value: live, highlight: false },
   ] as const;
 
   return (
@@ -130,87 +142,77 @@ export function DashboardSnapshot({
   );
 }
 
-export function DashboardDoNext({
-  attentionTitleCount,
-  drafts,
-}: {
-  attentionTitleCount: number;
-  drafts: { id: string; title: string }[];
-}) {
-  const hasAttention = attentionTitleCount > 0;
-  const hasDrafts = drafts.length > 0;
-
+export function DashboardDoNext({ items }: { items: ClientHomeDoNextItem[] }) {
   return (
     <DashboardHomePanel aria-label={DASHBOARD_HOME.doNext} data-dashboard-do-next="">
       <span className="t-label text-ink-3">{DASHBOARD_HOME.doNext}</span>
-      {!hasAttention && !hasDrafts ? (
+      {items.length === 0 ? (
         <DashboardHomeEmpty>{DASHBOARD_ATTENTION_CLEAR}</DashboardHomeEmpty>
       ) : (
-        <div className="mt-[var(--space-8)] flex flex-col">
-          {hasAttention ? (
-            <div className="flex flex-col gap-[var(--space-3)] pb-[var(--space-8)]">
-              <Link
-                href="/catalog-health"
-                className="t-body font-medium text-ink transition-colors hover:text-ink-2"
+        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
+          {items.map((item) => {
+            const statusLabel = dashboardTitleStatusLabel(item.status);
+            return (
+              <li
+                key={item.id}
+                data-dashboard-do-next-row={item.id}
+                className="flex items-start justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
               >
-                {dashboardAttentionSummary(attentionTitleCount)}
-              </Link>
-              <p className="t-body-sm text-ink-3">{DASHBOARD_HOME.attentionReview}</p>
-            </div>
-          ) : null}
-          {hasAttention && hasDrafts ? <div className="border-t border-hairline" /> : null}
-          {hasDrafts ? (
-            <ul className={cn("divide-y divide-hairline", hasAttention && "pt-[var(--space-2)]")}>
-              {drafts.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-[var(--space-6)] last:pb-0"
-                >
+                <div className="min-w-0">
+                  <Link
+                    href={`/titles/${item.id}`}
+                    className="t-body font-medium text-ink transition-colors hover:text-ink-2"
+                  >
+                    {item.title}
+                  </Link>
+                  {item.reason ? (
+                    <p className="mt-[var(--space-1)] t-body-sm text-ink-3">{item.reason}</p>
+                  ) : null}
+                </div>
+                {statusLabel ? <DashboardHomeStatusPill label={statusLabel} /> : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </DashboardHomePanel>
+  );
+}
+
+export function DashboardJustIn({ titles }: { titles: ClientHomeJustInItem[] }) {
+  return (
+    <DashboardHomePanel aria-label={DASHBOARD_HOME.justIn} data-dashboard-just-in="">
+      <span className="t-label text-ink-3">{DASHBOARD_HOME.justIn}</span>
+      {titles.length === 0 ? (
+        <DashboardHomeEmpty>{DASHBOARD_HOME.justInEmpty}</DashboardHomeEmpty>
+      ) : (
+        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
+          {titles.map((t) => {
+            const statusLabel = dashboardTitleStatusLabel(t.status);
+            return (
+              <li
+                key={t.id}
+                data-dashboard-just-in-row={t.id}
+                className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
+              >
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--space-3)] gap-y-[var(--space-1)]">
                   <Link
                     href={`/titles/${t.id}`}
                     className="t-body font-medium text-ink transition-colors hover:text-ink-2"
                   >
                     {t.title}
                   </Link>
-                  <span className="t-data shrink-0 text-ink-3">{TITLE_STATUS_LABELS.draft}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      )}
-    </DashboardHomePanel>
-  );
-}
-
-export function DashboardJustIn({
-  titles,
-}: {
-  titles: { id: string; title: string; created_at: string }[];
-}) {
-  return (
-    <DashboardHomePanel aria-label={DASHBOARD_HOME.justIn}>
-      <span className="t-label text-ink-3">{DASHBOARD_HOME.justIn}</span>
-      {titles.length === 0 ? (
-        <DashboardHomeEmpty>{DASHBOARD_HOME.justInEmpty}</DashboardHomeEmpty>
-      ) : (
-        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
-          {titles.map((t) => (
-            <li
-              key={t.id}
-              className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
-            >
-              <Link
-                href={`/titles/${t.id}`}
-                className="t-body font-medium text-ink transition-colors hover:text-ink-2"
-              >
-                {t.title}
-              </Link>
-              <span className="t-data shrink-0 text-ink-3">
-                {DASHBOARD_HOME.addedPrefix} {ADDED_FMT.format(new Date(t.created_at))}
-              </span>
-            </li>
-          ))}
+                  {statusLabel ? <DashboardHomeStatusPill label={statusLabel} /> : null}
+                </span>
+                <time
+                  className="t-body-sm shrink-0 text-ink-3"
+                  dateTime={t.created_at}
+                >
+                  {dashboardJustInDate(t.created_at)}
+                </time>
+              </li>
+            );
+          })}
         </ul>
       )}
     </DashboardHomePanel>

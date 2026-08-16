@@ -88,10 +88,15 @@ export function AppShell({
       </aside>
 
       <header
-        className="sticky top-0 z-40 flex items-center justify-between gap-4 border-b border-hairline bg-canvas/80 px-6 backdrop-blur"
+        className={cn(
+          "sticky top-0 z-40 flex items-center gap-4 border-b border-hairline bg-canvas/80 px-6 backdrop-blur",
+          pathname === "/" ? "justify-end" : "justify-between",
+        )}
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
-        <OrganizationSwitcher orgs={orgs} activeOrgId={activeOrgId} />
+        {pathname === "/" ? null : (
+          <OrganizationSwitcher orgs={orgs} activeOrgId={activeOrgId} />
+        )}
         <div className="flex items-center gap-3">
           <UserMenu email={email} />
         </div>
