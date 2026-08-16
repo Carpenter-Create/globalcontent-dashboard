@@ -7,8 +7,10 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 // Client `/titles` chrome only. Not the shared Card, BannerCard, or DataTable —
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
 // Operate bar sits under the title. Each title is a hairline/surface card:
-// 2:3 still, then stacked title, year, TITLE_STATUS_LABELS pill.
+// 2:3 still, then one designed stack — title, year, TITLE_STATUS_LABELS pill.
 // Hierarchy is weight, not color. Accent is Add Title only.
+// Page-local still crop: every catalog img is object-cover / object-center
+// inside the 2:3 frame so Artwork's default treatment cannot diverge.
 
 export function TitlesCatalogFrame({
   className,
@@ -17,7 +19,7 @@ export function TitlesCatalogFrame({
   return (
     <div
       className={cn(
-        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)] px-[var(--space-6)] pt-[var(--space-8)] sm:px-[var(--space-10)]",
+        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-6)] px-[var(--space-6)] pt-[var(--space-8)] sm:px-[var(--space-10)]",
         className,
       )}
       style={{ maxWidth: "var(--content-max)" }}
@@ -90,22 +92,26 @@ export function TitlesCatalogStill({
       data-title-status={status}
     >
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden bg-surface-muted"
+        className="relative aspect-[2/3] w-full overflow-hidden bg-surface-muted [&_img]:h-full [&_img]:w-full [&_img]:object-cover [&_img]:object-center"
         data-titles-catalog-frame=""
+        data-titles-catalog-crop="cover"
       >
         {stillUrl ? (
           <Artwork
             src={stillUrl}
             title={title}
             rounded="rounded-none"
-            className="h-full w-full"
+            className="absolute inset-0 h-full w-full"
             sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
           />
         ) : (
-          <div className="h-full w-full bg-surface-muted" data-titles-catalog-empty-art="" />
+          <div className="absolute inset-0 bg-surface-muted" data-titles-catalog-empty-art="" />
         )}
       </div>
-      <div className="flex flex-col gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-4)]">
+      <div
+        className="flex flex-col gap-[var(--space-1)] px-[var(--space-4)] pb-[var(--space-4)] pt-[var(--space-3)]"
+        data-titles-catalog-stack=""
+      >
         <span className="min-w-0 truncate t-body font-medium text-ink">
           {title}
         </span>
@@ -115,7 +121,7 @@ export function TitlesCatalogStill({
           </span>
         ) : null}
         <span
-          className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
+          className="mt-[var(--space-1)] inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
           data-titles-catalog-status=""
         >
           {statusLabel}
