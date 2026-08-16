@@ -184,7 +184,9 @@ describe("client /titles catalog", () => {
     expect(html).not.toContain(
       "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)]",
     );
-    expect(html).toMatch(/<h1[^>]*>Titles<\/h1>/);
+    expect(html).toMatch(/<h1 class="t-section text-ink">Titles<\/h1>/);
+    expect(html).not.toMatch(/<h1[^>]*t-display/);
+    expect(html).not.toMatch(/<h1[^>]*t-title/);
 
     const titleClose = html.indexOf("</h1>");
     const operateAt = html.indexOf("data-titles-catalog-operate");
@@ -223,6 +225,9 @@ describe("client /titles catalog", () => {
     expect(html).toContain("rounded-full bg-surface-muted");
     expect(html).toContain("t-body font-medium text-ink");
     expect(html).toContain("t-body-sm font-normal text-ink");
+    expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-section/);
+    expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-display/);
+    expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-title/);
     expect(html).not.toContain("group-hover:text-ink-2");
     for (const status of ALL_STATUSES) {
       expect(html).toContain(TITLE_STATUS_LABELS[status]);

@@ -1,6 +1,16 @@
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import {
+  DashboardDoNext,
+  DashboardOrgIdentity,
+  DashboardSnapshot,
+} from "@/components/dashboard/dashboard-home";
+import { dashboardAttentionSummary } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
+import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import {
   clientHomeSnapshot,
   dashboardCatalogValue,
@@ -116,5 +126,81 @@ describe("dashboardIdentityMeta", () => {
     expect(dashboardIdentityMeta("Active", "Account owner")).toBe("Active · Account owner");
     expect(dashboardIdentityMeta("Registered", null)).toBe("Registered");
     expect(dashboardIdentityMeta("Active", "Account owner")).not.toMatch(/Access|term/i);
+  });
+});
+
+describe("house type register", () => {
+  const tokens = readFileSync("src/app/tokens.css", "utf8");
+  const globals = readFileSync("src/app/globals.css", "utf8");
+
+  it("keeps one large moment in the shared --text-* scale", () => {
+    expect(tokens).toMatch(/--text-xs:\s*0\.75rem;/);
+    expect(tokens).toMatch(/--text-sm:\s*0\.8125rem;/);
+    expect(tokens).toMatch(/--text-base:\s*0\.9375rem;/);
+    expect(tokens).toMatch(/--text-lg:\s*1\.0625rem;/);
+    expect(tokens).toMatch(/--text-title:\s*1\.5rem;/);
+    expect(tokens).toMatch(/--text-hero:\s*3rem;/);
+  });
+
+  it("binds .t-* steps to those tokens instead of display clamp()", () => {
+    expect(globals).toMatch(/\.t-display\s*\{[\s\S]*?font-size:\s*var\(--text-hero\)/);
+    expect(globals).toMatch(/\.t-title\s*\{[\s\S]*?font-size:\s*var\(--text-title\)/);
+    expect(globals).toMatch(/\.t-section\s*\{[\s\S]*?font-size:\s*var\(--text-title\)/);
+    expect(globals).toMatch(/\.t-subhead\s*\{[\s\S]*?font-size:\s*var\(--text-lg\)/);
+    expect(globals).toMatch(/\.t-body\s*\{[\s\S]*?font-size:\s*var\(--text-base\)/);
+    expect(globals).toMatch(/\.t-body-sm\s*\{[\s\S]*?font-size:\s*var\(--text-sm\)/);
+    expect(globals).toMatch(/\.t-label\s*\{[\s\S]*?font-size:\s*var\(--text-xs\)/);
+    expect(globals).not.toMatch(
+      /\.t-(display|title|statement|section|heading|subhead|lead)\s*\{[^}]*clamp\(/,
+    );
+  });
+});
+
+describe("client home type locks", () => {
+  it("makes snapshot numbers the one large moment — org name stays on the title step", () => {
+    const identity = renderToStaticMarkup(
+      createElement(DashboardOrgIdentity, {
+        name: "Acme",
+        status: "active",
+        role: "account_owner",
+      }),
+    );
+    const snapshot = renderToStaticMarkup(
+      createElement(DashboardSnapshot, {
+        catalog: "2",
+        needsAttention: 1,
+        live: 1,
+      }),
+    );
+
+    expect(identity).toMatch(/<h1 class="t-section text-ink">Acme<\/h1>/);
+    expect(identity).not.toContain("t-display");
+    expect(identity).not.toContain("t-title");
+    expect(snapshot).toMatch(/data-dashboard-stat="catalog"[^>]*t-display t-data/);
+    expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*t-display t-data/);
+    expect(snapshot).toMatch(/data-dashboard-stat="live"[^>]*t-display t-data/);
+    expect(snapshot).not.toContain("t-title");
+    expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.catalog}`);
+    expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.needsAttention}`);
+    expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.live}`);
+  });
+
+  it("keeps Do next body and list titles on the body step, not display", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardDoNext, {
+        attentionTitleCount: 1,
+        drafts: [{ id: "draft-1", title: "Draft Work" }],
+      }),
+    );
+
+    expect(html).toContain(`t-label text-ink-3">${DASHBOARD_HOME.doNext}`);
+    expect(html).toContain(dashboardAttentionSummary(1));
+    expect(html).toContain("t-body font-medium text-ink");
+    expect(html).toContain("Draft Work");
+    expect(html).toContain(TITLE_STATUS_LABELS.draft);
+    expect(html).not.toContain("t-subhead");
+    expect(html).not.toContain("t-display");
+    expect(html).not.toContain("t-title");
+    expect(html).not.toContain("t-section");
   });
 });
