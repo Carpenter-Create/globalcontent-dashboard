@@ -107,6 +107,10 @@ describe("client /titles catalog", () => {
     expect(html).toContain("grid-cols-1");
     expect(html).toContain("xl:grid-cols-5");
     expect(html).toContain("aspect-[2/3]");
+    const cardClass = html.match(/class="([^"]*titles-catalog-card[^"]*)"/)?.[1] ?? "";
+    expect(cardClass).toContain("titles-catalog-card");
+    expect(cardClass).not.toContain("overflow-hidden");
+    expect(html).toMatch(/class="[^"]*overflow-hidden[^"]*"\s+data-titles-catalog-frame/);
     expect(html).not.toMatch(/[^:]grid-cols-5/);
     expect(html).not.toContain("grid-cols-6");
     expect(html).not.toContain("lg:grid-cols-3");
@@ -161,6 +165,28 @@ describe("client /titles catalog", () => {
     expect(operateChunk).toContain("Search titles");
     expect(operateChunk).toContain(TITLES_CATALOG.addTitle);
     expect(operateChunk).toContain("data-add-title");
+  });
+
+  it("keeps Add Title on the operate bar's trailing edge when Search is omitted", async () => {
+    stubClient([]);
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+
+    expect(html).toContain("data-titles-catalog-operate");
+    expect(html).toContain("data-add-title");
+    expect(html).toContain(TITLES_CATALOG.addTitle);
+    expect(html).toContain(TITLES_CATALOG.emptyCanOperate);
+    expect(html).not.toContain("Search titles");
+
+    const operateAt = html.indexOf("data-titles-catalog-operate");
+    const addAt = html.indexOf("data-add-title");
+    expect(operateAt).toBeGreaterThan(-1);
+    expect(addAt).toBeGreaterThan(operateAt);
+
+    // justify-between only occupies the end edge when a leading slot is mounted.
+    const operateOpenEnd = html.indexOf(">", operateAt);
+    expect(html.slice(operateOpenEnd + 1, addAt)).toMatch(/<span\b/);
   });
 
   it("keeps search, Add Title, and quiet TITLE_STATUS_LABELS pills — no SaaS subtitle", async () => {

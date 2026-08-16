@@ -81,7 +81,7 @@ export default async function TitlesPage({
         action={
           list.length > 0 || canOperate ? (
             <>
-              {list.length > 0 ? <SearchField /> : null}
+              {list.length > 0 ? <SearchField /> : <span />}
               {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
             </>
           ) : undefined

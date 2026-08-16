@@ -85,12 +85,12 @@ export function TitlesCatalogStill({
     <Link
       href={href}
       prefetch={false}
-      className="titles-catalog-card group flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface"
+      className="titles-catalog-card group flex flex-col rounded-[var(--radius-lg)] border border-hairline bg-surface"
       data-titles-catalog-card=""
       data-title-status={status}
     >
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden bg-surface-muted"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-t-[var(--radius-lg)] bg-surface-muted"
         data-titles-catalog-frame=""
       >
         {stillUrl ? (
