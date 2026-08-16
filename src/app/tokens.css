@@ -48,7 +48,7 @@
 
   /* --- NO status colors by default (greyscale + one accent). --- */
 
-  /* --- Type scale (tight; rem) --- */
+  /* --- Type scale (tight; rem). One large moment (--text-hero); the rest step down. --- */
   --text-xs:   0.75rem;
   --text-sm:   0.8125rem;
   --text-base: 0.9375rem;

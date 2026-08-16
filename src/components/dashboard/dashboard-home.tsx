@@ -117,7 +117,8 @@ export function DashboardSnapshot({
           <dd
             data-dashboard-stat={stat.key}
             className={cn(
-              "t-title t-data leading-none",
+              // One large moment on `/` — org name stays t-section (title step).
+              "t-display t-data leading-none",
               stat.highlight ? "text-accent" : "text-ink",
             )}
           >
@@ -150,7 +151,7 @@ export function DashboardDoNext({
             <div className="flex flex-col gap-[var(--space-3)] pb-[var(--space-8)]">
               <Link
                 href="/catalog-health"
-                className="t-subhead text-ink transition-colors hover:text-ink-2"
+                className="t-body font-medium text-ink transition-colors hover:text-ink-2"
               >
                 {dashboardAttentionSummary(attentionTitleCount)}
               </Link>
