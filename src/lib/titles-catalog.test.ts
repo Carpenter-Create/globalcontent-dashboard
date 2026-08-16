@@ -4,7 +4,6 @@ import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 import {
   CATALOG_LIFECYCLE_STATES,
   TITLES_CATALOG,
-  catalogCountLine,
   catalogStatusMark,
   catalogStillSrc,
 } from "./titles-catalog";
@@ -49,32 +48,19 @@ describe("catalog lifecycle", () => {
 });
 
 describe("catalogStillSrc", () => {
-  it("prefers a real banner still", () => {
+  it("prefers a real poster for the portrait still", () => {
     expect(catalogStillSrc("https://cdn/banner.jpg", "https://cdn/poster.jpg")).toBe(
-      "https://cdn/banner.jpg",
+      "https://cdn/poster.jpg",
     );
   });
 
-  it("uses a real poster when no banner exists", () => {
-    expect(catalogStillSrc(null, "https://cdn/poster.jpg")).toBe("https://cdn/poster.jpg");
+  it("uses a real banner when no poster exists", () => {
+    expect(catalogStillSrc("https://cdn/banner.jpg", null)).toBe("https://cdn/banner.jpg");
   });
 
   it("returns null when there is no artwork — honest empty, not a fake poster", () => {
     expect(catalogStillSrc(null, null)).toBeNull();
     expect(catalogStillSrc(undefined, "")).toBeNull();
-  });
-});
-
-describe("catalogCountLine", () => {
-  it("names the org and the count", () => {
-    expect(catalogCountLine(1, "Acme", false, 200)).toBe("1 title in Acme's catalog.");
-    expect(catalogCountLine(3, "Acme", false, 200)).toBe("3 titles in Acme's catalog.");
-  });
-
-  it("is honest when the page is truncated", () => {
-    expect(catalogCountLine(200, "Acme", true, 200)).toBe(
-      "Showing the 200 most recent titles in Acme's catalog.",
-    );
   });
 });
 
