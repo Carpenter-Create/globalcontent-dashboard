@@ -98,8 +98,27 @@ async function renderCatalog(
   return renderToStaticMarkup(await TitlesPage({ searchParams: Promise.resolve(search) }));
 }
 
+/** Full opening tag that carries `marker` — not the leftover attrs after it. */
+function openingTagsWith(html: string, marker: string): string[] {
+  const tags: string[] = [];
+  let from = 0;
+  while (true) {
+    const at = html.indexOf(marker, from);
+    if (at === -1) break;
+    const start = html.lastIndexOf("<", at);
+    const end = html.indexOf(">", at);
+    if (start === -1 || end === -1) break;
+    tags.push(html.slice(start, end + 1));
+    from = end + 1;
+  }
+  return tags;
+}
+
 describe("client /titles catalog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(titleArtworkUrls).mockResolvedValue(new Map());
+  });
 
   it("lists every lifecycle state on one catalog page", async () => {
     stubClient();
@@ -252,10 +271,10 @@ describe("client /titles catalog", () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
     const html = await renderCatalog();
-    const cards = html.split('data-titles-catalog-card=""').slice(1);
+    const cards = openingTagsWith(html, 'data-titles-catalog-card=""');
     expect(cards).toHaveLength(ALL_STATUSES.length);
-    for (const card of cards) {
-      const open = card.slice(0, card.indexOf(">"));
+    for (const open of cards) {
+      expect(open).toContain("data-titles-catalog-card");
       expect(open).toContain("border-hairline");
       expect(open).toContain("bg-surface");
       expect(open).toContain("rounded-[var(--radius-lg)]");
@@ -270,18 +289,17 @@ describe("client /titles catalog", () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
     const html = await renderCatalog();
-    const frames = html.split('data-titles-catalog-frame=""').slice(1);
+    const frames = openingTagsWith(html, 'data-titles-catalog-frame=""');
     expect(frames).toHaveLength(ALL_STATUSES.length);
-    for (const frame of frames) {
-      const open = frame.slice(0, frame.indexOf(">"));
+    for (const open of frames) {
+      expect(open).toContain("data-titles-catalog-frame");
+      expect(open).toContain('data-titles-catalog-crop="cover"');
       expect(open).toContain("aspect-[2/3]");
       expect(open).toContain("[&amp;_img]:object-cover");
       expect(open).toContain("[&amp;_img]:object-center");
       expect(open).not.toContain("aspect-[16/9]");
       expect(open).not.toContain("object-contain");
     }
-    const crops = html.match(/data-titles-catalog-crop="cover"/g) ?? [];
-    expect(crops).toHaveLength(ALL_STATUSES.length);
   });
 
   it("keeps title, year, and TITLE_STATUS_LABELS as one designed stack", async () => {
@@ -317,12 +335,10 @@ describe("client /titles catalog", () => {
     expect(html).toContain("https://cdn/poster.jpg");
     expect(html).toContain("https://cdn/wide.jpg");
     expect(html).not.toContain("data-titles-catalog-empty-art");
-    const crops = html.match(/data-titles-catalog-crop="cover"/g) ?? [];
-    expect(crops).toHaveLength(2);
-    const frames = html.split('data-titles-catalog-frame=""').slice(1);
+    const frames = openingTagsWith(html, 'data-titles-catalog-frame=""');
     expect(frames).toHaveLength(2);
-    for (const frame of frames) {
-      const open = frame.slice(0, frame.indexOf(">"));
+    for (const open of frames) {
+      expect(open).toContain('data-titles-catalog-crop="cover"');
       expect(open).toContain("aspect-[2/3]");
       expect(open).toContain("[&amp;_img]:object-cover");
       expect(open).toContain("[&amp;_img]:object-center");
@@ -331,12 +347,17 @@ describe("client /titles catalog", () => {
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {
     stubClient([titleRow("draft", 0)]);
+    vi.mocked(titleArtworkUrls).mockResolvedValue(new Map());
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
     const html = await renderCatalog();
 
     expect(html).toContain("data-titles-catalog-empty-art");
     expect(html).not.toContain("t-data select-none text-3xl");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain('rel="preload"');
+    expect(html).not.toContain("poster.jpg");
+    expect(html).not.toContain("https://cdn/");
   });
 
   it("hides Add Title when the viewer cannot operate", async () => {
