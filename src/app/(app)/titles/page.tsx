@@ -1,63 +1,31 @@
 import { redirect } from "next/navigation";
-import { Clapperboard } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { LIST_PAGE, probeRange, splitProbe, rangeFor } from "@/lib/list-bounds";
-import { DataTable, type Column } from "@/components/layout/data-table";
-import { BannerCard } from "@/components/layout/banner-card";
-import { ViewToggle } from "@/components/layout/view-toggle";
-import { EmptyState } from "@/components/layout/empty-state";
+import { LIST_PAGE, probeRange, splitProbe } from "@/lib/list-bounds";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { Artwork } from "@/components/layout/artwork";
 import { SearchField } from "@/components/layout/search-field";
-import { SortControl } from "@/components/layout/sort-control";
 import { AddTitleButton } from "./add-title-button";
 import { titleArtworkUrls } from "@/lib/artwork";
-import { parseSort, parseView, sortRows, nextSort, buildQuery, type SortDir } from "@/lib/catalog-view";
 import { filterTitles, type BrowseTitle } from "@/lib/titles-browse";
-import { formatReleaseDate } from "@/lib/releases";
+import {
+  TITLES_CATALOG,
+  catalogCountLine,
+  catalogStatusMark,
+  catalogStillSrc,
+} from "@/lib/titles-catalog";
+import {
+  TitlesCatalogEmpty,
+  TitlesCatalogFrame,
+  TitlesCatalogGrid,
+  TitlesCatalogHeader,
+  TitlesCatalogStill,
+} from "@/components/titles/titles-catalog";
+import type { TitleStatus } from "@/lib/titles";
 
-// The catalog (§11) as the Visual register: a clean streaming grid of landscape covers
-// (search + sort) ⇄ dense operational table. RLS-scoped to the active org. `catalog_id`
-// is a GC-only column — never shown on this client surface.
-//
-// Statuses are intentionally not surfaced here (the status filter, per-card chips, and
-// cinematic hero were removed as noise for viewers). The underlying components
-// (StatusChip, StatusFilter, SpotlightBanner) and helpers (groupIntoRails, filterByStatus)
-// remain in the tree for future use — this page simply no longer renders them.
-
-const ALLOWED_SORTS = ["title", "live", "release", "catalog", "created"] as const;
-const DEFAULT_DIR: Record<string, SortDir> = {
-  title: "asc",
-  catalog: "asc",
-  live: "desc",
-  release: "desc",
-  created: "desc",
-};
-
-// Browse-grid sort pills. Each maps to a (key, dir) the shared sorter understands; the
-// "recent" default carries no params so the canonical URL stays clean.
-const BROWSE_SORTS: { id: string; label: string; key: string; dir: SortDir }[] = [
-  { id: "recent", label: "Recently added", key: "created", dir: "desc" },
-  { id: "release", label: "Release date", key: "release", dir: "desc" },
-  { id: "title", label: "A–Z", key: "title", dir: "asc" },
-];
-
-function sortValue(key: string, r: BrowseTitle): string | number | null {
-  switch (key) {
-    case "title":
-      return r.title.toLowerCase();
-    case "live":
-      return r.live;
-    case "release":
-      return r.release_date;
-    case "catalog":
-      return null; // GC-only; not sortable on the client surface
-    default:
-      return r.created_at;
-  }
-}
+// Client `/titles` is the catalog: every title the org owns, every existing
+// title.status, on this one page. Artwork-first stills — not a small-card admin
+// grid, not a streaming home. `catalog_id` stays GC-only.
 
 export default async function TitlesPage({
   searchParams,
@@ -66,9 +34,7 @@ export default async function TitlesPage({
 }) {
   const sp = await searchParams;
   const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
-  const view = parseView(str(sp.view), "browse");
   const q = (str(sp.q) ?? "").slice(0, 100);
-  const sort = parseSort(str(sp.sort), str(sp.dir), ALLOWED_SORTS, { key: "created", dir: "desc" });
 
   const supabase = await createClient();
   // Shared with the layout via React cache() — no second identity check, no second
@@ -93,25 +59,6 @@ export default async function TitlesPage({
     .range(tFrom, tTo);
   const { rows: list, truncated } = splitProbe(titlePage, LIST_PAGE);
   const ids = list.map((t) => t.id);
-
-  // Bounded to the page's titles. ~20 vendors per title means this can still be large, so
-  // it is capped; phase 4 replaces it with a DB-side aggregate.
-  const [dFrom, dTo] = rangeFor(LIST_PAGE * 25);
-  const { data: dlv } = ids.length
-    ? await supabase
-        .from("deliveries")
-        .select("title_id, status")
-        .in("title_id", ids)
-        .range(dFrom, dTo)
-    : { data: [] as { title_id: string; status: string }[] };
-  const counts = new Map<string, { live: number; total: number }>();
-  for (const d of dlv ?? []) {
-    const c = counts.get(d.title_id) ?? { live: 0, total: 0 };
-    c.total += 1;
-    if (d.status === "live") c.live += 1;
-    counts.set(d.title_id, c);
-  }
-
   const posters = await titleArtworkUrls(supabase, ids);
 
   const all: BrowseTitle[] = list.map((t) => ({
@@ -120,169 +67,60 @@ export default async function TitlesPage({
     status: t.status,
     created_at: t.created_at,
     release_date: t.release_date,
-    live: counts.get(t.id)?.live ?? 0,
-    total: counts.get(t.id)?.total ?? 0,
+    live: 0,
+    total: 0,
     posterUrl: posters.get(t.id)?.poster ?? null,
     bannerUrl: posters.get(t.id)?.banner ?? null,
   }));
 
-  const searching = q.trim().length > 0;
   const filtered = filterTitles(all, q);
-  const sorted = sortRows(filtered, (r) => sortValue(sort.key, r), sort.dir);
-
-  const activeSortId = BROWSE_SORTS.find((s) => s.key === sort.key && s.dir === sort.dir)?.id ?? "recent";
-
-  // Shared param bag so every control preserves the others (view / q / sort).
-  const baseParams: Record<string, string | undefined> = {
-    ...(searching ? { q: q.trim() } : {}),
-    ...(sort.key === "created" && sort.dir === "desc" ? {} : { sort: sort.key, dir: sort.dir }),
-  };
-  const href = (override: Record<string, string | undefined>) =>
-    buildQuery({ ...baseParams, ...override });
-  const browseHref = href({ view: undefined });
-  const tableHref = href({ view: "table" });
-  const sortHref = (key: string) => {
-    const ns = nextSort(sort, key, DEFAULT_DIR[key] ?? "asc");
-    return href({ view: view === "table" ? "table" : undefined, sort: ns.key, dir: ns.dir });
-  };
-  // Browse sort pills stay in browse view; the default carries no params for a clean URL.
-  const sortControlHref = (id: string) => {
-    const s = BROWSE_SORTS.find((x) => x.id === id)!;
-    const isDefault = s.key === "created" && s.dir === "desc";
-    return href({ sort: isDefault ? undefined : s.key, dir: isDefault ? undefined : s.dir });
-  };
-
-  const columns: Column<BrowseTitle>[] = [
-    {
-      key: "poster",
-      header: "",
-      width: "w-14",
-      cell: (r) => <Artwork src={r.posterUrl} title={r.title} className="h-12 w-8" rounded="rounded-[4px]" sizes="32px" />,
-    },
-    {
-      key: "title",
-      header: "Title",
-      sortable: true,
-      cell: (r) => <span className="font-medium text-ink">{r.title}</span>,
-    },
-    // GC-only: internal cataloging/accounting reference, never shown to clients.
-    {
-      key: "catalog",
-      header: "Catalog ID",
-      sortable: true,
-      gcOnly: true,
-      cell: () => <span className="text-ink-3">—</span>,
-    },
-    {
-      key: "live",
-      header: "Live",
-      sortable: true,
-      align: "right",
-      width: "w-24",
-      cell: (r) =>
-        r.total > 0 ? (
-          <span>
-            <span className="text-ink">{r.live}</span>
-            <span className="text-ink-3">/{r.total}</span>
-          </span>
-        ) : (
-          <span className="text-ink-3">—</span>
-        ),
-    },
-    {
-      key: "release",
-      header: "Next release",
-      sortable: true,
-      align: "right",
-      width: "w-40",
-      cell: (r) => <span className="text-ink-2">{formatReleaseDate(r.release_date)}</span>,
-    },
-  ];
-
-  const bannerGrid = (items: BrowseTitle[]) => (
-    <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map((r) => (
-        <BannerCard
-          key={r.id}
-          href={`/titles/${r.id}`}
-          title={r.title}
-          bannerUrl={r.bannerUrl}
-          meta={r.release_date ? formatReleaseDate(r.release_date) : undefined}
-        />
-      ))}
-    </div>
-  );
 
   return (
-    <div className="mx-auto w-full px-6 pb-4 pt-8" style={{ maxWidth: "var(--page-max-width)" }}>
-      {/* Clean text header — no cinematic hero. */}
-      <div className="flex flex-col gap-2 pb-8">
-        <span className="t-label text-accent">Catalog</span>
-        <h1 className="t-statement text-ink">Titles</h1>
-        <p className="t-body text-ink-2">
-          {truncated
-            ? `Showing the ${LIST_PAGE} most recent titles in ${activeOrg.name}'s catalog.`
-            : `${all.length} ${all.length === 1 ? "title" : "titles"} in ${activeOrg.name}'s catalog.`}
-        </p>
-      </div>
+    <TitlesCatalogFrame>
+      <TitlesCatalogHeader
+        meta={catalogCountLine(all.length, activeOrg.name, truncated, LIST_PAGE)}
+        action={
+          list.length > 0 || canOperate ? (
+            <div className="flex items-center gap-[var(--space-3)]">
+              {list.length > 0 ? <SearchField /> : null}
+              {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Honest about the bound. Silent truncation is the bug this replaced — a client with
           more titles than the page size could not see them and nothing said so. Paging
           arrives in phase 2 of the catalog-at-scale spec; until then, say it out loud. */}
       {truncated ? (
-        <div className="pb-6">
-          <InlineNotice tone="info">
-            Your catalog has more than {LIST_PAGE} titles. Search finds anything in the{" "}
-            {LIST_PAGE} shown; full browsing of larger catalogs is coming shortly.
-          </InlineNotice>
-        </div>
+        <InlineNotice tone="info">
+          Your catalog has more than {LIST_PAGE} titles. Search finds anything in the{" "}
+          {LIST_PAGE} shown; full browsing of larger catalogs is coming shortly.
+        </InlineNotice>
       ) : null}
 
-      {/* Controls — sort left (browse only); search / view / add right. */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-6">
-        {list.length > 0 && view === "browse" ? (
-          <SortControl current={activeSortId} options={BROWSE_SORTS} hrefFor={sortControlHref} />
-        ) : (
-          <span />
-        )}
-        <div className="flex items-center gap-2">
-          {list.length > 0 ? <SearchField /> : null}
-          {list.length > 0 ? (
-            <ViewToggle current={view} gridHref={browseHref} tableHref={tableHref} />
-          ) : null}
-          {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
-        </div>
-      </div>
-
       {list.length === 0 ? (
-        <EmptyState
-          icon={Clapperboard}
-          title="No titles yet"
-          description={
-            canOperate
-              ? "Add your first title to begin building your catalog."
-              : "Titles will appear here once they're added."
-          }
-        />
+        <TitlesCatalogEmpty>
+          {canOperate ? TITLES_CATALOG.emptyCanOperate : TITLES_CATALOG.emptyReadOnly}
+        </TitlesCatalogEmpty>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Clapperboard}
-          title={`No titles match “${q.trim()}”`}
-          description="Try a different search."
-        />
-      ) : view === "table" ? (
-        <DataTable
-          columns={columns}
-          rows={sorted}
-          rowKey={(r) => r.id}
-          sort={sort}
-          sortHref={sortHref}
-          rowHref={(r) => `/titles/${r.id}`}
-          isGc={false}
-        />
+        <TitlesCatalogEmpty>
+          {TITLES_CATALOG.searchMiss(q.trim())} {TITLES_CATALOG.searchMissHint}
+        </TitlesCatalogEmpty>
       ) : (
-        bannerGrid(sorted)
+        <TitlesCatalogGrid>
+          {filtered.map((r) => (
+            <TitlesCatalogStill
+              key={r.id}
+              href={`/titles/${r.id}`}
+              title={r.title}
+              stillUrl={catalogStillSrc(r.bannerUrl, r.posterUrl)}
+              status={r.status}
+              statusLabel={catalogStatusMark(r.status as TitleStatus)}
+            />
+          ))}
+        </TitlesCatalogGrid>
       )}
-    </div>
+    </TitlesCatalogFrame>
   );
 }
