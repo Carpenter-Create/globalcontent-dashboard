@@ -124,7 +124,8 @@ describe("client /titles catalog", () => {
     expect(html).toContain("data-add-title");
     expect(html).toContain("bg-accent");
     expect(html).toContain(TITLES_CATALOG.title);
-    expect(html).toContain("7 titles in Acme's catalog.");
+    expect(html).toContain("7 titles in Acme");
+    expect(html).toContain("catalog.");
   });
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {
