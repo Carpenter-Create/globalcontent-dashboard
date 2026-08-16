@@ -133,6 +133,9 @@ describe("client /titles catalog", () => {
     const statusPills = html.match(/data-titles-catalog-status=""/g) ?? [];
     expect(statusPills).toHaveLength(ALL_STATUSES.length);
     expect(html).toContain("rounded-full bg-surface-muted");
+    expect(html).toContain("t-body font-medium text-ink");
+    expect(html).toContain("t-body-sm font-normal text-ink");
+    expect(html).not.toContain("group-hover:text-ink-2");
     for (const status of ALL_STATUSES) {
       expect(html).toContain(TITLE_STATUS_LABELS[status]);
     }

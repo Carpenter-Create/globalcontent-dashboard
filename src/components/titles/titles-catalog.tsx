@@ -6,7 +6,8 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 
 // Client `/titles` chrome only. Not the shared Card, BannerCard, or DataTable —
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
-// Catalog you operate: art is the canvas; search, Add Title, and status stay chrome.
+// Catalog you operate: art is present; search, Add Title, and status stay first-class.
+// Hierarchy is weight, not color. Accent is Add Title only.
 
 export function TitlesCatalogFrame({
   className,
@@ -95,11 +96,11 @@ export function TitlesCatalogStill({
         )}
       </div>
       <div className="flex flex-col gap-[var(--space-2)]">
-        <span className="min-w-0 truncate t-body font-medium text-ink transition-colors group-hover:text-ink-2">
+        <span className="min-w-0 truncate t-body font-medium text-ink">
           {title}
         </span>
         <span
-          className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm text-ink-2"
+          className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
           data-titles-catalog-status=""
         >
           {statusLabel}
