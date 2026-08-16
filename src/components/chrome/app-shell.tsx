@@ -7,7 +7,6 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { OrganizationSwitcher } from "./organization-switcher";
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/cn";
 
 type Org = { id: string; name: string };
@@ -94,7 +93,6 @@ export function AppShell({
       >
         <OrganizationSwitcher orgs={orgs} activeOrgId={activeOrgId} />
         <div className="flex items-center gap-3">
-          <ThemeToggle />
           <UserMenu email={email} />
         </div>
       </header>
