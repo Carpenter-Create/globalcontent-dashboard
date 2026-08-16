@@ -43,7 +43,7 @@ function openingTagWith(html: string, marker: string): string {
 }
 
 describe("TitlesCatalogStill craft", () => {
-  it("is a visible surface card, not a floating poster sticker", () => {
+  it("lets the still be the canvas — no card chrome, no caption box", () => {
     const html = renderStill({
       href: "/titles/1",
       title: "Craft film",
@@ -53,13 +53,20 @@ describe("TitlesCatalogStill craft", () => {
       year: "2019",
     });
     const card = openingTagWith(html, 'data-titles-catalog-card=""');
+    const frame = openingTagWith(html, 'data-titles-catalog-frame=""');
+    const stack = openingTagWith(html, 'data-titles-catalog-stack=""');
 
     expect(card).toContain("data-titles-catalog-card");
-    expect(card).toContain("border-hairline");
-    expect(card).toContain("bg-surface");
-    expect(card).toContain("rounded-[var(--radius-lg)]");
-    expect(card).not.toContain("border-transparent");
+    expect(card).toContain("flex flex-col gap-[var(--space-3)]");
+    expect(card).not.toContain("border-hairline");
+    expect(card).not.toContain("bg-surface");
+    expect(card).not.toContain("overflow-hidden");
+    expect(frame).toContain("rounded-[var(--radius-lg)]");
+    expect(stack).not.toContain("px-[var(--space-4)]");
+    expect(stack).not.toContain("pb-[var(--space-4)]");
+    expect(stack).not.toContain("pt-[var(--space-3)]");
     expect(html).not.toContain("bg-gradient");
+    expect(html).not.toContain("shadow");
   });
 
   it("forces the same 2:3 cover crop on poster and banner stills", () => {
@@ -106,7 +113,7 @@ describe("TitlesCatalogStill craft", () => {
     expect(html).not.toContain("t-data select-none text-3xl");
   });
 
-  it("keeps the card title on the body-strong step, not display", () => {
+  it("sits the title one step above body, with a quieter year", () => {
     const html = renderStill({
       href: "/titles/1",
       title: "Craft film",
@@ -116,15 +123,34 @@ describe("TitlesCatalogStill craft", () => {
       year: "2019",
     });
     const stack = html.slice(html.indexOf("data-titles-catalog-stack"));
+    const year = openingTagWith(html, 'data-titles-catalog-year=""');
 
-    expect(stack).toContain("t-body font-medium text-ink");
+    expect(stack).toContain("t-heading text-ink");
     expect(stack).toContain("Craft film");
     expect(stack).toContain("data-titles-catalog-year");
+    expect(year).toContain("t-body-sm font-normal text-ink-3");
     expect(stack).toContain(TITLE_STATUS_LABELS.live);
+    expect(stack).not.toContain("t-body font-medium");
     expect(stack).not.toContain("t-section");
     expect(stack).not.toContain("t-display");
     expect(stack).not.toContain("t-title");
-    expect(stack).not.toContain("t-heading");
+  });
+
+  it("marks status as a hairline pill, not a filled muted chip", () => {
+    const html = renderStill({
+      href: "/titles/1",
+      title: "Craft film",
+      stillUrl: null,
+      status: "live",
+      statusLabel: TITLE_STATUS_LABELS.live,
+    });
+    const pill = openingTagWith(html, 'data-titles-catalog-status=""');
+
+    expect(pill).toContain("rounded-full");
+    expect(pill).toContain("border-hairline");
+    expect(pill).toContain("t-body-sm font-normal text-ink-2");
+    expect(pill).not.toContain("bg-surface-muted");
+    expect(pill).not.toContain("bg-accent");
   });
 
   it("stacks title, year, and every TITLE_STATUS_LABELS pill — no delivered", () => {
@@ -157,8 +183,9 @@ describe("TitlesCatalogStill craft", () => {
 describe("TitlesCatalogFrame craft", () => {
   it("uses a house --space-* gap under the operate bar, not the old canyon", () => {
     const html = renderToStaticMarkup(createElement(TitlesCatalogFrame));
-    expect(html).toContain("gap-[var(--space-6)]");
+    expect(html).toContain("gap-[var(--space-8)]");
     expect(html).not.toContain("gap-[var(--space-10)]");
+    expect(html).not.toContain("gap-[var(--space-6)]");
   });
 });
 
@@ -171,5 +198,18 @@ describe("TitlesCatalogHeader type lock", () => {
     expect(html).not.toMatch(/<h1[^>]*t-display/);
     expect(html).not.toMatch(/<h1[^>]*t-title/);
     expect(html).not.toContain("t-heading");
+  });
+
+  it("keeps the operate bar under the title with quieter air", () => {
+    const html = renderToStaticMarkup(
+      createElement(TitlesCatalogHeader, { action: createElement("span", null, "Search") }),
+    );
+
+    expect(html).toContain("titles-catalog-header flex flex-col gap-[var(--space-8)]");
+    expect(html).toContain("data-titles-catalog-operate");
+    expect(html).toContain(
+      "titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-4)]",
+    );
+    expect(html.indexOf("</h1>")).toBeLessThan(html.indexOf("data-titles-catalog-operate"));
   });
 });
