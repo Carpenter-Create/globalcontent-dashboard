@@ -50,7 +50,7 @@ describe("AppShell header", () => {
     expect(shellSrc).not.toContain("ThemeToggle");
     expect(shellSrc).not.toContain("theme-toggle");
     expect(shellSrc).not.toContain("ThemeGlyph");
-    expect(shellSrc).not.toMatch(/bell|⌘K|CommandK|command-k/i);
+    expect(shellSrc).not.toMatch(/bell|⌘K|CommandK|command-k|SearchField/i);
   });
 
   it("keeps the account menu in the header", () => {
@@ -66,6 +66,8 @@ describe("AppShell header", () => {
     expect(html).not.toContain("data-org-switcher");
     expect(html).toContain("justify-end");
     expect(html).toContain("data-user-menu-host");
+    expect(html).toContain("data-app-header");
+    expect(html).toContain("px-[var(--content-inset)]");
     expect(shellSrc).toContain('pathname === "/"');
   });
 
@@ -74,5 +76,44 @@ describe("AppShell header", () => {
     const html = renderShell();
     expect(html).toContain("data-org-switcher");
     expect(html).toContain("justify-between");
+    expect(html).not.toContain("data-app-home-frame");
+    expect(html).toContain("px-6 pb-24 pt-8");
+  });
+});
+
+describe("AppShell Access rail and home frame", () => {
+  it("uses a white 220 rail and the locked `/` page pad", () => {
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    expect(tokens).toMatch(/--sidebar-width:\s*220px;/);
+    expect(tokens).toMatch(/--content-inset:\s*48px;/);
+    expect(tokens).toMatch(/--header-height:\s*56px;/);
+    expect(tokens).not.toMatch(/--sidebar-width:\s*190px;/);
+
+    navigation.pathname = "/";
+    const html = renderShell();
+    expect(html).toContain("data-app-rail");
+    expect(html).toMatch(/data-app-rail="" class="[^"]*bg-surface/);
+    expect(html).not.toMatch(/data-app-rail="" class="[^"]*bg-surface-muted/);
+    expect(html).toContain("data-app-home-frame");
+    expect(html).toContain("px-[var(--content-inset)]");
+    expect(html).toContain("py-[var(--space-8)]");
+    expect(html).not.toContain("px-6 pb-24 pt-8");
+    expect(html).not.toContain("Search");
+    expect(html).not.toContain("data-org-switcher");
+  });
+
+  it("does not restyle the titles bleed or other page frames", () => {
+    navigation.pathname = "/titles";
+    const titles = renderShell();
+    expect(titles).toContain("w-full pb-24");
+    expect(titles).not.toContain("data-app-home-frame");
+
+    navigation.pathname = "/deliveries";
+    const deliveries = renderShell();
+    expect(deliveries).toContain("px-6 pb-24 pt-8");
+    expect(deliveries).not.toContain("data-app-home-frame");
   });
 });

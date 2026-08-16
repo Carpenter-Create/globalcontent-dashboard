@@ -2,8 +2,8 @@ import { isJustIn } from "@/lib/releases";
 import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 
 // Client `/` portfolio copy and snapshot derivation. Lives in lib/, not JSX.
-// Org context has id / name / status / role only — no contract tier or term.
-// Do not invent Access, a term line, upcoming, revenue, or a "stuck too long" metric.
+// Identity on `/` is the real org name only — no status, role, or term line.
+// Do not invent Access, upcoming, revenue, or a "stuck too long" metric.
 
 export const DASHBOARD_HOME = {
   justIn: "Just in",
@@ -60,10 +60,6 @@ export type ClientHomeSnapshot = {
   doNext: ClientHomeDoNextItem[];
   justIn: ClientHomeJustInItem[];
 };
-
-export function dashboardIdentityMeta(statusLabel: string, roleLabel: string | null): string {
-  return roleLabel ? `${statusLabel} · ${roleLabel}` : statusLabel;
-}
 
 /**
  * Visible floor when the title read hit the bound. `500+` means at least 500,

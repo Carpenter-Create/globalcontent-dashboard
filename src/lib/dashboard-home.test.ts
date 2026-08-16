@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DashboardDoNext,
+  DashboardHomePillLink,
   DashboardJustIn,
   DashboardOrgIdentity,
   DashboardSnapshot,
@@ -15,7 +16,6 @@ import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import {
   clientHomeSnapshot,
   dashboardCatalogValue,
-  dashboardIdentityMeta,
   dashboardJustInDate,
   dashboardTitleStatusLabel,
   DASHBOARD_HOME,
@@ -230,14 +230,6 @@ describe("clientHomeSnapshot", () => {
   });
 });
 
-describe("dashboardIdentityMeta", () => {
-  it("joins status and role without inventing a tier or term", () => {
-    expect(dashboardIdentityMeta("Active", "Account owner")).toBe("Active · Account owner");
-    expect(dashboardIdentityMeta("Registered", null)).toBe("Registered");
-    expect(dashboardIdentityMeta("Active", "Account owner")).not.toMatch(/Access|term/i);
-  });
-});
-
 describe("dashboardTitleStatusLabel", () => {
   it("reuses TITLE_STATUS_LABELS and does not invent a mark", () => {
     expect(dashboardTitleStatusLabel("live")).toBe(TITLE_STATUS_LABELS.live);
@@ -278,8 +270,6 @@ describe("client home type locks", () => {
     const identity = renderToStaticMarkup(
       createElement(DashboardOrgIdentity, {
         name: "Acme",
-        status: "active",
-        role: "account_owner",
       }),
     );
     const snapshot = renderToStaticMarkup(
@@ -293,6 +283,9 @@ describe("client home type locks", () => {
     expect(identity).toMatch(/<h1 class="t-section text-ink">Acme<\/h1>/);
     expect(identity).not.toContain("t-display");
     expect(identity).not.toContain("t-title");
+    expect(identity).not.toMatch(/Active|Account owner|Registered/i);
+    expect(identity).not.toContain("status");
+    expect(identity).not.toContain("rounded-full bg-accent");
     expect(snapshot).toMatch(/data-dashboard-stat="catalog"[^>]*t-display t-data/);
     expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*t-display t-data/);
     expect(snapshot).toMatch(/data-dashboard-stat="live"[^>]*t-display t-data/);
@@ -303,6 +296,9 @@ describe("client home type locks", () => {
     expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
     expect(snapshot).toMatch(/data-dashboard-stat="catalog"[^>]*text-ink"/);
     expect(snapshot).toMatch(/data-dashboard-stat="live"[^>]*text-ink"/);
+    expect(snapshot).toContain("p-[var(--space-6)]");
+    expect(snapshot).not.toContain("248");
+    expect(snapshot).not.toContain("Meridian");
   });
 
   it("keeps Needs attention on accent even when the count is zero", () => {
@@ -344,13 +340,14 @@ describe("client home type locks", () => {
     expect(html).not.toContain("titles need your attention");
     expect(html).not.toContain("Artwork missing");
     expect(html).not.toContain("Metadata incomplete");
+    expect(html).not.toContain("The Winter Line");
     expect(html).not.toContain("t-subhead");
     expect(html).not.toContain("t-display");
     expect(html).not.toContain("t-title");
     expect(html).not.toContain("t-section");
   });
 
-  it("puts a hairline status pill and a date on Just in, not an added prefix", () => {
+  it("puts title and pill left-clustered on Just in, with the date on the right", () => {
     const created = "2026-08-12T00:00:00.000Z";
     const html = renderToStaticMarkup(
       createElement(DashboardJustIn, {
@@ -370,7 +367,31 @@ describe("client home type locks", () => {
     expect(html).toContain(TITLE_STATUS_LABELS.submitted);
     expect(html).toContain(dashboardJustInDate(created));
     expect(html).toContain("data-dashboard-status-pill");
+    expect(html).toContain("data-dashboard-just-in-cluster");
+    expect(html).toContain("justify-between");
+    const clusterAt = html.indexOf("data-dashboard-just-in-cluster");
+    const pillAt = html.indexOf("data-dashboard-status-pill");
+    const dateAt = html.indexOf(dashboardJustInDate(created));
+    expect(clusterAt).toBeGreaterThan(-1);
+    expect(pillAt).toBeGreaterThan(clusterAt);
+    expect(dateAt).toBeGreaterThan(pillAt);
     expect(html).not.toContain("added ");
     expect(html).not.toMatch(/text-green|bg-green|text-emerald/);
+  });
+
+  it("renders the Catalog Health pill as the one accent action to /catalog-health", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardHomePillLink, { href: "/catalog-health" }, DASHBOARD_HOME.catalogHealthCta),
+    );
+    expect(html).toContain('href="/catalog-health"');
+    expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
+    expect(html).toContain("h-9");
+    expect(html).toContain("t-body-sm");
+    expect(html).toContain("rounded-full");
+    expect(html).toContain("bg-accent");
+    expect(html).toContain("text-accent-contrast");
+    expect(html).toContain("size-[14px]");
+    expect(html).toContain("stroke-width=\"1.33\"");
+    expect(html).not.toContain("Meridian");
   });
 });

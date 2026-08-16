@@ -1,17 +1,15 @@
 import Link from "next/link";
+import { Activity } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { DASHBOARD_ATTENTION_CLEAR } from "@/lib/findings";
 import {
   DASHBOARD_HOME,
-  dashboardIdentityMeta,
   dashboardJustInDate,
   dashboardTitleStatusLabel,
   type ClientHomeDoNextItem,
   type ClientHomeJustInItem,
 } from "@/lib/dashboard-home";
-import { ORG_ROLE_LABELS, ORG_STATUS_LABELS } from "@/lib/clients";
-import type { OrgRole, OrgStatus } from "@/lib/supabase/context";
 
 // Client-home chrome only. Not the shared Card — a Card/table change must not
 // restyle Titles, Deliveries, Catalog Health, or staff surfaces.
@@ -23,7 +21,7 @@ export function DashboardHomePanel({
   return (
     <section
       className={cn(
-        "dashboard-home-panel flex h-full flex-col rounded-[var(--radius-lg)] border border-hairline bg-surface px-[var(--space-8)] py-[var(--space-10)] sm:px-[var(--space-10)]",
+        "dashboard-home-panel flex h-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface",
         className,
       )}
       {...props}
@@ -44,10 +42,11 @@ export function DashboardHomePillLink({
     <Link
       href={href}
       className={cn(
-        "dashboard-home-pill inline-flex shrink-0 items-center justify-center rounded-full bg-accent px-[var(--space-6)] py-[var(--space-3)] t-body-sm font-medium text-accent-contrast transition hover:-translate-y-px hover:opacity-90 active:translate-y-0",
+        "dashboard-home-pill inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 t-body-sm font-medium text-accent-contrast transition hover:-translate-y-px hover:opacity-90 active:translate-y-0",
         className,
       )}
     >
+      <Activity className="size-[14px]" strokeWidth={1.33} aria-hidden />
       {children}
     </Link>
   );
@@ -57,7 +56,7 @@ export function DashboardHomeStatusPill({ label }: { label: string }) {
   return (
     <span
       data-dashboard-status-pill=""
-      className="inline-flex shrink-0 items-center rounded-full border border-hairline px-[var(--space-3)] py-[var(--space-1)] t-body-sm text-ink-3"
+      className="inline-flex shrink-0 items-center rounded-full border border-hairline bg-surface-muted px-2 py-[3px] text-[length:var(--text-xs)] font-medium text-ink-2"
     >
       {label}
     </span>
@@ -66,28 +65,16 @@ export function DashboardHomeStatusPill({ label }: { label: string }) {
 
 export function DashboardHomeEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dashboard-home-empty flex flex-1 flex-col justify-center py-[var(--space-10)]">
+    <div className="dashboard-home-empty flex flex-1 flex-col justify-center border-t border-hairline px-[var(--space-6)] py-[var(--space-10)]">
       <p className="t-body text-ink-2">{children}</p>
     </div>
   );
 }
 
-export function DashboardOrgIdentity({
-  name,
-  status,
-  role,
-}: {
-  name: string;
-  status: OrgStatus;
-  role: OrgRole | null;
-}) {
-  const roleLabel = role ? ORG_ROLE_LABELS[role] : null;
+export function DashboardOrgIdentity({ name }: { name: string }) {
   return (
     <header className="dashboard-home-identity min-w-0">
       <h1 className="t-section text-ink">{name}</h1>
-      <p className="mt-[var(--space-3)] t-body-sm text-ink-3">
-        {dashboardIdentityMeta(ORG_STATUS_LABELS[status], roleLabel)}
-      </p>
     </header>
   );
 }
@@ -121,7 +108,7 @@ export function DashboardSnapshot({
         <div
           key={stat.key}
           className={cn(
-            "flex flex-col gap-[var(--space-4)] px-[var(--space-8)] py-[var(--space-10)] sm:px-[var(--space-10)]",
+            "flex flex-col gap-2 p-[var(--space-6)]",
             i > 0 && "border-t border-hairline sm:border-t-0 sm:border-l",
           )}
         >
@@ -145,18 +132,18 @@ export function DashboardSnapshot({
 export function DashboardDoNext({ items }: { items: ClientHomeDoNextItem[] }) {
   return (
     <DashboardHomePanel aria-label={DASHBOARD_HOME.doNext} data-dashboard-do-next="">
-      <span className="t-label text-ink-3">{DASHBOARD_HOME.doNext}</span>
+      <span className="px-[var(--space-6)] py-4 t-label text-ink-3">{DASHBOARD_HOME.doNext}</span>
       {items.length === 0 ? (
         <DashboardHomeEmpty>{DASHBOARD_ATTENTION_CLEAR}</DashboardHomeEmpty>
       ) : (
-        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
+        <ul className="divide-y divide-hairline border-t border-hairline">
           {items.map((item) => {
             const statusLabel = dashboardTitleStatusLabel(item.status);
             return (
               <li
                 key={item.id}
                 data-dashboard-do-next-row={item.id}
-                className="flex items-start justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
+                className="flex items-center justify-between gap-[var(--space-6)] px-[var(--space-6)] py-4"
               >
                 <div className="min-w-0">
                   <Link
@@ -166,7 +153,7 @@ export function DashboardDoNext({ items }: { items: ClientHomeDoNextItem[] }) {
                     {item.title}
                   </Link>
                   {item.reason ? (
-                    <p className="mt-[var(--space-1)] t-body-sm text-ink-3">{item.reason}</p>
+                    <p className="mt-0.5 t-body-sm text-ink-3">{item.reason}</p>
                   ) : null}
                 </div>
                 {statusLabel ? <DashboardHomeStatusPill label={statusLabel} /> : null}
@@ -182,20 +169,23 @@ export function DashboardDoNext({ items }: { items: ClientHomeDoNextItem[] }) {
 export function DashboardJustIn({ titles }: { titles: ClientHomeJustInItem[] }) {
   return (
     <DashboardHomePanel aria-label={DASHBOARD_HOME.justIn} data-dashboard-just-in="">
-      <span className="t-label text-ink-3">{DASHBOARD_HOME.justIn}</span>
+      <span className="px-[var(--space-6)] py-4 t-label text-ink-3">{DASHBOARD_HOME.justIn}</span>
       {titles.length === 0 ? (
         <DashboardHomeEmpty>{DASHBOARD_HOME.justInEmpty}</DashboardHomeEmpty>
       ) : (
-        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
+        <ul className="divide-y divide-hairline border-t border-hairline">
           {titles.map((t) => {
             const statusLabel = dashboardTitleStatusLabel(t.status);
             return (
               <li
                 key={t.id}
                 data-dashboard-just-in-row={t.id}
-                className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
+                className="flex items-center justify-between gap-[var(--space-6)] px-[var(--space-6)] py-4"
               >
-                <span className="flex min-w-0 flex-wrap items-baseline gap-x-[var(--space-3)] gap-y-[var(--space-1)]">
+                <span
+                  data-dashboard-just-in-cluster=""
+                  className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
+                >
                   <Link
                     href={`/titles/${t.id}`}
                     className="t-body font-medium text-ink transition-colors hover:text-ink-2"
