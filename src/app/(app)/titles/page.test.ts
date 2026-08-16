@@ -1,6 +1,8 @@
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { titleArtworkUrls } from "@/lib/artwork";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
 import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
@@ -20,6 +22,10 @@ vi.mock("@/lib/supabase/context", () => ({ getOrgContext: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/artwork", () => ({
   titleArtworkUrls: vi.fn(async () => new Map()),
+}));
+vi.mock("next/image", () => ({
+  default: ({ src, className }: { src: string; className?: string }) =>
+    createElement("img", { src, className, alt: "" }),
 }));
 
 const ALL_STATUSES: TitleStatus[] = [
@@ -107,6 +113,13 @@ describe("client /titles catalog", () => {
     expect(html).toContain("grid-cols-1");
     expect(html).toContain("xl:grid-cols-5");
     expect(html).toContain("aspect-[2/3]");
+    expect(html).toContain("border-hairline");
+    expect(html).toContain("bg-surface");
+    expect(html).toContain("rounded-[var(--radius-lg)]");
+    expect(html).toContain("data-titles-catalog-crop=\"cover\"");
+    expect(html).toContain("[&amp;_img]:object-cover");
+    expect(html).toContain("[&amp;_img]:object-center");
+    expect(html).toContain("data-titles-catalog-stack");
     expect(html).not.toMatch(/[^:]grid-cols-5/);
     expect(html).not.toContain("grid-cols-6");
     expect(html).not.toContain("lg:grid-cols-3");
@@ -146,6 +159,12 @@ describe("client /titles catalog", () => {
     expect(html).toContain("titles-catalog-header flex flex-col");
     expect(html).not.toContain("sm:flex-row sm:items-center sm:justify-between");
     expect(html).toContain("data-titles-catalog-operate");
+    expect(html).toContain(
+      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-6)]",
+    );
+    expect(html).not.toContain(
+      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)]",
+    );
     expect(html).toMatch(/<h1[^>]*>Titles<\/h1>/);
 
     const titleClose = html.indexOf("</h1>");
@@ -226,6 +245,88 @@ describe("client /titles catalog", () => {
     expect(undatedCard.slice(0, undatedCard.indexOf("data-titles-catalog-status"))).not.toContain(
       "data-titles-catalog-year",
     );
+  });
+
+  it("reads each title as a surface card with a visible hairline and house radius", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+    const cards = html.split('data-titles-catalog-card=""').slice(1);
+    expect(cards).toHaveLength(ALL_STATUSES.length);
+    for (const card of cards) {
+      const open = card.slice(0, card.indexOf(">"));
+      expect(open).toContain("border-hairline");
+      expect(open).toContain("bg-surface");
+      expect(open).toContain("rounded-[var(--radius-lg)]");
+      expect(open).not.toContain("border-transparent");
+    }
+    expect(html).not.toContain("bg-gradient");
+    expect(html).not.toContain("from-accent");
+  });
+
+  it("applies the same 2:3 cover crop to every catalog still", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+    const frames = html.split('data-titles-catalog-frame=""').slice(1);
+    expect(frames).toHaveLength(ALL_STATUSES.length);
+    for (const frame of frames) {
+      const open = frame.slice(0, frame.indexOf(">"));
+      expect(open).toContain("aspect-[2/3]");
+      expect(open).toContain("[&amp;_img]:object-cover");
+      expect(open).toContain("[&amp;_img]:object-center");
+      expect(open).not.toContain("aspect-[16/9]");
+      expect(open).not.toContain("object-contain");
+    }
+    const crops = html.match(/data-titles-catalog-crop="cover"/g) ?? [];
+    expect(crops).toHaveLength(ALL_STATUSES.length);
+  });
+
+  it("keeps title, year, and TITLE_STATUS_LABELS as one designed stack", async () => {
+    stubClient([
+      titleRow("live", 0, { title: "Stacked film", release_date: "2019-05-01" }),
+    ]);
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+    expect(html).toMatch(
+      /data-titles-catalog-stack[\s\S]*Stacked film[\s\S]*data-titles-catalog-year[\s\S]*2019[\s\S]*data-titles-catalog-status[\s\S]*Live/,
+    );
+    expect(html).toContain("gap-[var(--space-1)]");
+    expect(html).not.toContain("Delivered");
+    expect(html).not.toContain("delivered");
+  });
+
+  it("prefers poster then banner and keeps the same cover crop on both", async () => {
+    stubClient([
+      titleRow("draft", 0, { title: "Poster title" }),
+      titleRow("live", 1, { title: "Banner title" }),
+    ]);
+    vi.mocked(titleArtworkUrls).mockResolvedValue(
+      new Map([
+        ["title-draft", { poster: "https://cdn/poster.jpg", banner: "https://cdn/wide.jpg" }],
+        ["title-live", { poster: null, banner: "https://cdn/wide.jpg" }],
+      ]),
+    );
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+
+    expect(html).toContain("https://cdn/poster.jpg");
+    expect(html).toContain("https://cdn/wide.jpg");
+    expect(html).not.toContain("data-titles-catalog-empty-art");
+    const crops = html.match(/data-titles-catalog-crop="cover"/g) ?? [];
+    expect(crops).toHaveLength(2);
+    const frames = html.split('data-titles-catalog-frame=""').slice(1);
+    expect(frames).toHaveLength(2);
+    for (const frame of frames) {
+      const open = frame.slice(0, frame.indexOf(">"));
+      expect(open).toContain("aspect-[2/3]");
+      expect(open).toContain("[&amp;_img]:object-cover");
+      expect(open).toContain("[&amp;_img]:object-center");
+    }
   });
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {
