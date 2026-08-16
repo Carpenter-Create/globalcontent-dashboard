@@ -6,7 +6,8 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 
 // Client `/titles` chrome only. Not the shared Card, BannerCard, or DataTable —
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
-// Catalog you operate: art is present; search, Add Title, and status stay first-class.
+// Operate bar sits under the title. Each title is a hairline/surface card:
+// 2:3 still, then stacked title, year, TITLE_STATUS_LABELS pill.
 // Hierarchy is weight, not color. Accent is Add Title only.
 
 export function TitlesCatalogFrame({
@@ -32,9 +33,16 @@ export function TitlesCatalogHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <header className="titles-catalog-header flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-center sm:justify-between">
+    <header className="titles-catalog-header flex flex-col gap-[var(--space-6)]">
       <h1 className="t-section text-ink">{TITLES_CATALOG.title}</h1>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? (
+        <div
+          className="titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-3)]"
+          data-titles-catalog-operate=""
+        >
+          {action}
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -77,12 +85,12 @@ export function TitlesCatalogStill({
     <Link
       href={href}
       prefetch={false}
-      className="titles-catalog-still group flex flex-col gap-[var(--space-4)]"
-      data-titles-catalog-still=""
+      className="titles-catalog-card group flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface"
+      data-titles-catalog-card=""
       data-title-status={status}
     >
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface-muted"
+        className="relative aspect-[2/3] w-full overflow-hidden bg-surface-muted"
         data-titles-catalog-frame=""
       >
         {stillUrl ? (
@@ -97,23 +105,21 @@ export function TitlesCatalogStill({
           <div className="h-full w-full bg-surface-muted" data-titles-catalog-empty-art="" />
         )}
       </div>
-      <div className="flex flex-col gap-[var(--space-2)]">
+      <div className="flex flex-col gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-4)]">
         <span className="min-w-0 truncate t-body font-medium text-ink">
           {title}
         </span>
-        <div className="flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-1)]">
-          <span
-            className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
-            data-titles-catalog-status=""
-          >
-            {statusLabel}
+        {year ? (
+          <span className="t-body-sm font-normal text-ink-2" data-titles-catalog-year="">
+            {year}
           </span>
-          {year ? (
-            <span className="t-body-sm font-normal text-ink-2" data-titles-catalog-year="">
-              {year}
-            </span>
-          ) : null}
-        </div>
+        ) : null}
+        <span
+          className="inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
+          data-titles-catalog-status=""
+        >
+          {statusLabel}
+        </span>
       </div>
     </Link>
   );

@@ -103,6 +103,7 @@ describe("client /titles catalog", () => {
 
     expect(html).toContain("data-titles-catalog");
     expect(html).toContain("data-titles-catalog-grid");
+    expect(html).toContain("data-titles-catalog-card");
     expect(html).toContain("grid-cols-1");
     expect(html).toContain("xl:grid-cols-5");
     expect(html).toContain("aspect-[2/3]");
@@ -112,6 +113,21 @@ describe("client /titles catalog", () => {
     expect(html).not.toContain("aspect-[16/9]");
     expect(html).not.toContain("Recently added");
     expect(html).not.toContain("Spotlight");
+    expect(html).not.toContain("In progress");
+    expect(html).not.toMatch(/\bUpcoming\b/);
+
+    const cards = html.match(/data-titles-catalog-card=""/g) ?? [];
+    expect(cards).toHaveLength(ALL_STATUSES.length);
+    expect(html).toMatch(
+      /data-titles-catalog-card[\s\S]*data-titles-catalog-frame[\s\S]*data-titles-catalog-status/,
+    );
+
+    const statusLabels = [...html.matchAll(/data-titles-catalog-status="">([^<]*)/g)].map(
+      (match) => match[1],
+    );
+    expect(statusLabels).toEqual(ALL_STATUSES.map((status) => TITLE_STATUS_LABELS[status]));
+    expect(statusLabels).not.toContain("Delivered");
+    expect(statusLabels).not.toContain("delivered");
 
     for (const status of ALL_STATUSES) {
       expect(html).toContain(`${status} film`);
@@ -121,7 +137,33 @@ describe("client /titles catalog", () => {
     }
   });
 
-  it("keeps search, Add Title, and quiet status pills — no SaaS subtitle", async () => {
+  it("places the operate bar under the title, not in the title row", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+
+    expect(html).toContain("titles-catalog-header flex flex-col");
+    expect(html).not.toContain("sm:flex-row sm:items-center sm:justify-between");
+    expect(html).toContain("data-titles-catalog-operate");
+    expect(html).toMatch(/<h1[^>]*>Titles<\/h1>/);
+
+    const titleClose = html.indexOf("</h1>");
+    const operateAt = html.indexOf("data-titles-catalog-operate");
+    const searchAt = html.indexOf("Search titles");
+    const addAt = html.indexOf("data-add-title");
+    expect(titleClose).toBeGreaterThan(-1);
+    expect(operateAt).toBeGreaterThan(titleClose);
+    expect(searchAt).toBeGreaterThan(operateAt);
+    expect(addAt).toBeGreaterThan(operateAt);
+
+    const operateChunk = html.slice(operateAt);
+    expect(operateChunk).toContain("Search titles");
+    expect(operateChunk).toContain(TITLES_CATALOG.addTitle);
+    expect(operateChunk).toContain("data-add-title");
+  });
+
+  it("keeps search, Add Title, and quiet TITLE_STATUS_LABELS pills — no SaaS subtitle", async () => {
     stubClient();
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
@@ -135,6 +177,8 @@ describe("client /titles catalog", () => {
     expect(html).not.toContain("titles in Acme");
     expect(html).not.toContain("in Acme's catalog");
     expect(html).not.toMatch(/t-label[^>]*data-titles-catalog-status/);
+    expect(html).not.toMatch(/genre/i);
+    expect(html).not.toMatch(/director/i);
 
     const statusPills = html.match(/data-titles-catalog-status=""/g) ?? [];
     expect(statusPills).toHaveLength(ALL_STATUSES.length);
@@ -165,6 +209,7 @@ describe("client /titles catalog", () => {
     const html = await renderCatalog();
 
     expect(html).toContain("Dated film");
+    expect(html).toContain("data-titles-catalog-card");
     expect(html).toContain("data-titles-catalog-year");
     expect(html).toContain("2019");
     expect(html).toContain("Undated film");
@@ -174,6 +219,13 @@ describe("client /titles catalog", () => {
     expect(html).not.toMatch(/genre/i);
     const years = html.match(/data-titles-catalog-year=""/g) ?? [];
     expect(years).toHaveLength(1);
+    expect(html).toMatch(
+      /data-titles-catalog-card[\s\S]*Dated film[\s\S]*data-titles-catalog-year[\s\S]*2019[\s\S]*data-titles-catalog-status/,
+    );
+    const undatedCard = html.slice(html.indexOf("Undated film"));
+    expect(undatedCard.slice(0, undatedCard.indexOf("data-titles-catalog-status"))).not.toContain(
+      "data-titles-catalog-year",
+    );
   });
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {

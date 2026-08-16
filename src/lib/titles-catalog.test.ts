@@ -38,6 +38,7 @@ describe("catalog lifecycle", () => {
     expect(catalogStatusMark("live")).toBe("Live");
     expect(catalogStatusMark("takedown_requested")).toBe("Takedown requested");
     expect(catalogStatusMark("taken_down")).toBe("Taken down");
+    expect(ALL_STATES.map(catalogStatusMark)).not.toContain("Delivered");
   });
 
   it("does not invent a status or a second catalog label", () => {
