@@ -95,8 +95,8 @@ describe("AppShell Access rail and home frame", () => {
     navigation.pathname = "/";
     const html = renderShell();
     expect(html).toContain("data-app-rail");
-    expect(html).toMatch(/data-app-rail="" class="[^"]*bg-surface/);
-    expect(html).not.toMatch(/data-app-rail="" class="[^"]*bg-surface-muted/);
+    expect(html).toMatch(/<aside class="[^"]*\bbg-surface\b[^"]*" data-app-rail=""/);
+    expect(html).not.toMatch(/<aside class="[^"]*bg-surface-muted/);
     expect(html).toContain("data-app-home-frame");
     expect(html).toContain("px-[var(--content-inset)]");
     expect(html).toContain("py-[var(--space-8)]");

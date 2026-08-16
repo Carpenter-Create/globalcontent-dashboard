@@ -381,7 +381,11 @@ describe("client home type locks", () => {
 
   it("renders the Catalog Health pill as the one accent action to /catalog-health", () => {
     const html = renderToStaticMarkup(
-      createElement(DashboardHomePillLink, { href: "/catalog-health" }, DASHBOARD_HOME.catalogHealthCta),
+      createElement(
+        DashboardHomePillLink,
+        { href: "/catalog-health" } as { href: string; children: string },
+        DASHBOARD_HOME.catalogHealthCta,
+      ),
     );
     expect(html).toContain('href="/catalog-health"');
     expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
