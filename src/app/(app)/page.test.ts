@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
 import { CLIENTS_PAGE, ORG_ROLE_LABELS, ORG_STATUS_LABELS } from "@/lib/clients";
-import { DASHBOARD_HOME } from "@/lib/dashboard-home";
+import { DASHBOARD_HOME, dashboardJustInDate } from "@/lib/dashboard-home";
 import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
 import { TITLE_STATUS_LABELS } from "@/lib/titles";
@@ -41,7 +41,12 @@ function stubClient(
     status: string;
     created_at: string;
   }[] = [],
-  findings: { org_id: string; entity_id: string }[] = [],
+  findings: {
+    org_id: string;
+    entity_id: string;
+    message?: string | null;
+    severity?: string | null;
+  }[] = [],
 ) {
   const eq = vi.fn();
   const titlesChain = {
@@ -108,15 +113,21 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain("t-body-sm text-accent");
     expect(html).not.toContain(CLIENTS_PAGE.title);
     expect(html).not.toContain(CLIENTS_PAGE.subtitle);
+    expect(html).not.toContain("lg:grid-cols-2");
+    expect(html).not.toContain(dashboardAttentionSummary(1));
+    expect(html).not.toContain("titles need your attention");
+    expect(html).not.toContain("Meridian Pictures");
+    expect(html).not.toContain("Accounts");
   });
 
   it("lists just-in titles as ink links, not accent body copy", async () => {
+    const createdAt = new Date().toISOString();
     stubClient([
       {
         id: "title-1",
         title: "Winter Light",
         status: "live",
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       },
     ]);
     vi.mocked(getOrgContext).mockResolvedValue(
@@ -133,6 +144,10 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain("t-title");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
     expect(html).not.toContain("t-body-sm text-accent");
+    expect(html).toContain(TITLE_STATUS_LABELS.live);
+    expect(html).toContain("data-dashboard-status-pill");
+    expect(html).toContain(dashboardJustInDate(createdAt));
+    expect(html).not.toContain("added ");
   });
 
   it("still renders the client portfolio when GC staff also hold a client org", async () => {
@@ -216,7 +231,7 @@ describe("client home information model", () => {
           created_at: new Date().toISOString(),
         },
       ],
-      [{ org_id: "org-1", entity_id: "title-1" }],
+      [{ org_id: "org-1", entity_id: "title-1", message: "Synopsis is required." }],
     );
     vi.mocked(getOrgContext).mockResolvedValue(
       ctx({ isGcStaff: false, orgStatus: "active" }) as never,
@@ -240,15 +255,23 @@ describe("client home information model", () => {
     expect(html).toContain(DASHBOARD_HOME.needsAttention);
     expect(html).toContain(DASHBOARD_HOME.live);
     expect(html).toContain(DASHBOARD_HOME.doNext);
-    expect(html).toContain(dashboardAttentionSummary(1));
+    expect(html).not.toContain(dashboardAttentionSummary(1));
+    expect(html).not.toContain("titles need your attention");
+    expect(html).toContain("Synopsis is required.");
     expect(html).toContain("t-body font-medium text-ink");
     expect(html).not.toContain("t-subhead");
     expect(html).toContain("Draft Work");
     expect(html).toContain(TITLE_STATUS_LABELS.draft);
     expect(html).toContain("Winter Light");
+    expect(html).toContain(TITLE_STATUS_LABELS.live);
+    expect(html).toContain("data-dashboard-status-pill");
+    expect(html).toContain("data-dashboard-do-next");
+    expect(html).toContain("data-dashboard-just-in");
+    expect(html).toContain("flex flex-col gap-[var(--space-8)]");
+    expect(html).not.toContain("lg:grid-cols-2");
     expect(html).toContain(DASHBOARD_HOME.justIn);
     expect(html).toContain(`${ORG_STATUS_LABELS.active} · ${ORG_ROLE_LABELS.account_owner}`);
-    expect(html).toContain("text-accent");
+    expect(html).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
     expect(html).not.toContain("Revenue");
     expect(html).not.toContain("Upcoming");
     expect(html).not.toContain("Catalog activity");
@@ -256,7 +279,34 @@ describe("client home information model", () => {
     expect(html).not.toContain("bg-band");
     expect(html).not.toContain("Access");
     expect(html).not.toContain("term ends");
+    expect(html).not.toContain("Meridian Pictures");
+    expect(html).not.toContain("Artwork missing");
+    expect(html).not.toContain("Metadata incomplete");
     expect(html).not.toMatch(/>—</);
+    expect(html.indexOf("data-dashboard-do-next")).toBeLessThan(
+      html.indexOf("data-dashboard-just-in"),
+    );
+  });
+
+  it("shows catalog as an integer even when the read is bounded", async () => {
+    const createdAt = "2026-08-12T00:00:00.000Z";
+    stubClient(
+      Array.from({ length: UNPAGINATED_MAX }, (_, i) => ({
+        id: `title-${i}`,
+        title: `Title ${i}`,
+        status: "live",
+        created_at: createdAt,
+      })),
+    );
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(statValue(html, "catalog")).toBe(String(UNPAGINATED_MAX));
+    expect(statValue(html, "catalog")).not.toMatch(/\+/);
+    expect(html).not.toContain(`${UNPAGINATED_MAX}+`);
   });
 
   it("does not invent a stuck-too-long metric for drafts", async () => {

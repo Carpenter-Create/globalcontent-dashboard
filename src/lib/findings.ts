@@ -9,7 +9,7 @@ export const FINDING_SEVERITY_LABEL: Record<"high" | "low", string> = {
 export const CATALOG_HEALTH_SUBTITLE = "What needs your attention across your catalog.";
 export const CATALOG_HEALTH_EMPTY = "Nothing needs your attention right now.";
 
-// Dashboard shows a compact pointer to Catalog Health, not the findings themselves.
+// Home Do next lists finding + draft rows; Catalog Health owns the full queue.
 export const DASHBOARD_ATTENTION_CLEAR = "Your catalog is in good standing.";
 export function dashboardAttentionSummary(titleCount: number): string {
   return titleCount === 1

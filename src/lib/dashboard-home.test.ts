@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DashboardDoNext,
+  DashboardJustIn,
   DashboardOrgIdentity,
   DashboardSnapshot,
 } from "@/components/dashboard/dashboard-home";
@@ -15,7 +16,10 @@ import {
   clientHomeSnapshot,
   dashboardCatalogValue,
   dashboardIdentityMeta,
+  dashboardJustInDate,
+  dashboardTitleStatusLabel,
   DASHBOARD_HOME,
+  DASHBOARD_HOME_DO_NEXT,
   DASHBOARD_HOME_DRAFTS,
 } from "./dashboard-home";
 
@@ -44,9 +48,9 @@ describe("clientHomeSnapshot", () => {
         title({ id: "live-2", status: "live" }),
       ],
       findings: [
-        { org_id: "org-1", entity_id: "live-1" },
-        { org_id: "org-1", entity_id: "live-1" },
-        { org_id: "org-2", entity_id: "other" },
+        { org_id: "org-1", entity_id: "live-1", message: "Synopsis is required." },
+        { org_id: "org-1", entity_id: "live-1", message: "Genre is required." },
+        { org_id: "org-2", entity_id: "other", message: "Director is recommended." },
       ],
       orgId: "org-1",
       now: NOW,
@@ -57,13 +61,15 @@ describe("clientHomeSnapshot", () => {
     expect(snap.catalogIsPartial).toBe(false);
     expect(snap.live).toBe(2);
     expect(snap.needsAttention).toBe(1);
-    expect(snap.drafts.map((d) => d.id)).toEqual(["draft-1"]);
+    expect(snap.doNext.map((d) => d.id)).toEqual(["live-1", "draft-1"]);
+    expect(snap.doNext[0]?.reason).toBe("Synopsis is required.");
+    expect(snap.doNext[1]?.reason).toBeNull();
     expect(DASHBOARD_HOME.catalog).toBe("Catalog");
     expect(DASHBOARD_HOME.needsAttention).toBe("Needs attention");
     expect(DASHBOARD_HOME.live).toBe("Live");
   });
 
-  it("marks a bounded catalog as a floor, not a claimed total", () => {
+  it("keeps a bounded catalog as an integer — never a +N mark", () => {
     const titles = Array.from({ length: UNPAGINATED_MAX }, (_, i) =>
       title({ id: `t-${i}`, status: "live" }),
     );
@@ -75,10 +81,11 @@ describe("clientHomeSnapshot", () => {
       bound: UNPAGINATED_MAX,
     });
     expect(snap.catalogIsPartial).toBe(true);
-    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).toBe(`${UNPAGINATED_MAX}+`);
+    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).toBe(String(UNPAGINATED_MAX));
+    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).not.toMatch(/\+/);
   });
 
-  it("lists only draft-status titles and ignores other lifecycle states", () => {
+  it("lists finding rows before leftover drafts and ignores other lifecycle states as drafts", () => {
     const snap = clientHomeSnapshot({
       titles: [
         title({ id: "draft", status: "draft", created_at: "2026-08-15T10:00:00.000Z" }),
@@ -91,13 +98,74 @@ describe("clientHomeSnapshot", () => {
       now: NOW,
       bound: UNPAGINATED_MAX,
     });
-    expect(snap.drafts.map((d) => d.id)).toEqual(["draft", "older-draft"]);
-    expect(snap.drafts).toHaveLength(Math.min(2, DASHBOARD_HOME_DRAFTS));
+    expect(snap.doNext.map((d) => d.id)).toEqual(["draft", "older-draft"]);
+    expect(snap.doNext).toHaveLength(Math.min(2, DASHBOARD_HOME_DRAFTS));
+    expect(snap.doNext.every((row) => row.reason === null)).toBe(true);
   });
 
-  it("keeps just-in titles and does not invent upcoming or revenue", () => {
+  it("does not invent a reason when a finding has no existing message", () => {
+    const snap = clientHomeSnapshot({
+      titles: [title({ id: "live-1", status: "live", title: "Winter Light" })],
+      findings: [{ org_id: "org-1", entity_id: "live-1" }],
+      orgId: "org-1",
+      now: NOW,
+      bound: UNPAGINATED_MAX,
+    });
+    expect(snap.doNext).toEqual([
+      { id: "live-1", title: "Winter Light", reason: null, status: "live" },
+    ]);
+    expect(JSON.stringify(snap.doNext)).not.toMatch(/Artwork missing|Metadata incomplete/i);
+  });
+
+  it("prefers an existing high-severity finding message and does not duplicate a draft", () => {
     const snap = clientHomeSnapshot({
       titles: [
+        title({
+          id: "draft-1",
+          title: "Harbor Cut",
+          status: "draft",
+          created_at: "2026-08-15T10:00:00.000Z",
+        }),
+      ],
+      findings: [
+        {
+          org_id: "org-1",
+          entity_id: "draft-1",
+          severity: "low",
+          message: "Director is recommended.",
+        },
+        {
+          org_id: "org-1",
+          entity_id: "draft-1",
+          severity: "high",
+          message: "Synopsis is required.",
+        },
+      ],
+      orgId: "org-1",
+      now: NOW,
+      bound: UNPAGINATED_MAX,
+    });
+    expect(snap.doNext).toEqual([
+      {
+        id: "draft-1",
+        title: "Harbor Cut",
+        reason: "Synopsis is required.",
+        status: "draft",
+      },
+    ]);
+  });
+
+  it("caps Do next and keeps just-in titles with their real status", () => {
+    const titles = Array.from({ length: DASHBOARD_HOME_DO_NEXT + 2 }, (_, i) =>
+      title({
+        id: `draft-${i}`,
+        status: "draft",
+        created_at: `2026-08-15T0${i}:00:00.000Z`,
+      }),
+    );
+    const snap = clientHomeSnapshot({
+      titles: [
+        ...titles,
         title({
           id: "new",
           status: "live",
@@ -105,7 +173,7 @@ describe("clientHomeSnapshot", () => {
         }),
         title({
           id: "old",
-          status: "live",
+          status: "submitted",
           created_at: "2025-01-01T00:00:00.000Z",
         }),
       ],
@@ -114,7 +182,12 @@ describe("clientHomeSnapshot", () => {
       now: NOW,
       bound: UNPAGINATED_MAX,
     });
-    expect(snap.justIn.map((t) => t.id)).toEqual(["new"]);
+    expect(snap.doNext).toHaveLength(DASHBOARD_HOME_DO_NEXT);
+    expect(snap.justIn.map((t) => t.id)).toEqual([
+      ...titles.map((t) => t.id).reverse(),
+      "new",
+    ].slice(0, 5));
+    expect(snap.justIn.find((t) => t.id === "new")?.status).toBe("live");
     expect(snap).not.toHaveProperty("upcoming");
     expect(snap).not.toHaveProperty("revenue");
     expect(snap).not.toHaveProperty("createdAt");
@@ -126,6 +199,14 @@ describe("dashboardIdentityMeta", () => {
     expect(dashboardIdentityMeta("Active", "Account owner")).toBe("Active · Account owner");
     expect(dashboardIdentityMeta("Registered", null)).toBe("Registered");
     expect(dashboardIdentityMeta("Active", "Account owner")).not.toMatch(/Access|term/i);
+  });
+});
+
+describe("dashboardTitleStatusLabel", () => {
+  it("reuses TITLE_STATUS_LABELS and does not invent a mark", () => {
+    expect(dashboardTitleStatusLabel("live")).toBe(TITLE_STATUS_LABELS.live);
+    expect(dashboardTitleStatusLabel("in_review")).toBe(TITLE_STATUS_LABELS.in_review);
+    expect(dashboardTitleStatusLabel("unknown")).toBeNull();
   });
 });
 
@@ -183,24 +264,77 @@ describe("client home type locks", () => {
     expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.catalog}`);
     expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.needsAttention}`);
     expect(snapshot).toContain(`t-label text-ink-3">${DASHBOARD_HOME.live}`);
+    expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
+    expect(snapshot).toMatch(/data-dashboard-stat="catalog"[^>]*text-ink"/);
+    expect(snapshot).toMatch(/data-dashboard-stat="live"[^>]*text-ink"/);
   });
 
-  it("keeps Do next body and list titles on the body step, not display", () => {
+  it("keeps Needs attention on accent even when the count is zero", () => {
+    const snapshot = renderToStaticMarkup(
+      createElement(DashboardSnapshot, {
+        catalog: "0",
+        needsAttention: 0,
+        live: 0,
+      }),
+    );
+    expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
+  });
+
+  it("renders Do next as finding + draft rows — no SaaS headline", () => {
     const html = renderToStaticMarkup(
       createElement(DashboardDoNext, {
-        attentionTitleCount: 1,
-        drafts: [{ id: "draft-1", title: "Draft Work" }],
+        items: [
+          {
+            id: "live-1",
+            title: "Winter Light",
+            reason: "Synopsis is required.",
+            status: "live",
+          },
+          { id: "draft-1", title: "Draft Work", reason: null, status: "draft" },
+        ],
       }),
     );
 
     expect(html).toContain(`t-label text-ink-3">${DASHBOARD_HOME.doNext}`);
-    expect(html).toContain(dashboardAttentionSummary(1));
-    expect(html).toContain("t-body font-medium text-ink");
+    expect(html).toContain("Winter Light");
+    expect(html).toContain("Synopsis is required.");
     expect(html).toContain("Draft Work");
     expect(html).toContain(TITLE_STATUS_LABELS.draft);
+    expect(html).toContain(TITLE_STATUS_LABELS.live);
+    expect(html).toContain("data-dashboard-status-pill");
+    expect(html).toContain("border-hairline");
+    expect(html).toContain("t-body font-medium text-ink");
+    expect(html).not.toContain(dashboardAttentionSummary(1));
+    expect(html).not.toContain("titles need your attention");
+    expect(html).not.toContain("Artwork missing");
+    expect(html).not.toContain("Metadata incomplete");
     expect(html).not.toContain("t-subhead");
     expect(html).not.toContain("t-display");
     expect(html).not.toContain("t-title");
     expect(html).not.toContain("t-section");
+  });
+
+  it("puts a hairline status pill and a date on Just in, not an added prefix", () => {
+    const created = "2026-08-12T00:00:00.000Z";
+    const html = renderToStaticMarkup(
+      createElement(DashboardJustIn, {
+        titles: [
+          {
+            id: "title-1",
+            title: "Winter Light",
+            status: "submitted",
+            created_at: created,
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain(`t-label text-ink-3">${DASHBOARD_HOME.justIn}`);
+    expect(html).toContain("Winter Light");
+    expect(html).toContain(TITLE_STATUS_LABELS.submitted);
+    expect(html).toContain(dashboardJustInDate(created));
+    expect(html).toContain("data-dashboard-status-pill");
+    expect(html).not.toContain("added ");
+    expect(html).not.toMatch(/text-green|bg-green|text-emerald/);
   });
 });

@@ -5,8 +5,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const navigation = vi.hoisted(() => ({ pathname: "/" }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+  usePathname: () => navigation.pathname,
 }));
 vi.mock("./organization-switcher", () => ({
   OrganizationSwitcher: () => createElement("div", { "data-org-switcher": "" }),
@@ -38,6 +40,7 @@ function renderShell(): string {
 
 describe("AppShell header", () => {
   it("no longer mounts a standalone sun or theme toggle", () => {
+    navigation.pathname = "/";
     const html = renderShell();
     expect(html).toContain("data-user-menu-host");
     expect(html).not.toContain("Switch to dark mode");
@@ -47,11 +50,29 @@ describe("AppShell header", () => {
     expect(shellSrc).not.toContain("ThemeToggle");
     expect(shellSrc).not.toContain("theme-toggle");
     expect(shellSrc).not.toContain("ThemeGlyph");
+    expect(shellSrc).not.toMatch(/bell|⌘K|CommandK|command-k/i);
   });
 
   it("keeps the account menu in the header", () => {
+    navigation.pathname = "/";
     const html = renderShell();
     expect(html).toContain('data-email="ada@example.com"');
     expect(shellSrc).toContain("<UserMenu email={email} />");
+  });
+
+  it("hides the org switcher on client `/` so identity is not duplicated", () => {
+    navigation.pathname = "/";
+    const html = renderShell();
+    expect(html).not.toContain("data-org-switcher");
+    expect(html).toContain("justify-end");
+    expect(html).toContain("data-user-menu-host");
+    expect(shellSrc).toContain('pathname === "/"');
+  });
+
+  it("keeps the org switcher on other client routes", () => {
+    navigation.pathname = "/catalog-health";
+    const html = renderShell();
+    expect(html).toContain("data-org-switcher");
+    expect(html).toContain("justify-between");
   });
 });
