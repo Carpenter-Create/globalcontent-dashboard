@@ -240,7 +240,7 @@ describe("client /titles catalog", () => {
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-section/);
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-display/);
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-title/);
-    expect(html).not.toContain("t-body font-medium text-ink");
+    expect(html).not.toMatch(/data-titles-catalog-stack[\s\S]*t-body font-medium/);
     expect(html).not.toContain("group-hover:text-ink-2");
     for (const status of ALL_STATUSES) {
       expect(html).toContain(TITLE_STATUS_LABELS[status]);
