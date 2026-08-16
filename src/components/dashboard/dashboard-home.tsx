@@ -22,7 +22,7 @@ export function DashboardHomePanel({
   return (
     <section
       className={cn(
-        "dashboard-home-panel rounded-[var(--radius-lg)] border border-hairline bg-surface px-[var(--space-8)] py-[var(--space-8)]",
+        "dashboard-home-panel flex h-full flex-col rounded-[var(--radius-lg)] border border-hairline bg-surface px-[var(--space-8)] py-[var(--space-10)] sm:px-[var(--space-10)]",
         className,
       )}
       {...props}
@@ -43,7 +43,7 @@ export function DashboardHomePillLink({
     <Link
       href={href}
       className={cn(
-        "dashboard-home-pill inline-flex shrink-0 items-center justify-center rounded-full bg-accent px-4 py-2 t-body-sm font-medium text-accent-contrast transition hover:-translate-y-px hover:opacity-90 active:translate-y-0",
+        "dashboard-home-pill inline-flex shrink-0 items-center justify-center rounded-full bg-accent px-[var(--space-6)] py-[var(--space-3)] t-body-sm font-medium text-accent-contrast transition hover:-translate-y-px hover:opacity-90 active:translate-y-0",
         className,
       )}
     >
@@ -54,8 +54,8 @@ export function DashboardHomePillLink({
 
 export function DashboardHomeEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dashboard-home-empty flex flex-col justify-center py-[var(--space-6)]">
-      <p className="t-subhead text-ink">{children}</p>
+    <div className="dashboard-home-empty flex flex-1 flex-col justify-center py-[var(--space-10)]">
+      <p className="t-body text-ink-2">{children}</p>
     </div>
   );
 }
@@ -72,8 +72,8 @@ export function DashboardOrgIdentity({
   const roleLabel = role ? ORG_ROLE_LABELS[role] : null;
   return (
     <header className="dashboard-home-identity min-w-0">
-      <h1 className="t-heading text-ink">{name}</h1>
-      <p className="mt-[var(--space-2)] t-body-sm text-ink-3">
+      <h1 className="t-section text-ink">{name}</h1>
+      <p className="mt-[var(--space-3)] t-body-sm text-ink-3">
         {dashboardIdentityMeta(ORG_STATUS_LABELS[status], roleLabel)}
       </p>
     </header>
@@ -102,23 +102,22 @@ export function DashboardSnapshot({
 
   return (
     <dl
-      className="dashboard-home-snapshot grid grid-cols-1 border-y border-hairline sm:grid-cols-3"
+      className="dashboard-home-snapshot grid grid-cols-1 overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface sm:grid-cols-3"
       data-dashboard-snapshot=""
     >
       {stats.map((stat, i) => (
         <div
           key={stat.key}
           className={cn(
-            "flex flex-col gap-[var(--space-3)] py-[var(--space-8)]",
-            i > 0 && "border-t border-hairline sm:border-t-0 sm:border-l sm:pl-[var(--space-8)]",
-            i < stats.length - 1 && "sm:pr-[var(--space-8)]",
+            "flex flex-col gap-[var(--space-4)] px-[var(--space-8)] py-[var(--space-10)] sm:px-[var(--space-10)]",
+            i > 0 && "border-t border-hairline sm:border-t-0 sm:border-l",
           )}
         >
           <dt className="t-label text-ink-3">{stat.label}</dt>
           <dd
             data-dashboard-stat={stat.key}
             className={cn(
-              "t-title t-data",
+              "t-title t-data leading-none",
               stat.highlight ? "text-accent" : "text-ink",
             )}
           >
@@ -146,9 +145,9 @@ export function DashboardDoNext({
       {!hasAttention && !hasDrafts ? (
         <DashboardHomeEmpty>{DASHBOARD_ATTENTION_CLEAR}</DashboardHomeEmpty>
       ) : (
-        <div className="mt-[var(--space-6)] flex flex-col">
+        <div className="mt-[var(--space-8)] flex flex-col">
           {hasAttention ? (
-            <div className="flex flex-col gap-[var(--space-2)] pb-[var(--space-6)]">
+            <div className="flex flex-col gap-[var(--space-3)] pb-[var(--space-8)]">
               <Link
                 href="/catalog-health"
                 className="t-subhead text-ink transition-colors hover:text-ink-2"
@@ -164,7 +163,7 @@ export function DashboardDoNext({
               {drafts.map((t) => (
                 <li
                   key={t.id}
-                  className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-4)] first:pt-[var(--space-4)] last:pb-0"
+                  className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-[var(--space-6)] last:pb-0"
                 >
                   <Link
                     href={`/titles/${t.id}`}
@@ -194,11 +193,11 @@ export function DashboardJustIn({
       {titles.length === 0 ? (
         <DashboardHomeEmpty>{DASHBOARD_HOME.justInEmpty}</DashboardHomeEmpty>
       ) : (
-        <ul className="mt-[var(--space-6)] divide-y divide-hairline">
+        <ul className="mt-[var(--space-8)] divide-y divide-hairline">
           {titles.map((t) => (
             <li
               key={t.id}
-              className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-4)] first:pt-0 last:pb-0"
+              className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-6)] first:pt-0 last:pb-0"
             >
               <Link
                 href={`/titles/${t.id}`}
