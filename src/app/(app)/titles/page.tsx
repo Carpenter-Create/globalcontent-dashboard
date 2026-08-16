@@ -10,6 +10,7 @@ import { titleArtworkUrls } from "@/lib/artwork";
 import { filterTitles, type BrowseTitle } from "@/lib/titles-browse";
 import {
   TITLES_CATALOG,
+  catalogReleaseYear,
   catalogStatusMark,
   catalogStillSrc,
 } from "@/lib/titles-catalog";
@@ -115,6 +116,7 @@ export default async function TitlesPage({
               stillUrl={catalogStillSrc(r.bannerUrl, r.posterUrl)}
               status={r.status}
               statusLabel={catalogStatusMark(r.status as TitleStatus)}
+              year={catalogReleaseYear(r.release_date)}
             />
           ))}
         </TitlesCatalogGrid>

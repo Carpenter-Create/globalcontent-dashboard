@@ -36,3 +36,15 @@ export function catalogStillSrc(
 ): string | null {
   return posterUrl || bannerUrl || null;
 }
+
+/**
+ * Calendar year from titles.release_date (YYYY-MM-DD).
+ * Null when unset or not a calendar date — never invent, never fall back to created_at.
+ */
+export function catalogReleaseYear(
+  releaseDate: string | null | undefined,
+): string | null {
+  if (!releaseDate) return null;
+  const match = /^(\d{4})-\d{2}-\d{2}$/.exec(releaseDate);
+  return match?.[1] ?? null;
+}

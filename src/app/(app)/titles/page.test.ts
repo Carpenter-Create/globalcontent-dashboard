@@ -54,14 +54,18 @@ function ctx({
   };
 }
 
-function titleRow(status: TitleStatus, i: number) {
+function titleRow(
+  status: TitleStatus,
+  i: number,
+  extras: { release_date?: string | null; created_at?: string; title?: string } = {},
+) {
   return {
     id: `title-${status}`,
-    title: `${status} film`,
+    title: extras.title ?? `${status} film`,
     status,
-    created_at: `2026-08-${String(10 + i).padStart(2, "0")}T00:00:00Z`,
+    created_at: extras.created_at ?? `2026-08-${String(10 + i).padStart(2, "0")}T00:00:00Z`,
     catalog_id: `GC-${i}`,
-    release_date: null,
+    release_date: extras.release_date === undefined ? null : extras.release_date,
   };
 }
 
@@ -99,11 +103,13 @@ describe("client /titles catalog", () => {
 
     expect(html).toContain("data-titles-catalog");
     expect(html).toContain("data-titles-catalog-grid");
-    expect(html).toContain("lg:grid-cols-3");
+    expect(html).toContain("grid-cols-1");
+    expect(html).toContain("xl:grid-cols-5");
     expect(html).toContain("aspect-[2/3]");
-    expect(html).not.toContain("lg:grid-cols-2");
+    expect(html).not.toMatch(/[^:]grid-cols-5/);
+    expect(html).not.toContain("grid-cols-6");
+    expect(html).not.toContain("lg:grid-cols-3");
     expect(html).not.toContain("aspect-[16/9]");
-    expect(html).not.toContain("xl:grid-cols-4");
     expect(html).not.toContain("Recently added");
     expect(html).not.toContain("Spotlight");
 
@@ -139,6 +145,35 @@ describe("client /titles catalog", () => {
     for (const status of ALL_STATUSES) {
       expect(html).toContain(TITLE_STATUS_LABELS[status]);
     }
+  });
+
+  it("shows the release_date year under a poster and omits it when unset", async () => {
+    stubClient([
+      titleRow("live", 0, {
+        title: "Dated film",
+        release_date: "2019-05-01",
+        created_at: "2026-08-10T00:00:00Z",
+      }),
+      titleRow("draft", 1, {
+        title: "Undated film",
+        release_date: null,
+        created_at: "2026-08-11T00:00:00Z",
+      }),
+    ]);
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+
+    const html = await renderCatalog();
+
+    expect(html).toContain("Dated film");
+    expect(html).toContain("data-titles-catalog-year");
+    expect(html).toContain("2019");
+    expect(html).toContain("Undated film");
+    expect(html).not.toContain("—");
+    expect(html).not.toContain("2026-08-10");
+    expect(html).not.toContain("2026-08-11");
+    expect(html).not.toMatch(/genre/i);
+    const years = html.match(/data-titles-catalog-year=""/g) ?? [];
+    expect(years).toHaveLength(1);
   });
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {

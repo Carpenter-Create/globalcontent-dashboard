@@ -4,6 +4,7 @@ import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 import {
   CATALOG_LIFECYCLE_STATES,
   TITLES_CATALOG,
+  catalogReleaseYear,
   catalogStatusMark,
   catalogStillSrc,
 } from "./titles-catalog";
@@ -61,6 +62,23 @@ describe("catalogStillSrc", () => {
   it("returns null when there is no artwork — honest empty, not a fake poster", () => {
     expect(catalogStillSrc(null, null)).toBeNull();
     expect(catalogStillSrc(undefined, "")).toBeNull();
+  });
+});
+
+describe("catalogReleaseYear", () => {
+  it("returns the calendar year from titles.release_date", () => {
+    expect(catalogReleaseYear("2019-05-01")).toBe("2019");
+    expect(catalogReleaseYear("2026-12-31")).toBe("2026");
+  });
+
+  it("omits a year when release_date is null or not a calendar date", () => {
+    expect(catalogReleaseYear(null)).toBeNull();
+    expect(catalogReleaseYear(undefined)).toBeNull();
+    expect(catalogReleaseYear("")).toBeNull();
+    expect(catalogReleaseYear("2019")).toBeNull();
+    expect(catalogReleaseYear("2019-05")).toBeNull();
+    expect(catalogReleaseYear("May 2019")).toBeNull();
+    expect(catalogReleaseYear("2026-08-10T00:00:00Z")).toBeNull();
   });
 });
 
