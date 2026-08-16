@@ -1,34 +1,16 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { Card, CardBody } from "@/components/ui/card";
 import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
-import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
+import {
+  DashboardAttention,
+  DashboardJustIn,
+  DashboardOrgIdentity,
+} from "@/components/dashboard/dashboard-home";
 import { isUpcoming, isJustIn } from "@/lib/releases";
 import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 import { GcClientsDirectory } from "@/app/(app)/(operator)/gc/clients/clients-directory";
-
-const ROLE_LABELS: Record<string, string> = {
-  account_owner: "Account Owner",
-  accountant: "Accountant",
-  legal: "Legal",
-  delivery_ops: "Delivery Ops",
-  viewer: "Viewer",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  registered: "Registered",
-  contract_review: "In contract review",
-  signed: "Signed",
-  onboarding: "Onboarding",
-  active: "Active",
-  payment_lapsed: "Payment lapsed",
-  closed: "Closed",
-};
-
-const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
 // Dashboard = the client's portfolio snapshot (spec: 2026-07-21 release-dates-and-
 // dashboard-tiles; hero: 2026-07-22 charted-hero). The charcoal hero carries the
@@ -83,7 +65,7 @@ export default async function DashboardPage() {
   ).size;
 
   return (
-    <>
+    <div className="dashboard-home flex flex-col gap-[var(--space-10)]" data-dashboard-home="">
       <h1 className="sr-only">Dashboard — {org.name}</h1>
 
       <CatalogActivityHero
@@ -97,67 +79,11 @@ export default async function DashboardPage() {
         }}
       />
 
-      <div className="mt-3">
-        <Card>
-          <CardBody className="flex flex-col gap-2">
-            <span className="t-label text-ink-3">Just in</span>
-            {justIn.length === 0 ? (
-              <p className="t-body-sm text-ink-3">No titles added recently.</p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {justIn.map((t) => (
-                  <li key={t.id} className="flex items-baseline justify-between gap-4 t-body-sm">
-                    <Link href={`/titles/${t.id}`} className="text-accent">
-                      {t.title}
-                    </Link>
-                    <span className="shrink-0 text-ink-3">
-                      added {ADDED_FMT.format(new Date(t.created_at))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
-      </div>
+      <DashboardJustIn titles={justIn} />
 
-      <div className="mt-3">
-        <Card>
-          <CardBody className="flex items-center justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="t-body font-medium text-ink">
-                {attentionTitles > 0
-                  ? dashboardAttentionSummary(attentionTitles)
-                  : DASHBOARD_ATTENTION_CLEAR}
-              </span>
-              <span className="t-body-sm text-ink-3">
-                {attentionTitles > 0
-                  ? "Review what needs attention across your catalog."
-                  : "Nothing needs your attention right now."}
-              </span>
-            </div>
-            <Link href="/catalog-health" className="shrink-0 t-body-sm text-accent">
-              Catalog Health →
-            </Link>
-          </CardBody>
-        </Card>
-      </div>
+      <DashboardAttention titleCount={attentionTitles} />
 
-      <div className="mt-6">
-        <Card>
-          <CardBody className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <span className="t-body font-medium text-ink">{org.name}</span>
-              <span className="t-body-sm text-ink-3">
-                {STATUS_LABELS[org.status] ?? org.status}
-              </span>
-            </div>
-            <span className="rounded-[var(--radius-sm)] bg-surface-muted px-2.5 py-1 t-label text-ink-2">
-              {ctx.activeRole ? (ROLE_LABELS[ctx.activeRole] ?? ctx.activeRole) : "—"}
-            </span>
-          </CardBody>
-        </Card>
-      </div>
-    </>
+      <DashboardOrgIdentity name={org.name} status={org.status} role={ctx.activeRole} />
+    </div>
   );
 }
