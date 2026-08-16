@@ -70,7 +70,7 @@ function titleRow(
 }
 
 function stubClient(
-  titles: ReturnType<typeof titleRow>[] = ALL_STATUSES.map(titleRow),
+  titles: ReturnType<typeof titleRow>[] = ALL_STATUSES.map((status, i) => titleRow(status, i)),
 ) {
   const titlesChain = {
     select: vi.fn(() => titlesChain),
