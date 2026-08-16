@@ -8,7 +8,7 @@ import { type LucideIcon } from "lucide-react";
 import { GC_NAV, NAV } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
-// Access rail: 14px labels, 16px Lucide at 1.33, muted grey wash when active.
+// Access rail: 13px labels (--text-sm / t-body-sm), 16px Lucide at 1.33, muted grey wash when active.
 // Collapsed mode is icon-only (labels/badges hidden; title tooltips; unread → accent dot).
 export function SideNav({
   messagesUnread,
@@ -52,7 +52,7 @@ export function SideNav({
         title={collapsed ? item.label : undefined}
         aria-label={collapsed ? item.label : undefined}
         className={cn(
-          "relative flex items-center rounded-[var(--radius)] text-[0.875rem] leading-4 transition-colors",
+          "relative flex items-center rounded-[var(--radius)] t-body-sm leading-4 transition-colors",
           collapsed ? "justify-center px-0 py-2" : "gap-2.5 px-3 py-2",
           active
             ? "bg-surface-muted font-medium text-ink"
