@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { CLIENTS_PAGE } from "@/lib/clients";
+import { CLIENTS_PAGE, ORG_ROLE_LABELS, ORG_STATUS_LABELS } from "@/lib/clients";
 import { DASHBOARD_HOME } from "@/lib/dashboard-home";
-import { DASHBOARD_ATTENTION_CLEAR } from "@/lib/findings";
+import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
+import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import DashboardPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -16,9 +17,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/supabase/context", () => ({ getOrgContext: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/components/dashboard/catalog-activity-hero", () => ({
-  CatalogActivityHero: () => null,
-}));
 
 type Status = "registered" | "awaiting_payment" | "active";
 
@@ -40,11 +38,10 @@ function stubClient(
   titles: {
     id: string;
     title: string;
-    catalog_id: string | null;
     status: string;
-    release_date: string | null;
     created_at: string;
   }[] = [],
+  findings: { org_id: string; entity_id: string }[] = [],
 ) {
   const eq = vi.fn();
   const titlesChain = {
@@ -61,12 +58,17 @@ function stubClient(
     throw new Error(`unexpected from(${table})`);
   });
   const rpc = vi.fn(async (name: string) => {
-    if (name === "my_findings") return { data: [], error: null };
+    if (name === "my_findings") return { data: findings, error: null };
     if (name === "gc_client_directory") return { data: [], error: null };
     throw new Error(`unexpected rpc(${name})`);
   });
   vi.mocked(createClient).mockResolvedValue({ from, rpc } as never);
   return { from, eq, rpc, titlesChain };
+}
+
+function statValue(html: string, key: string): string | null {
+  const match = html.match(new RegExp(`data-dashboard-stat="${key}"[^>]*>([^<]*)<`));
+  return match?.[1] ?? null;
 }
 
 /**
@@ -90,8 +92,9 @@ describe("DashboardPage modes", () => {
     expect(eq).toHaveBeenCalledWith("org_id", "org-1");
     expect(rpc).toHaveBeenCalledWith("my_findings");
     expect(rpc).not.toHaveBeenCalledWith("gc_client_directory", expect.anything());
-    expect(html).toContain("Dashboard — Acme");
     expect(html).toContain("Acme");
+    expect(html).toContain(ORG_STATUS_LABELS.active);
+    expect(html).toContain(ORG_ROLE_LABELS.account_owner);
     expect(html).toContain(DASHBOARD_ATTENTION_CLEAR);
     expect(html).toContain("/catalog-health");
     expect(html).toContain("data-dashboard-home");
@@ -110,9 +113,7 @@ describe("DashboardPage modes", () => {
       {
         id: "title-1",
         title: "Winter Light",
-        catalog_id: null,
         status: "live",
-        release_date: null,
         created_at: new Date().toISOString(),
       },
     ]);
@@ -140,7 +141,8 @@ describe("DashboardPage modes", () => {
 
     expect(rpc).toHaveBeenCalledWith("my_findings");
     expect(rpc).not.toHaveBeenCalledWith("gc_client_directory", expect.anything());
-    expect(html).toContain("Dashboard — Acme");
+    expect(html).toContain("Acme");
+    expect(html).toContain("data-dashboard-snapshot");
     expect(html).not.toContain(CLIENTS_PAGE.subtitle);
   });
 
@@ -163,6 +165,8 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain("data-dashboard-home");
     expect(html).not.toContain("dashboard-home-pill");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain("data-dashboard-snapshot");
+    expect(html).not.toContain(DASHBOARD_HOME.doNext);
   });
 
   it("does not send GC staff with no client org to /queue or the wizard", async () => {
@@ -186,5 +190,78 @@ describe("DashboardPage modes", () => {
     stubClient();
     vi.mocked(getOrgContext).mockResolvedValue(null as never);
     await expect(DashboardPage()).rejects.toThrow("REDIRECT:/login");
+  });
+});
+
+describe("client home information model", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows three numbers, Do next, Just in, and no chart or revenue", async () => {
+    stubClient(
+      [
+        {
+          id: "title-1",
+          title: "Winter Light",
+          status: "live",
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: "title-2",
+          title: "Draft Work",
+          status: "draft",
+          created_at: new Date().toISOString(),
+        },
+      ],
+      [{ org_id: "org-1", entity_id: "title-1" }],
+    );
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(statValue(html, "catalog")).toBe("2");
+    expect(statValue(html, "needsAttention")).toBe("1");
+    expect(statValue(html, "live")).toBe("1");
+    expect(html).toContain(DASHBOARD_HOME.catalog);
+    expect(html).toContain(DASHBOARD_HOME.needsAttention);
+    expect(html).toContain(DASHBOARD_HOME.live);
+    expect(html).toContain(DASHBOARD_HOME.doNext);
+    expect(html).toContain(dashboardAttentionSummary(1));
+    expect(html).toContain("Draft Work");
+    expect(html).toContain(TITLE_STATUS_LABELS.draft);
+    expect(html).toContain("Winter Light");
+    expect(html).toContain(DASHBOARD_HOME.justIn);
+    expect(html).toContain(`${ORG_STATUS_LABELS.active} · ${ORG_ROLE_LABELS.account_owner}`);
+    expect(html).toContain("text-accent");
+    expect(html).not.toContain("Revenue");
+    expect(html).not.toContain("Upcoming");
+    expect(html).not.toContain("Catalog activity");
+    expect(html).not.toContain("dashboard-home-hero");
+    expect(html).not.toContain("bg-band");
+    expect(html).not.toContain("Access");
+    expect(html).not.toContain("term ends");
+    expect(html).not.toMatch(/>—</);
+  });
+
+  it("does not invent a stuck-too-long metric for drafts", async () => {
+    stubClient([
+      {
+        id: "title-2",
+        title: "Draft Work",
+        status: "draft",
+        created_at: "2024-01-01T00:00:00.000Z",
+      },
+    ]);
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(html).toContain("Draft Work");
+    expect(html).toContain(TITLE_STATUS_LABELS.draft);
+    expect(html).not.toMatch(/stuck/i);
+    expect(html).not.toContain(DASHBOARD_ATTENTION_CLEAR);
   });
 });
