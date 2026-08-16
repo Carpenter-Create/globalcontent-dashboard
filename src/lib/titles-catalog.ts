@@ -29,20 +29,10 @@ export function catalogStatusMark(status: TitleStatus): string {
   return TITLE_STATUS_LABELS[status];
 }
 
-/** Real promotional art only. Banner first (a still); else poster; else nothing. */
+/** Real promotional art only. Poster first (portrait); else banner; else nothing. */
 export function catalogStillSrc(
   bannerUrl: string | null | undefined,
   posterUrl: string | null | undefined,
 ): string | null {
-  return bannerUrl || posterUrl || null;
-}
-
-export function catalogCountLine(
-  count: number,
-  orgName: string,
-  truncated: boolean,
-  pageSize: number,
-): string {
-  if (truncated) return `Showing the ${pageSize} most recent titles in ${orgName}'s catalog.`;
-  return `${count} ${count === 1 ? "title" : "titles"} in ${orgName}'s catalog.`;
+  return posterUrl || bannerUrl || null;
 }

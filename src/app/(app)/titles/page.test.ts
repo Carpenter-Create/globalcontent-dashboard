@@ -99,8 +99,10 @@ describe("client /titles catalog", () => {
 
     expect(html).toContain("data-titles-catalog");
     expect(html).toContain("data-titles-catalog-grid");
-    expect(html).toContain("lg:grid-cols-2");
-    expect(html).toContain("aspect-[16/9]");
+    expect(html).toContain("lg:grid-cols-3");
+    expect(html).toContain("aspect-[2/3]");
+    expect(html).not.toContain("lg:grid-cols-2");
+    expect(html).not.toContain("aspect-[16/9]");
     expect(html).not.toContain("xl:grid-cols-4");
     expect(html).not.toContain("Recently added");
     expect(html).not.toContain("Spotlight");
@@ -113,19 +115,30 @@ describe("client /titles catalog", () => {
     }
   });
 
-  it("surfaces status as a quiet mark and keeps Add Title", async () => {
+  it("keeps search, Add Title, and quiet status pills — no SaaS subtitle", async () => {
     stubClient();
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
     const html = await renderCatalog();
 
-    expect(html).toContain("data-titles-catalog-status");
+    expect(html).toContain(TITLES_CATALOG.title);
+    expect(html).toContain("Search titles");
     expect(html).toContain(TITLES_CATALOG.addTitle);
     expect(html).toContain("data-add-title");
     expect(html).toContain("bg-accent");
-    expect(html).toContain(TITLES_CATALOG.title);
-    expect(html).toContain("7 titles in Acme");
-    expect(html).toContain("catalog.");
+    expect(html).not.toContain("titles in Acme");
+    expect(html).not.toContain("in Acme's catalog");
+    expect(html).not.toMatch(/t-label[^>]*data-titles-catalog-status/);
+
+    const statusPills = html.match(/data-titles-catalog-status=""/g) ?? [];
+    expect(statusPills).toHaveLength(ALL_STATUSES.length);
+    expect(html).toContain("rounded-full bg-surface-muted");
+    expect(html).toContain("t-body font-medium text-ink");
+    expect(html).toContain("t-body-sm font-normal text-ink");
+    expect(html).not.toContain("group-hover:text-ink-2");
+    for (const status of ALL_STATUSES) {
+      expect(html).toContain(TITLE_STATUS_LABELS[status]);
+    }
   });
 
   it("leaves missing artwork as an honest empty, not a fake poster", async () => {
@@ -146,6 +159,8 @@ describe("client /titles catalog", () => {
 
     expect(html).toContain("live film");
     expect(html).toContain(TITLE_STATUS_LABELS.live);
+    expect(html).toContain("Search titles");
+    expect(html).toContain("data-titles-catalog-status");
     expect(html).not.toContain("data-add-title");
     expect(html).not.toContain(TITLES_CATALOG.addTitle);
   });

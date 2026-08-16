@@ -10,7 +10,6 @@ import { titleArtworkUrls } from "@/lib/artwork";
 import { filterTitles, type BrowseTitle } from "@/lib/titles-browse";
 import {
   TITLES_CATALOG,
-  catalogCountLine,
   catalogStatusMark,
   catalogStillSrc,
 } from "@/lib/titles-catalog";
@@ -23,9 +22,9 @@ import {
 } from "@/components/titles/titles-catalog";
 import type { TitleStatus } from "@/lib/titles";
 
-// Client `/titles` is the catalog: every title the org owns, every existing
-// title.status, on this one page. Artwork-first stills — not a small-card admin
-// grid, not a streaming home. `catalog_id` stays GC-only.
+// Client `/titles` is the catalog you operate: every title the org owns, every
+// existing title.status, on this one page. Portrait stills — not a storefront,
+// not a CMS, not a streaming home. `catalog_id` stays GC-only.
 
 export default async function TitlesPage({
   searchParams,
@@ -78,7 +77,6 @@ export default async function TitlesPage({
   return (
     <TitlesCatalogFrame>
       <TitlesCatalogHeader
-        meta={catalogCountLine(all.length, activeOrg.name, truncated, LIST_PAGE)}
         action={
           list.length > 0 || canOperate ? (
             <div className="flex items-center gap-[var(--space-3)]">
