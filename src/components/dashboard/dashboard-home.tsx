@@ -1,9 +1,13 @@
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
-import { CATALOG_HEALTH_EMPTY, DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
-import { DASHBOARD_HOME } from "@/lib/dashboard-home";
+import { DASHBOARD_ATTENTION_CLEAR, dashboardAttentionSummary } from "@/lib/findings";
+import {
+  DASHBOARD_HOME,
+  dashboardIdentityMeta,
+} from "@/lib/dashboard-home";
 import { ORG_ROLE_LABELS, ORG_STATUS_LABELS } from "@/lib/clients";
+import { TITLE_STATUS_LABELS } from "@/lib/titles";
 import type { OrgRole, OrgStatus } from "@/lib/supabase/context";
 
 const ADDED_FMT = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
@@ -56,6 +60,129 @@ export function DashboardHomeEmpty({ children }: { children: React.ReactNode }) 
   );
 }
 
+export function DashboardOrgIdentity({
+  name,
+  status,
+  role,
+}: {
+  name: string;
+  status: OrgStatus;
+  role: OrgRole | null;
+}) {
+  const roleLabel = role ? ORG_ROLE_LABELS[role] : null;
+  return (
+    <header className="dashboard-home-identity min-w-0">
+      <h1 className="t-heading text-ink">{name}</h1>
+      <p className="mt-[var(--space-2)] t-body-sm text-ink-3">
+        {dashboardIdentityMeta(ORG_STATUS_LABELS[status], roleLabel)}
+      </p>
+    </header>
+  );
+}
+
+export function DashboardSnapshot({
+  catalog,
+  needsAttention,
+  live,
+}: {
+  catalog: string;
+  needsAttention: number;
+  live: number;
+}) {
+  const stats = [
+    { key: "catalog", label: DASHBOARD_HOME.catalog, value: catalog, highlight: false },
+    {
+      key: "needsAttention",
+      label: DASHBOARD_HOME.needsAttention,
+      value: String(needsAttention),
+      highlight: needsAttention > 0,
+    },
+    { key: "live", label: DASHBOARD_HOME.live, value: String(live), highlight: false },
+  ] as const;
+
+  return (
+    <dl
+      className="dashboard-home-snapshot grid grid-cols-1 border-y border-hairline sm:grid-cols-3"
+      data-dashboard-snapshot=""
+    >
+      {stats.map((stat, i) => (
+        <div
+          key={stat.key}
+          className={cn(
+            "flex flex-col gap-[var(--space-3)] py-[var(--space-8)]",
+            i > 0 && "border-t border-hairline sm:border-t-0 sm:border-l sm:pl-[var(--space-8)]",
+            i < stats.length - 1 && "sm:pr-[var(--space-8)]",
+          )}
+        >
+          <dt className="t-label text-ink-3">{stat.label}</dt>
+          <dd
+            data-dashboard-stat={stat.key}
+            className={cn(
+              "t-heading t-data",
+              stat.highlight ? "text-accent" : "text-ink",
+            )}
+          >
+            {stat.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function DashboardDoNext({
+  attentionTitleCount,
+  drafts,
+}: {
+  attentionTitleCount: number;
+  drafts: { id: string; title: string }[];
+}) {
+  const hasAttention = attentionTitleCount > 0;
+  const hasDrafts = drafts.length > 0;
+
+  return (
+    <DashboardHomePanel aria-label={DASHBOARD_HOME.doNext} data-dashboard-do-next="">
+      <span className="t-label text-ink-3">{DASHBOARD_HOME.doNext}</span>
+      {!hasAttention && !hasDrafts ? (
+        <DashboardHomeEmpty>{DASHBOARD_ATTENTION_CLEAR}</DashboardHomeEmpty>
+      ) : (
+        <div className="mt-[var(--space-6)] flex flex-col">
+          {hasAttention ? (
+            <div className="flex flex-col gap-[var(--space-2)] pb-[var(--space-6)]">
+              <Link
+                href="/catalog-health"
+                className="t-subhead text-ink transition-colors hover:text-ink-2"
+              >
+                {dashboardAttentionSummary(attentionTitleCount)}
+              </Link>
+              <p className="t-body-sm text-ink-3">{DASHBOARD_HOME.attentionReview}</p>
+            </div>
+          ) : null}
+          {hasAttention && hasDrafts ? <div className="border-t border-hairline" /> : null}
+          {hasDrafts ? (
+            <ul className={cn("divide-y divide-hairline", hasAttention && "pt-[var(--space-2)]")}>
+              {drafts.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-baseline justify-between gap-[var(--space-6)] py-[var(--space-4)] first:pt-[var(--space-4)] last:pb-0"
+                >
+                  <Link
+                    href={`/titles/${t.id}`}
+                    className="t-body font-medium text-ink transition-colors hover:text-ink-2"
+                  >
+                    {t.title}
+                  </Link>
+                  <span className="t-data shrink-0 text-ink-3">{TITLE_STATUS_LABELS.draft}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      )}
+    </DashboardHomePanel>
+  );
+}
+
 export function DashboardJustIn({
   titles,
 }: {
@@ -87,48 +214,5 @@ export function DashboardJustIn({
         </ul>
       )}
     </DashboardHomePanel>
-  );
-}
-
-export function DashboardAttention({ titleCount }: { titleCount: number }) {
-  const hasAttention = titleCount > 0;
-  return (
-    <DashboardHomePanel aria-label={DASHBOARD_HOME.catalogHealthCta}>
-      <div className="flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-[var(--space-2)]">
-          <p className="t-subhead text-ink">
-            {hasAttention ? dashboardAttentionSummary(titleCount) : DASHBOARD_ATTENTION_CLEAR}
-          </p>
-          <p className="t-body-sm text-ink-3">
-            {hasAttention ? DASHBOARD_HOME.attentionReview : CATALOG_HEALTH_EMPTY}
-          </p>
-        </div>
-        <DashboardHomePillLink href="/catalog-health">
-          {DASHBOARD_HOME.catalogHealthCta}
-        </DashboardHomePillLink>
-      </div>
-    </DashboardHomePanel>
-  );
-}
-
-export function DashboardOrgIdentity({
-  name,
-  status,
-  role,
-}: {
-  name: string;
-  status: OrgStatus;
-  role: OrgRole | null;
-}) {
-  return (
-    <div className="dashboard-home-identity flex items-end justify-between gap-[var(--space-6)] border-t border-hairline pt-[var(--space-8)]">
-      <div className="flex flex-col gap-1">
-        <p className="t-subhead text-ink">{name}</p>
-        <p className="t-body-sm text-ink-3">{ORG_STATUS_LABELS[status]}</p>
-      </div>
-      <span className="rounded-full border border-hairline px-3 py-1 t-label text-ink-2">
-        {role ? ORG_ROLE_LABELS[role] : "—"}
-      </span>
-    </div>
   );
 }

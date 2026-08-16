@@ -2,21 +2,25 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { CatalogActivityHero } from "@/components/dashboard/catalog-activity-hero";
 import {
-  DashboardAttention,
+  DashboardDoNext,
+  DashboardHomePillLink,
   DashboardJustIn,
   DashboardOrgIdentity,
+  DashboardSnapshot,
 } from "@/components/dashboard/dashboard-home";
-import { isUpcoming, isJustIn } from "@/lib/releases";
+import {
+  DASHBOARD_HOME,
+  clientHomeSnapshot,
+  dashboardCatalogValue,
+} from "@/lib/dashboard-home";
 import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 import { GcClientsDirectory } from "@/app/(app)/(operator)/gc/clients/clients-directory";
 
-// Dashboard = the client's portfolio snapshot (spec: 2026-07-21 release-dates-and-
-// dashboard-tiles; hero: 2026-07-22 charted-hero). The charcoal hero carries the
-// one data-viz — cumulative catalog size over time, a REAL series derived from
-// title.created_at — plus the snapshot stats row. Revenue stays a seam until the
-// statements module lands; findings stay owned by Catalog Health (we only point there).
+// Client `/` is the organization-scoped portfolio: identity, three live numbers,
+// what to do next, and what just arrived. No chart, no revenue seam, no upcoming
+// or platform-placement row. Findings stay owned by Catalog Health — we only
+// point there. Staff without a client org still see the GC-wide clients roster.
 export default async function DashboardPage() {
   const supabase = await createClient();
   // Resolved once per request and shared with the layout above (React cache()).
@@ -32,58 +36,47 @@ export default async function DashboardPage() {
   }
   const org = ctx.activeOrg;
 
-  // Portfolio reads for the active org (RLS-scoped; counts computed here per spec).
+  // Portfolio reads for the active org (RLS-scoped; counts computed here).
   // BOUNDED. These feed portfolio counts, so a cap makes the numbers a floor rather than a
   // total once a catalog exceeds it. Phase 4 of the catalog-at-scale spec replaces the
   // count-in-JS with a DB aggregate, which is both correct and cheaper.
   const { data: titleRows } = await supabase
     .from("titles")
-    .select("id, title, catalog_id, status, release_date, created_at")
+    .select("id, title, status, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: false })
     .range(...rangeFor(UNPAGINATED_MAX));
   const titles = titleRows ?? [];
-  const countsArePartial = titles.length >= UNPAGINATED_MAX;
 
-  const now = new Date();
-  const liveCount = titles.filter((t) => t.status === "live").length;
-  const upcoming = titles.filter((t) => isUpcoming(t.release_date, now));
-  const justIn = titles
-    .filter((t) => isJustIn(t.created_at, now))
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, 5);
-
-  // Real, derived series for the hero chart: title creation timestamps, sorted ascending.
-  const createdAt = titles
-    .map((t) => new Date(t.created_at).getTime())
-    .sort((a, b) => a - b);
-
-  // Attention pointer — how many titles have open findings (findings live in Catalog Health).
   const { data: allFindings } = await supabase.rpc("my_findings");
-  const attentionTitles = new Set(
-    (allFindings ?? []).filter((f) => f.org_id === org.id).map((f) => f.entity_id),
-  ).size;
+  const snapshot = clientHomeSnapshot({
+    titles,
+    findings: allFindings ?? [],
+    orgId: org.id,
+    now: new Date(),
+    bound: UNPAGINATED_MAX,
+  });
 
   return (
     <div className="dashboard-home flex flex-col gap-[var(--space-10)]" data-dashboard-home="">
-      <h1 className="sr-only">Dashboard — {org.name}</h1>
+      <div className="flex flex-col gap-[var(--space-8)]">
+        <div className="flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-end sm:justify-between">
+          <DashboardOrgIdentity name={org.name} status={org.status} role={ctx.activeRole} />
+          <DashboardHomePillLink href="/catalog-health">
+            {DASHBOARD_HOME.catalogHealthCta}
+          </DashboardHomePillLink>
+        </div>
 
-      <CatalogActivityHero
-        createdAt={createdAt}
-        nowMs={now.getTime()}
-        stats={{
-          catalog: countsArePartial ? `${titles.length}+` : titles.length,
-          upcoming: upcoming.length,
-          live: liveCount,
-          revenue: "—",
-        }}
-      />
+        <DashboardSnapshot
+          catalog={dashboardCatalogValue(snapshot.catalog, snapshot.catalogIsPartial)}
+          needsAttention={snapshot.needsAttention}
+          live={snapshot.live}
+        />
+      </div>
 
-      <DashboardJustIn titles={justIn} />
+      <DashboardDoNext attentionTitleCount={snapshot.needsAttention} drafts={snapshot.drafts} />
 
-      <DashboardAttention titleCount={attentionTitles} />
-
-      <DashboardOrgIdentity name={org.name} status={org.status} role={ctx.activeRole} />
+      <DashboardJustIn titles={snapshot.justIn} />
     </div>
   );
 }
