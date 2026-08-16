@@ -25,13 +25,14 @@ const shellSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "app
 
 function renderShell(): string {
   return renderToStaticMarkup(
-    createElement(AppShell, {
-      email: "ada@example.com",
-      orgs: [{ id: "org-1", name: "Acme" }],
-      activeOrgId: "org-1",
-      messagesUnread: Promise.resolve(0),
-      children: "page",
-    }),
+    <AppShell
+      email="ada@example.com"
+      orgs={[{ id: "org-1", name: "Acme" }]}
+      activeOrgId="org-1"
+      messagesUnread={Promise.resolve(0)}
+    >
+      page
+    </AppShell>,
   );
 }
 
