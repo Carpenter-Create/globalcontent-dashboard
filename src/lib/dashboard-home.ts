@@ -65,9 +65,13 @@ export function dashboardIdentityMeta(statusLabel: string, roleLabel: string | n
   return roleLabel ? `${statusLabel} · ${roleLabel}` : statusLabel;
 }
 
-/** Integers only on `/`. Partial catalogs stay a floor in data; the +N mark is forbidden here. */
-export function dashboardCatalogValue(catalog: number): string {
-  return String(catalog);
+/**
+ * Visible floor when the title read hit the bound. `500+` means at least 500,
+ * not a claimed total and not a trend. Live uses the same helper because it
+ * is counted from that same bounded array.
+ */
+export function dashboardCatalogValue(count: number, isPartial: boolean): string {
+  return isPartial ? `${count}+` : String(count);
 }
 
 export function dashboardJustInDate(iso: string): string {

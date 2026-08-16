@@ -288,13 +288,13 @@ describe("client home information model", () => {
     );
   });
 
-  it("shows catalog as an integer even when the read is bounded", async () => {
+  it("shows catalog and live as a floor when the title read is bounded", async () => {
     const createdAt = "2026-08-12T00:00:00.000Z";
     stubClient(
       Array.from({ length: UNPAGINATED_MAX }, (_, i) => ({
         id: `title-${i}`,
         title: `Title ${i}`,
-        status: "live",
+        status: i === 0 ? "draft" : "live",
         created_at: createdAt,
       })),
     );
@@ -304,9 +304,11 @@ describe("client home information model", () => {
 
     const html = renderToStaticMarkup(await DashboardPage());
 
-    expect(statValue(html, "catalog")).toBe(String(UNPAGINATED_MAX));
-    expect(statValue(html, "catalog")).not.toMatch(/\+/);
-    expect(html).not.toContain(`${UNPAGINATED_MAX}+`);
+    expect(statValue(html, "catalog")).toBe(`${UNPAGINATED_MAX}+`);
+    expect(statValue(html, "live")).toBe(`${UNPAGINATED_MAX - 1}+`);
+    expect(statValue(html, "needsAttention")).toBe("0");
+    expect(statValue(html, "catalog")).not.toBe(String(UNPAGINATED_MAX));
+    expect(statValue(html, "live")).not.toBe(String(UNPAGINATED_MAX - 1));
   });
 
   it("does not invent a stuck-too-long metric for drafts", async () => {

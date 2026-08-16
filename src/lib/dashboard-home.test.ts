@@ -69,9 +69,9 @@ describe("clientHomeSnapshot", () => {
     expect(DASHBOARD_HOME.live).toBe("Live");
   });
 
-  it("keeps a bounded catalog as an integer — never a +N mark", () => {
+  it("marks a bounded catalog and live count as a floor, not a claimed total", () => {
     const titles = Array.from({ length: UNPAGINATED_MAX }, (_, i) =>
-      title({ id: `t-${i}`, status: "live" }),
+      title({ id: `t-${i}`, status: i < 3 ? "draft" : "live" }),
     );
     const snap = clientHomeSnapshot({
       titles,
@@ -81,8 +81,11 @@ describe("clientHomeSnapshot", () => {
       bound: UNPAGINATED_MAX,
     });
     expect(snap.catalogIsPartial).toBe(true);
-    expect(dashboardCatalogValue(snap.catalog)).toBe(String(UNPAGINATED_MAX));
-    expect(dashboardCatalogValue(snap.catalog)).not.toMatch(/\+/);
+    expect(snap.catalog).toBe(UNPAGINATED_MAX);
+    expect(snap.live).toBe(UNPAGINATED_MAX - 3);
+    expect(dashboardCatalogValue(snap.catalog, snap.catalogIsPartial)).toBe(`${UNPAGINATED_MAX}+`);
+    expect(dashboardCatalogValue(snap.live, snap.catalogIsPartial)).toBe(`${UNPAGINATED_MAX - 3}+`);
+    expect(dashboardCatalogValue(2, false)).toBe("2");
   });
 
   it("lists finding rows before leftover drafts and ignores other lifecycle states as drafts", () => {
@@ -283,7 +286,7 @@ describe("client home type locks", () => {
       createElement(DashboardSnapshot, {
         catalog: "2",
         needsAttention: 1,
-        live: 1,
+        live: "1",
       }),
     );
 
@@ -307,7 +310,7 @@ describe("client home type locks", () => {
       createElement(DashboardSnapshot, {
         catalog: "0",
         needsAttention: 0,
-        live: 0,
+        live: "0",
       }),
     );
     expect(snapshot).toMatch(/data-dashboard-stat="needsAttention"[^>]*text-accent/);
