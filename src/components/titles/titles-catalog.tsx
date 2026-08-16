@@ -14,7 +14,7 @@ export function TitlesCatalogFrame({
   return (
     <div
       className={cn(
-        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)] px-6 pt-8 sm:px-10",
+        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)] px-[var(--space-6)] pt-[var(--space-8)] sm:px-[var(--space-10)]",
         className,
       )}
       style={{ maxWidth: "var(--content-max)" }}
