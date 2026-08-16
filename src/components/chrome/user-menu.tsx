@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, LogOut } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -21,6 +20,13 @@ export function onUserMenuLogOut(): void {
   void signOut();
 }
 
+// Mercury quiet: house tokens and .t-* only. More air than the default
+// shadcn item (px-2.5 py-1.5 / p-1). Do not restyle the shared primitive.
+const USER_MENU_ITEM_CLASS =
+  "rounded-[var(--radius-sm)] px-[var(--space-3)] py-[var(--space-2)] t-body-sm text-ink-2";
+
+const USER_MENU_RULE_CLASS = "my-[var(--space-2)]";
+
 export function UserMenuIdentity({
   email,
   name,
@@ -34,21 +40,21 @@ export function UserMenuIdentity({
   return (
     <div
       data-user-menu-identity=""
-      className="flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-3)]"
+      className="flex items-center gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-4)]"
     >
       <div
         data-user-menu-avatar=""
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted t-body font-medium text-ink-2"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2"
       >
         {initial}
       </div>
       <div className="min-w-0">
         {displayName ? (
-          <div data-user-menu-name="" className="truncate t-body font-medium text-ink">
+          <div data-user-menu-name="" className="truncate t-body-sm font-medium text-ink">
             {displayName}
           </div>
         ) : null}
-        <div data-user-menu-email="" className="truncate t-body-sm text-ink-2">
+        <div data-user-menu-email="" className="truncate t-body-sm text-ink-3">
           {email}
         </div>
       </div>
@@ -73,16 +79,20 @@ export function UserMenu({
       >
         {initial}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-[16.5rem] p-[var(--space-1)]" data-user-menu="">
+      <DropdownMenuContent
+        className="min-w-[17.5rem] rounded-[var(--radius)] p-[var(--space-2)]"
+        data-user-menu=""
+        sideOffset={10}
+      >
         <UserMenuIdentity email={email} name={name} />
-        <DropdownMenuSeparator data-user-menu-hairline="" />
-        <DropdownMenuItem asChild>
+        <DropdownMenuSeparator data-user-menu-hairline="" className={USER_MENU_RULE_CLASS} />
+        <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
           <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
-            <FileText className="h-4 w-4" strokeWidth={1.5} />
             {USER_MENU.agreements}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
+          className={USER_MENU_ITEM_CLASS}
           data-user-menu-item="appearance"
           onSelect={(event) => {
             event.preventDefault();
@@ -92,8 +102,12 @@ export function UserMenu({
           <span className="flex-1">{USER_MENU.appearance}</span>
           <ThemeGlyph className="text-ink-3" />
         </DropdownMenuItem>
-        <DropdownMenuItem data-user-menu-item="logOut" onSelect={() => onUserMenuLogOut()}>
-          <LogOut className="h-4 w-4" strokeWidth={1.5} />
+        <DropdownMenuSeparator data-user-menu-logout-hairline="" className={USER_MENU_RULE_CLASS} />
+        <DropdownMenuItem
+          className={USER_MENU_ITEM_CLASS}
+          data-user-menu-item="logOut"
+          onSelect={() => onUserMenuLogOut()}
+        >
           {USER_MENU.logOut}
         </DropdownMenuItem>
       </DropdownMenuContent>
