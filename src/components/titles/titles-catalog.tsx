@@ -6,9 +6,9 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 
 // Client `/titles` chrome only. Not the shared Card, BannerCard, or DataTable —
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
-// Operate bar sits under the title. Each title is a hairline/surface card:
-// 2:3 still, then one designed stack — title, year, TITLE_STATUS_LABELS pill.
-// Hierarchy is weight, not color. Accent is Add Title only.
+// The still is the canvas: full-bleed 2:3 art, then type in air — title, year,
+// TITLE_STATUS_LABELS hairline pill. No card chrome, no caption box.
+// Hierarchy is weight and step, not color. Accent is Add Title only.
 // Page-local still crop: every catalog img is object-cover / object-center
 // inside the 2:3 frame so Artwork's default treatment cannot diverge.
 
@@ -19,7 +19,7 @@ export function TitlesCatalogFrame({
   return (
     <div
       className={cn(
-        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-6)] px-[var(--space-6)] pt-[var(--space-8)] sm:px-[var(--space-10)]",
+        "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-8)] px-[var(--space-6)] pt-[var(--space-8)] sm:px-[var(--space-10)]",
         className,
       )}
       style={{ maxWidth: "var(--content-max)" }}
@@ -35,11 +35,11 @@ export function TitlesCatalogHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <header className="titles-catalog-header flex flex-col gap-[var(--space-6)]">
+    <header className="titles-catalog-header flex flex-col gap-[var(--space-8)]">
       <h1 className="t-section text-ink">{TITLES_CATALOG.title}</h1>
       {action ? (
         <div
-          className="titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-3)]"
+          className="titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-4)]"
           data-titles-catalog-operate=""
         >
           {action}
@@ -60,7 +60,7 @@ export function TitlesCatalogEmpty({ children }: { children: React.ReactNode }) 
 export function TitlesCatalogGrid({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="titles-catalog-grid grid grid-cols-1 gap-x-[var(--space-6)] gap-y-[var(--space-10)] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+      className="titles-catalog-grid grid grid-cols-1 gap-x-[var(--space-8)] gap-y-[var(--space-16)] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
       data-titles-catalog-grid=""
     >
       {children}
@@ -87,12 +87,12 @@ export function TitlesCatalogStill({
     <Link
       href={href}
       prefetch={false}
-      className="titles-catalog-card group flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-hairline bg-surface"
+      className="titles-catalog-card group flex flex-col gap-[var(--space-3)]"
       data-titles-catalog-card=""
       data-title-status={status}
     >
       <div
-        className="relative aspect-[2/3] w-full overflow-hidden bg-surface-muted [&_img]:h-full [&_img]:w-full [&_img]:object-cover [&_img]:object-center"
+        className="relative aspect-[2/3] w-full overflow-hidden rounded-[var(--radius-lg)] bg-surface-muted [&_img]:h-full [&_img]:w-full [&_img]:object-cover [&_img]:object-center"
         data-titles-catalog-frame=""
         data-titles-catalog-crop="cover"
       >
@@ -109,19 +109,19 @@ export function TitlesCatalogStill({
         )}
       </div>
       <div
-        className="flex flex-col gap-[var(--space-1)] px-[var(--space-4)] pb-[var(--space-4)] pt-[var(--space-3)]"
+        className="flex flex-col gap-[var(--space-1)]"
         data-titles-catalog-stack=""
       >
-        <span className="min-w-0 truncate t-body font-medium text-ink">
+        <span className="min-w-0 truncate t-heading text-ink">
           {title}
         </span>
         {year ? (
-          <span className="t-body-sm font-normal text-ink-2" data-titles-catalog-year="">
+          <span className="t-body-sm font-normal text-ink-3" data-titles-catalog-year="">
             {year}
           </span>
         ) : null}
         <span
-          className="mt-[var(--space-1)] inline-flex w-fit items-center rounded-full bg-surface-muted px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink"
+          className="mt-[var(--space-1)] inline-flex w-fit items-center rounded-full border border-hairline px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink-2"
           data-titles-catalog-status=""
         >
           {statusLabel}

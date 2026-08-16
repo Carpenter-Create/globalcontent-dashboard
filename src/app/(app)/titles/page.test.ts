@@ -131,9 +131,9 @@ describe("client /titles catalog", () => {
     expect(html).toContain("data-titles-catalog-card");
     expect(html).toContain("grid-cols-1");
     expect(html).toContain("xl:grid-cols-5");
+    expect(html).toContain("gap-x-[var(--space-8)]");
+    expect(html).toContain("gap-y-[var(--space-16)]");
     expect(html).toContain("aspect-[2/3]");
-    expect(html).toContain("border-hairline");
-    expect(html).toContain("bg-surface");
     expect(html).toContain("rounded-[var(--radius-lg)]");
     expect(html).toContain("data-titles-catalog-crop=\"cover\"");
     expect(html).toContain("[&amp;_img]:object-cover");
@@ -175,14 +175,20 @@ describe("client /titles catalog", () => {
 
     const html = await renderCatalog();
 
-    expect(html).toContain("titles-catalog-header flex flex-col");
+    expect(html).toContain("titles-catalog-header flex flex-col gap-[var(--space-8)]");
     expect(html).not.toContain("sm:flex-row sm:items-center sm:justify-between");
     expect(html).toContain("data-titles-catalog-operate");
     expect(html).toContain(
-      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-6)]",
+      "titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-4)]",
+    );
+    expect(html).toContain(
+      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-8)]",
     );
     expect(html).not.toContain(
       "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)]",
+    );
+    expect(html).not.toContain(
+      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-6)]",
     );
     expect(html).toMatch(/<h1 class="t-section text-ink">Titles<\/h1>/);
     expect(html).not.toMatch(/<h1[^>]*t-display/);
@@ -220,14 +226,21 @@ describe("client /titles catalog", () => {
     expect(html).not.toMatch(/genre/i);
     expect(html).not.toMatch(/director/i);
 
-    const statusPills = html.match(/data-titles-catalog-status=""/g) ?? [];
+    const statusPills = openingTagsWith(html, 'data-titles-catalog-status=""');
     expect(statusPills).toHaveLength(ALL_STATUSES.length);
-    expect(html).toContain("rounded-full bg-surface-muted");
-    expect(html).toContain("t-body font-medium text-ink");
-    expect(html).toContain("t-body-sm font-normal text-ink");
+    for (const open of statusPills) {
+      expect(open).toContain("rounded-full");
+      expect(open).toContain("border-hairline");
+      expect(open).toContain("t-body-sm font-normal text-ink-2");
+      expect(open).not.toContain("bg-surface-muted");
+      expect(open).not.toContain("bg-accent");
+    }
+    expect(html).toContain("t-heading text-ink");
+    expect(html).not.toContain("rounded-full bg-surface-muted");
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-section/);
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-display/);
     expect(html).not.toMatch(/data-titles-catalog-card[\s\S]*t-title/);
+    expect(html).not.toMatch(/data-titles-catalog-stack[\s\S]*t-body font-medium/);
     expect(html).not.toContain("group-hover:text-ink-2");
     for (const status of ALL_STATUSES) {
       expect(html).toContain(TITLE_STATUS_LABELS[status]);
@@ -255,6 +268,9 @@ describe("client /titles catalog", () => {
     expect(html).toContain("data-titles-catalog-card");
     expect(html).toContain("data-titles-catalog-year");
     expect(html).toContain("2019");
+    const yearTag = openingTagsWith(html, 'data-titles-catalog-year=""');
+    expect(yearTag).toHaveLength(1);
+    expect(yearTag[0]).toContain("t-body-sm font-normal text-ink-3");
     expect(html).toContain("Undated film");
     expect(html).not.toContain("—");
     expect(html).not.toContain("2026-08-10");
@@ -271,19 +287,29 @@ describe("client /titles catalog", () => {
     );
   });
 
-  it("reads each title as a surface card with a visible hairline and house radius", async () => {
+  it("reads each title as a full-bleed still with type in air — no boxed card", async () => {
     stubClient();
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
 
     const html = await renderCatalog();
     const cards = openingTagsWith(html, 'data-titles-catalog-card=""');
+    const frames = openingTagsWith(html, 'data-titles-catalog-frame=""');
+    const stacks = openingTagsWith(html, 'data-titles-catalog-stack=""');
     expect(cards).toHaveLength(ALL_STATUSES.length);
+    expect(frames).toHaveLength(ALL_STATUSES.length);
+    expect(stacks).toHaveLength(ALL_STATUSES.length);
     for (const open of cards) {
       expect(open).toContain("data-titles-catalog-card");
-      expect(open).toContain("border-hairline");
-      expect(open).toContain("bg-surface");
+      expect(open).not.toContain("border-hairline");
+      expect(open).not.toContain("bg-surface");
+      expect(open).not.toContain("overflow-hidden");
+    }
+    for (const open of frames) {
       expect(open).toContain("rounded-[var(--radius-lg)]");
-      expect(open).not.toContain("border-transparent");
+    }
+    for (const open of stacks) {
+      expect(open).not.toContain("px-[var(--space-4)]");
+      expect(open).not.toContain("pb-[var(--space-4)]");
     }
     expect(html).not.toContain("bg-gradient");
     expect(html).not.toContain("from-accent");
