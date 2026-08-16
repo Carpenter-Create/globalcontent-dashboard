@@ -4,7 +4,6 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import { OrganizationSwitcher } from "./organization-switcher";
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
 import { cn } from "@/lib/cn";
@@ -17,8 +16,6 @@ type Org = { id: string; name: string };
 // flash) and, when collapsed, overrides `--sidebar-width` so the header + main follow.
 export function AppShell({
   email,
-  orgs,
-  activeOrgId,
   messagesUnread,
   isGcStaff = false,
   defaultCollapsed = false,
@@ -90,17 +87,12 @@ export function AppShell({
         </div>
       </aside>
 
+      {/* Access header is avatar / account menu only — no org switcher on any route. */}
       <header
-        className={cn(
-          "sticky top-0 z-40 flex items-center gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur",
-          pathname === "/" ? "justify-end" : "justify-between",
-        )}
+        className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur"
         data-app-header=""
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
-        {pathname === "/" ? null : (
-          <OrganizationSwitcher orgs={orgs} activeOrgId={activeOrgId} />
-        )}
         <div className="flex items-center gap-3">
           <UserMenu email={email} />
         </div>

@@ -60,24 +60,20 @@ describe("AppShell header", () => {
     expect(shellSrc).toContain("<UserMenu email={email} />");
   });
 
-  it("hides the org switcher on client `/` so identity is not duplicated", () => {
-    navigation.pathname = "/";
-    const html = renderShell();
-    expect(html).not.toContain("data-org-switcher");
-    expect(html).toContain("justify-end");
-    expect(html).toContain("data-user-menu-host");
-    expect(html).toContain("data-app-header");
-    expect(html).toContain("px-[var(--content-inset)]");
-    expect(shellSrc).toContain('pathname === "/"');
-  });
+  it("is avatar-only on every Access route — no org switcher", () => {
+    expect(shellSrc).not.toContain("OrganizationSwitcher");
+    expect(shellSrc).toContain("justify-end");
+    expect(shellSrc).toContain("<UserMenu email={email} />");
 
-  it("keeps the org switcher on other client routes", () => {
-    navigation.pathname = "/catalog-health";
-    const html = renderShell();
-    expect(html).toContain("data-org-switcher");
-    expect(html).toContain("justify-between");
-    expect(html).not.toContain("data-app-home-frame");
-    expect(html).toContain("px-6 pb-24 pt-8");
+    for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages"]) {
+      navigation.pathname = path;
+      const html = renderShell();
+      expect(html).not.toContain("data-org-switcher");
+      expect(html).toContain("justify-end");
+      expect(html).toContain("data-user-menu-host");
+      expect(html).toContain("data-app-header");
+      expect(html).toContain("px-[var(--content-inset)]");
+    }
   });
 });
 
@@ -110,10 +106,18 @@ describe("AppShell Access rail and home frame", () => {
     const titles = renderShell();
     expect(titles).toContain("w-full pb-24");
     expect(titles).not.toContain("data-app-home-frame");
+    expect(titles).not.toContain("data-org-switcher");
 
     navigation.pathname = "/deliveries";
     const deliveries = renderShell();
     expect(deliveries).toContain("px-6 pb-24 pt-8");
     expect(deliveries).not.toContain("data-app-home-frame");
+    expect(deliveries).not.toContain("data-org-switcher");
+
+    navigation.pathname = "/catalog-health";
+    const health = renderShell();
+    expect(health).toContain("px-6 pb-24 pt-8");
+    expect(health).not.toContain("data-app-home-frame");
+    expect(health).not.toContain("data-org-switcher");
   });
 });
