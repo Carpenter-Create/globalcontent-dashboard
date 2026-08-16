@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 // Debounced, URL-driven search (Visual/Metadata registers). Writes ?q= (preserving
 // other params) via router.replace so the server re-renders filtered results — no
 // client-side filtering, no scroll jump.
-export function SearchField({ placeholder = "Search titles" }: { placeholder?: string }) {
+export function SearchField({ placeholder = "Search titles..." }: { placeholder?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();

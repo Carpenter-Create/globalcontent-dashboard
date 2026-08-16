@@ -4,6 +4,8 @@ import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 import {
   CATALOG_LIFECYCLE_STATES,
   TITLES_CATALOG,
+  catalogCountLabel,
+  catalogCountValue,
   catalogReleaseYear,
   catalogStatusMark,
   catalogStillSrc,
@@ -39,6 +41,16 @@ describe("catalog lifecycle", () => {
     expect(catalogStatusMark("takedown_requested")).toBe("Takedown requested");
     expect(catalogStatusMark("taken_down")).toBe("Taken down");
     expect(ALL_STATES.map(catalogStatusMark)).not.toContain("Delivered");
+    const unique = [...new Set(ALL_STATES.map(catalogStatusMark))];
+    expect(unique).toEqual([
+      "Draft",
+      "Submitted",
+      "In review",
+      "Live",
+      "Takedown requested",
+      "Taken down",
+    ]);
+    expect(unique).toHaveLength(6);
   });
 
   it("does not invent a status or a second catalog label", () => {
@@ -87,5 +99,17 @@ describe("Add Title copy", () => {
   it("keeps Add Title on the catalog", () => {
     expect(TITLES_CATALOG.addTitle).toBe("Add Title");
     expect(TITLES_CATALOG.title).toBe("Titles");
+    expect(TITLES_CATALOG.searchPlaceholder).toBe("Search titles...");
+  });
+});
+
+describe("catalog count chrome", () => {
+  it("names the real count and marks a bounded read as a floor", () => {
+    expect(catalogCountValue(7, false)).toBe("7");
+    expect(catalogCountValue(200, true)).toBe("200+");
+    expect(catalogCountLabel(7, false)).toBe("7 in catalog");
+    expect(catalogCountLabel(200, true)).toBe("200+ in catalog");
+    expect(catalogCountLabel(0, false)).toBe("0 in catalog");
+    expect(catalogCountLabel(7, false)).not.toBe("10 in catalog");
   });
 });

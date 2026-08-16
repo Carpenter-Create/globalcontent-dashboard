@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 vi.mock("next/image", () => ({
   default: ({
@@ -113,7 +118,7 @@ describe("TitlesCatalogStill craft", () => {
     expect(html).not.toContain("t-data select-none text-3xl");
   });
 
-  it("sits the title one step above body, with a quieter year", () => {
+  it("keeps the card title on --text-sm, with year and pill on one line", () => {
     const html = renderStill({
       href: "/titles/1",
       title: "Craft film",
@@ -123,17 +128,24 @@ describe("TitlesCatalogStill craft", () => {
       year: "2019",
     });
     const stack = html.slice(html.indexOf("data-titles-catalog-stack"));
+    const name = openingTagWith(html, 'data-titles-catalog-name=""');
     const year = openingTagWith(html, 'data-titles-catalog-year=""');
+    const meta = openingTagWith(html, 'data-titles-catalog-meta=""');
 
-    expect(stack).toContain("t-heading text-ink");
+    expect(name).toContain("t-body-sm font-medium text-ink");
+    expect(name).not.toContain("t-heading");
     expect(stack).toContain("Craft film");
     expect(stack).toContain("data-titles-catalog-year");
     expect(year).toContain("t-body-sm font-normal text-ink-3");
+    expect(meta).toContain("flex min-w-0 flex-wrap items-center");
     expect(stack).toContain(TITLE_STATUS_LABELS.live);
-    expect(stack).not.toContain("t-body font-medium");
+    expect(stack).not.toContain("t-heading");
     expect(stack).not.toContain("t-section");
     expect(stack).not.toContain("t-display");
     expect(stack).not.toContain("t-title");
+    expect(html).toMatch(
+      /data-titles-catalog-name[\s\S]*Craft film[\s\S]*data-titles-catalog-meta[\s\S]*data-titles-catalog-year[\s\S]*2019[\s\S]*data-titles-catalog-status[\s\S]*Live/,
+    );
   });
 
   it("marks status as a hairline pill, not a filled muted chip", () => {
@@ -151,9 +163,27 @@ describe("TitlesCatalogStill craft", () => {
     expect(pill).toContain("t-body-sm font-normal text-ink-2");
     expect(pill).not.toContain("bg-surface-muted");
     expect(pill).not.toContain("bg-accent");
+    expect(pill).not.toMatch(/green|emerald|success/);
   });
 
-  it("stacks title, year, and every TITLE_STATUS_LABELS pill — no delivered", () => {
+  it("does not scale the poster on hover", () => {
+    const html = renderStill({
+      href: "/titles/1",
+      title: "Craft film",
+      stillUrl: "https://cdn/poster.jpg",
+      status: "live",
+      statusLabel: TITLE_STATUS_LABELS.live,
+    });
+    const card = openingTagWith(html, 'data-titles-catalog-card=""');
+    const frame = openingTagWith(html, 'data-titles-catalog-frame=""');
+
+    expect(card).not.toContain("group");
+    expect(card).not.toMatch(/hover:scale|group-hover:scale|scale-/);
+    expect(frame).not.toMatch(/hover:scale|group-hover:scale|scale-/);
+    expect(html).not.toMatch(/hover:scale|group-hover:scale/);
+  });
+
+  it("places title, year, and every TITLE_STATUS_LABELS pill — no delivered, no seventh unique", () => {
     for (const status of ALL_STATUSES) {
       const html = renderStill({
         href: `/titles/${status}`,
@@ -175,6 +205,9 @@ describe("TitlesCatalogStill craft", () => {
     }
     const labels = ALL_STATUSES.map((status) => TITLE_STATUS_LABELS[status]);
     expect(labels).toHaveLength(7);
+    expect(new Set(labels).size).toBe(6);
+    expect(TITLE_STATUS_LABELS.in_delivery).toBe("Submitted");
+    expect(TITLE_STATUS_LABELS.submitted).toBe("Submitted");
     expect(labels).not.toContain("Delivered");
     expect(labels).not.toContain("delivered");
   });
@@ -190,7 +223,7 @@ describe("TitlesCatalogFrame craft", () => {
 });
 
 describe("TitlesCatalogHeader type lock", () => {
-  it("keeps the page title on the section step, not a second hero", () => {
+  it("keeps the page title on the 24px section step, not a second hero", () => {
     const html = renderToStaticMarkup(createElement(TitlesCatalogHeader));
 
     expect(html).toMatch(/<h1 class="t-section text-ink">Titles<\/h1>/);
@@ -200,16 +233,40 @@ describe("TitlesCatalogHeader type lock", () => {
     expect(html).not.toContain("t-heading");
   });
 
-  it("keeps the operate bar under the title with quieter air", () => {
+  it("puts count under the title and search on the same header row", () => {
     const html = renderToStaticMarkup(
-      createElement(TitlesCatalogHeader, { action: createElement("span", null, "Search") }),
+      createElement(TitlesCatalogHeader, {
+        count: "7 in catalog",
+        action: createElement("span", null, "Search"),
+      }),
     );
 
-    expect(html).toContain("titles-catalog-header flex flex-col gap-[var(--space-8)]");
+    expect(html).toContain(
+      "titles-catalog-header flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-start sm:justify-between",
+    );
+    expect(html).toContain("data-titles-catalog-count");
+    expect(html).toContain("7 in catalog");
+    expect(html).not.toContain("10 in catalog");
     expect(html).toContain("data-titles-catalog-operate");
     expect(html).toContain(
-      "titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-4)]",
+      "titles-catalog-operate flex shrink-0 items-center gap-[var(--space-4)]",
     );
-    expect(html.indexOf("</h1>")).toBeLessThan(html.indexOf("data-titles-catalog-operate"));
+    expect(html).not.toContain("titles-catalog-operate flex w-full items-center justify-between");
+    const titleAt = html.indexOf("<h1");
+    const countAt = html.indexOf("data-titles-catalog-count");
+    const operateAt = html.indexOf("data-titles-catalog-operate");
+    expect(titleAt).toBeGreaterThan(-1);
+    expect(countAt).toBeGreaterThan(titleAt);
+    expect(operateAt).toBeGreaterThan(countAt);
+  });
+
+  it("locks the page title to --text-title and the card title to --text-sm", () => {
+    const tokens = readFileSync(join(ROOT, "src/app/tokens.css"), "utf8");
+    const globals = readFileSync(join(ROOT, "src/app/globals.css"), "utf8");
+
+    expect(tokens).toMatch(/--text-sm:\s*0\.8125rem;/);
+    expect(tokens).toMatch(/--text-title:\s*1\.5rem;/);
+    expect(globals).toMatch(/\.t-section\s*\{[\s\S]*?font-size:\s*var\(--text-title\)/);
+    expect(globals).toMatch(/\.t-body-sm\s*\{[\s\S]*?font-size:\s*var\(--text-sm\)/);
   });
 });

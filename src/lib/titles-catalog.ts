@@ -7,12 +7,26 @@ import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
 export const TITLES_CATALOG = {
   title: "Titles",
   addTitle: "Add Title",
+  searchPlaceholder: "Search titles...",
   empty: "No titles yet.",
   emptyCanOperate: "Add your first title to begin building your catalog.",
   emptyReadOnly: "Titles will appear here once they're added.",
   searchMiss: (q: string) => `No titles match “${q}”.`,
   searchMissHint: "Try a different search.",
+  inCatalog: (n: string) => `${n} in catalog`,
 } as const;
+
+/**
+ * Catalog size chrome. A truncated read is a floor, not a total — same honesty
+ * as dashboardCatalogValue ("500+"): never invent the missing remainder.
+ */
+export function catalogCountValue(count: number, isPartial: boolean): string {
+  return isPartial ? `${count}+` : String(count);
+}
+
+export function catalogCountLabel(count: number, isPartial: boolean): string {
+  return TITLES_CATALOG.inCatalog(catalogCountValue(count, isPartial));
+}
 
 /** Existing title.status values, in lifecycle order. Not a new vocabulary. */
 export const CATALOG_LIFECYCLE_STATES = [
