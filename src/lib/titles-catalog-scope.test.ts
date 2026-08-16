@@ -26,6 +26,19 @@ const OTHER_PAGES = [
 ] as const;
 
 describe("titles catalog scope", () => {
+  it("keeps catalog search on /titles and out of the global header", () => {
+    const catalogPage = src("src/app/(app)/titles/page.tsx");
+    const shell = src("src/components/chrome/app-shell.tsx");
+    const searchField = src("src/components/layout/search-field.tsx");
+
+    expect(catalogPage).toContain("SearchField");
+    expect(catalogPage).toContain("TITLES_CATALOG.searchPlaceholder");
+    expect(searchField).toContain("Search titles...");
+    expect(shell).not.toContain("SearchField");
+    expect(shell).not.toContain("Search titles");
+    expect(shell).not.toMatch(/⌘K|CommandK|command-k/i);
+  });
+
   it("does not restyle shared primitives or other pages", () => {
     for (const file of OTHER_PAGES) {
       const contents = src(file);

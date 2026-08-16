@@ -10,6 +10,7 @@ import { titleArtworkUrls } from "@/lib/artwork";
 import { filterTitles, type BrowseTitle } from "@/lib/titles-browse";
 import {
   TITLES_CATALOG,
+  catalogCountLabel,
   catalogReleaseYear,
   catalogStatusMark,
   catalogStillSrc,
@@ -78,10 +79,13 @@ export default async function TitlesPage({
   return (
     <TitlesCatalogFrame>
       <TitlesCatalogHeader
+        count={catalogCountLabel(list.length, truncated)}
         action={
           list.length > 0 || canOperate ? (
             <>
-              {list.length > 0 ? <SearchField /> : null}
+              {list.length > 0 ? (
+                <SearchField placeholder={TITLES_CATALOG.searchPlaceholder} />
+              ) : null}
               {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
             </>
           ) : undefined

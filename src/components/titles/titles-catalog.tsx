@@ -6,9 +6,10 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 
 // Client `/titles` chrome only. Not the shared Card, BannerCard, or DataTable —
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
-// The still is the canvas: full-bleed 2:3 art, then type in air — title, year,
-// TITLE_STATUS_LABELS hairline pill. No card chrome, no caption box.
-// Hierarchy is weight and step, not color. Accent is Add Title only.
+// The still is the canvas: full-bleed 2:3 art, then type in air — small title,
+// then year and TITLE_STATUS_LABELS hairline pill on one line. No card chrome,
+// no caption box, no hover scale. Hierarchy is weight and step, not color.
+// Accent is Add Title only. Page title is the 24px t-section moment.
 // Page-local still crop: every catalog img is object-cover / object-center
 // inside the 2:3 frame so Artwork's default treatment cannot diverge.
 
@@ -31,15 +32,27 @@ export function TitlesCatalogFrame({
 
 export function TitlesCatalogHeader({
   action,
+  count,
 }: {
   action?: React.ReactNode;
+  count?: string;
 }) {
   return (
-    <header className="titles-catalog-header flex flex-col gap-[var(--space-8)]">
-      <h1 className="t-section text-ink">{TITLES_CATALOG.title}</h1>
+    <header className="titles-catalog-header flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="t-section text-ink">{TITLES_CATALOG.title}</h1>
+        {count ? (
+          <p
+            className="mt-[var(--space-1)] t-body-sm text-ink-3"
+            data-titles-catalog-count=""
+          >
+            {count}
+          </p>
+        ) : null}
+      </div>
       {action ? (
         <div
-          className="titles-catalog-operate flex w-full items-center justify-between gap-[var(--space-4)]"
+          className="titles-catalog-operate flex shrink-0 items-center gap-[var(--space-4)]"
           data-titles-catalog-operate=""
         >
           {action}
@@ -87,7 +100,7 @@ export function TitlesCatalogStill({
     <Link
       href={href}
       prefetch={false}
-      className="titles-catalog-card group flex flex-col gap-[var(--space-3)]"
+      className="titles-catalog-card flex flex-col gap-[var(--space-3)]"
       data-titles-catalog-card=""
       data-title-status={status}
     >
@@ -112,20 +125,28 @@ export function TitlesCatalogStill({
         className="flex flex-col gap-[var(--space-1)]"
         data-titles-catalog-stack=""
       >
-        <span className="min-w-0 truncate t-heading text-ink">
+        <span
+          className="min-w-0 truncate t-body-sm font-medium text-ink"
+          data-titles-catalog-name=""
+        >
           {title}
         </span>
-        {year ? (
-          <span className="t-body-sm font-normal text-ink-3" data-titles-catalog-year="">
-            {year}
-          </span>
-        ) : null}
-        <span
-          className="mt-[var(--space-1)] inline-flex w-fit items-center rounded-full border border-hairline px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink-2"
-          data-titles-catalog-status=""
+        <div
+          className="flex min-w-0 flex-wrap items-center gap-x-[var(--space-2)] gap-y-[var(--space-1)]"
+          data-titles-catalog-meta=""
         >
-          {statusLabel}
-        </span>
+          {year ? (
+            <span className="t-body-sm font-normal text-ink-3" data-titles-catalog-year="">
+              {year}
+            </span>
+          ) : null}
+          <span
+            className="inline-flex w-fit items-center rounded-full border border-hairline px-[var(--space-3)] py-[var(--space-1)] t-body-sm font-normal text-ink-2"
+            data-titles-catalog-status=""
+          >
+            {statusLabel}
+          </span>
+        </div>
       </div>
     </Link>
   );
