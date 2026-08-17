@@ -90,13 +90,15 @@ export function DropdownMenuSubContent({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
   return (
-    <DropdownMenuPrimitive.SubContent
-      sideOffset={sideOffset}
-      className={cn(
-        "z-50 min-w-[200px] rounded-[var(--radius-sm)] border border-hairline bg-surface p-1 shadow-[var(--elevation)]",
-        className,
-      )}
-      {...props}
-    />
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.SubContent
+        sideOffset={sideOffset}
+        className={cn(
+          "z-50 min-w-[200px] rounded-[var(--radius-sm)] border border-hairline bg-surface p-1 shadow-[var(--elevation)]",
+          className,
+        )}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
   );
 }
