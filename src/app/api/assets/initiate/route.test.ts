@@ -30,7 +30,7 @@ function req(payload: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getAuthUser).mockResolvedValue({ id: "user-1", email: "u@example.com" });
+  vi.mocked(getAuthUser).mockResolvedValue({ id: "user-1", email: "u@example.com", name: null });
   vi.mocked(resolveOperableTitle).mockResolvedValue({ orgId: ORG_ID });
   vi.mocked(createMultipart).mockResolvedValue("upload-1");
   vi.mocked(createClient).mockResolvedValue({} as unknown as Awaited<ReturnType<typeof createClient>>);

@@ -57,13 +57,13 @@ describe("AppShell header", () => {
     navigation.pathname = "/";
     const html = renderShell();
     expect(html).toContain('data-email="ada@example.com"');
-    expect(shellSrc).toContain("<UserMenu email={email} />");
+    expect(shellSrc).toContain("<UserMenu email={email} name={name} />");
   });
 
   it("is avatar-only on every Access route — no org switcher", () => {
     expect(shellSrc).not.toContain("OrganizationSwitcher");
     expect(shellSrc).toContain("justify-end");
-    expect(shellSrc).toContain("<UserMenu email={email} />");
+    expect(shellSrc).toContain("<UserMenu email={email} name={name} />");
 
     for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages"]) {
       navigation.pathname = path;

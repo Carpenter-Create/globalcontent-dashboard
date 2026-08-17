@@ -11,7 +11,7 @@ export type OrgStatus = Database["public"]["Enums"]["org_status"];
 export type OrgRow = { id: string; name: string; status: OrgStatus };
 
 export type OrgContext = {
-  user: { id: string; email: string };
+  user: { id: string; email: string; name: string | null };
   /** Active memberships with their org, RLS-scoped. */
   rows: { role: OrgRole; organizations: OrgRow }[];
   orgs: { id: string; name: string }[];

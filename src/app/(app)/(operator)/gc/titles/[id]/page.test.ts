@@ -181,7 +181,11 @@ describe("GcTitleDetail GcAssets wiring", () => {
     vi.mocked(createClient).mockResolvedValue(
       { from, rpc } as unknown as Awaited<ReturnType<typeof createClient>>,
     );
-    vi.mocked(getAuthUser).mockResolvedValue({ id: "staff-user", email: "staff@example.com" });
+    vi.mocked(getAuthUser).mockResolvedValue({
+      id: "staff-user",
+      email: "staff@example.com",
+      name: null,
+    });
 
     const page = await GcTitleDetail({ params: Promise.resolve({ id: titleId }) });
     const html = renderToStaticMarkup(page);

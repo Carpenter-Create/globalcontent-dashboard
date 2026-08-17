@@ -63,7 +63,7 @@ function fakeSupabase(opts: { candidates?: Candidate[]; rpcError?: string }) {
   return { from, rpc };
 }
 
-const USER = { id: "client-user-1", email: "client@example.com" };
+const USER = { id: "client-user-1", email: "client@example.com", name: null };
 
 beforeEach(() => {
   vi.mocked(getAuthUser).mockResolvedValue(USER);

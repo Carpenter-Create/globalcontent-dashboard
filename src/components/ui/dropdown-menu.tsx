@@ -66,3 +66,37 @@ export function DropdownMenuSeparator({
     />
   );
 }
+
+export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+
+export function DropdownMenuSubTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>) {
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 t-body-sm text-ink-2 outline-none transition-colors data-[highlighted]:bg-surface-muted data-[highlighted]:text-ink data-[state=open]:bg-surface-muted data-[state=open]:text-ink",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function DropdownMenuSubContent({
+  className,
+  sideOffset = 6,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  return (
+    <DropdownMenuPrimitive.SubContent
+      sideOffset={sideOffset}
+      className={cn(
+        "z-50 min-w-[200px] rounded-[var(--radius-sm)] border border-hairline bg-surface p-1 shadow-[var(--elevation)]",
+        className,
+      )}
+      {...props}
+    />
+  );
+}

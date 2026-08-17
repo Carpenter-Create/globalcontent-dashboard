@@ -29,7 +29,7 @@ import {
 
 import { retryTranscodeJob } from "./actions";
 
-const USER = { id: "gc-ops-1", email: "ops@globalcontent.co" };
+const USER = { id: "gc-ops-1", email: "ops@globalcontent.co", name: null };
 const TITLE_ID = "11111111-1111-1111-1111-111111111111";
 const ORG_ID = "22222222-2222-2222-2222-222222222222";
 const JOB_ID = "33333333-3333-3333-3333-333333333333";

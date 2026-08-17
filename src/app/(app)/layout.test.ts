@@ -19,7 +19,7 @@ type Status = "registered" | "awaiting_payment" | "active";
 function ctx({ isGcStaff, orgStatus }: { isGcStaff: boolean; orgStatus: Status | null }) {
   const org = orgStatus ? { id: "org-1", name: "Acme", status: orgStatus } : null;
   return {
-    user: { id: "u1", email: "someone@example.com" },
+    user: { id: "u1", email: "someone@example.com", name: null },
     rows: org ? [{ role: "account_owner", organizations: org }] : [],
     orgs: org ? [{ id: org.id, name: org.name }] : [],
     activeOrg: org,
