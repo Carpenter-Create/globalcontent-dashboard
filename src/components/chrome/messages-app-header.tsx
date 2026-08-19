@@ -40,7 +40,8 @@ function MessagesThreadHeader({ title }: { title: string }) {
 function MessagesAppHeaderInner({ surface }: { surface: MessagesSurface }) {
   const prompt = readAskGlobeePrompt(useSearchParams());
 
-  if (showMessagesHeaderSearch(surface)) {
+  // Search mounts only for access-gate. Ask Globee landing/thread never restore it.
+  if (surface === "access-gate" || showMessagesHeaderSearch(surface)) {
     return (
       <div data-header-search="" className="flex min-w-0 items-center">
         <SearchField

@@ -24,8 +24,8 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain(ASK_GLOBEE.headerSearchPlaceholder);
     expect(html).toContain(ASK_GLOBEE.headerSearchHint);
     expect(html).not.toContain("data-header-thread");
-    expect(html).not.toContain("What needs attention");
     expect(html).not.toContain(ASK_GLOBEE.threadTitle);
+    expect(html).not.toContain(ASK_GLOBEE.need);
   });
 
   it("keeps the 7:73 landing header as spacer + avatar only", () => {
