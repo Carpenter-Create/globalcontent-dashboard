@@ -7,6 +7,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
 import { MessagesAppHeader } from "./messages-app-header";
+import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome";
 import { cn } from "@/lib/cn";
 import type { MessagesSurface } from "@/lib/ask-globee";
 
@@ -53,6 +54,7 @@ export function AppShell({
   };
 
   return (
+    <AskGlobeeChromeProvider>
     <div
       className="min-h-dvh"
       style={
@@ -137,5 +139,6 @@ export function AppShell({
         )}
       </main>
     </div>
+    </AskGlobeeChromeProvider>
   );
 }

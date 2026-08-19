@@ -6,18 +6,23 @@ import {
   ASK_GLOBEE_TRY_PROMPTS,
   askGlobeeChipActivation,
   askGlobeeComposerSubmit,
+  askGlobeeConversationTitle,
   askGlobeeLandingHref,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
   canRenderAskGlobeeLanding,
   canRenderAskGlobeeThread,
   isAskGlobeeTier,
+  isAskGlobeeThreadId,
   isAskGlobeeUnlocked,
   messagesShowsThreadHeader,
   readAskGlobeePrompt,
+  readAskGlobeeThreadId,
   resolveMessagesSurface,
   showMessagesHeaderSearch,
 } from "@/lib/ask-globee";
+
+const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 
 describe("Ask Globee copy lock", () => {
   it("keeps the Access gate lines and Upgrade path", () => {
@@ -32,6 +37,7 @@ describe("Ask Globee copy lock", () => {
   it("keeps the 7:73 landing lines and generic try chips", () => {
     expect(ASK_GLOBEE.need).toBe("What do you need?");
     expect(ASK_GLOBEE.tryLabel).toBe("Try one of these");
+    expect(ASK_GLOBEE.historyLabel).toBe("History");
     expect(ASK_GLOBEE.tryPrompts).toEqual([
       "What needs attention",
       "What is blocking a title",
@@ -44,16 +50,26 @@ describe("Ask Globee copy lock", () => {
     }
   });
 
-  it("keeps the honest capability and empty-catalog lines", () => {
+  it("keeps the honest capability, empty-catalog, and drawn menu lines", () => {
     expect(ASK_GLOBEE.capability).toBe(
       "I can answer catalog attention, blockers, and what to submit next.",
     );
     expect(ASK_GLOBEE.emptyBlocking).toBe("Nothing required is blocking a title.");
     expect(ASK_GLOBEE.emptySubmitNext).toBe("Nothing is ready to submit next.");
     expect(ASK_GLOBEE.attributionName).toBe("Globee AI");
+    expect(ASK_GLOBEE.renameLabel).toBe("Rename");
+    expect(ASK_GLOBEE.pinLabel).toBe("Pin");
+    expect(ASK_GLOBEE.deleteLabel).toBe("Delete");
+    expect(ASK_GLOBEE.deleteTitle).toBe("Delete conversation");
+    expect(ASK_GLOBEE.deleteBody).toBe(
+      "This permanently deletes the conversation. It cannot be undone.",
+    );
+    expect(ASK_GLOBEE.deleteConfirm).toBe("Delete");
+    expect(ASK_GLOBEE.cancelLabel).toBe("Cancel");
+    expect(JSON.stringify(ASK_GLOBEE)).not.toMatch(/Archive/i);
   });
 
-  it("keeps the 247:295 fixture lines", () => {
+  it("keeps the 247:295 fixture lines as a do-not-render lock", () => {
     expect(ASK_GLOBEE.threadTitle).toBe("What's blocking The Winter Line");
     expect(ASK_GLOBEE.userPrompt).toBe("What's blocking The Winter Line?");
     expect(ASK_GLOBEE.answerLead).toBe(
@@ -152,34 +168,40 @@ describe("Ask Globee send helpers", () => {
       selected: "What needs attention",
       send: "What needs attention",
     });
-    expect(askGlobeeThreadHref(activation.send)).toBe(
-      "/messages?q=What%20needs%20attention",
-    );
   });
 
   it("composer submit sends a trimmed prompt and ignores blanks", () => {
     expect(askGlobeeComposerSubmit("  What needs attention  ")).toBe("What needs attention");
     expect(askGlobeeComposerSubmit("   ")).toBeNull();
-    expect(askGlobeeThreadHref("   ")).toBeNull();
   });
 
-  it("reads and clears the in-page thread query", () => {
+  it("opens a persisted thread by id, never a ?q= rewrite", () => {
+    expect(isAskGlobeeThreadId(THREAD)).toBe(true);
+    expect(askGlobeeThreadHref(THREAD)).toBe(`/messages?thread=${THREAD}`);
+    expect(askGlobeeThreadHref("What needs attention")).toBeNull();
+    expect(askGlobeeThreadHref("   ")).toBeNull();
+    expect(readAskGlobeeThreadId({ thread: THREAD })).toBe(THREAD);
+    expect(readAskGlobeeThreadId(new URLSearchParams(`thread=${THREAD}`))).toBe(THREAD);
+    expect(readAskGlobeeThreadId({ thread: "not-a-uuid" })).toBeNull();
+    expect(readAskGlobeeThreadId({ q: "What needs attention" })).toBeNull();
     expect(readAskGlobeePrompt({ q: "What needs attention" })).toBe("What needs attention");
-    expect(readAskGlobeePrompt(new URLSearchParams("q=What+is+blocking+a+title"))).toBe(
-      "What is blocking a title",
-    );
-    expect(readAskGlobeePrompt({ q: "   " })).toBeNull();
-    expect(readAskGlobeePrompt({})).toBeNull();
     expect(askGlobeeLandingHref()).toBe("/messages");
     expect(askGlobeeSelectedChip("  what needs attention  ")).toBe("What needs attention");
     expect(askGlobeeSelectedChip("unmapped")).toBeNull();
   });
 
-  it("shows the thread header only for an unlocked surface with a prompt", () => {
-    expect(messagesShowsThreadHeader("access-gate", "What needs attention")).toBe(false);
-    expect(messagesShowsThreadHeader("staff-inbox", "What needs attention")).toBe(false);
+  it("truncates a long first prompt into the conversation title", () => {
+    const long = "What needs attention on every title in this catalog right now and later";
+    expect(askGlobeeConversationTitle("  What needs attention  ")).toBe("What needs attention");
+    expect(askGlobeeConversationTitle(long).endsWith("…")).toBe(true);
+    expect(askGlobeeConversationTitle(long).length).toBeLessThanOrEqual(80);
+  });
+
+  it("shows the thread header only for an unlocked surface with a thread id", () => {
+    expect(messagesShowsThreadHeader("access-gate", THREAD)).toBe(false);
+    expect(messagesShowsThreadHeader("staff-inbox", THREAD)).toBe(false);
     expect(messagesShowsThreadHeader("ask-globee-landing", null)).toBe(false);
-    expect(messagesShowsThreadHeader("ask-globee-landing", "What needs attention")).toBe(true);
+    expect(messagesShowsThreadHeader("ask-globee-landing", THREAD)).toBe(true);
     expect(messagesShowsThreadHeader("ask-globee-thread", null)).toBe(true);
   });
 });

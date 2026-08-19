@@ -9,8 +9,16 @@ const navigation = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+}));
+vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
+  startAskGlobeeConversation: vi.fn(),
+  appendAskGlobeeTurn: vi.fn(),
+  setAskGlobeeThumb: vi.fn(),
+  renameAskGlobeeConversation: vi.fn(),
+  pinAskGlobeeConversation: vi.fn(),
+  deleteAskGlobeeConversation: vi.fn(),
 }));
 vi.mock("./organization-switcher", () => ({
   OrganizationSwitcher: () => createElement("div", { "data-org-switcher": "" }),
