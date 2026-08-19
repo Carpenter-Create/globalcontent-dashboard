@@ -106,6 +106,73 @@ describe("AskGlobeeThread", () => {
     expect(src).not.toContain("askGlobeeThreadHref");
   });
 
+  it("swaps the copy control to a brief check and does not toast", () => {
+    const html = renderThread();
+
+    expect(html).toContain(`aria-label="${ASK_GLOBEE.copyLabel}"`);
+    expect(html).not.toContain("data-ask-globee-copied");
+    expect(src).toContain("navigator.clipboard.writeText");
+    expect(src).toContain("setCopiedId");
+    expect(src).toContain("copiedId === message.id");
+    expect(src).toContain("<Check");
+    expect(src).toContain("data-ask-globee-copied");
+    expect(src).not.toContain("toast");
+    expect(src).not.toMatch(/bounce|animate-bounce/i);
+    expect(src).toContain("askGlobeeDownloadFilename");
+    expect(src).toContain("setAskGlobeeThumb");
+  });
+
+  it("stacks turns on house 24 with a hairline between them", () => {
+    const html = renderThread([
+      {
+        id: USER_MSG,
+        role: "user",
+        body: "What needs attention",
+        lead: null,
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:00:00.000Z",
+      },
+      {
+        id: GLOBEE_MSG,
+        role: "globee",
+        body: "Harbor Cut — Synopsis is required.",
+        lead: "Harbor Cut — Synopsis is required.",
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:10:00.000Z",
+      },
+      {
+        id: "5c4f1e9d-7061-4d44-af55-ae1b4a3d8c77",
+        role: "user",
+        body: "What is blocking a title",
+        lead: null,
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:20:00.000Z",
+      },
+      {
+        id: "6d5a2f0e-8172-4e55-b066-bf2c5b4e9d88",
+        role: "globee",
+        body: CATALOG_HEALTH_EMPTY,
+        lead: CATALOG_HEALTH_EMPTY,
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:21:00.000Z",
+      },
+    ]);
+    expect(html).toContain("What needs attention");
+    expect(html).toContain("What is blocking a title");
+    expect(html).toContain(CATALOG_HEALTH_EMPTY);
+    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(html).toContain('data-ask-globee-turn=""');
+    expect(html).toContain("gap-[var(--space-6)]");
+    expect(html).toContain("border-t border-hairline");
+    expect(html).not.toContain("gap-[var(--space-16)]");
+    expect(html.match(/data-ask-globee-turn=""/g)?.length).toBe(2);
+    expect(html.match(/border-t border-hairline/g)?.length).toBe(1);
+  });
+
   it("keeps a follow-up on the same thread instead of opening a new one", () => {
     const html = renderThread([
       {
@@ -151,6 +218,30 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("Harbor Cut — Synopsis is required.");
   });
 
+  it("scrolls the latest turn into view when the thread grows", () => {
+    const html = renderThread();
+
+    expect(html).toContain('data-ask-globee-thread-end=""');
+    expect(src).toContain("latestTurnRef");
+    expect(src).toContain("scrollIntoView");
+    expect(src).toContain("useRef");
+  });
+
+  it("kills the composer inner focus ring without restyling the pill hairline", () => {
+    const html = renderThread();
+    const composer = html.slice(html.indexOf("data-ask-globee-composer"));
+
+    expect(composer).toContain("border-hairline");
+    expect(composer).toContain("outline-none");
+    expect(composer).toContain("ring-0");
+    expect(composer).toContain("focus-visible:outline-none");
+    expect(composer).toContain("focus-visible:ring-0");
+    expect(src).toContain("focus:outline-none");
+    expect(src).toContain("focus:ring-0");
+    expect(src).not.toContain("focus:border-accent");
+    expect(src).not.toContain("focus:ring-accent");
+  });
+
   it("can render the honest empty-catalog line", () => {
     const html = renderThread([
       {
@@ -186,5 +277,19 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain(`href="${ASK_GLOBEE.upgradeHref}"`);
     expect(html).not.toContain("data-ask-globee-gate");
     expect(html).not.toContain("data-ask-globee-upgrade");
+  });
+
+  it("keeps Access isolation: the upgrade gate never renders this thread", () => {
+    const html = renderThread();
+
+    expect(html).toContain('data-ask-globee-thread=""');
+    expect(html).not.toContain("data-ask-globee-gate");
+    expect(html).not.toContain("data-ask-globee-upgrade");
+    expect(html).not.toContain(ASK_GLOBEE.analyze);
+    expect(html).not.toContain(ASK_GLOBEE.included);
+    expect(html).not.toContain(`href="${ASK_GLOBEE.upgradeHref}"`);
+    expect(src).toContain("data-ask-globee-thread");
+    expect(src).not.toContain("AccessUpgradeGate");
+    expect(src).not.toContain("canRenderAskGlobeeThread");
   });
 });
