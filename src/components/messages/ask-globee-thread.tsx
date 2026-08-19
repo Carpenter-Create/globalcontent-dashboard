@@ -139,7 +139,7 @@ export function AskGlobeeThread({
               data-ask-globee-thread-end={index === turns.length - 1 ? "" : undefined}
               className={
                 index > 0
-                  ? "flex flex-col gap-[var(--space-6)] border-t border-hairline"
+                  ? "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]"
                   : "flex flex-col gap-[var(--space-6)]"
               }
             >

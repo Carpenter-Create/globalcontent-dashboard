@@ -168,9 +168,17 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain('data-ask-globee-turn=""');
     expect(html).toContain("gap-[var(--space-6)]");
     expect(html).toContain("border-t border-hairline");
+    expect(html).toContain("pt-[var(--space-6)]");
     expect(html).not.toContain("gap-[var(--space-16)]");
+    expect(html).not.toContain("pt-[var(--space-3)]");
     expect(html.match(/data-ask-globee-turn=""/g)?.length).toBe(2);
     expect(html.match(/border-t border-hairline/g)?.length).toBe(1);
+    expect(html.match(/pt-\[var\(--space-6\)\]/g)?.length).toBe(1);
+    expect(src).toContain(
+      "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]",
+    );
+    expect(src).toContain('className="flex flex-1 flex-col gap-[var(--space-6)] px-[var(--content-inset)]"');
+    expect(src).not.toMatch(/border-t border-hairline"/);
   });
 
   it("keeps a follow-up on the same thread instead of opening a new one", () => {
