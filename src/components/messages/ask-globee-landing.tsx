@@ -1,14 +1,29 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
-import { ASK_GLOBEE } from "@/lib/ask-globee";
+import {
+  ASK_GLOBEE,
+  askGlobeeChipActivation,
+  askGlobeeComposerSubmit,
+  askGlobeeSelectedChip,
+  askGlobeeThreadHref,
+} from "@/lib/ask-globee";
+import { cn } from "@/lib/cn";
 
-// Figma 7:73 landing chrome. Chips fill the composer only — no thread,
-// no invented answer, no persist. History stays omitted until real rows exist.
+// Figma 7:73 landing chrome. Chip click fills, selects, and sends. Submit
+// sends. History stays omitted until real rows exist. No invented answer.
 export function AskGlobeeLanding() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
+  const selected = askGlobeeSelectedChip(prompt);
+
+  const send = (value: string) => {
+    const href = askGlobeeThreadHref(value);
+    if (href) router.replace(href);
+  };
 
   return (
     <div
@@ -30,6 +45,8 @@ export function AskGlobeeLanding() {
           className="flex w-full justify-center"
           onSubmit={(event) => {
             event.preventDefault();
+            const next = askGlobeeComposerSubmit(prompt);
+            if (next) send(next);
           }}
         >
           <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)]">
@@ -59,17 +76,28 @@ export function AskGlobeeLanding() {
         >
           <p className="t-label text-ink-3">{ASK_GLOBEE.tryLabel}</p>
           <div className="flex flex-wrap justify-center gap-[var(--space-2)]">
-            {ASK_GLOBEE.tryPrompts.map((label) => (
-              <button
-                key={label}
-                type="button"
-                data-ask-globee-chip=""
-                onClick={() => setPrompt(label)}
-                className="inline-flex items-center rounded-full border border-hairline bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink"
-              >
-                {label}
-              </button>
-            ))}
+            {ASK_GLOBEE.tryPrompts.map((label) => {
+              const pressed = selected === label;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  data-ask-globee-chip=""
+                  aria-pressed={pressed}
+                  onClick={() => {
+                    const activation = askGlobeeChipActivation(label);
+                    setPrompt(activation.prompt);
+                    send(activation.send);
+                  }}
+                  className={cn(
+                    "inline-flex items-center rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+                    pressed ? "border-ink bg-surface-muted" : "border-hairline",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

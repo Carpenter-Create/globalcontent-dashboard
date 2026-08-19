@@ -1,9 +1,10 @@
 import { USER_MENU } from "@/lib/user-menu";
 
 // Ask Globee copy and gating. Lives in lib/, not JSX.
-// Access sees the upgrade gate only. Pro/Premium see the 7:73 landing.
-// The 247:295 fixture stays here for later conversation chrome and is not
-// mounted on `/messages`. No AI backend, no invented commercial text, no checkout.
+// Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
+// 247:295 chrome after send. Winter Line fixture strings stay here as a
+// do-not-render lock — live answers come from org-filtered findings only.
+// No AI backend, no persist, no invented commercial text, no checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 
@@ -45,7 +46,60 @@ export const ASK_GLOBEE = {
   moreLabel: "More",
   backLabel: "Back",
   sendLabel: "Send",
+  attributionName: "Globee AI",
+  capability: "I can answer catalog attention, blockers, and what to submit next.",
+  emptyBlocking: "Nothing required is blocking a title.",
+  emptySubmitNext: "Nothing is ready to submit next.",
 } as const;
+
+export const ASK_GLOBEE_QUERY = "q";
+
+export function readAskGlobeePrompt(
+  search: { get(name: string): string | null } | Record<string, string | string[] | undefined>,
+): string | null {
+  const raw =
+    "get" in search && typeof search.get === "function"
+      ? search.get(ASK_GLOBEE_QUERY)
+      : (search as Record<string, string | string[] | undefined>)[ASK_GLOBEE_QUERY];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function askGlobeeThreadHref(prompt: string): string | null {
+  const next = prompt.trim();
+  if (!next) return null;
+  return `/messages?${ASK_GLOBEE_QUERY}=${encodeURIComponent(next)}`;
+}
+
+export function askGlobeeLandingHref(): string {
+  return "/messages";
+}
+
+export function askGlobeeComposerSubmit(prompt: string): string | null {
+  const next = prompt.trim();
+  return next.length > 0 ? next : null;
+}
+
+export function askGlobeeSelectedChip(prompt: string): (typeof ASK_GLOBEE_TRY_PROMPTS)[number] | null {
+  const normalized = prompt.trim().toLowerCase();
+  return ASK_GLOBEE_TRY_PROMPTS.find((label) => label.toLowerCase() === normalized) ?? null;
+}
+
+export function askGlobeeChipActivation(label: (typeof ASK_GLOBEE_TRY_PROMPTS)[number]): {
+  prompt: string;
+  selected: (typeof ASK_GLOBEE_TRY_PROMPTS)[number];
+  send: string;
+} {
+  return { prompt: label, selected: label, send: label };
+}
+
+export function messagesShowsThreadHeader(surface: MessagesSurface, prompt: string | null): boolean {
+  if (surface === "access-gate" || surface === "staff-inbox") return false;
+  if (surface === "ask-globee-thread") return true;
+  return surface === "ask-globee-landing" && !!prompt;
+}
 
 export const ASK_GLOBEE_UNLOCKED_TIERS = ["pro", "premium"] as const;
 

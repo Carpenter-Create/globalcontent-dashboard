@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/messages",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AskGlobeeLanding } from "./ask-globee-landing";
@@ -26,6 +32,7 @@ describe("AskGlobeeLanding", () => {
     expect(html).toContain("h-14");
     expect(html).toContain(ASK_GLOBEE.tryLabel);
     expect(html).toContain('data-ask-globee-chip=""');
+    expect(html).toContain("aria-pressed");
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(html).toContain(label);
     }
@@ -52,14 +59,19 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-upgrade");
   });
 
-  it("fills the composer from chips and does not navigate or invent an answer", () => {
+  it("fills, selects, and sends from chips, and submit sends", () => {
     const html = renderToStaticMarkup(<AskGlobeeLanding />);
 
     expect(html).toContain('type="button"');
+    expect(html).toContain('aria-pressed="false"');
     expect(html).not.toContain("href=");
-    expect(src).toContain("setPrompt(label)");
-    expect(src).toContain("event.preventDefault()");
-    expect(src).not.toContain("router");
+    expect(src).toContain("askGlobeeChipActivation(label)");
+    expect(src).toContain("setPrompt(activation.prompt)");
+    expect(src).toContain("send(activation.send)");
+    expect(src).toContain("askGlobeeComposerSubmit(prompt)");
+    expect(src).toContain("router.replace(href)");
+    expect(src).toContain("askGlobeeThreadHref");
+    expect(src).toContain("aria-pressed={pressed}");
     expect(src).not.toContain("AskGlobeeThread");
     expect(src).not.toContain(ASK_GLOBEE.answerLead);
   });
