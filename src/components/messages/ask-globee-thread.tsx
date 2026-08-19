@@ -72,9 +72,7 @@ export function AskGlobeeThread({
   const { setChrome } = useAskGlobeeChrome();
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
-  const [thumbs, setThumbs] = useState<Record<string, AskGlobeeThumb | null>>(() =>
-    Object.fromEntries(messages.map((message) => [message.id, message.thumbs])),
-  );
+  const [thumbOverrides, setThumbOverrides] = useState<Record<string, AskGlobeeThumb | null>>({});
 
   useEffect(() => {
     setChrome({
@@ -85,9 +83,9 @@ export function AskGlobeeThread({
     return () => setChrome(null);
   }, [conversation.id, conversation.pinned_at, conversation.title, setChrome]);
 
-  useEffect(() => {
-    setThumbs(Object.fromEntries(messages.map((message) => [message.id, message.thumbs])));
-  }, [messages]);
+  function thumbsFor(message: AskGlobeeStoredMessage): AskGlobeeThumb | null {
+    return Object.hasOwn(thumbOverrides, message.id) ? thumbOverrides[message.id] ?? null : message.thumbs;
+  }
 
   return (
     <div data-ask-globee-thread="" className="flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col">
@@ -151,11 +149,11 @@ export function AskGlobeeThread({
                       </ThreadIconButton>
                       <ThreadIconButton
                         label={ASK_GLOBEE.thumbsUpLabel}
-                        pressed={thumbs[message.id] === "up"}
+                        pressed={thumbsFor(message) === "up"}
                         onClick={() => {
                           void setAskGlobeeThumb(message.id, "up").then((result) => {
                             if ("thumbs" in result) {
-                              setThumbs((current) => ({ ...current, [message.id]: result.thumbs }));
+                              setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
                             }
                           });
                         }}
@@ -163,16 +161,16 @@ export function AskGlobeeThread({
                         <ThumbsUp
                           className="size-4"
                           strokeWidth={1.33}
-                          fill={thumbs[message.id] === "up" ? "currentColor" : "none"}
+                          fill={thumbsFor(message) === "up" ? "currentColor" : "none"}
                         />
                       </ThreadIconButton>
                       <ThreadIconButton
                         label={ASK_GLOBEE.thumbsDownLabel}
-                        pressed={thumbs[message.id] === "down"}
+                        pressed={thumbsFor(message) === "down"}
                         onClick={() => {
                           void setAskGlobeeThumb(message.id, "down").then((result) => {
                             if ("thumbs" in result) {
-                              setThumbs((current) => ({ ...current, [message.id]: result.thumbs }));
+                              setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
                             }
                           });
                         }}
@@ -180,7 +178,7 @@ export function AskGlobeeThread({
                         <ThumbsDown
                           className="size-4"
                           strokeWidth={1.33}
-                          fill={thumbs[message.id] === "down" ? "currentColor" : "none"}
+                          fill={thumbsFor(message) === "down" ? "currentColor" : "none"}
                         />
                       </ThreadIconButton>
                     </div>

@@ -17,9 +17,15 @@ vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   deleteAskGlobeeConversation: vi.fn(),
 }));
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome";
 import { MessagesAppHeader } from "./messages-app-header";
+
+const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "messages-app-header.tsx"), "utf8");
 
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 
@@ -66,12 +72,14 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain(`href="/messages"`);
     expect(html).toContain(ASK_GLOBEE.backLabel);
     expect(html).toContain(ASK_GLOBEE.moreLabel);
-    expect(html).toContain(ASK_GLOBEE.renameLabel);
-    expect(html).toContain(ASK_GLOBEE.pinLabel);
-    expect(html).toContain(ASK_GLOBEE.deleteLabel);
     expect(html).toContain(ASK_GLOBEE.deleteTitle);
     expect(html).toContain(ASK_GLOBEE.deleteBody);
-    expect(html).not.toMatch(/Archive/i);
+    expect(html).toContain(ASK_GLOBEE.deleteConfirm);
+    expect(html).toContain(ASK_GLOBEE.cancelLabel);
+    expect(src).toContain("ASK_GLOBEE.renameLabel");
+    expect(src).toContain("ASK_GLOBEE.pinLabel");
+    expect(src).toContain("ASK_GLOBEE.deleteLabel");
+    expect(src).not.toMatch(/Archive/);
     expect(html).not.toContain("data-header-search");
     expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
     expect(html).not.toContain("SearchField");

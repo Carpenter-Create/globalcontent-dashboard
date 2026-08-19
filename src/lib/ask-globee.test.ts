@@ -191,7 +191,8 @@ describe("Ask Globee send helpers", () => {
   });
 
   it("truncates a long first prompt into the conversation title", () => {
-    const long = "What needs attention on every title in this catalog right now and later";
+    const long =
+      "What needs attention on every title in this catalog right now and also later today";
     expect(askGlobeeConversationTitle("  What needs attention  ")).toBe("What needs attention");
     expect(askGlobeeConversationTitle(long).endsWith("…")).toBe(true);
     expect(askGlobeeConversationTitle(long).length).toBeLessThanOrEqual(80);
