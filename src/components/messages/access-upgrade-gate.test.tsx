@@ -1,5 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/messages",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AccessUpgradeGate } from "./access-upgrade-gate";
@@ -23,7 +29,18 @@ describe("AccessUpgradeGate", () => {
 
   it("does not render a ghost conversation, blur, chips, composer, or the Pro thread", () => {
     const html = renderToStaticMarkup(<AccessUpgradeGate />);
-    const thread = renderToStaticMarkup(<AskGlobeeThread initials="A" />);
+    const thread = renderToStaticMarkup(
+      <AskGlobeeThread
+        initials="A"
+        prompt="What needs attention"
+        answer={{
+          intent: "attention",
+          lead: "Harbor Cut — Synopsis is required.",
+          follow: null,
+          titleNames: ["Harbor Cut"],
+        }}
+      />,
+    );
 
     expect(html).not.toContain("data-ask-globee-thread");
     expect(html).not.toContain("data-ask-globee-composer");

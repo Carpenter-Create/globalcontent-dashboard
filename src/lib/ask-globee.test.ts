@@ -4,10 +4,17 @@ import { USER_MENU } from "@/lib/user-menu";
 import {
   ASK_GLOBEE,
   ASK_GLOBEE_TRY_PROMPTS,
+  askGlobeeChipActivation,
+  askGlobeeComposerSubmit,
+  askGlobeeLandingHref,
+  askGlobeeSelectedChip,
+  askGlobeeThreadHref,
   canRenderAskGlobeeLanding,
   canRenderAskGlobeeThread,
   isAskGlobeeTier,
   isAskGlobeeUnlocked,
+  messagesShowsThreadHeader,
+  readAskGlobeePrompt,
   resolveMessagesSurface,
   showMessagesHeaderSearch,
 } from "@/lib/ask-globee";
@@ -35,6 +42,15 @@ describe("Ask Globee copy lock", () => {
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(label).not.toMatch(/Winter Line|Harbor Lights|Get support/i);
     }
+  });
+
+  it("keeps the honest capability and empty-catalog lines", () => {
+    expect(ASK_GLOBEE.capability).toBe(
+      "I can answer catalog attention, blockers, and what to submit next.",
+    );
+    expect(ASK_GLOBEE.emptyBlocking).toBe("Nothing required is blocking a title.");
+    expect(ASK_GLOBEE.emptySubmitNext).toBe("Nothing is ready to submit next.");
+    expect(ASK_GLOBEE.attributionName).toBe("Globee AI");
   });
 
   it("keeps the 247:295 fixture lines", () => {
@@ -125,5 +141,45 @@ describe("canRenderAskGlobeeThread / showMessagesHeaderSearch", () => {
     expect(showMessagesHeaderSearch("ask-globee-landing")).toBe(false);
     expect(showMessagesHeaderSearch("ask-globee-thread")).toBe(false);
     expect(showMessagesHeaderSearch("staff-inbox")).toBe(false);
+  });
+});
+
+describe("Ask Globee send helpers", () => {
+  it("chip activation fills, selects, and sends the same label", () => {
+    const activation = askGlobeeChipActivation("What needs attention");
+    expect(activation).toEqual({
+      prompt: "What needs attention",
+      selected: "What needs attention",
+      send: "What needs attention",
+    });
+    expect(askGlobeeThreadHref(activation.send)).toBe(
+      "/messages?q=What%20needs%20attention",
+    );
+  });
+
+  it("composer submit sends a trimmed prompt and ignores blanks", () => {
+    expect(askGlobeeComposerSubmit("  What needs attention  ")).toBe("What needs attention");
+    expect(askGlobeeComposerSubmit("   ")).toBeNull();
+    expect(askGlobeeThreadHref("   ")).toBeNull();
+  });
+
+  it("reads and clears the in-page thread query", () => {
+    expect(readAskGlobeePrompt({ q: "What needs attention" })).toBe("What needs attention");
+    expect(readAskGlobeePrompt(new URLSearchParams("q=What+is+blocking+a+title"))).toBe(
+      "What is blocking a title",
+    );
+    expect(readAskGlobeePrompt({ q: "   " })).toBeNull();
+    expect(readAskGlobeePrompt({})).toBeNull();
+    expect(askGlobeeLandingHref()).toBe("/messages");
+    expect(askGlobeeSelectedChip("  what needs attention  ")).toBe("What needs attention");
+    expect(askGlobeeSelectedChip("unmapped")).toBeNull();
+  });
+
+  it("shows the thread header only for an unlocked surface with a prompt", () => {
+    expect(messagesShowsThreadHeader("access-gate", "What needs attention")).toBe(false);
+    expect(messagesShowsThreadHeader("staff-inbox", "What needs attention")).toBe(false);
+    expect(messagesShowsThreadHeader("ask-globee-landing", null)).toBe(false);
+    expect(messagesShowsThreadHeader("ask-globee-landing", "What needs attention")).toBe(true);
+    expect(messagesShowsThreadHeader("ask-globee-thread", null)).toBe(true);
   });
 });
