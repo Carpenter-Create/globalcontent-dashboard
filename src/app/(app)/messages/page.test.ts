@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +22,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/supabase/context", () => ({ getOrgContext: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/org-tier", () => ({ getActiveOrgTier: vi.fn() }));
+
+const pageSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "page.tsx"), "utf8");
 
 function ctx({
   isGcStaff = false,
@@ -55,13 +60,43 @@ async function renderPage(): Promise<string> {
   return renderToStaticMarkup(await MessagesPage()).replaceAll("&#x27;", "'");
 }
 
+function expectNoThreadFixture(html: string) {
+  expect(html).not.toContain("data-ask-globee-thread");
+  expect(html).not.toContain(ASK_GLOBEE.userPrompt);
+  expect(html).not.toContain(ASK_GLOBEE.answerLead);
+  expect(html).not.toContain(ASK_GLOBEE.answerFollow);
+  expect(html).not.toContain(ASK_GLOBEE.attribution);
+  expect(html).not.toContain("Winter Line");
+  expect(html).not.toContain("Harbor Lights");
+  expect(html).not.toContain("Get support");
+}
+
+function expectNoLanding(html: string) {
+  expect(html).not.toContain("data-ask-globee-landing");
+  expect(html).not.toContain("data-ask-globee-composer");
+  expect(html).not.toContain("data-ask-globee-chip");
+  expect(html).not.toContain("data-ask-globee-try");
+  expect(html).not.toContain(ASK_GLOBEE.need);
+  expect(html).not.toContain(ASK_GLOBEE.tryLabel);
+  expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
+  for (const label of ASK_GLOBEE.tryPrompts) {
+    expect(html).not.toContain(label);
+  }
+}
+
 describe("MessagesPage surfaces", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stubInbox();
   });
 
-  it("shows the Access upgrade gate for an Access client", async () => {
+  it("does not mount AskGlobeeThread on the index", () => {
+    expect(pageSrc).not.toContain("AskGlobeeThread");
+    expect(pageSrc).not.toContain("ask-globee-thread");
+    expect(pageSrc).toContain("AskGlobeeLanding");
+  });
+
+  it("shows the Access upgrade gate and never the landing or thread", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("access");
 
@@ -74,10 +109,9 @@ describe("MessagesPage surfaces", () => {
     expect(html).toContain(ASK_GLOBEE.included);
     expect(html).toContain(ASK_GLOBEE.upgrade);
     expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
-    expect(html).not.toContain("data-ask-globee-thread");
-    expect(html).not.toContain(ASK_GLOBEE.answerLead);
-    expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).not.toContain("data-messages-inbox");
+    expectNoLanding(html);
+    expectNoThreadFixture(html);
   });
 
   it("defaults a missing readable tier to the Access gate", async () => {
@@ -86,29 +120,40 @@ describe("MessagesPage surfaces", () => {
 
     const html = await renderPage();
     expect(html).toContain("data-ask-globee-gate");
-    expect(html).not.toContain("data-ask-globee-thread");
+    expectNoLanding(html);
+    expectNoThreadFixture(html);
   });
 
-  it("shows the 247:295 thread for Pro and never the Access gate", async () => {
+  it("shows the 7:73 landing for Pro and never the Access gate or fixture thread", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx({ email: "ada@example.com" }) as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
 
     const html = await renderPage();
-    expect(html).toContain("data-ask-globee-thread");
-    expect(html).toContain(ASK_GLOBEE.answerLead);
-    expect(html).toContain(">A<");
+    expect(html).toContain("data-ask-globee-landing");
+    expect(html).toContain("t-display");
+    expect(html).toContain(ASK_GLOBEE.headline);
+    expect(html).toContain(ASK_GLOBEE.need);
+    expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).toContain(ASK_GLOBEE.tryLabel);
+    for (const label of ASK_GLOBEE.tryPrompts) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain("HISTORY");
+    expect(html).not.toContain("History");
     expect(html).not.toContain("data-ask-globee-gate");
     expect(html).not.toContain(ASK_GLOBEE.included);
     expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
+    expectNoThreadFixture(html);
   });
 
-  it("shows the same authorized thread for Premium", async () => {
+  it("shows the same landing for Premium", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("premium");
 
     const html = await renderPage();
-    expect(html).toContain("data-ask-globee-thread");
+    expect(html).toContain("data-ask-globee-landing");
     expect(html).not.toContain("data-ask-globee-gate");
+    expectNoThreadFixture(html);
   });
 
   it("keeps staff without a client org on the notification inbox", async () => {
@@ -118,7 +163,8 @@ describe("MessagesPage surfaces", () => {
     expect(html).toContain("data-messages-inbox");
     expect(html).toContain(MESSAGES_EMPTY);
     expect(html).not.toContain("data-ask-globee-gate");
-    expect(html).not.toContain("data-ask-globee-thread");
+    expectNoLanding(html);
+    expectNoThreadFixture(html);
     expect(vi.mocked(getActiveOrgTier)).not.toHaveBeenCalled();
   });
 
@@ -127,8 +173,9 @@ describe("MessagesPage surfaces", () => {
     vi.mocked(getActiveOrgTier).mockResolvedValue("premium");
 
     const html = await renderPage();
-    expect(html).toContain("data-ask-globee-thread");
+    expect(html).toContain("data-ask-globee-landing");
     expect(html).not.toContain("data-messages-inbox");
+    expectNoThreadFixture(html);
   });
 
   it("sends an unauthenticated visitor to login", async () => {

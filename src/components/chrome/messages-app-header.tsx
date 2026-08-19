@@ -20,6 +20,10 @@ export function MessagesAppHeader({ surface }: { surface: MessagesSurface }) {
     );
   }
 
+  if (surface === "ask-globee-landing") {
+    return null;
+  }
+
   if (surface === "ask-globee-thread") {
     return (
       <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-2)]">

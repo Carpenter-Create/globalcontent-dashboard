@@ -1,16 +1,30 @@
 import { USER_MENU } from "@/lib/user-menu";
 
 // Ask Globee copy and gating. Lives in lib/, not JSX.
-// Access sees the upgrade gate only. Pro/Premium may see the locked 247:295 fixture.
-// No AI backend, no invented commercial text, no checkout.
+// Access sees the upgrade gate only. Pro/Premium see the 7:73 landing.
+// The 247:295 fixture stays here for later conversation chrome and is not
+// mounted on `/messages`. No AI backend, no invented commercial text, no checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 
-export type MessagesSurface = "staff-inbox" | "access-gate" | "ask-globee-thread";
+export type MessagesSurface =
+  | "staff-inbox"
+  | "access-gate"
+  | "ask-globee-landing"
+  | "ask-globee-thread";
+
+export const ASK_GLOBEE_TRY_PROMPTS = [
+  "What needs attention",
+  "What is blocking a title",
+  "What should I submit next",
+] as const;
 
 export const ASK_GLOBEE = {
   pageTitle: "Messages",
   headline: "Ask Globee",
+  need: "What do you need?",
+  tryLabel: "Try one of these",
+  tryPrompts: ASK_GLOBEE_TRY_PROMPTS,
   analyze: "Analyze anything about your catalog.",
   included: "Included with Pro and Premium.",
   upgrade: "Upgrade",
@@ -51,7 +65,11 @@ export function resolveMessagesSurface(input: {
   if (!input.hasActiveOrg) {
     return input.isGcStaff ? "staff-inbox" : "access-gate";
   }
-  return isAskGlobeeUnlocked(input.tier) ? "ask-globee-thread" : "access-gate";
+  return isAskGlobeeUnlocked(input.tier) ? "ask-globee-landing" : "access-gate";
+}
+
+export function canRenderAskGlobeeLanding(surface: MessagesSurface): boolean {
+  return surface === "ask-globee-landing";
 }
 
 export function canRenderAskGlobeeThread(surface: MessagesSurface): boolean {

@@ -34,6 +34,7 @@ describe("titles catalog scope", () => {
     const messagesPage = src("src/app/(app)/messages/page.tsx");
     const accessGate = src("src/components/messages/access-upgrade-gate.tsx");
     const thread = src("src/components/messages/ask-globee-thread.tsx");
+    const landing = src("src/components/messages/ask-globee-landing.tsx");
     const messagesHeader = src("src/components/chrome/messages-app-header.tsx");
 
     expect(catalogPage).toContain("SearchField");
@@ -46,6 +47,7 @@ describe("titles catalog scope", () => {
     expect(messagesPage).not.toContain("SearchField");
     expect(accessGate).not.toContain("SearchField");
     expect(thread).not.toContain("SearchField");
+    expect(landing).not.toContain("SearchField");
     expect(messagesHeader).toContain("SearchField");
     expect(messagesHeader).toContain("access-gate");
   });

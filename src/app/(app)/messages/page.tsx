@@ -2,15 +2,14 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { userMenuAvatarInitial } from "@/lib/user-menu";
 import { getActiveOrgTier } from "@/lib/org-tier";
-import { canRenderAskGlobeeThread, resolveMessagesSurface } from "@/lib/ask-globee";
+import { canRenderAskGlobeeLanding, resolveMessagesSurface } from "@/lib/ask-globee";
 import { AccessUpgradeGate } from "@/components/messages/access-upgrade-gate";
-import { AskGlobeeThread } from "@/components/messages/ask-globee-thread";
+import { AskGlobeeLanding } from "@/components/messages/ask-globee-landing";
 import { NotificationInbox } from "@/components/messages/notification-inbox";
 
 // Access `/messages` is the Ask Globee upgrade gate (Figma 305:320).
-// Pro/Premium may see the locked answered-thread fixture (247:295).
+// Pro/Premium see the 7:73 landing. The 247:295 fixture is not mounted here.
 // Staff without a client org keep the existing notification inbox.
 export default async function MessagesPage() {
   const ctx = await getOrgContext();
@@ -29,8 +28,8 @@ export default async function MessagesPage() {
     return <NotificationInbox notifications={notifications ?? []} />;
   }
 
-  if (canRenderAskGlobeeThread(surface)) {
-    return <AskGlobeeThread initials={userMenuAvatarInitial(ctx.user.email)} />;
+  if (canRenderAskGlobeeLanding(surface)) {
+    return <AskGlobeeLanding />;
   }
 
   return <AccessUpgradeGate />;
