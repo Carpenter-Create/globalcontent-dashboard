@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 
@@ -11,18 +12,37 @@ import {
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
 } from "@/lib/ask-globee";
+import {
+  formatAskGlobeeHistoryTime,
+  type AskGlobeeHistoryRow,
+} from "@/lib/ask-globee-conversations";
 import { cn } from "@/lib/cn";
+import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
 
 // Figma 7:73 landing chrome. Chip click fills, selects, and sends. Submit
-// sends. History stays omitted until real rows exist. No invented answer.
-export function AskGlobeeLanding() {
+// sends. HISTORY lists real org threads only. No invented titles.
+export function AskGlobeeLanding({
+  conversations = [],
+}: {
+  conversations?: AskGlobeeHistoryRow[];
+}) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
+  const [pending, setPending] = useState(false);
   const selected = askGlobeeSelectedChip(prompt);
 
-  const send = (value: string) => {
-    const href = askGlobeeThreadHref(value);
-    if (href) router.replace(href);
+  const send = async (value: string) => {
+    if (pending) return;
+    setPending(true);
+    const result = await startAskGlobeeConversation(value);
+    if (result.conversationId) {
+      const href = askGlobeeThreadHref(result.conversationId);
+      if (href) {
+        router.push(href);
+        return;
+      }
+    }
+    setPending(false);
   };
 
   return (
@@ -46,7 +66,7 @@ export function AskGlobeeLanding() {
           onSubmit={(event) => {
             event.preventDefault();
             const next = askGlobeeComposerSubmit(prompt);
-            if (next) send(next);
+            if (next) void send(next);
           }}
         >
           <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)]">
@@ -87,7 +107,7 @@ export function AskGlobeeLanding() {
                   onClick={() => {
                     const activation = askGlobeeChipActivation(label);
                     setPrompt(activation.prompt);
-                    send(activation.send);
+                    void send(activation.send);
                   }}
                   className={cn(
                     "inline-flex items-center rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
@@ -100,6 +120,35 @@ export function AskGlobeeLanding() {
             })}
           </div>
         </div>
+
+        {conversations.length > 0 ? (
+          <div
+            data-ask-globee-history=""
+            className="flex w-full max-w-[640px] flex-col gap-[var(--space-3)]"
+          >
+            <p className="t-label text-ink-3">{ASK_GLOBEE.historyLabel}</p>
+            <ul className="flex flex-col">
+              {conversations.map((row) => {
+                const href = askGlobeeThreadHref(row.id);
+                if (!href) return null;
+                return (
+                  <li key={row.id}>
+                    <Link
+                      href={href}
+                      data-ask-globee-history-row=""
+                      className="flex items-center justify-between gap-[var(--space-4)] py-[var(--space-3)]"
+                    >
+                      <span className="min-w-0 truncate t-body-sm text-ink">{row.title}</span>
+                      <span className="shrink-0 t-body-sm text-ink-3">
+                        {formatAskGlobeeHistoryTime(row.updated_at)}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -241,6 +241,95 @@ export type Database = {
           },
         ]
       }
+      conversation_messages: {
+        Row: {
+          body: string
+          conversation_id: string
+          created_at: string
+          follow: string | null
+          id: string
+          lead: string | null
+          org_id: string
+          role: Database["public"]["Enums"]["conversation_role"]
+          thumbs: Database["public"]["Enums"]["conversation_thumb"] | null
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          created_at?: string
+          follow?: string | null
+          id?: string
+          lead?: string | null
+          org_id: string
+          role: Database["public"]["Enums"]["conversation_role"]
+          thumbs?: Database["public"]["Enums"]["conversation_thumb"] | null
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          created_at?: string
+          follow?: string | null
+          id?: string
+          lead?: string | null
+          org_id?: string
+          role?: Database["public"]["Enums"]["conversation_role"]
+          thumbs?: Database["public"]["Enums"]["conversation_thumb"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_messages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_id: string
+          pinned_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id: string
+          pinned_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_id?: string
+          pinned_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deliveries: {
         Row: {
           created_at: string
@@ -1733,6 +1822,8 @@ export type Database = {
         | "poster"
         | "banner"
         | "trailer"
+      conversation_role: "user" | "globee"
+      conversation_thumb: "up" | "down"
       delivery_status:
         | "pending"
         | "delivered"
@@ -1960,6 +2051,8 @@ export const Constants = {
         "banner",
         "trailer",
       ],
+      conversation_role: ["user", "globee"],
+      conversation_thumb: ["up", "down"],
       delivery_status: [
         "pending",
         "delivered",

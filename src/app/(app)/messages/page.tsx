@@ -5,10 +5,14 @@ import { getOrgContext } from "@/lib/supabase/context";
 import { getActiveOrgTier } from "@/lib/org-tier";
 import {
   canRenderAskGlobeeLanding,
-  readAskGlobeePrompt,
+  readAskGlobeeThreadId,
   resolveMessagesSurface,
 } from "@/lib/ask-globee";
-import { buildAskGlobeeAnswer } from "@/lib/ask-globee-answer";
+import {
+  sortAskGlobeeHistory,
+  type AskGlobeeHistoryRow,
+  type AskGlobeeStoredMessage,
+} from "@/lib/ask-globee-conversations";
 import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 import { userMenuAvatarInitial } from "@/lib/user-menu";
 import { AccessUpgradeGate } from "@/components/messages/access-upgrade-gate";
@@ -17,8 +21,8 @@ import { AskGlobeeThread } from "@/components/messages/ask-globee-thread";
 import { NotificationInbox } from "@/components/messages/notification-inbox";
 
 // Access `/messages` is the Ask Globee upgrade gate (Figma 305:320).
-// Pro/Premium see the 7:73 landing, then 247:295 chrome after send.
-// Staff without a client org keep the existing notification inbox.
+// Pro/Premium see the 7:73 landing + org HISTORY, then 247:295 chrome
+// on a persisted thread. Staff without a client org keep the inbox.
 export default async function MessagesPage({
   searchParams = Promise.resolve({}),
 }: {
@@ -41,35 +45,44 @@ export default async function MessagesPage({
   }
 
   if (canRenderAskGlobeeLanding(surface) && ctx.activeOrg) {
-    const prompt = readAskGlobeePrompt(await searchParams);
-    if (!prompt) {
-      return <AskGlobeeLanding />;
-    }
-
+    const threadId = readAskGlobeeThreadId(await searchParams);
     const supabase = await createClient();
     const org = ctx.activeOrg;
-    const { data: titleRows } = await supabase
-      .from("titles")
-      .select("id, title, status, created_at")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: false })
-      .range(...rangeFor(UNPAGINATED_MAX));
-    const titles = titleRows ?? [];
-    const { data: allFindings } = await supabase.rpc("my_findings");
-    const answer = buildAskGlobeeAnswer({
-      prompt,
-      titles,
-      findings: allFindings ?? [],
-      orgId: org.id,
-      now: new Date(),
-      bound: UNPAGINATED_MAX,
-    });
 
+    if (threadId) {
+      const { data: conversationRow } = await supabase
+        .from("conversations")
+        .select("id, title, pinned_at, created_at, updated_at")
+        .eq("id", threadId)
+        .eq("org_id", org.id)
+        .maybeSingle();
+      const conversation = conversationRow as AskGlobeeHistoryRow | null;
+      if (conversation) {
+        const { data: messageRows } = await supabase
+          .from("conversation_messages")
+          .select("id, role, body, lead, follow, thumbs, created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("org_id", org.id)
+          .order("created_at", { ascending: true })
+          .range(...rangeFor(UNPAGINATED_MAX));
+        return (
+          <AskGlobeeThread
+            initials={userMenuAvatarInitial(ctx.user.email)}
+            conversation={conversation}
+            messages={(messageRows ?? []) as AskGlobeeStoredMessage[]}
+          />
+        );
+      }
+    }
+
+    const { data: historyRows } = await supabase
+      .from("conversations")
+      .select("id, title, pinned_at, created_at, updated_at")
+      .eq("org_id", org.id)
+      .range(...rangeFor(UNPAGINATED_MAX));
     return (
-      <AskGlobeeThread
-        initials={userMenuAvatarInitial(ctx.user.email)}
-        prompt={prompt}
-        answer={answer}
+      <AskGlobeeLanding
+        conversations={sortAskGlobeeHistory((historyRows ?? []) as AskGlobeeHistoryRow[])}
       />
     );
   }

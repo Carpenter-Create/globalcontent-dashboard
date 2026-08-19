@@ -1,21 +1,43 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
 
 import { SearchField } from "@/components/layout/search-field";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   ASK_GLOBEE,
   askGlobeeLandingHref,
   messagesShowsThreadHeader,
-  readAskGlobeePrompt,
+  readAskGlobeeThreadId,
   showMessagesHeaderSearch,
   type MessagesSurface,
 } from "@/lib/ask-globee";
+import { useAskGlobeeChrome } from "@/components/messages/ask-globee-chrome";
+import {
+  deleteAskGlobeeConversation,
+  pinAskGlobeeConversation,
+  renameAskGlobeeConversation,
+} from "@/app/(app)/messages/ask-globee-actions";
 
 function MessagesThreadHeader({ title }: { title: string }) {
+  const router = useRouter();
+  const { chrome, setChrome } = useAskGlobeeChrome();
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState(title);
+  const pinned = !!chrome?.pinned_at;
+
   return (
     <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-2)]">
       <Link
@@ -25,20 +47,111 @@ function MessagesThreadHeader({ title }: { title: string }) {
       >
         <ChevronLeft className="size-4" strokeWidth={1.33} />
       </Link>
-      <p className="truncate t-body-sm text-ink">{title}</p>
-      <button
-        type="button"
-        aria-label={ASK_GLOBEE.moreLabel}
-        className="flex size-6 shrink-0 items-center justify-center text-ink-3"
+      <p className="truncate t-body-sm text-ink">{chrome?.title ?? title}</p>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={ASK_GLOBEE.moreLabel}
+            className="flex size-6 shrink-0 items-center justify-center text-ink-3"
+          >
+            <MoreHorizontal className="size-4" strokeWidth={1.33} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem
+            onSelect={() => {
+              setRenameValue(chrome?.title ?? title);
+              setRenameOpen(true);
+            }}
+          >
+            {ASK_GLOBEE.renameLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              if (!chrome) return;
+              void pinAskGlobeeConversation(chrome.id, !pinned).then((result) => {
+                if ("pinnedAt" in result) {
+                  setChrome({ ...chrome, pinned_at: result.pinnedAt });
+                  router.refresh();
+                }
+              });
+            }}
+          >
+            {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
+            {ASK_GLOBEE.deleteLabel}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog
+        open={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        title={ASK_GLOBEE.renameTitle}
       >
-        <MoreHorizontal className="size-4" strokeWidth={1.33} />
-      </button>
+        <form
+          className="flex flex-col gap-[var(--space-3)]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!chrome) return;
+            void renameAskGlobeeConversation(chrome.id, renameValue).then((result) => {
+              if ("title" in result) {
+                setChrome({ ...chrome, title: result.title });
+                setRenameOpen(false);
+                router.refresh();
+              }
+            });
+          }}
+        >
+          <Input
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            aria-label={ASK_GLOBEE.renameTitle}
+          />
+          <div className="flex justify-end gap-[var(--space-2)]">
+            <Button type="button" variant="secondary" onClick={() => setRenameOpen(false)}>
+              {ASK_GLOBEE.cancelLabel}
+            </Button>
+            <Button type="submit">{ASK_GLOBEE.renameSave}</Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title={ASK_GLOBEE.deleteTitle}
+      >
+        <p className="t-body-sm text-ink-2">{ASK_GLOBEE.deleteBody}</p>
+        <div className="mt-[var(--space-4)] flex justify-end gap-[var(--space-2)]">
+          <Button type="button" variant="secondary" onClick={() => setDeleteOpen(false)}>
+            {ASK_GLOBEE.cancelLabel}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              if (!chrome) return;
+              void deleteAskGlobeeConversation(chrome.id).then((result) => {
+                if (!("error" in result)) {
+                  setDeleteOpen(false);
+                  setChrome(null);
+                  router.push(askGlobeeLandingHref());
+                }
+              });
+            }}
+          >
+            {ASK_GLOBEE.deleteConfirm}
+          </Button>
+        </div>
+      </Dialog>
     </div>
   );
 }
 
 function MessagesAppHeaderInner({ surface }: { surface: MessagesSurface }) {
-  const prompt = readAskGlobeePrompt(useSearchParams());
+  const threadId = readAskGlobeeThreadId(useSearchParams());
 
   // Search mounts only for access-gate. Ask Globee landing/thread never restore it.
   if (surface === "access-gate" || showMessagesHeaderSearch(surface)) {
@@ -52,8 +165,8 @@ function MessagesAppHeaderInner({ surface }: { surface: MessagesSurface }) {
     );
   }
 
-  if (messagesShowsThreadHeader(surface, prompt)) {
-    return <MessagesThreadHeader title={prompt ?? ""} />;
+  if (messagesShowsThreadHeader(surface, threadId)) {
+    return <MessagesThreadHeader title="" />;
   }
 
   return null;
