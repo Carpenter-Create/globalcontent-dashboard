@@ -106,18 +106,34 @@ describe("AppShell Access rail and home frame", () => {
     const titles = renderShell();
     expect(titles).toContain("w-full pb-24");
     expect(titles).not.toContain("data-app-home-frame");
+    expect(titles).not.toContain("data-app-messages-frame");
     expect(titles).not.toContain("data-org-switcher");
+    expect(titles).not.toContain("Search");
 
     navigation.pathname = "/deliveries";
     const deliveries = renderShell();
     expect(deliveries).toContain("px-6 pb-24 pt-8");
     expect(deliveries).not.toContain("data-app-home-frame");
+    expect(deliveries).not.toContain("data-app-messages-frame");
     expect(deliveries).not.toContain("data-org-switcher");
 
     navigation.pathname = "/catalog-health";
     const health = renderShell();
     expect(health).toContain("px-6 pb-24 pt-8");
     expect(health).not.toContain("data-app-home-frame");
+    expect(health).not.toContain("data-app-messages-frame");
     expect(health).not.toContain("data-org-switcher");
+  });
+
+  it("gives `/messages` the 48 inset without restoring Search on the shell itself", () => {
+    navigation.pathname = "/messages";
+    const html = renderShell();
+    expect(html).toContain("data-app-messages-frame");
+    expect(html).toContain("data-app-header-leading");
+    expect(html).toContain("p-[var(--content-inset)]");
+    expect(html).not.toContain("data-app-home-frame");
+    expect(html).not.toContain("SearchField");
+    expect(html).not.toContain("⌘K");
+    expect(shellSrc).not.toContain("SearchField");
   });
 });

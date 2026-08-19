@@ -38,6 +38,7 @@ export function AppShell({
   // Client `/` uses the locked Access frame (48 / 32) without restyling other pages.
   const titlesBleed = pathname === "/titles";
   const homePage = pathname === "/";
+  const messagesPage = pathname === "/messages";
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -87,12 +88,15 @@ export function AppShell({
         </div>
       </aside>
 
-      {/* Access header is avatar / account menu only — no org switcher on any route. */}
+      {/* Access header is avatar / account menu only — no org switcher on any route.
+          /messages Access gate portals Search into the leading slot; the Pro thread
+          portals back + title. `/` and `/titles` never mount Search here. */}
       <header
         className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur"
         data-app-header=""
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
+        <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center" />
         <div className="flex items-center gap-3">
           <UserMenu email={email} />
         </div>
@@ -110,6 +114,13 @@ export function AppShell({
           <div
             className="w-full px-[var(--content-inset)] py-[var(--space-8)]"
             data-app-home-frame=""
+          >
+            {children}
+          </div>
+        ) : messagesPage ? (
+          <div
+            className="w-full p-[var(--content-inset)]"
+            data-app-messages-frame=""
           >
             {children}
           </div>
