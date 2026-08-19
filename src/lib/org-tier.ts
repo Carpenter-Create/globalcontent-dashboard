@@ -16,14 +16,13 @@ import { isAskGlobeeTier, type AskGlobeeTier } from "@/lib/ask-globee";
 // A missing or unreadable tier is null — callers treat that as the Access gate.
 // A null is not invented as "access"; it is the absence of a pro/premium signal.
 
-type AssentRaw = { raw?: { tier?: unknown } | null };
-
-function assentTier(row: {
-  source_documents?: AssentRaw | AssentRaw[] | null;
-}): unknown {
+function assentTier(row: { source_documents?: unknown }): unknown {
   const docs = row.source_documents;
   const doc = Array.isArray(docs) ? docs[0] : docs;
-  return doc?.raw?.tier;
+  if (!doc || typeof doc !== "object") return null;
+  const raw = "raw" in doc ? doc.raw : null;
+  if (!raw || typeof raw !== "object") return null;
+  return "tier" in raw ? raw.tier : null;
 }
 
 export const getActiveOrgTier = cache(async (orgId: string): Promise<AskGlobeeTier | null> => {

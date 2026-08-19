@@ -2,15 +2,12 @@
 
 import {
   ArrowRight,
-  ChevronLeft,
   Copy,
   Download,
-  MoreHorizontal,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 
-import { AppHeaderLeading } from "@/components/chrome/app-header-leading";
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 
 function ThreadIconButton({
@@ -34,18 +31,6 @@ function ThreadIconButton({
 export function AskGlobeeThread({ initials }: { initials: string }) {
   return (
     <div data-ask-globee-thread="" className="flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col">
-      <AppHeaderLeading>
-        <div data-ask-globee-thread-header="" className="flex min-w-0 items-center gap-[var(--space-2)]">
-          <span className="flex size-4 shrink-0 items-center justify-center text-ink" aria-hidden>
-            <ChevronLeft className="size-4" strokeWidth={1.33} />
-          </span>
-          <p className="truncate t-body-sm text-ink">{ASK_GLOBEE.threadTitle}</p>
-          <ThreadIconButton label={ASK_GLOBEE.moreLabel}>
-            <MoreHorizontal className="size-4" strokeWidth={1.33} />
-          </ThreadIconButton>
-        </div>
-      </AppHeaderLeading>
-
       <div className="flex flex-1 flex-col gap-[var(--space-4)]">
         <div className="flex flex-1 flex-col gap-[var(--space-16)]">
           <div data-ask-globee-user-row="" className="flex items-start gap-[var(--space-2)]">

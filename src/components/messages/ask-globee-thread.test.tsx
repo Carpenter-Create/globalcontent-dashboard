@@ -4,13 +4,15 @@ import { describe, expect, it } from "vitest";
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AskGlobeeThread } from "./ask-globee-thread";
 
+function visible(html: string): string {
+  return html.replaceAll("&#x27;", "'");
+}
+
 describe("AskGlobeeThread", () => {
   it("locks the 247:295 answered fixture", () => {
-    const html = renderToStaticMarkup(<AskGlobeeThread initials="A" />);
+    const html = visible(renderToStaticMarkup(<AskGlobeeThread initials="A" />));
 
     expect(html).toContain('data-ask-globee-thread=""');
-    expect(html).toContain('data-ask-globee-thread-header=""');
-    expect(html).toContain(ASK_GLOBEE.threadTitle);
     expect(html).toContain(ASK_GLOBEE.userPrompt);
     expect(html).toContain(ASK_GLOBEE.answerLead);
     expect(html).toContain(ASK_GLOBEE.answerFollow);

@@ -9,6 +9,8 @@ const navigation = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("./organization-switcher", () => ({
   OrganizationSwitcher: () => createElement("div", { "data-org-switcher": "" }),
@@ -22,16 +24,18 @@ vi.mock("./user-menu", () => ({
 }));
 
 import { AppShell } from "./app-shell";
+import type { MessagesSurface } from "@/lib/ask-globee";
 
 const shellSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"), "utf8");
 
-function renderShell(): string {
+function renderShell(messagesSurface?: MessagesSurface): string {
   return renderToStaticMarkup(
     <AppShell
       email="ada@example.com"
       orgs={[{ id: "org-1", name: "Acme" }]}
       activeOrgId="org-1"
       messagesUnread={Promise.resolve(0)}
+      messagesSurface={messagesSurface}
     >
       page
     </AppShell>,
@@ -125,15 +129,30 @@ describe("AppShell Access rail and home frame", () => {
     expect(health).not.toContain("data-org-switcher");
   });
 
-  it("gives `/messages` the 48 inset without restoring Search on the shell itself", () => {
+  it("gives `/messages` the 48 inset and restores Search only for the Access gate", () => {
     navigation.pathname = "/messages";
-    const html = renderShell();
-    expect(html).toContain("data-app-messages-frame");
-    expect(html).toContain("data-app-header-leading");
-    expect(html).toContain("p-[var(--content-inset)]");
-    expect(html).not.toContain("data-app-home-frame");
-    expect(html).not.toContain("SearchField");
-    expect(html).not.toContain("⌘K");
+    const inbox = renderShell("staff-inbox");
+    expect(inbox).toContain("data-app-messages-frame");
+    expect(inbox).toContain("data-app-header-leading");
+    expect(inbox).toContain("p-[var(--content-inset)]");
+    expect(inbox).not.toContain("data-app-home-frame");
+    expect(inbox).not.toContain("data-header-search");
+    expect(inbox).not.toContain("⌘K");
+
+    const gate = renderShell("access-gate");
+    expect(gate).toContain("data-header-search");
+    expect(gate).toContain("⌘K");
+    expect(gate).not.toContain("data-header-thread");
+
+    const thread = renderShell("ask-globee-thread");
+    expect(thread).toContain("data-header-thread");
+    expect(thread).not.toContain("data-header-search");
+    expect(thread).not.toContain("⌘K");
+
+    navigation.pathname = "/";
+    expect(renderShell("access-gate")).not.toContain("data-header-search");
+    navigation.pathname = "/titles";
+    expect(renderShell("access-gate")).not.toContain("data-header-search");
     expect(shellSrc).not.toContain("SearchField");
   });
 });

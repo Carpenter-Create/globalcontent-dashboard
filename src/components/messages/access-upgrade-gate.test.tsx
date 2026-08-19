@@ -1,11 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
-  usePathname: () => "/messages",
-  useSearchParams: () => new URLSearchParams(),
-}));
+import { describe, expect, it } from "vitest";
 
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AccessUpgradeGate } from "./access-upgrade-gate";
@@ -23,9 +17,8 @@ describe("AccessUpgradeGate", () => {
     expect(html).toContain(ASK_GLOBEE.included);
     expect(html).toContain(ASK_GLOBEE.upgrade);
     expect(html).toContain(`href="${ASK_GLOBEE.upgradeHref}"`);
-    expect(html).toContain(ASK_GLOBEE.headerSearchPlaceholder);
-    expect(html).toContain(ASK_GLOBEE.headerSearchHint);
-    expect(html).toContain("data-search-hint");
+    expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
+    expect(html).not.toContain("SearchField");
   });
 
   it("does not render a ghost conversation, blur, chips, composer, or the Pro thread", () => {

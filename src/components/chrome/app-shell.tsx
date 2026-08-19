@@ -6,7 +6,9 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
+import { MessagesAppHeader } from "./messages-app-header";
 import { cn } from "@/lib/cn";
+import type { MessagesSurface } from "@/lib/ask-globee";
 
 type Org = { id: string; name: string };
 
@@ -19,6 +21,7 @@ export function AppShell({
   messagesUnread,
   isGcStaff = false,
   defaultCollapsed = false,
+  messagesSurface = "staff-inbox",
   children,
 }: {
   email: string;
@@ -29,6 +32,7 @@ export function AppShell({
   messagesUnread: Promise<number>;
   isGcStaff?: boolean;
   defaultCollapsed?: boolean;
+  messagesSurface?: MessagesSurface;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -89,14 +93,16 @@ export function AppShell({
       </aside>
 
       {/* Access header is avatar / account menu only — no org switcher on any route.
-          /messages Access gate portals Search into the leading slot; the Pro thread
-          portals back + title. `/` and `/titles` never mount Search here. */}
+          Search mounts only on the Access `/messages` gate. `/` and `/titles` stay
+          avatar-only. */}
       <header
         className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur"
         data-app-header=""
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
-        <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center" />
+        <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center">
+          {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
+        </div>
         <div className="flex items-center gap-3">
           <UserMenu email={email} />
         </div>

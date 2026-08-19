@@ -1,22 +1,10 @@
 import Link from "next/link";
-import { Suspense } from "react";
 
-import { AppHeaderLeading } from "@/components/chrome/app-header-leading";
-import { SearchField } from "@/components/layout/search-field";
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 
 export function AccessUpgradeGate() {
   return (
     <div data-ask-globee-gate="" className="flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col">
-      <AppHeaderLeading>
-        <Suspense fallback={null}>
-          <SearchField
-            placeholder={ASK_GLOBEE.headerSearchPlaceholder}
-            hint={ASK_GLOBEE.headerSearchHint}
-          />
-        </Suspense>
-      </AppHeaderLeading>
-
       <h1 className="t-section text-ink">{ASK_GLOBEE.pageTitle}</h1>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-[var(--space-6)] py-[var(--space-10)]">

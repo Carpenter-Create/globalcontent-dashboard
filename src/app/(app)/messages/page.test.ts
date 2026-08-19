@@ -52,7 +52,7 @@ function stubInbox(list: unknown[] = []) {
 }
 
 async function renderPage(): Promise<string> {
-  return renderToStaticMarkup(await MessagesPage());
+  return renderToStaticMarkup(await MessagesPage()).replaceAll("&#x27;", "'");
 }
 
 describe("MessagesPage surfaces", () => {
@@ -73,7 +73,7 @@ describe("MessagesPage surfaces", () => {
     expect(html).toContain(ASK_GLOBEE.analyze);
     expect(html).toContain(ASK_GLOBEE.included);
     expect(html).toContain(ASK_GLOBEE.upgrade);
-    expect(html).toContain(ASK_GLOBEE.headerSearchHint);
+    expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
     expect(html).not.toContain("data-ask-globee-thread");
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
@@ -95,7 +95,6 @@ describe("MessagesPage surfaces", () => {
 
     const html = await renderPage();
     expect(html).toContain("data-ask-globee-thread");
-    expect(html).toContain(ASK_GLOBEE.threadTitle);
     expect(html).toContain(ASK_GLOBEE.answerLead);
     expect(html).toContain(">A<");
     expect(html).not.toContain("data-ask-globee-gate");
