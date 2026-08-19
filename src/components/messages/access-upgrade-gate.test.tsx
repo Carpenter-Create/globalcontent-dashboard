@@ -31,6 +31,13 @@ describe("AccessUpgradeGate", () => {
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain(ASK_GLOBEE.attribution);
     expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).not.toContain(ASK_GLOBEE.need);
+    expect(html).not.toContain(ASK_GLOBEE.tryLabel);
+    expect(html).not.toContain("data-ask-globee-landing");
+    expect(html).not.toContain("data-ask-globee-chip");
+    for (const label of ASK_GLOBEE.tryPrompts) {
+      expect(html).not.toContain(label);
+    }
     expect(html).not.toMatch(/blur|backdrop-blur|ghost/i);
     expect(html).not.toContain("chip");
 

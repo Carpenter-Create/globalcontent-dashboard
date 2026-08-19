@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { USER_MENU } from "@/lib/user-menu";
 import {
   ASK_GLOBEE,
+  ASK_GLOBEE_TRY_PROMPTS,
+  canRenderAskGlobeeLanding,
   canRenderAskGlobeeThread,
   isAskGlobeeTier,
   isAskGlobeeUnlocked,
@@ -18,6 +20,21 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.upgrade).toBe("Upgrade");
     expect(ASK_GLOBEE.upgradeHref).toBe("/account/agreements");
     expect(ASK_GLOBEE.upgradeHref).toBe(USER_MENU.agreementsHref);
+  });
+
+  it("keeps the 7:73 landing lines and generic try chips", () => {
+    expect(ASK_GLOBEE.need).toBe("What do you need?");
+    expect(ASK_GLOBEE.tryLabel).toBe("Try one of these");
+    expect(ASK_GLOBEE.tryPrompts).toEqual([
+      "What needs attention",
+      "What is blocking a title",
+      "What should I submit next",
+    ]);
+    expect(ASK_GLOBEE.tryPrompts).toBe(ASK_GLOBEE_TRY_PROMPTS);
+    expect(ASK_GLOBEE.composerPlaceholder).toBe("Ask a question or give a command.");
+    for (const label of ASK_GLOBEE.tryPrompts) {
+      expect(label).not.toMatch(/Winter Line|Harbor Lights|Get support/i);
+    }
   });
 
   it("keeps the 247:295 fixture lines", () => {
@@ -70,34 +87,42 @@ describe("resolveMessagesSurface", () => {
     ).toBe("access-gate");
   });
 
-  it("unlocks the answered thread only for pro or premium", () => {
+  it("unlocks the 7:73 landing only for pro or premium", () => {
     expect(
       resolveMessagesSurface({ isGcStaff: false, hasActiveOrg: true, tier: "pro" }),
-    ).toBe("ask-globee-thread");
+    ).toBe("ask-globee-landing");
     expect(
       resolveMessagesSurface({ isGcStaff: true, hasActiveOrg: true, tier: "premium" }),
-    ).toBe("ask-globee-thread");
+    ).toBe("ask-globee-landing");
   });
 
-  it("never treats staff-without-org as a client gate or thread", () => {
+  it("never treats staff-without-org as a client gate, landing, or thread", () => {
     const surface = resolveMessagesSurface({
       isGcStaff: true,
       hasActiveOrg: false,
       tier: "premium",
     });
     expect(surface).toBe("staff-inbox");
+    expect(canRenderAskGlobeeLanding(surface)).toBe(false);
     expect(canRenderAskGlobeeThread(surface)).toBe(false);
     expect(showMessagesHeaderSearch(surface)).toBe(false);
   });
 });
 
 describe("canRenderAskGlobeeThread / showMessagesHeaderSearch", () => {
-  it("locks the thread and header Search to the authorized surfaces", () => {
+  it("locks the thread, landing, and header Search to the authorized surfaces", () => {
+    expect(canRenderAskGlobeeLanding("ask-globee-landing")).toBe(true);
+    expect(canRenderAskGlobeeLanding("access-gate")).toBe(false);
+    expect(canRenderAskGlobeeLanding("staff-inbox")).toBe(false);
+    expect(canRenderAskGlobeeLanding("ask-globee-thread")).toBe(false);
+
     expect(canRenderAskGlobeeThread("access-gate")).toBe(false);
     expect(canRenderAskGlobeeThread("staff-inbox")).toBe(false);
+    expect(canRenderAskGlobeeThread("ask-globee-landing")).toBe(false);
     expect(canRenderAskGlobeeThread("ask-globee-thread")).toBe(true);
 
     expect(showMessagesHeaderSearch("access-gate")).toBe(true);
+    expect(showMessagesHeaderSearch("ask-globee-landing")).toBe(false);
     expect(showMessagesHeaderSearch("ask-globee-thread")).toBe(false);
     expect(showMessagesHeaderSearch("staff-inbox")).toBe(false);
   });

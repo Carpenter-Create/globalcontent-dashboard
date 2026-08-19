@@ -144,6 +144,11 @@ describe("AppShell Access rail and home frame", () => {
     expect(gate).toContain("⌘K");
     expect(gate).not.toContain("data-header-thread");
 
+    const landing = renderShell("ask-globee-landing");
+    expect(landing).not.toContain("data-header-search");
+    expect(landing).not.toContain("data-header-thread");
+    expect(landing).not.toContain("⌘K");
+
     const thread = renderShell("ask-globee-thread");
     expect(thread).toContain("data-header-thread");
     expect(thread).not.toContain("data-header-search");

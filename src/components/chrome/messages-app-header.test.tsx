@@ -24,6 +24,15 @@ describe("MessagesAppHeader", () => {
     expect(html).not.toContain(ASK_GLOBEE.threadTitle);
   });
 
+  it("keeps the 7:73 landing header as spacer + avatar only", () => {
+    const html = renderToStaticMarkup(<MessagesAppHeader surface="ask-globee-landing" />);
+    expect(html).toBe("");
+    expect(html).not.toContain("data-header-search");
+    expect(html).not.toContain("data-header-thread");
+    expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
+    expect(html).not.toContain(ASK_GLOBEE.threadTitle);
+  });
+
   it("shows the 247:295 back + title header with no Search", () => {
     const html = visible(renderToStaticMarkup(<MessagesAppHeader surface="ask-globee-thread" />));
     expect(html).toContain("data-header-thread");
