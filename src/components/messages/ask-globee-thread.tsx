@@ -81,6 +81,7 @@ export function AskGlobeeThread({
   const [thumbOverrides, setThumbOverrides] = useState<Record<string, AskGlobeeThumb | null>>({});
   const latestTurnRef = useRef<HTMLDivElement>(null);
   const copiedTimerRef = useRef<number>(0);
+  const followRef = useRef<{ conversationId: string; length: number } | null>(null);
 
   useEffect(() => {
     setChrome({
@@ -96,8 +97,18 @@ export function AskGlobeeThread({
   }, []);
 
   useEffect(() => {
-    latestTurnRef.current?.scrollIntoView();
-  }, [messages]);
+    const previous = followRef.current;
+    const grew =
+      previous !== null &&
+      previous.conversationId === conversation.id &&
+      messages.length > previous.length;
+    followRef.current = { conversationId: conversation.id, length: messages.length };
+    if (!grew) return;
+    latestTurnRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "instant",
+    });
+  }, [conversation.id, messages]);
 
   function thumbsFor(message: AskGlobeeStoredMessage): AskGlobeeThumb | null {
     return Object.hasOwn(thumbOverrides, message.id) ? thumbOverrides[message.id] ?? null : message.thumbs;
@@ -139,8 +150,8 @@ export function AskGlobeeThread({
               data-ask-globee-thread-end={index === turns.length - 1 ? "" : undefined}
               className={
                 index > 0
-                  ? "flex flex-col gap-[var(--space-6)] border-t border-hairline"
-                  : "flex flex-col gap-[var(--space-6)]"
+                  ? "flex flex-col gap-[var(--space-6)] scroll-mt-[var(--header-height)] border-t border-hairline"
+                  : "flex flex-col gap-[var(--space-6)] scroll-mt-[var(--header-height)]"
               }
             >
               {turn.map((message) =>

@@ -222,8 +222,12 @@ describe("AskGlobeeThread", () => {
     const html = renderThread();
 
     expect(html).toContain('data-ask-globee-thread-end=""');
+    expect(html).toContain("scroll-mt-[var(--header-height)]");
     expect(src).toContain("latestTurnRef");
     expect(src).toContain("scrollIntoView");
+    expect(src).toContain("messages.length > previous.length");
+    expect(src).toContain('block: "nearest"');
+    expect(src).toContain('behavior: "instant"');
     expect(src).toContain("useRef");
   });
 
