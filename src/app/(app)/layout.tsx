@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 
 import { getOrgContext } from "@/lib/supabase/context";
 import { AppShell } from "@/components/chrome/app-shell";
+import { resolveMessagesSurface } from "@/lib/ask-globee";
+import { getActiveOrgTier } from "@/lib/org-tier";
 
 // Server layout for all authenticated routes: resolves the session + the user's orgs
 // (RLS-scoped) and the active org, then renders the client shell around the page.
@@ -34,6 +36,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Sidebar collapse state persists in a cookie; read here so there's no expand→collapse flash.
   const sidebarCollapsed = (await cookies()).get("gc_sidebar_collapsed")?.value === "1";
+  const messagesSurface = resolveMessagesSurface({
+    isGcStaff: ctx.isGcStaff,
+    hasActiveOrg: !!ctx.activeOrg,
+    tier: ctx.activeOrg ? await getActiveOrgTier(ctx.activeOrg.id) : null,
+  });
 
   return (
     <AppShell
@@ -43,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       messagesUnread={ctx.unread}
       isGcStaff={ctx.isGcStaff}
       defaultCollapsed={sidebarCollapsed}
+      messagesSurface={messagesSurface}
     >
       {children}
     </AppShell>

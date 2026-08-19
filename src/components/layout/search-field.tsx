@@ -7,7 +7,14 @@ import { Search } from "lucide-react";
 // Debounced, URL-driven search (Visual/Metadata registers). Writes ?q= (preserving
 // other params) via router.replace so the server re-renders filtered results — no
 // client-side filtering, no scroll jump.
-export function SearchField({ placeholder = "Search titles..." }: { placeholder?: string }) {
+export function SearchField({
+  placeholder = "Search titles...",
+  hint,
+}: {
+  placeholder?: string;
+  /** Visual-only kbd hint. Not a command palette. */
+  hint?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -35,9 +42,22 @@ export function SearchField({ placeholder = "Search titles..." }: { placeholder?
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
-        aria-label="Search titles"
-        className="h-8 w-44 rounded-full border border-hairline bg-surface pl-8 pr-3 t-body-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none sm:w-56"
+        aria-label={placeholder}
+        className={
+          hint
+            ? "h-8 w-56 rounded-full border border-hairline bg-surface-muted pl-8 pr-12 t-body-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none sm:w-80"
+            : "h-8 w-44 rounded-full border border-hairline bg-surface pl-8 pr-3 t-body-sm text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none sm:w-56"
+        }
       />
+      {hint ? (
+        <span
+          aria-hidden
+          data-search-hint=""
+          className="pointer-events-none absolute right-2 rounded-[var(--radius-sm)] border border-hairline bg-surface px-1.5 py-0.5 text-[length:var(--text-xs)] text-ink-3"
+        >
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }

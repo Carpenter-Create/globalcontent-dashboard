@@ -9,6 +9,8 @@ const navigation = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("./organization-switcher", () => ({
   OrganizationSwitcher: () => createElement("div", { "data-org-switcher": "" }),
@@ -22,16 +24,18 @@ vi.mock("./user-menu", () => ({
 }));
 
 import { AppShell } from "./app-shell";
+import type { MessagesSurface } from "@/lib/ask-globee";
 
 const shellSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"), "utf8");
 
-function renderShell(): string {
+function renderShell(messagesSurface?: MessagesSurface): string {
   return renderToStaticMarkup(
     <AppShell
       email="ada@example.com"
       orgs={[{ id: "org-1", name: "Acme" }]}
       activeOrgId="org-1"
       messagesUnread={Promise.resolve(0)}
+      messagesSurface={messagesSurface}
     >
       page
     </AppShell>,
@@ -106,18 +110,49 @@ describe("AppShell Access rail and home frame", () => {
     const titles = renderShell();
     expect(titles).toContain("w-full pb-24");
     expect(titles).not.toContain("data-app-home-frame");
+    expect(titles).not.toContain("data-app-messages-frame");
     expect(titles).not.toContain("data-org-switcher");
+    expect(titles).not.toContain("Search");
 
     navigation.pathname = "/deliveries";
     const deliveries = renderShell();
     expect(deliveries).toContain("px-6 pb-24 pt-8");
     expect(deliveries).not.toContain("data-app-home-frame");
+    expect(deliveries).not.toContain("data-app-messages-frame");
     expect(deliveries).not.toContain("data-org-switcher");
 
     navigation.pathname = "/catalog-health";
     const health = renderShell();
     expect(health).toContain("px-6 pb-24 pt-8");
     expect(health).not.toContain("data-app-home-frame");
+    expect(health).not.toContain("data-app-messages-frame");
     expect(health).not.toContain("data-org-switcher");
+  });
+
+  it("gives `/messages` the 48 inset and restores Search only for the Access gate", () => {
+    navigation.pathname = "/messages";
+    const inbox = renderShell("staff-inbox");
+    expect(inbox).toContain("data-app-messages-frame");
+    expect(inbox).toContain("data-app-header-leading");
+    expect(inbox).toContain("p-[var(--content-inset)]");
+    expect(inbox).not.toContain("data-app-home-frame");
+    expect(inbox).not.toContain("data-header-search");
+    expect(inbox).not.toContain("⌘K");
+
+    const gate = renderShell("access-gate");
+    expect(gate).toContain("data-header-search");
+    expect(gate).toContain("⌘K");
+    expect(gate).not.toContain("data-header-thread");
+
+    const thread = renderShell("ask-globee-thread");
+    expect(thread).toContain("data-header-thread");
+    expect(thread).not.toContain("data-header-search");
+    expect(thread).not.toContain("⌘K");
+
+    navigation.pathname = "/";
+    expect(renderShell("access-gate")).not.toContain("data-header-search");
+    navigation.pathname = "/titles";
+    expect(renderShell("access-gate")).not.toContain("data-header-search");
+    expect(shellSrc).not.toContain("SearchField");
   });
 });

@@ -12,6 +12,7 @@ vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ get: () => undefined })),
 }));
 vi.mock("@/lib/supabase/context", () => ({ getOrgContext: vi.fn() }));
+vi.mock("@/lib/org-tier", () => ({ getActiveOrgTier: vi.fn(async () => null) }));
 vi.mock("@/components/chrome/app-shell", () => ({ AppShell: () => null }));
 
 type Status = "registered" | "awaiting_payment" | "active";

@@ -28,15 +28,26 @@ const OTHER_PAGES = [
 describe("titles catalog scope", () => {
   it("keeps catalog search on /titles and out of the global header", () => {
     const catalogPage = src("src/app/(app)/titles/page.tsx");
+    const homePage = src("src/app/(app)/page.tsx");
     const shell = src("src/components/chrome/app-shell.tsx");
     const searchField = src("src/components/layout/search-field.tsx");
+    const messagesPage = src("src/app/(app)/messages/page.tsx");
+    const accessGate = src("src/components/messages/access-upgrade-gate.tsx");
+    const thread = src("src/components/messages/ask-globee-thread.tsx");
+    const messagesHeader = src("src/components/chrome/messages-app-header.tsx");
 
     expect(catalogPage).toContain("SearchField");
     expect(catalogPage).toContain("TITLES_CATALOG.searchPlaceholder");
     expect(searchField).toContain("Search titles...");
+    expect(homePage).not.toContain("SearchField");
     expect(shell).not.toContain("SearchField");
     expect(shell).not.toContain("Search titles");
     expect(shell).not.toMatch(/⌘K|CommandK|command-k/i);
+    expect(messagesPage).not.toContain("SearchField");
+    expect(accessGate).not.toContain("SearchField");
+    expect(thread).not.toContain("SearchField");
+    expect(messagesHeader).toContain("SearchField");
+    expect(messagesHeader).toContain("access-gate");
   });
 
   it("does not restyle shared primitives or other pages", () => {
