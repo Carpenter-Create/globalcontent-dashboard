@@ -104,9 +104,9 @@ export function AskGlobeeThread({
   }
 
   function copyAnswer(message: AskGlobeeStoredMessage) {
-    void navigator.clipboard
-      .writeText(askGlobeeAnswerText(message.lead ?? message.body, message.follow))
-      .then(() => {
+    void navigator.clipboard.writeText(
+      askGlobeeAnswerText(message.lead ?? message.body, message.follow),
+    ).then(() => {
         window.clearTimeout(copiedTimerRef.current);
         setCopiedId(message.id);
         copiedTimerRef.current = window.setTimeout(() => {
