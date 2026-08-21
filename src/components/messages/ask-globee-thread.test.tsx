@@ -28,6 +28,10 @@ function visible(html: string): string {
   return html.replaceAll("&#x27;", "'");
 }
 
+function visibleText(html: string): string {
+  return visible(html).replace(/<[^>]+>/g, "");
+}
+
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "ask-globee-thread.tsx"), "utf8");
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 const USER_MSG = "3a2d9c7b-5e4f-4b22-8d33-8c9f2e1b6a55";
@@ -84,7 +88,7 @@ describe("AskGlobeeThread", () => {
 
     expect(html).toContain('data-ask-globee-thread=""');
     expect(html).toContain("What needs attention");
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.globeeMark);
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
@@ -186,7 +190,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("What needs attention");
     expect(html).toContain("What is blocking a title");
     expect(html).toContain(CATALOG_HEALTH_EMPTY);
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain('data-ask-globee-turn=""');
     expect(html).toContain("gap-[var(--space-6)]");
     expect(html).toContain("border-t border-hairline");
@@ -245,7 +249,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("What needs attention");
     expect(html).toContain("What is blocking a title");
     expect(html).toContain(CATALOG_HEALTH_EMPTY);
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
   });
 
   it("scrolls the latest turn into view when the thread grows", () => {
@@ -420,7 +424,7 @@ describe("AskGlobeeThread", () => {
       html.indexOf("data-ask-globee-composer"),
     );
 
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
     expect(html).toContain(ASK_GLOBEE.downloadLabel);
