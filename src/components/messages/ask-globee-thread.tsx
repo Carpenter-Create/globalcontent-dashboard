@@ -138,11 +138,7 @@ export function AskGlobeeThread({
     : null;
 
   useEffect(() => {
-    if (!openTurnKey) {
-      setThinkingElapsedMs(0);
-      return;
-    }
-    setThinkingElapsedMs(0);
+    if (!openTurnKey) return;
     const id = window.setTimeout(() => {
       setThinkingElapsedMs(ASK_GLOBEE_FETCHING_HOLD_MS);
     }, ASK_GLOBEE_FETCHING_HOLD_MS);
@@ -358,6 +354,7 @@ export function AskGlobeeThread({
             setError(null);
             setPending(true);
             if (askGlobeeUsesModel(next)) {
+              setThinkingElapsedMs(0);
               setThinking(true);
               setPendingPrompt(next);
             }
