@@ -22,7 +22,7 @@ prose **cannot** override safety rules, founder gates, or domain doctrine.
 7. [`README.md`](README.md)
 8. `docs/HANDOFF.md`, plans, ledgers, and superseded specifications — **historical evidence only**
 
-Do not route active work into `docs/HANDOFF.md`. Do not treat historical documents as current authority without fresh verification.
+Do not route active work into `docs/HANDOFF.md`.
 
 ## Agent roles
 
@@ -50,10 +50,8 @@ Reserved gates stay founder-only even if Codex is silent.
 
 ## Working contract
 
-You are a careful senior engineer, not an eager junior. Prefer the smallest change that works.
-Duplication is cheaper than the wrong abstraction. State assumptions inline rather than asking questions
-you can answer from context. Reversible, low-stakes decisions → decide and note. Costly or irreversible
-→ surface and wait.
+Smallest change that works. Duplication over the wrong abstraction. State assumptions inline.
+Reversible, low-stakes decisions: decide and note. Costly or irreversible: surface and wait.
 
 ## Founder checkpoints
 
@@ -96,7 +94,6 @@ snapshot, or other mutation not already authorized in the task, stop and obtain 
 
 ## Domain authority
 
-Before schema or business-logic work, read the applicable sections of `docs/domain-spec.md`.
 Do not invent absent or open decisions. Record approved decisions in the same PR.
 Spec beats reference repos and older code.
 
@@ -110,14 +107,11 @@ Spec beats reference repos and older code.
   a sixth warning or any increase is a validation failure unless separately founder-authorized.
   Lint `src` only — full `pnpm lint` can fail on unrelated worktree files.
 - When you write a test, **mutate the code it covers and confirm it actually fails.**
-- Before shipping: run **`pnpm governance`** when touching governance-sensitive paths or before handoff.
-  Local **`pnpm governance`** runs repository policy checks, governance tests, the scanner canary suite,
-  and a **staged-only** secret scan through a founder-pinned Gitleaks CLI (**v8.30.0**; **v8.30.1** is
-  disqualified). Install the matching binary locally and set `GITLEAKS_BIN` if needed — the command never
-  downloads it. CI job **`governance`** runs the same policy suite plus a checksum-verified Gitleaks install
-  and a sanitized **full-history** scan. Do not claim leak scanning passed when no scanner ran. Manual
-  inspection is not equivalent to automated secret scanning. Existing prohibitions against reading,
-  printing, or committing secrets remain binding.
+- Before shipping: run **`pnpm governance`** on governance-sensitive paths or before handoff.
+  Local run: policy checks, governance tests, scanner canary, and a **staged-only** Gitleaks scan
+  (**v8.30.0**; **v8.30.1** is disqualified). Set `GITLEAKS_BIN` if needed — never download.
+  CI adds a checksum-verified install and a sanitized **full-history** scan. Do not claim a leak
+  scan passed if no scanner ran. Manual inspection is not automated secret scanning.
 
 ## Project tier and scope
 
@@ -189,12 +183,10 @@ canon docs into `docs/`.
 
 ## When to read what
 
-| Trigger | Read |
-| --- | --- |
-| Starting any task; checking what is active vs deferred | [`docs/status/CURRENT.md`](docs/status/CURRENT.md) |
-| Schema, migrations, business logic, roles, rights, money, delivery | [`docs/domain-spec.md`](docs/domain-spec.md) |
-| Supabase RPC/types, auth performance, local email, S3/build failures | [`docs/engineering/operational-gotchas.md`](docs/engineering/operational-gotchas.md) |
-| Agentic Engineering architecture, phases, control-plane design | [`docs/agentic-engineering/AGENTIC_ENGINEERING_V1.md`](docs/agentic-engineering/AGENTIC_ENGINEERING_V1.md) |
-| Past handoffs, ledgers, abandoned branches — evidence only | `docs/HANDOFF.md`, `docs/superpowers/` — verify against repo before acting |
-| Accepted slice specs explicitly referenced in a task brief | e.g. [`docs/first-slice-implementation-spec.md`](docs/first-slice-implementation-spec.md) — only when authorized and verified current |
-| Setup, stack, directory map | [`README.md`](README.md) |
+- Active vs deferred: [`docs/status/CURRENT.md`](docs/status/CURRENT.md)
+- Schema, roles, rights, money: [`docs/domain-spec.md`](docs/domain-spec.md)
+- RPC, auth, email, S3, builds: [`docs/engineering/operational-gotchas.md`](docs/engineering/operational-gotchas.md)
+- Agentic Engineering: [`docs/agentic-engineering/AGENTIC_ENGINEERING_V1.md`](docs/agentic-engineering/AGENTIC_ENGINEERING_V1.md)
+- Handoffs — historical evidence only: `docs/HANDOFF.md`, `docs/superpowers/`
+- Authorized current slice specs only, e.g. [`docs/first-slice-implementation-spec.md`](docs/first-slice-implementation-spec.md)
+- Setup: [`README.md`](README.md)
