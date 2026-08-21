@@ -38,10 +38,10 @@ describe("AskGlobeeLanding", () => {
     expect(html).toContain('data-ask-globee-chip=""');
     expect(html).toContain("aria-pressed");
     expect(html).toContain('data-ask-globee-clock=""');
-    expect(html).toContain('data-ask-globee-new=""');
     expect(html).toContain(ASK_GLOBEE.pastConversationsLabel);
-    expect(html).toContain(ASK_GLOBEE.newConversationLabel);
-    expect(html).toContain('href="/messages"');
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
+    expect(html).not.toContain('href="/messages"');
     expect(html).toContain("text-ink-3");
     expect(html).toContain("stroke-width=\"1.33\"");
     for (const label of ASK_GLOBEE.tryPrompts) {
@@ -87,7 +87,7 @@ describe("AskGlobeeLanding", () => {
     expect(src).not.toContain("emptyBlocking");
   });
 
-  it("keeps clock and plus on landing and never lists HISTORY rows", () => {
+  it("keeps clock on landing, drops plus, and never lists HISTORY rows", () => {
     const html = visible(
       renderToStaticMarkup(
         <AskGlobeeLanding
@@ -104,7 +104,8 @@ describe("AskGlobeeLanding", () => {
       ),
     );
     expect(html).toContain("data-ask-globee-clock");
-    expect(html).toContain("data-ask-globee-new");
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).toContain(ASK_GLOBEE.headline);
     expect(html).toContain(ASK_GLOBEE.need);
     expect(html).toContain(ASK_GLOBEE.tryLabel);
@@ -121,9 +122,11 @@ describe("AskGlobeeLanding", () => {
     expect(src).toContain("AskGlobeeHistoryPopover");
     expect(src).toContain("conversations={conversations}");
     expect(src).toContain("Clock");
-    expect(src).toContain("Plus");
     expect(src).toContain("strokeWidth={1.33}");
-    expect(src).toContain("askGlobeeLandingHref()");
+    expect(src).not.toContain("Plus");
+    expect(src).not.toContain("data-ask-globee-new");
+    expect(src).not.toContain("ASK_GLOBEE.newConversationLabel");
+    expect(src).not.toContain("askGlobeeLandingHref");
     expect(src).not.toContain("ASK_GLOBEE.historyLabel");
     expect(src).not.toContain("data-ask-globee-history-row");
   });
