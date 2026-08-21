@@ -4,6 +4,7 @@ import { getOrgContext } from "@/lib/supabase/context";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveOrgTier } from "@/lib/org-tier";
 import { ASK_GLOBEE } from "@/lib/ask-globee";
+import { ASK_GLOBEE_MODEL_ID } from "@/lib/ask-globee-operator";
 import { CATALOG_HEALTH_EMPTY } from "@/lib/findings";
 import {
   appendAskGlobeeTurn,
@@ -17,6 +18,9 @@ vi.mock("@/lib/org-tier", () => ({ getActiveOrgTier: vi.fn() }));
 
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 const OTHER_ORG_FINDING = "SECRET_OTHER_ORG";
+const TEST_KEY = "test-operator-key";
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
 
 function ctx({
   isGcStaff = false,
@@ -68,6 +72,7 @@ function stubWriteClient({
     },
   ],
   conversationId = THREAD,
+  priorMessages = [],
 }: {
   titles?: { id: string; title: string; status: string; created_at: string }[];
   findings?: {
@@ -77,6 +82,7 @@ function stubWriteClient({
     severity?: string | null;
   }[];
   conversationId?: string;
+  priorMessages?: { role: string; body: string; lead?: string | null }[];
 } = {}) {
   const inserted: { table: string; row: Record<string, unknown> }[] = [];
   const titlesChain = {
@@ -93,6 +99,12 @@ function stubWriteClient({
     select: vi.fn(() => conversationsRead),
     eq: vi.fn(() => conversationsRead),
     maybeSingle: vi.fn(async () => ({ data: { id: conversationId }, error: null })),
+  };
+  const messagesRead = {
+    select: vi.fn(() => messagesRead),
+    eq: vi.fn(() => messagesRead),
+    order: vi.fn(() => messagesRead),
+    range: vi.fn(async () => ({ data: priorMessages, error: null })),
   };
   const from = vi.fn((table: string) => {
     if (table === "titles") return titlesChain;
@@ -113,6 +125,10 @@ function stubWriteClient({
           inserted.push({ table, row });
           return { error: null };
         },
+        select: messagesRead.select,
+        eq: messagesRead.eq,
+        order: messagesRead.order,
+        range: messagesRead.range,
       };
     }
     throw new Error(`unexpected from(${table})`);
@@ -128,6 +144,8 @@ function stubWriteClient({
 describe("startAskGlobeeConversation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchMock.mockReset();
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   it("refuses Access and never loads conversations or findings", async () => {
@@ -141,6 +159,7 @@ describe("startAskGlobeeConversation", () => {
     expect(vi.mocked(createClient)).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("persists an org-filtered answer for Pro and drops other-org findings", async () => {
@@ -172,6 +191,7 @@ describe("startAskGlobeeConversation", () => {
     expect(payload).not.toContain("ORPHAN_FINDING");
     expect(payload).not.toContain("Winter Line");
     expect(payload).not.toContain("Harbor Lights");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("tells the truth when the catalog is empty", async () => {
@@ -189,25 +209,66 @@ describe("startAskGlobeeConversation", () => {
     expect(JSON.stringify(inserted)).not.toContain("Artwork missing");
   });
 
-  it("answers unmapped free text with the honest capability line", async () => {
+  it("fails closed on unmapped free text when the operator key is missing", async () => {
     const { inserted } = stubWriteClient();
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
 
-    await expect(startAskGlobeeConversation("How much revenue did Harbor Cut make?")).resolves.toEqual(
-      { conversationId: THREAD },
-    );
+    await expect(startAskGlobeeConversation("How many titles are in my catalog?")).resolves.toEqual({
+      error: ASK_GLOBEE.unavailable,
+    });
+    expect(inserted).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(ASK_GLOBEE.unavailable).not.toBe(ASK_GLOBEE.capability);
+  });
+
+  it("answers unmapped free text from the model path instead of the capability stub", async () => {
+    const { inserted } = stubWriteClient();
+    process.env.ANTHROPIC_API_KEY = TEST_KEY;
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "tool_use",
+          content: [{ type: "tool_use", id: "toolu_1", name: "get_catalog_summary", input: {} }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "Your catalog has 1 title." }],
+        }),
+      });
+
+    await expect(startAskGlobeeConversation("How many titles are in my catalog?")).resolves.toEqual({
+      conversationId: THREAD,
+    });
     expect(inserted[2]?.row).toMatchObject({
       role: "globee",
-      lead: ASK_GLOBEE.capability,
+      lead: "Your catalog has 1 title.",
     });
-    expect(JSON.stringify(inserted[2])).not.toContain("Synopsis is required.");
+    expect(JSON.stringify(inserted)).not.toContain(ASK_GLOBEE.capability);
+    expect(JSON.stringify(inserted)).not.toContain(OTHER_ORG_FINDING);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe(ASK_GLOBEE_MODEL_ID);
+    expect(JSON.stringify(body)).not.toContain(OTHER_ORG_FINDING);
+    const toolRound = JSON.parse(String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body));
+    expect(JSON.stringify(toolRound)).not.toContain(OTHER_ORG_FINDING);
+    expect(JSON.stringify(toolRound)).not.toContain("ORPHAN_FINDING");
   });
 });
 
 describe("appendAskGlobeeTurn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchMock.mockReset();
+    delete process.env.ANTHROPIC_API_KEY;
   });
 
   it("appends both turns to the same conversation", async () => {
@@ -238,5 +299,6 @@ describe("appendAskGlobeeTurn", () => {
     });
     expect(vi.mocked(createClient)).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

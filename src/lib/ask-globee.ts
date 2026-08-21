@@ -2,9 +2,9 @@ import { USER_MENU } from "@/lib/user-menu";
 
 // Ask Globee copy and gating. Lives in lib/, not JSX.
 // Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
-// 247:295 chrome on a persisted thread. Winter Line fixture strings stay here
-// as a do-not-render lock — live answers come from org-filtered findings only.
-// No AI backend, no invented commercial text, no checkout.
+// 247:295 chrome on a persisted thread. Chip intents stay a live findings
+// lookup. Unmapped free text is the catalog-grounded operator. Winter Line
+// fixture strings stay here as a do-not-render lock. No checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 
@@ -61,6 +61,10 @@ export const ASK_GLOBEE = {
   capability: "I can answer catalog attention, blockers, and what to submit next.",
   emptyBlocking: "Nothing required is blocking a title.",
   emptySubmitNext: "Nothing is ready to submit next.",
+  thinking: "Thinking",
+  stop: "Stop",
+  stopHint: "Esc",
+  unavailable: "Globee is unavailable right now. Try again, or ask what needs attention.",
 } as const;
 
 export const ASK_GLOBEE_QUERY = "q";
@@ -133,6 +137,10 @@ export function askGlobeeChipActivation(label: (typeof ASK_GLOBEE_TRY_PROMPTS)[n
   send: string;
 } {
   return { prompt: label, selected: label, send: label };
+}
+
+export function askGlobeeUsesModel(prompt: string): boolean {
+  return askGlobeeSelectedChip(prompt) === null;
 }
 
 export function messagesShowsThreadHeader(surface: MessagesSurface, threadId: string | null): boolean {

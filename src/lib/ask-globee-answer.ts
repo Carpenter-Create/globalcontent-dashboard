@@ -11,8 +11,9 @@ import {
 import { CATALOG_HEALTH_EMPTY } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
 
-// Pure Ask Globee answers over the same titles + my_findings rows home already
-// loads. No invented titles, no other-org leakage, no model.
+// Pure chip answers over the same titles + my_findings rows home already loads.
+// Unmapped prompts return null — the operator owns that path. No invented
+// titles, no other-org leakage.
 
 export type AskGlobeeIntent = "attention" | "blocking" | "submit-next" | "unmapped";
 
@@ -95,16 +96,9 @@ export function buildAskGlobeeAnswer({
   orgId: string;
   now?: Date;
   bound?: number;
-}): AskGlobeeAnswer {
+}): AskGlobeeAnswer | null {
   const intent = resolveAskGlobeeIntent(prompt);
-  if (intent === "unmapped") {
-    return {
-      intent,
-      lead: ASK_GLOBEE.capability,
-      follow: null,
-      titleNames: [],
-    };
-  }
+  if (intent === "unmapped") return null;
 
   const titlesById = titleNameById(titles);
   const scoped = sortByTitleCreatedDesc(

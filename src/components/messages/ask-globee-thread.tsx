@@ -11,7 +11,7 @@ import {
   ThumbsUp,
 } from "lucide-react";
 
-import { ASK_GLOBEE, askGlobeeComposerSubmit } from "@/lib/ask-globee";
+import { ASK_GLOBEE, askGlobeeComposerSubmit, askGlobeeUsesModel } from "@/lib/ask-globee";
 import {
   askGlobeeAnswerText,
   askGlobeeDownloadFilename,
@@ -25,6 +25,7 @@ import {
   setAskGlobeeThumb,
 } from "@/app/(app)/messages/ask-globee-actions";
 import { useAskGlobeeChrome } from "./ask-globee-chrome";
+import { AskGlobeeThinking } from "./ask-globee-thinking";
 
 const COPIED_MS = 1500;
 const COMPOSER_FOCUS =
@@ -77,10 +78,21 @@ export function AskGlobeeThread({
   const { setChrome } = useAskGlobeeChrome();
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [thumbOverrides, setThumbOverrides] = useState<Record<string, AskGlobeeThumb | null>>({});
   const latestTurnRef = useRef<HTMLDivElement>(null);
   const copiedTimerRef = useRef<number>(0);
+  const cancelledRef = useRef(false);
+
+  function stopThinking() {
+    cancelledRef.current = true;
+    setThinking(false);
+    setPending(false);
+    setPendingPrompt(null);
+  }
 
   useEffect(() => {
     setChrome({
@@ -134,9 +146,9 @@ export function AskGlobeeThread({
           {turns.map((turn, index) => (
             <div
               key={turn[0]?.id ?? String(index)}
-              ref={index === turns.length - 1 ? latestTurnRef : undefined}
+              ref={index === turns.length - 1 && !thinking ? latestTurnRef : undefined}
               data-ask-globee-turn=""
-              data-ask-globee-thread-end={index === turns.length - 1 ? "" : undefined}
+              data-ask-globee-thread-end={index === turns.length - 1 && !thinking ? "" : undefined}
               className={
                 index > 0
                   ? "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]"
@@ -239,6 +251,29 @@ export function AskGlobeeThread({
               )}
             </div>
           ))}
+
+          {thinking && pendingPrompt ? (
+            <div
+              ref={latestTurnRef}
+              data-ask-globee-turn=""
+              data-ask-globee-thread-end=""
+              className={
+                turns.length > 0
+                  ? "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]"
+                  : "flex flex-col gap-[var(--space-6)]"
+              }
+            >
+              <div data-ask-globee-user-row="" className="flex items-start gap-[var(--space-2)]">
+                <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[length:var(--text-xs)] font-medium text-ink">
+                  {initials}
+                </div>
+                <div className="rounded-[var(--radius-lg)] bg-surface-muted p-[var(--space-4)]">
+                  <p className="t-body text-ink">{pendingPrompt}</p>
+                </div>
+              </div>
+              <AskGlobeeThinking onStop={stopThinking} />
+            </div>
+          ) : null}
         </div>
 
         <form
@@ -248,13 +283,24 @@ export function AskGlobeeThread({
             event.preventDefault();
             const next = askGlobeeComposerSubmit(draft);
             if (!next || pending) return;
+            cancelledRef.current = false;
+            setError(null);
             setPending(true);
+            if (askGlobeeUsesModel(next)) {
+              setThinking(true);
+              setPendingPrompt(next);
+            }
             void appendAskGlobeeTurn(conversation.id, next).then((result) => {
+              if (cancelledRef.current) return;
+              setThinking(false);
+              setPendingPrompt(null);
               setPending(false);
               if (!("error" in result)) {
                 setDraft("");
                 router.refresh();
+                return;
               }
+              setError(result.error);
             });
           }}
         >
@@ -280,6 +326,11 @@ export function AskGlobeeThread({
             </button>
           </label>
         </form>
+        {error ? (
+          <p data-ask-globee-error="" className="mt-[var(--space-2)] text-center t-body-sm text-ink-2">
+            {error}
+          </p>
+        ) : null}
       </div>
     </div>
   );

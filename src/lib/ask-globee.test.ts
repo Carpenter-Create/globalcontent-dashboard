@@ -10,6 +10,7 @@ import {
   askGlobeeLandingHref,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
+  askGlobeeUsesModel,
   canRenderAskGlobeeLanding,
   canRenderAskGlobeeThread,
   isAskGlobeeTier,
@@ -56,6 +57,12 @@ describe("Ask Globee copy lock", () => {
     );
     expect(ASK_GLOBEE.emptyBlocking).toBe("Nothing required is blocking a title.");
     expect(ASK_GLOBEE.emptySubmitNext).toBe("Nothing is ready to submit next.");
+    expect(ASK_GLOBEE.thinking).toBe("Thinking");
+    expect(ASK_GLOBEE.stop).toBe("Stop");
+    expect(ASK_GLOBEE.stopHint).toBe("Esc");
+    expect(ASK_GLOBEE.unavailable).toBe(
+      "Globee is unavailable right now. Try again, or ask what needs attention.",
+    );
     expect(ASK_GLOBEE.attributionName).toBe("Globee AI");
     expect(ASK_GLOBEE.renameLabel).toBe("Rename");
     expect(ASK_GLOBEE.pinLabel).toBe("Pin");
@@ -188,6 +195,9 @@ describe("Ask Globee send helpers", () => {
     expect(askGlobeeLandingHref()).toBe("/messages");
     expect(askGlobeeSelectedChip("  what needs attention  ")).toBe("What needs attention");
     expect(askGlobeeSelectedChip("unmapped")).toBeNull();
+    expect(askGlobeeUsesModel("What needs attention")).toBe(false);
+    expect(askGlobeeUsesModel("How many titles are in my catalog?")).toBe(true);
+    expect(askGlobeeUsesModel("Would you help guide me?")).toBe(true);
   });
 
   it("truncates a long first prompt into the conversation title", () => {
