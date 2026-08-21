@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   startAskGlobeeConversation: vi.fn(),
   appendAskGlobeeTurn: vi.fn(),
+  completeAskGlobeeTurn: vi.fn(),
   setAskGlobeeThumb: vi.fn(),
   renameAskGlobeeConversation: vi.fn(),
   pinAskGlobeeConversation: vi.fn(),

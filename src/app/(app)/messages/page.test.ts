@@ -25,6 +25,7 @@ vi.mock("@/lib/org-tier", () => ({ getActiveOrgTier: vi.fn() }));
 vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   startAskGlobeeConversation: vi.fn(),
   appendAskGlobeeTurn: vi.fn(),
+  completeAskGlobeeTurn: vi.fn(),
   setAskGlobeeThumb: vi.fn(),
   renameAskGlobeeConversation: vi.fn(),
   pinAskGlobeeConversation: vi.fn(),
@@ -173,6 +174,7 @@ describe("MessagesPage surfaces", () => {
 
     const html = await renderPage();
     expect(html).toContain("data-ask-globee-landing");
+    expect(html).not.toContain("data-ask-globee-thinking");
     expectNoThreadFixture(html);
   });
 
@@ -369,6 +371,43 @@ describe("MessagesPage Ask Globee persist", () => {
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain("Winter Line");
     expect(html).not.toContain("Harbor Lights");
+  });
+
+  it("shows thinking chrome on a landing-originated open user turn", async () => {
+    const { rpc } = stubClient({
+      conversations: [
+        {
+          id: THREAD,
+          title: "What is blocking a title",
+          pinned_at: null,
+          created_at: "2026-08-19T11:00:00.000Z",
+          updated_at: "2026-08-19T11:00:00.000Z",
+        },
+      ],
+      messages: [
+        {
+          id: USER_MSG,
+          role: "user",
+          body: "What is blocking a title",
+          lead: null,
+          follow: null,
+          thumbs: null,
+          created_at: "2026-08-19T11:00:00.000Z",
+        },
+      ],
+    });
+    vi.mocked(getOrgContext).mockResolvedValue(ctx({ email: "ada@example.com" }) as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+
+    const html = await renderPage({ thread: THREAD });
+    expect(html).toContain("data-ask-globee-thread");
+    expect(html).toContain("What is blocking a title");
+    expect(html).toContain("data-ask-globee-thinking");
+    expect(html).toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain("data-ask-globee-landing");
+    expect(html).not.toContain(ASK_GLOBEE.emptyBlocking);
+    expect(html).not.toContain("Winter Line");
+    expect(rpc).not.toHaveBeenCalledWith("my_findings");
   });
 
   it("ignores a leftover ?q= rewrite and stays on landing", async () => {

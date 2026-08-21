@@ -20,6 +20,15 @@ export type AskGlobeeStoredMessage = {
   created_at: string;
 };
 
+export function askGlobeeOpenUserTurn(
+  messages: ReadonlyArray<{ role: "user" | "globee"; body: string }>,
+): string | null {
+  const last = messages.at(-1);
+  if (!last || last.role !== "user") return null;
+  const next = last.body.trim();
+  return next.length > 0 ? next : null;
+}
+
 export function sortAskGlobeeHistory<T extends { pinned_at: string | null; updated_at: string }>(
   rows: T[],
 ): T[] {

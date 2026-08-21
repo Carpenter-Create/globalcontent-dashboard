@@ -15,6 +15,7 @@ import { ASK_GLOBEE, askGlobeeComposerSubmit, askGlobeeUsesModel } from "@/lib/a
 import {
   askGlobeeAnswerText,
   askGlobeeDownloadFilename,
+  askGlobeeOpenUserTurn,
   formatAskGlobeeAttribution,
   type AskGlobeeHistoryRow,
   type AskGlobeeStoredMessage,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/ask-globee-conversations";
 import {
   appendAskGlobeeTurn,
+  completeAskGlobeeTurn,
   setAskGlobeeThumb,
 } from "@/app/(app)/messages/ask-globee-actions";
 import { useAskGlobeeChrome } from "./ask-globee-chrome";
@@ -78,7 +80,7 @@ export function AskGlobeeThread({
   const { setChrome } = useAskGlobeeChrome();
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
-  const [thinking, setThinking] = useState(false);
+  const [thinking, setThinking] = useState(() => askGlobeeOpenUserTurn(messages) !== null);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -86,6 +88,7 @@ export function AskGlobeeThread({
   const latestTurnRef = useRef<HTMLDivElement>(null);
   const copiedTimerRef = useRef<number>(0);
   const cancelledRef = useRef(false);
+  const completingIdRef = useRef<string | null>(null);
 
   function stopThinking() {
     cancelledRef.current = true;
@@ -110,6 +113,28 @@ export function AskGlobeeThread({
   useEffect(() => {
     latestTurnRef.current?.scrollIntoView();
   }, [messages]);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "user" || !askGlobeeOpenUserTurn(messages)) {
+      return;
+    }
+    if (completingIdRef.current === last.id) return;
+    completingIdRef.current = last.id;
+    cancelledRef.current = false;
+    setPending(true);
+    setThinking(true);
+    void completeAskGlobeeTurn(conversation.id).then((result) => {
+      if (cancelledRef.current) return;
+      setThinking(false);
+      setPending(false);
+      if (!("error" in result)) {
+        router.refresh();
+        return;
+      }
+      setError(result.error);
+    });
+  }, [conversation.id, messages, router]);
 
   function thumbsFor(message: AskGlobeeStoredMessage): AskGlobeeThumb | null {
     return Object.hasOwn(thumbOverrides, message.id) ? thumbOverrides[message.id] ?? null : message.thumbs;
@@ -143,18 +168,25 @@ export function AskGlobeeThread({
           data-ask-globee-conversation=""
           className="flex flex-1 flex-col gap-[var(--space-6)] px-[var(--content-inset)]"
         >
-          {turns.map((turn, index) => (
-            <div
-              key={turn[0]?.id ?? String(index)}
-              ref={index === turns.length - 1 && !thinking ? latestTurnRef : undefined}
-              data-ask-globee-turn=""
-              data-ask-globee-thread-end={index === turns.length - 1 && !thinking ? "" : undefined}
-              className={
-                index > 0
-                  ? "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]"
-                  : "flex flex-col gap-[var(--space-6)]"
-              }
-            >
+          {turns.map((turn, index) => {
+            const isLastPersisted = index === turns.length - 1;
+            const showOpenThinking =
+              thinking &&
+              !pendingPrompt &&
+              isLastPersisted &&
+              !turn.some((message) => message.role === "globee");
+            return (
+              <div
+                key={turn[0]?.id ?? String(index)}
+                ref={isLastPersisted && !pendingPrompt ? latestTurnRef : undefined}
+                data-ask-globee-turn=""
+                data-ask-globee-thread-end={isLastPersisted && !pendingPrompt ? "" : undefined}
+                className={
+                  index > 0
+                    ? "flex flex-col gap-[var(--space-6)] border-t border-hairline pt-[var(--space-6)]"
+                    : "flex flex-col gap-[var(--space-6)]"
+                }
+              >
               {turn.map((message) =>
                 message.role === "user" ? (
                   <div
@@ -249,8 +281,10 @@ export function AskGlobeeThread({
                   </div>
                 ),
               )}
+              {showOpenThinking ? <AskGlobeeThinking onStop={stopThinking} /> : null}
             </div>
-          ))}
+            );
+          })}
 
           {thinking && pendingPrompt ? (
             <div
