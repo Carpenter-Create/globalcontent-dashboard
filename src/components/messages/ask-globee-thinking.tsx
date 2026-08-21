@@ -1,15 +1,28 @@
-import { ASK_GLOBEE, askGlobeeThinkingVerb } from "@/lib/ask-globee";
+import {
+  ASK_GLOBEE,
+  askGlobeeInFlightLead,
+  askGlobeeThinkingVerb,
+  type AskGlobeeThinkingPhase,
+} from "@/lib/ask-globee";
 
-// 427:352 empty-lead thinking, or 427:440 handoff once a live lead exists.
+// 427:352 empty-lead fetching, then 427:440 finding-the-signal chrome.
+// A live catalog lead is optional ink on step 2 — never a Winter Line fixture.
 // Catalog verbs are chrome, not persisted conversation_messages rows.
-export function AskGlobeeThinking({ lead = null }: { lead?: string | null }) {
-  const liveLead = lead?.trim() || null;
-  const verb = askGlobeeThinkingVerb(liveLead);
+export function AskGlobeeThinking({
+  lead = null,
+  phase = "fetching",
+}: {
+  lead?: string | null;
+  phase?: AskGlobeeThinkingPhase;
+}) {
+  const liveLead = askGlobeeInFlightLead(phase, lead);
+  const verb = askGlobeeThinkingVerb(phase);
+  const handoff = phase === "finding";
 
   return (
     <div
       data-ask-globee-thinking=""
-      data-ask-globee-handoff={liveLead ? "" : undefined}
+      data-ask-globee-handoff={handoff ? "" : undefined}
       className="flex items-start gap-[var(--space-2)]"
     >
       <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[length:var(--text-xs)] font-medium text-accent-contrast">
@@ -23,7 +36,7 @@ export function AskGlobeeThinking({ lead = null }: { lead?: string | null }) {
         )}
         <p
           data-ask-globee-thinking-verb=""
-          className={liveLead ? "t-body-sm text-ink-3/55" : "t-body-sm text-ink-3"}
+          className={handoff ? "t-body-sm text-ink-3/55" : "t-body-sm text-ink-3"}
         >
           {verb}
         </p>

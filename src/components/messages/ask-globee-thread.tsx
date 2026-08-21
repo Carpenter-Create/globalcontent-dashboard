@@ -11,7 +11,13 @@ import {
   ThumbsUp,
 } from "lucide-react";
 
-import { ASK_GLOBEE, askGlobeeComposerSubmit, askGlobeeUsesModel } from "@/lib/ask-globee";
+import {
+  ASK_GLOBEE,
+  ASK_GLOBEE_FETCHING_HOLD_MS,
+  askGlobeeComposerSubmit,
+  askGlobeeThinkingPhase,
+  askGlobeeUsesModel,
+} from "@/lib/ask-globee";
 import {
   askGlobeeAnswerText,
   askGlobeeDownloadFilename,
@@ -67,8 +73,9 @@ function downloadAnswer(title: string, lead: string, follow: string | null) {
   URL.revokeObjectURL(url);
 }
 
-// Thinking is empty-lead fetching chrome. Handoff needs a live in-flight lead;
-// this operator is pending vs done, so the thread never fakes one.
+// Thinking plays fetching… then finding the signal… while the turn is in
+// flight. Time advances the verb; a live catalog lead is optional ink on
+// step 2. This operator is pending vs done, so the thread never fakes one.
 export function AskGlobeeThread({
   initials,
   conversation,
@@ -83,6 +90,7 @@ export function AskGlobeeThread({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [thinking, setThinking] = useState(() => askGlobeeOpenUserTurn(messages) !== null);
+  const [thinkingElapsedMs, setThinkingElapsedMs] = useState(0);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -124,6 +132,20 @@ export function AskGlobeeThread({
   useEffect(() => {
     latestTurnRef.current?.scrollIntoView();
   }, [messages]);
+
+  const openTurnKey = thinking
+    ? (pendingPrompt ?? messages.at(-1)?.id ?? "pending")
+    : null;
+
+  useEffect(() => {
+    if (!openTurnKey) return;
+    const id = window.setTimeout(() => {
+      setThinkingElapsedMs(ASK_GLOBEE_FETCHING_HOLD_MS);
+    }, ASK_GLOBEE_FETCHING_HOLD_MS);
+    return () => window.clearTimeout(id);
+  }, [openTurnKey]);
+
+  const thinkingPhase = askGlobeeThinkingPhase(thinkingElapsedMs);
 
   useEffect(() => {
     const last = messages[messages.length - 1];
@@ -292,7 +314,7 @@ export function AskGlobeeThread({
                   </div>
                 ),
               )}
-              {showOpenThinking ? <AskGlobeeThinking /> : null}
+              {showOpenThinking ? <AskGlobeeThinking phase={thinkingPhase} /> : null}
             </div>
             );
           })}
@@ -316,7 +338,7 @@ export function AskGlobeeThread({
                   <p className="t-body text-ink">{pendingPrompt}</p>
                 </div>
               </div>
-              <AskGlobeeThinking />
+              <AskGlobeeThinking phase={thinkingPhase} />
             </div>
           ) : null}
         </div>
@@ -332,6 +354,7 @@ export function AskGlobeeThread({
             setError(null);
             setPending(true);
             if (askGlobeeUsesModel(next)) {
+              setThinkingElapsedMs(0);
               setThinking(true);
               setPendingPrompt(next);
             }
