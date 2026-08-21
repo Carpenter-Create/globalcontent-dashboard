@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronUp, MoreHorizontal } from "lucide-react";
 
 import { SearchField } from "@/components/layout/search-field";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   showMessagesHeaderSearch,
   type MessagesSurface,
 } from "@/lib/ask-globee";
+import { AskGlobeeHistoryPopover } from "@/components/messages/ask-globee-history";
 import { useAskGlobeeChrome } from "@/components/messages/ask-globee-chrome";
 import {
   deleteAskGlobeeConversation,
@@ -32,11 +33,13 @@ import {
 
 function MessagesThreadHeader({ title }: { title: string }) {
   const router = useRouter();
-  const { chrome, setChrome } = useAskGlobeeChrome();
+  const { chrome, setChrome, conversations } = useAskGlobeeChrome();
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(title);
   const pinned = !!chrome?.pinned_at;
+  const threadTitle = chrome?.title ?? title;
 
   return (
     <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-2)]">
@@ -47,7 +50,28 @@ function MessagesThreadHeader({ title }: { title: string }) {
       >
         <ChevronLeft className="size-4" strokeWidth={1.33} />
       </Link>
-      <p className="truncate t-body-sm text-ink">{chrome?.title ?? title}</p>
+      <AskGlobeeHistoryPopover
+        conversations={conversations}
+        currentId={chrome?.id ?? null}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      >
+        <button
+          type="button"
+          data-ask-globee-history-title=""
+          aria-expanded={historyOpen}
+          aria-haspopup="dialog"
+          onClick={() => setHistoryOpen((open) => !open)}
+          className="flex min-w-0 items-center gap-[var(--space-1)] text-left"
+        >
+          <span className="truncate t-body-sm text-ink">{threadTitle}</span>
+          {historyOpen ? (
+            <ChevronUp className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
+          ) : (
+            <ChevronDown className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
+          )}
+        </button>
+      </AskGlobeeHistoryPopover>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

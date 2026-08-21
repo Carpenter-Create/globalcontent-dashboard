@@ -43,6 +43,11 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.need).toBe("What do you need?");
     expect(ASK_GLOBEE.tryLabel).toBe("Try one of these");
     expect(ASK_GLOBEE.historyLabel).toBe("History");
+    expect(ASK_GLOBEE.historySearchPlaceholder).toBe("Search past conversations");
+    expect(ASK_GLOBEE.thisWeekLabel).toBe("This week");
+    expect(ASK_GLOBEE.allThreadsLabel).toBe("All threads");
+    expect(ASK_GLOBEE.pastConversationsLabel).toBe("Past conversations");
+    expect(ASK_GLOBEE.newConversationLabel).toBe("New conversation");
     expect(ASK_GLOBEE.tryPrompts).toEqual([
       "What needs attention",
       "What is blocking a title",

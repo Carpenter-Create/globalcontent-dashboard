@@ -3,27 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Clock, Plus } from "lucide-react";
 
 import {
   ASK_GLOBEE,
   askGlobeeChipActivation,
   askGlobeeComposerSubmit,
+  askGlobeeLandingHref,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
 } from "@/lib/ask-globee";
-import {
-  formatAskGlobeeHistoryTime,
-  type AskGlobeeHistoryRow,
-} from "@/lib/ask-globee-conversations";
+import { type AskGlobeeHistoryRow } from "@/lib/ask-globee-conversations";
 import { cn } from "@/lib/cn";
 import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
+import { AskGlobeeHistoryPopover } from "./ask-globee-history";
 
 // Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
 // prompt as free text. Submit persists the user turn, then navigates to the
-// thread. HISTORY lists real org threads only. No invented titles. Thinking
-// chrome (427:352 empty lead + fetching…) is on the conversation page, never
-// this landing.
+// thread. Quiet clock (top-left) opens past conversations. Plus (top-right)
+// is a new conversation on this empty home. No HISTORY list. No invented
+// titles. Thinking chrome (427:352 empty lead + fetching…) is on the
+// conversation page, never this landing.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -33,6 +33,7 @@ export function AskGlobeeLanding({
   const [prompt, setPrompt] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const selected = askGlobeeSelectedChip(prompt);
 
   const send = async (value: string) => {
@@ -54,8 +55,40 @@ export function AskGlobeeLanding({
   return (
     <div
       data-ask-globee-landing=""
-      className="flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center"
+      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center"
     >
+      <div className="absolute left-0 top-0">
+        <AskGlobeeHistoryPopover
+          conversations={conversations}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+        >
+          <button
+            type="button"
+            data-ask-globee-clock=""
+            aria-label={ASK_GLOBEE.pastConversationsLabel}
+            aria-expanded={historyOpen}
+            onClick={() => setHistoryOpen((open) => !open)}
+            className="flex size-4 items-center justify-center text-ink-3"
+          >
+            <Clock className="size-4" strokeWidth={1.33} />
+          </button>
+        </AskGlobeeHistoryPopover>
+      </div>
+      <Link
+        href={askGlobeeLandingHref()}
+        data-ask-globee-new=""
+        aria-label={ASK_GLOBEE.newConversationLabel}
+        onClick={() => {
+          setPrompt("");
+          setError(null);
+          setHistoryOpen(false);
+        }}
+        className="absolute right-0 top-0 flex size-4 items-center justify-center text-ink-3"
+      >
+        <Plus className="size-4" strokeWidth={1.33} />
+      </Link>
+
       <div className="flex w-full flex-col items-center gap-[var(--space-8)]">
         <div className="flex flex-col items-center gap-[var(--space-2)]">
           <h1 data-ask-globee-headline="" className="t-display text-center text-ink">
@@ -132,35 +165,6 @@ export function AskGlobeeLanding({
             })}
           </div>
         </div>
-
-        {conversations.length > 0 ? (
-          <div
-            data-ask-globee-history=""
-            className="flex w-full max-w-[640px] flex-col gap-[var(--space-3)]"
-          >
-            <p className="t-label text-ink-3">{ASK_GLOBEE.historyLabel}</p>
-            <ul className="flex flex-col">
-              {conversations.map((row) => {
-                const href = askGlobeeThreadHref(row.id);
-                if (!href) return null;
-                return (
-                  <li key={row.id}>
-                    <Link
-                      href={href}
-                      data-ask-globee-history-row=""
-                      className="flex items-center justify-between gap-[var(--space-4)] py-[var(--space-3)]"
-                    >
-                      <span className="min-w-0 truncate t-body-sm text-ink">{row.title}</span>
-                      <span className="shrink-0 t-body-sm text-ink-3">
-                        {formatAskGlobeeHistoryTime(row.updated_at)}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : null}
       </div>
     </div>
   );
