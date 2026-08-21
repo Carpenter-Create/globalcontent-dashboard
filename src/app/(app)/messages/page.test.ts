@@ -239,7 +239,11 @@ describe("MessagesPage surfaces", () => {
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(html).toContain(label);
     }
-    expect(html).not.toContain("data-ask-globee-history");
+    expect(html).toContain("data-ask-globee-clock");
+    expect(html).toContain("data-ask-globee-new");
+    expect(html).not.toContain("data-ask-globee-history-popover");
+    expect(html).not.toContain("data-ask-globee-history-row");
+    expect(html).not.toContain(ASK_GLOBEE.historyLabel);
     expect(html).not.toContain("data-ask-globee-gate");
     expect(html).not.toContain(ASK_GLOBEE.included);
     expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
@@ -249,7 +253,7 @@ describe("MessagesPage surfaces", () => {
     expect(rpc).not.toHaveBeenCalledWith("my_findings");
   });
 
-  it("lists real HISTORY rows for this org only", async () => {
+  it("does not list HISTORY rows on landing even when the org has threads", async () => {
     stubClient({
       conversations: [
         {
@@ -265,12 +269,17 @@ describe("MessagesPage surfaces", () => {
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
 
     const html = await renderPage();
-    expect(html).toContain("data-ask-globee-history");
-    expect(html).toContain("What needs attention");
-    expect(html).toContain(`/messages?thread=${THREAD}`);
+    expect(html).toContain("data-ask-globee-landing");
+    expect(html).toContain("data-ask-globee-clock");
+    expect(html).toContain("data-ask-globee-new");
+    expect(html).not.toContain("data-ask-globee-history-popover");
+    expect(html).not.toContain("data-ask-globee-history-row");
+    expect(html).not.toContain(ASK_GLOBEE.historyLabel);
     expect(html).not.toContain("Winter Line");
     expect(html).not.toContain("Harbor Lights");
     expect(html).not.toContain("Get support");
+    expect(pageSrc).toContain("AskGlobeeLanding");
+    expect(pageSrc).toContain("conversations={sortAskGlobeeHistory");
   });
 
   it("shows the same landing for Premium", async () => {
@@ -374,6 +383,7 @@ describe("MessagesPage Ask Globee persist", () => {
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain("Winter Line");
     expect(html).not.toContain("Harbor Lights");
+    expect(pageSrc).toContain("conversations={sortAskGlobeeHistory");
   });
 
   it("shows thinking chrome on a landing-originated open user turn", async () => {

@@ -70,9 +70,14 @@ describe("MessagesAppHeader", () => {
     );
     expect(html).toContain("data-header-thread");
     expect(html).toContain("What needs attention");
+    expect(html).toContain("data-ask-globee-history-title");
     expect(html).toContain(`href="/messages"`);
     expect(html).toContain(ASK_GLOBEE.backLabel);
     expect(html).toContain(ASK_GLOBEE.moreLabel);
+    expect(src).toContain("AskGlobeeHistoryPopover");
+    expect(src).toContain("ChevronDown");
+    expect(src).toContain("ChevronUp");
+    expect(html).not.toContain("data-ask-globee-history-popover");
     expect(html).toContain(ASK_GLOBEE.deleteTitle);
     expect(html).toContain(ASK_GLOBEE.deleteBody);
     expect(html).toContain(ASK_GLOBEE.deleteConfirm);

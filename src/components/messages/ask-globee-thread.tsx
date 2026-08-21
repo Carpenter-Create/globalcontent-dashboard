@@ -73,6 +73,8 @@ function downloadAnswer(title: string, lead: string, follow: string | null) {
   URL.revokeObjectURL(url);
 }
 
+const EMPTY_HISTORY: AskGlobeeHistoryRow[] = [];
+
 // Thinking plays fetching… then finding the signal… while the turn is in
 // flight. Time advances the verb; a live catalog lead is optional ink on
 // step 2. This operator is pending vs done, so the thread never fakes one.
@@ -80,13 +82,15 @@ export function AskGlobeeThread({
   initials,
   conversation,
   messages,
+  conversations = EMPTY_HISTORY,
 }: {
   initials: string;
   conversation: AskGlobeeHistoryRow;
   messages: AskGlobeeStoredMessage[];
+  conversations?: AskGlobeeHistoryRow[];
 }) {
   const router = useRouter();
-  const { setChrome } = useAskGlobeeChrome();
+  const { setChrome, setConversations } = useAskGlobeeChrome();
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [thinking, setThinking] = useState(() => askGlobeeOpenUserTurn(messages) !== null);
@@ -122,8 +126,19 @@ export function AskGlobeeThread({
       title: conversation.title,
       pinned_at: conversation.pinned_at,
     });
-    return () => setChrome(null);
-  }, [conversation.id, conversation.pinned_at, conversation.title, setChrome]);
+    setConversations(conversations);
+    return () => {
+      setChrome(null);
+      setConversations([]);
+    };
+  }, [
+    conversation.id,
+    conversation.pinned_at,
+    conversation.title,
+    conversations,
+    setChrome,
+    setConversations,
+  ]);
 
   useEffect(() => {
     return () => window.clearTimeout(copiedTimerRef.current);

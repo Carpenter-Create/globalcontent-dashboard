@@ -21,9 +21,10 @@ import { AskGlobeeThread } from "@/components/messages/ask-globee-thread";
 import { NotificationInbox } from "@/components/messages/notification-inbox";
 
 // Access `/messages` is the Ask Globee upgrade gate (Figma 305:320).
-// Pro/Premium see the 7:73 landing + org HISTORY. Chip or composer send
-// persists the user turn, then 247:295 chrome on that thread. Staff
-// without a client org keep the inbox.
+// Pro/Premium see the 7:73 landing. Clock opens past org conversations;
+// plus stays on this empty home. Chip or composer send persists the user
+// turn, then 247:295 chrome on that thread. Staff without a client org
+// keep the inbox.
 export default async function MessagesPage({
   searchParams = Promise.resolve({}),
 }: {
@@ -66,11 +67,17 @@ export default async function MessagesPage({
           .eq("org_id", org.id)
           .order("created_at", { ascending: true })
           .range(...rangeFor(UNPAGINATED_MAX));
+        const { data: historyRows } = await supabase
+          .from("conversations")
+          .select("id, title, pinned_at, created_at, updated_at")
+          .eq("org_id", org.id)
+          .range(...rangeFor(UNPAGINATED_MAX));
         return (
           <AskGlobeeThread
             initials={userMenuAvatarInitial(ctx.user.email)}
             conversation={conversation}
             messages={(messageRows ?? []) as AskGlobeeStoredMessage[]}
+            conversations={sortAskGlobeeHistory((historyRows ?? []) as AskGlobeeHistoryRow[])}
           />
         );
       }

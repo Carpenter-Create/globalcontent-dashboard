@@ -5,8 +5,10 @@ import {
   askGlobeeAnswerText,
   askGlobeeDownloadFilename,
   askGlobeeOpenUserTurn,
+  filterAskGlobeeHistory,
   formatAskGlobeeAttribution,
   formatAskGlobeeHistoryTime,
+  groupAskGlobeeHistory,
   nextAskGlobeeThumb,
   sortAskGlobeeHistory,
 } from "./ask-globee-conversations";
@@ -55,6 +57,24 @@ describe("askGlobee answer chrome helpers", () => {
     expect(nextAskGlobeeThumb(null, "up")).toBe("up");
     expect(nextAskGlobeeThumb("up", "up")).toBeNull();
     expect(nextAskGlobeeThumb("up", "down")).toBe("down");
+  });
+});
+
+describe("groupAskGlobeeHistory", () => {
+  it("partitions this week from older threads and filters by title", () => {
+    const rows = [
+      { id: "today", title: "What needs attention", updated_at: new Date(2026, 7, 19, 7, 10, 0).toISOString() },
+      { id: "yesterday", title: "What is blocking a title", updated_at: new Date(2026, 7, 18, 7, 10, 0).toISOString() },
+      { id: "older", title: "What should I submit next", updated_at: new Date(2026, 7, 1, 7, 10, 0).toISOString() },
+    ];
+    const grouped = groupAskGlobeeHistory(rows, NOW);
+    expect(grouped.thisWeek.map((row) => row.id)).toEqual(["today", "yesterday"]);
+    expect(grouped.allThreads.map((row) => row.id)).toEqual(["older"]);
+    expect(filterAskGlobeeHistory(rows, "blocking").map((row) => row.id)).toEqual(["yesterday"]);
+    expect(filterAskGlobeeHistory(rows, "   ").map((row) => row.id)).toEqual(["today", "yesterday", "older"]);
+    expect(JSON.stringify(grouped)).not.toContain("Winter Line");
+    expect(JSON.stringify(grouped)).not.toContain("Harbor Lights");
+    expect(JSON.stringify(grouped)).not.toContain("Get support");
   });
 });
 

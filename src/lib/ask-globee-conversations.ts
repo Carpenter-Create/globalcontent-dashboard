@@ -77,14 +77,39 @@ function formatAskGlobeeClock(value: Date): string {
   return raw.replace(/\u202f/g, " ");
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
+
+export function isAskGlobeeHistoryThisWeek(iso: string, now = new Date()): boolean {
+  return startOfLocalDay(new Date(iso)) > startOfLocalDay(now) - WEEK_MS;
+}
+
+export function filterAskGlobeeHistory<T extends { title: string }>(rows: T[], query: string): T[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return rows;
+  return rows.filter((row) => row.title.toLowerCase().includes(needle));
+}
+
+export function groupAskGlobeeHistory<T extends { updated_at: string }>(
+  rows: T[],
+  now = new Date(),
+): { thisWeek: T[]; allThreads: T[] } {
+  const thisWeek: T[] = [];
+  const allThreads: T[] = [];
+  for (const row of rows) {
+    if (isAskGlobeeHistoryThisWeek(row.updated_at, now)) thisWeek.push(row);
+    else allThreads.push(row);
+  }
+  return { thisWeek, allThreads };
+}
+
 export function formatAskGlobeeHistoryTime(iso: string, now = new Date()): string {
   const then = new Date(iso);
   const thenDay = startOfLocalDay(then);
   const nowDay = startOfLocalDay(now);
-  const dayMs = 24 * 60 * 60 * 1000;
   if (thenDay === nowDay) return formatAskGlobeeClock(then);
-  if (thenDay === nowDay - dayMs) return "Yesterday";
-  if (thenDay > nowDay - 7 * dayMs && thenDay < nowDay) {
+  if (thenDay === nowDay - DAY_MS) return "Yesterday";
+  if (thenDay > nowDay - WEEK_MS && thenDay < nowDay) {
     return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(then);
   }
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(then);
