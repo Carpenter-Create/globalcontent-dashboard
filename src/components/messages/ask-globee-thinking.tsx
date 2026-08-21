@@ -1,29 +1,32 @@
-"use client";
+import { ASK_GLOBEE, askGlobeeThinkingVerb } from "@/lib/ask-globee";
 
-import { useEffect } from "react";
-
-import { ASK_GLOBEE } from "@/lib/ask-globee";
-
-export function AskGlobeeThinking({ onStop }: { onStop: () => void }) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onStop();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onStop]);
+// 427:352 empty-lead thinking, or 427:440 handoff once a live lead exists.
+// Catalog verbs are chrome, not persisted conversation_messages rows.
+export function AskGlobeeThinking({ lead = null }: { lead?: string | null }) {
+  const liveLead = lead?.trim() || null;
+  const verb = askGlobeeThinkingVerb(liveLead);
 
   return (
-    <div data-ask-globee-thinking="" className="flex items-start gap-[var(--space-2)]">
+    <div
+      data-ask-globee-thinking=""
+      data-ask-globee-handoff={liveLead ? "" : undefined}
+      className="flex items-start gap-[var(--space-2)]"
+    >
       <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[length:var(--text-xs)] font-medium text-accent-contrast">
         {ASK_GLOBEE.globeeMark}
       </div>
-      <div className="flex w-full max-w-[640px] items-center justify-between gap-[var(--space-4)]">
-        <p className="t-body text-ink-2">{ASK_GLOBEE.thinking}</p>
-        <button type="button" data-ask-globee-stop="" onClick={onStop} className="t-body-sm text-ink-3">
-          {ASK_GLOBEE.stop}
-          <span className="ml-[var(--space-2)]">{ASK_GLOBEE.stopHint}</span>
-        </button>
+      <div className="flex w-full max-w-[640px] flex-col">
+        {liveLead ? (
+          <p className="t-body leading-6 text-ink">{liveLead}</p>
+        ) : (
+          <div data-ask-globee-lead-slot="" className="min-h-6" />
+        )}
+        <p
+          data-ask-globee-thinking-verb=""
+          className={liveLead ? "t-body-sm text-ink-3/55" : "t-body-sm text-ink-3"}
+        >
+          {verb}
+        </p>
       </div>
     </div>
   );

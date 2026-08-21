@@ -48,6 +48,9 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-thread");
     expect(html).not.toContain("data-ask-globee-thinking");
     expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
+    expect(html).not.toContain(ASK_GLOBEE.escToCancel);
     expect(html).not.toContain(ASK_GLOBEE.userPrompt);
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain(ASK_GLOBEE.attribution);
@@ -58,13 +61,18 @@ describe("AskGlobeeLanding", () => {
 
     expect(html).not.toContain("data-ask-globee-thinking");
     expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain(ASK_GLOBEE.stop);
     expect(html).not.toContain(ASK_GLOBEE.stopHint);
+    expect(html).not.toContain(ASK_GLOBEE.escToCancel);
     expect(src).toContain("startAskGlobeeConversation");
     expect(src).toContain("router.push(href)");
     expect(src).toContain("askGlobeeThreadHref");
     expect(src).not.toContain("AskGlobeeThinking");
     expect(src).not.toContain("data-ask-globee-thinking");
+    expect(src).not.toContain("fetching relevant skills");
+    expect(src).not.toContain("finding the signal");
     expect(src).not.toContain("setThinking");
     expect(src).not.toContain("askGlobeeUsesModel");
     expect(src).not.toContain("completeAskGlobeeTurn");

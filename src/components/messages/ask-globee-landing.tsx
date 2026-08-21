@@ -22,7 +22,8 @@ import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-acti
 // Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
 // prompt as free text. Submit persists the user turn, then navigates to the
 // thread. HISTORY lists real org threads only. No invented titles. Thinking
-// chrome (246:296 Esc/stop) is on the conversation page, never this landing.
+// chrome (427:352 empty lead + fetching…) is on the conversation page, never
+// this landing.
 export function AskGlobeeLanding({
   conversations = [],
 }: {

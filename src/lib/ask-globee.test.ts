@@ -9,6 +9,7 @@ import {
   askGlobeeConversationTitle,
   askGlobeeLandingHref,
   askGlobeeSelectedChip,
+  askGlobeeThinkingVerb,
   askGlobeeThreadHref,
   askGlobeeUsesModel,
   canRenderAskGlobeeLanding,
@@ -58,8 +59,13 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.emptyBlocking).toBe("Nothing required is blocking a title.");
     expect(ASK_GLOBEE.emptySubmitNext).toBe("Nothing is ready to submit next.");
     expect(ASK_GLOBEE.thinking).toBe("Thinking");
+    expect(ASK_GLOBEE.fetchingSkills).toBe("fetching relevant skills…");
+    expect(ASK_GLOBEE.findingSignal).toBe("finding the signal…");
+    expect(ASK_GLOBEE.fetchingSkills.endsWith("…")).toBe(true);
+    expect(ASK_GLOBEE.findingSignal.endsWith("…")).toBe(true);
     expect(ASK_GLOBEE.stop).toBe("Stop");
     expect(ASK_GLOBEE.stopHint).toBe("Esc");
+    expect(ASK_GLOBEE.escToCancel).toBe("Esc to cancel");
     expect(ASK_GLOBEE.unavailable).toBe(
       "Globee is unavailable right now. Try again, or ask what needs attention.",
     );
@@ -205,6 +211,18 @@ describe("Ask Globee send helpers", () => {
       expect(askGlobeeUsesModel(label)).toBe(true);
       expect(askGlobeeUsesModel(`  ${label}  `)).toBe(true);
     }
+  });
+
+  it("uses fetching chrome until a live lead exists, then finding chrome", () => {
+    expect(askGlobeeThinkingVerb(null)).toBe(ASK_GLOBEE.fetchingSkills);
+    expect(askGlobeeThinkingVerb("   ")).toBe(ASK_GLOBEE.fetchingSkills);
+    expect(askGlobeeThinkingVerb("Harbor Cut — Synopsis is required.")).toBe(
+      ASK_GLOBEE.findingSignal,
+    );
+    expect(askGlobeeThinkingVerb(ASK_GLOBEE.fetchingSkills)).not.toContain("Winter Line");
+    expect(askGlobeeThinkingVerb("Harbor Cut — Synopsis is required.")).not.toContain(
+      "Looking at",
+    );
   });
 
   it("truncates a long first prompt into the conversation title", () => {
