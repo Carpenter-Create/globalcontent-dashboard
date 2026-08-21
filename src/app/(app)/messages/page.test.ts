@@ -240,7 +240,8 @@ describe("MessagesPage surfaces", () => {
       expect(html).toContain(label);
     }
     expect(html).toContain("data-ask-globee-clock");
-    expect(html).toContain("data-ask-globee-new");
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).not.toContain("data-ask-globee-history-popover");
     expect(html).not.toContain("data-ask-globee-history-row");
     expect(html).not.toContain(ASK_GLOBEE.historyLabel);
@@ -271,7 +272,8 @@ describe("MessagesPage surfaces", () => {
     const html = await renderPage();
     expect(html).toContain("data-ask-globee-landing");
     expect(html).toContain("data-ask-globee-clock");
-    expect(html).toContain("data-ask-globee-new");
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).not.toContain("data-ask-globee-history-popover");
     expect(html).not.toContain("data-ask-globee-history-row");
     expect(html).not.toContain(ASK_GLOBEE.historyLabel);

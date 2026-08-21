@@ -91,6 +91,10 @@ describe("MessagesAppHeader", () => {
     expect(html).not.toContain("SearchField");
     expect(html).not.toContain(ASK_GLOBEE.threadTitle);
     expect(html).not.toContain("Winter Line");
+    if (src.includes("data-ask-globee-new")) {
+      expect(html).toContain("data-ask-globee-new");
+      expect(html).toContain(ASK_GLOBEE.newConversationLabel);
+    }
   });
 
   it("renders nothing for the staff inbox", () => {

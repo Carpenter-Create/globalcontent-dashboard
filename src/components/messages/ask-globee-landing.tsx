@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Clock, Plus } from "lucide-react";
+import { ArrowRight, Clock } from "lucide-react";
 
 import {
   ASK_GLOBEE,
   askGlobeeChipActivation,
   askGlobeeComposerSubmit,
-  askGlobeeLandingHref,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
 } from "@/lib/ask-globee";
@@ -20,10 +18,10 @@ import { AskGlobeeHistoryPopover } from "./ask-globee-history";
 
 // Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
 // prompt as free text. Submit persists the user turn, then navigates to the
-// thread. Quiet clock (top-left) opens past conversations. Plus (top-right)
-// is a new conversation on this empty home. No HISTORY list. No invented
-// titles. Thinking chrome (427:352 empty lead + fetching…) is on the
-// conversation page, never this landing.
+// thread. Quiet clock (top-left) opens past conversations. No plus on this
+// empty home. No HISTORY list. No invented titles. Thinking chrome
+// (427:352 empty lead + fetching…) is on the conversation page, never
+// this landing.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -75,19 +73,6 @@ export function AskGlobeeLanding({
           </button>
         </AskGlobeeHistoryPopover>
       </div>
-      <Link
-        href={askGlobeeLandingHref()}
-        data-ask-globee-new=""
-        aria-label={ASK_GLOBEE.newConversationLabel}
-        onClick={() => {
-          setPrompt("");
-          setError(null);
-          setHistoryOpen(false);
-        }}
-        className="absolute right-0 top-0 flex size-4 items-center justify-center text-ink-3"
-      >
-        <Plus className="size-4" strokeWidth={1.33} />
-      </Link>
 
       <div className="flex w-full flex-col items-center gap-[var(--space-8)]">
         <div className="flex flex-col items-center gap-[var(--space-2)]">
