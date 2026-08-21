@@ -108,7 +108,12 @@ describe("AskGlobeeThread", () => {
     expect(src).toContain("askGlobeeUsesModel(next)");
     expect(src).toContain("AskGlobeeThinking");
     expect(src).toContain("stopThinking");
+    expect(src).toContain("data-ask-globee-composer-busy");
+    expect(src).toContain("ASK_GLOBEE.escToCancel");
     expect(html).not.toContain("data-ask-globee-thinking");
+    expect(html).not.toContain("data-ask-globee-composer-busy");
+    expect(html).toContain(`aria-label="${ASK_GLOBEE.sendLabel}"`);
+    expect(html).not.toContain("Looking at The Winter Line");
     expect(src).not.toContain("router.replace");
     expect(src).not.toContain("askGlobeeThreadHref");
     expect(src).not.toContain("ANTHROPIC");
@@ -296,7 +301,7 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain("data-ask-globee-upgrade");
   });
 
-  it("shows thinking chrome while a landing-originated turn is in flight", () => {
+  it("shows empty-lead thinking chrome and Esc/Stop composer while a turn is in flight", () => {
     const html = renderThread([
       {
         id: USER_MSG,
@@ -308,19 +313,51 @@ describe("AskGlobeeThread", () => {
         created_at: "2026-08-19T11:00:00.000Z",
       },
     ]);
+    const composer = html.slice(html.indexOf("data-ask-globee-composer"));
 
     expect(html).toContain("What is blocking a title");
     expect(html).toContain('data-ask-globee-thinking=""');
-    expect(html).toContain(ASK_GLOBEE.thinking);
-    expect(html).toContain(ASK_GLOBEE.stop);
-    expect(html).toContain(ASK_GLOBEE.stopHint);
+    expect(html).toContain('data-ask-globee-lead-slot=""');
+    expect(html).toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).toContain("…");
     expect(html).toContain('data-ask-globee-user-row=""');
+    expect(composer).toContain('data-ask-globee-composer-busy=""');
+    expect(composer).toContain(ASK_GLOBEE.escToCancel);
+    expect(composer).toContain('data-ask-globee-stop=""');
+    expect(composer).toContain(`aria-label="${ASK_GLOBEE.stop}"`);
+    expect(composer).toContain("block size-3 bg-ink");
+    expect(composer).not.toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(composer).not.toContain(`aria-label="${ASK_GLOBEE.sendLabel}"`);
+    expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain("Looking at");
+    expect(html).not.toContain("Looking at The Winter Line");
     expect(html).not.toContain("Winter Line");
     expect(html).not.toContain(ASK_GLOBEE.emptyBlocking);
     expect(html).not.toContain(ASK_GLOBEE.capability);
     expect(src).toContain("completeAskGlobeeTurn");
     expect(src).toContain("askGlobeeOpenUserTurn");
+    expect(src).toContain("<AskGlobeeThinking />");
+    expect(src).not.toContain("<AskGlobeeThinking lead");
+  });
+
+  it("keeps the answered turn flush with no answer bubble", () => {
+    const html = renderThread();
+    const answer = html.slice(
+      html.indexOf("data-ask-globee-answer"),
+      html.indexOf("data-ask-globee-composer"),
+    );
+
+    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(html).toContain(ASK_GLOBEE.attributionName);
+    expect(html).toContain(ASK_GLOBEE.copyLabel);
+    expect(html).toContain(ASK_GLOBEE.downloadLabel);
+    expect(html).toContain(ASK_GLOBEE.thumbsUpLabel);
+    expect(html).toContain(ASK_GLOBEE.thumbsDownLabel);
+    expect(answer).toContain("t-body text-ink");
+    expect(answer).not.toContain("rounded-[var(--radius-lg)] bg-surface-muted");
+    expect(html).not.toContain("Looking at The Winter Line");
+    expect(html).not.toContain("Winter Line");
   });
 
   it("keeps Access isolation: the upgrade gate never renders this thread", () => {

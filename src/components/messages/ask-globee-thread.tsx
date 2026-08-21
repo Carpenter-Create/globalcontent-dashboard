@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -67,6 +67,8 @@ function downloadAnswer(title: string, lead: string, follow: string | null) {
   URL.revokeObjectURL(url);
 }
 
+// Thinking is empty-lead fetching chrome. Handoff needs a live in-flight lead;
+// this operator is pending vs done, so the thread never fakes one.
 export function AskGlobeeThread({
   initials,
   conversation,
@@ -90,12 +92,21 @@ export function AskGlobeeThread({
   const cancelledRef = useRef(false);
   const completingIdRef = useRef<string | null>(null);
 
-  function stopThinking() {
+  const stopThinking = useCallback(() => {
     cancelledRef.current = true;
     setThinking(false);
     setPending(false);
     setPendingPrompt(null);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!thinking) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") stopThinking();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [thinking, stopThinking]);
 
   useEffect(() => {
     setChrome({
@@ -281,7 +292,7 @@ export function AskGlobeeThread({
                   </div>
                 ),
               )}
-              {showOpenThinking ? <AskGlobeeThinking onStop={stopThinking} /> : null}
+              {showOpenThinking ? <AskGlobeeThinking /> : null}
             </div>
             );
           })}
@@ -305,7 +316,7 @@ export function AskGlobeeThread({
                   <p className="t-body text-ink">{pendingPrompt}</p>
                 </div>
               </div>
-              <AskGlobeeThinking onStop={stopThinking} />
+              <AskGlobeeThinking />
             </div>
           ) : null}
         </div>
@@ -338,27 +349,45 @@ export function AskGlobeeThread({
             });
           }}
         >
-          <label
-            className={`flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)] ${COMPOSER_FOCUS}`}
-          >
-            <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
-            <input
-              type="text"
-              name="prompt"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={ASK_GLOBEE.composerPlaceholder}
-              autoComplete="off"
-              className={`min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 ${COMPOSER_FOCUS}`}
-            />
-            <button
-              type="submit"
-              aria-label={ASK_GLOBEE.sendLabel}
-              className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+          {thinking ? (
+            <div
+              data-ask-globee-composer-busy=""
+              className={`flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)] ${COMPOSER_FOCUS}`}
             >
-              <ArrowRight className="size-4" strokeWidth={1.33} />
-            </button>
-          </label>
+              <p className="t-body-sm text-ink-3">{ASK_GLOBEE.escToCancel}</p>
+              <button
+                type="button"
+                data-ask-globee-stop=""
+                aria-label={ASK_GLOBEE.stop}
+                onClick={stopThinking}
+                className="flex size-4 shrink-0 items-center justify-center text-ink"
+              >
+                <span aria-hidden="true" className="block size-3 bg-ink" />
+              </button>
+            </div>
+          ) : (
+            <label
+              className={`flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)] ${COMPOSER_FOCUS}`}
+            >
+              <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
+              <input
+                type="text"
+                name="prompt"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={ASK_GLOBEE.composerPlaceholder}
+                autoComplete="off"
+                className={`min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 ${COMPOSER_FOCUS}`}
+              />
+              <button
+                type="submit"
+                aria-label={ASK_GLOBEE.sendLabel}
+                className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+              >
+                <ArrowRight className="size-4" strokeWidth={1.33} />
+              </button>
+            </label>
+          )}
         </form>
         {error ? (
           <p data-ask-globee-error="" className="mt-[var(--space-2)] text-center t-body-sm text-ink-2">

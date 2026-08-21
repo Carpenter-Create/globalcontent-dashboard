@@ -4,10 +4,12 @@ import { USER_MENU } from "@/lib/user-menu";
 // Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
 // 247:295 chrome on a persisted thread. Landing chips are suggested prompts —
 // same catalog-grounded operator as unmapped free text. Landing persists the
-// user turn and opens the thread; thinking chrome (Esc/stop) lives on the
-// thread while the operator runs. Tools may still use the findings lookup
-// internally. Winter Line fixture strings stay here as a do-not-render lock.
-// No checkout.
+// user turn and opens the thread; thinking chrome (empty lead + fetching
+// relevant skills…) lives on the thread while the operator runs. Handoff
+// chrome (live lead + finding the signal…) is for an in-flight lead only —
+// never a hardcoded Winter Line fact, never a conversation_messages row.
+// Tools may still use the findings lookup internally. Winter Line fixture
+// strings stay here as a do-not-render lock. No checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 
@@ -65,8 +67,11 @@ export const ASK_GLOBEE = {
   emptyBlocking: "Nothing required is blocking a title.",
   emptySubmitNext: "Nothing is ready to submit next.",
   thinking: "Thinking",
+  fetchingSkills: "fetching relevant skills…",
+  findingSignal: "finding the signal…",
   stop: "Stop",
   stopHint: "Esc",
+  escToCancel: "Esc to cancel",
   unavailable: "Globee is unavailable right now. Try again, or ask what needs attention.",
 } as const;
 
@@ -144,6 +149,10 @@ export function askGlobeeChipActivation(label: (typeof ASK_GLOBEE_TRY_PROMPTS)[n
 
 export function askGlobeeUsesModel(prompt: string): boolean {
   return askGlobeeComposerSubmit(prompt) !== null;
+}
+
+export function askGlobeeThinkingVerb(lead: string | null | undefined): string {
+  return lead?.trim() ? ASK_GLOBEE.findingSignal : ASK_GLOBEE.fetchingSkills;
 }
 
 export function messagesShowsThreadHeader(surface: MessagesSurface, threadId: string | null): boolean {

@@ -5,15 +5,45 @@ import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { AskGlobeeThinking } from "./ask-globee-thinking";
 
 describe("AskGlobeeThinking", () => {
-  it("locks 246:296 Esc/stop chrome without a fake pause", () => {
-    const html = renderToStaticMarkup(<AskGlobeeThinking onStop={() => undefined} />);
+  it("locks 427:352 empty-lead fetching chrome without a side-line Stop", () => {
+    const html = renderToStaticMarkup(<AskGlobeeThinking />);
     expect(html).toContain('data-ask-globee-thinking=""');
-    expect(html).toContain('data-ask-globee-stop=""');
-    expect(html).toContain(ASK_GLOBEE.thinking);
-    expect(html).toContain(ASK_GLOBEE.stop);
-    expect(html).toContain(ASK_GLOBEE.stopHint);
+    expect(html).toContain('data-ask-globee-lead-slot=""');
+    expect(html).toContain('data-ask-globee-thinking-verb=""');
+    expect(html).toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).toContain("…");
     expect(html).toContain(ASK_GLOBEE.globeeMark);
+    expect(html).toContain("size-6");
+    expect(html).toContain("bg-accent");
+    expect(html).toContain("min-h-6");
+    expect(html).toContain("t-body-sm text-ink-3");
+    expect(html).not.toContain("data-ask-globee-handoff");
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
+    expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.stop);
+    expect(html).not.toContain(ASK_GLOBEE.stopHint);
+    expect(html).not.toContain(ASK_GLOBEE.escToCancel);
     expect(html).not.toContain(ASK_GLOBEE.capability);
     expect(html).not.toContain("Winter Line");
+    expect(html).not.toContain("Looking at");
+  });
+
+  it("locks 427:440 handoff chrome for a live catalog lead", () => {
+    const html = renderToStaticMarkup(
+      <AskGlobeeThinking lead="Harbor Cut — Synopsis is required." />,
+    );
+    expect(html).toContain('data-ask-globee-thinking=""');
+    expect(html).toContain('data-ask-globee-handoff=""');
+    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(html).toContain("t-body leading-6 text-ink");
+    expect(html).toContain(ASK_GLOBEE.findingSignal);
+    expect(html).toContain("…");
+    expect(html).toContain("t-body-sm text-ink-3/55");
+    expect(html).not.toContain('data-ask-globee-lead-slot=""');
+    expect(html).not.toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.stop);
+    expect(html).not.toContain("Winter Line");
+    expect(html).not.toContain("Looking at");
   });
 });
