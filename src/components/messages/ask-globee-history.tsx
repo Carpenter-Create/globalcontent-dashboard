@@ -17,17 +17,14 @@ import { cn } from "@/lib/cn";
 export function AskGlobeeHistoryPanel({
   conversations,
   currentId = null,
-  query,
-  onQueryChange,
   now,
 }: {
   conversations: AskGlobeeHistoryRow[];
   currentId?: string | null;
-  query: string;
-  onQueryChange: (next: string) => void;
   now?: Date;
 }) {
   const searchId = useId();
+  const [query, setQuery] = useState("");
   const filtered = filterAskGlobeeHistory(conversations, query);
   const { thisWeek, allThreads } = groupAskGlobeeHistory(filtered, now);
 
@@ -42,7 +39,7 @@ export function AskGlobeeHistoryPanel({
           id={searchId}
           type="search"
           value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder={ASK_GLOBEE.historySearchPlaceholder}
           autoComplete="off"
           data-ask-globee-history-search=""
@@ -117,13 +114,9 @@ export function AskGlobeeHistoryPopover({
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    if (!open) {
-      setQuery("");
-      return;
-    }
+    if (!open) return;
     function onPointerDown(event: PointerEvent) {
       const root = rootRef.current;
       if (!root || !(event.target instanceof Node) || root.contains(event.target)) return;
@@ -145,12 +138,7 @@ export function AskGlobeeHistoryPopover({
       {children}
       {open ? (
         <div className="absolute left-0 top-full z-50 mt-[var(--space-2)]">
-          <AskGlobeeHistoryPanel
-            conversations={conversations}
-            currentId={currentId}
-            query={query}
-            onQueryChange={setQuery}
-          />
+          <AskGlobeeHistoryPanel conversations={conversations} currentId={currentId} />
         </div>
       ) : null}
     </div>

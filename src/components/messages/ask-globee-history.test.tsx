@@ -38,8 +38,6 @@ describe("AskGlobeeHistoryPanel", () => {
             },
           ]}
           currentId={THREAD}
-          query=""
-          onQueryChange={() => {}}
           now={NOW}
         />,
       ),
@@ -76,7 +74,7 @@ describe("AskGlobeeHistoryPanel", () => {
   it("renders empty history as empty, with no fixture rows", () => {
     const html = visible(
       renderToStaticMarkup(
-        <AskGlobeeHistoryPanel conversations={[]} query="" onQueryChange={() => {}} now={NOW} />,
+        <AskGlobeeHistoryPanel conversations={[]} now={NOW} />,
       ),
     );
 
