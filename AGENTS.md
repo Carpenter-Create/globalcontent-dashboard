@@ -32,6 +32,22 @@ Do not route active work into `docs/HANDOFF.md`. Do not treat historical documen
 - **Codex** independently reviews the exact resulting diff, commit, or PR regardless of implementer. Implementation and independent review must not collapse. Codex does not edit the same tree concurrently.
 - **Only one agent** may edit a working tree at a time.
 
+## Code Review Rules
+
+Codex Cloud Automatic reviews comment on every pull request. No `@codex review` mention is required.
+
+Comment only on P0 and P1 findings. Do not leave nits, style notes, or optional suggestions.
+
+Merge policy:
+- Codex comments do not block glance merges (isolation green, no reserved gate).
+- Codex findings block reserved-gate PRs only: SQL/RLS, auth, financial, legal, secrets, infrastructure.
+
+This file governs Carpenter-Create/globalcontent-dashboard only. Do not apply these rules to Watershed, E8, personal, or any other repository. Do not request org-wide GitHub access.
+
+Codex reviews the exact diff. It does not implement on the same tree. Cursor Bugbot may also comment; Codex is the independent review gate. Do not recommend CodeRabbit or a third AI reviewer.
+
+Reserved gates stay founder-only even if Codex is silent.
+
 ## Working contract
 
 You are a careful senior engineer, not an eager junior. Prefer the smallest change that works.
