@@ -156,6 +156,7 @@ export function AskGlobeeThread({
     completingIdRef.current = last.id;
     cancelledRef.current = false;
     setPending(true);
+    setThinkingElapsedMs(0);
     setThinking(true);
     void completeAskGlobeeTurn(conversation.id).then((result) => {
       if (cancelledRef.current) return;
