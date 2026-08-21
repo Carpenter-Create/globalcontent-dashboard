@@ -105,6 +105,9 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain("Harbor Lights");
     expect(src).toContain("navigator.clipboard.writeText");
     expect(src).toContain("askGlobeeDownloadFilename");
+    expect(src).toContain("buildAskGlobeeDownloadPdf");
+    expect(src).toContain("ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE");
+    expect(src).not.toContain("text/plain");
     expect(src).toContain("setAskGlobeeThumb");
     expect(src).toContain("appendAskGlobeeTurn");
     expect(src).toContain("completeAskGlobeeTurn");
@@ -138,6 +141,7 @@ describe("AskGlobeeThread", () => {
     expect(src).not.toContain("toast");
     expect(src).not.toMatch(/bounce|animate-bounce/i);
     expect(src).toContain("askGlobeeDownloadFilename");
+    expect(src).toContain("buildAskGlobeeDownloadPdf");
     expect(src).toContain("setAskGlobeeThumb");
   });
 

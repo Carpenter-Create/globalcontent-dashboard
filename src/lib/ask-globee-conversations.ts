@@ -1,4 +1,6 @@
-import { ASK_GLOBEE, askGlobeeConversationTitle } from "@/lib/ask-globee";
+import { ASK_GLOBEE } from "@/lib/ask-globee";
+
+export { askGlobeeDownloadFilename } from "@/lib/ask-globee-download";
 
 export type AskGlobeeThumb = "up" | "down";
 
@@ -46,15 +48,6 @@ export function sortAskGlobeeHistory<T extends { pinned_at: string | null; updat
 export function askGlobeeAnswerText(lead: string, follow: string | null): string {
   const nextFollow = follow?.trim();
   return nextFollow ? `${lead}\n${nextFollow}` : lead;
-}
-
-export function askGlobeeDownloadFilename(title: string): string {
-  const slug = askGlobeeConversationTitle(title)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return `${slug || "ask-globee"}.txt`;
 }
 
 export function nextAskGlobeeThumb(

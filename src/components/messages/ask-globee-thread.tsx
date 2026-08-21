@@ -28,6 +28,10 @@ import {
   type AskGlobeeThumb,
 } from "@/lib/ask-globee-conversations";
 import {
+  ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE,
+  buildAskGlobeeDownloadPdf,
+} from "@/lib/ask-globee-download";
+import {
   appendAskGlobeeTurn,
   completeAskGlobeeTurn,
   setAskGlobeeThumb,
@@ -63,12 +67,19 @@ function ThreadIconButton({
   );
 }
 
-function downloadAnswer(title: string, lead: string, follow: string | null) {
-  const blob = new Blob([askGlobeeAnswerText(lead, follow)], { type: "text/plain;charset=utf-8" });
+function downloadAnswer(input: {
+  title: string;
+  userPrompt: string;
+  initials: string;
+  lead: string;
+  follow: string | null;
+}) {
+  const bytes = buildAskGlobeeDownloadPdf(input);
+  const blob = new Blob([bytes], { type: ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = askGlobeeDownloadFilename(title);
+  anchor.download = askGlobeeDownloadFilename(input.title);
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -279,13 +290,16 @@ export function AskGlobeeThread({
                           </ThreadIconButton>
                           <ThreadIconButton
                             label={ASK_GLOBEE.downloadLabel}
-                            onClick={() =>
-                              downloadAnswer(
-                                conversation.title,
-                                message.lead ?? message.body,
-                                message.follow,
-                              )
-                            }
+                            onClick={() => {
+                              const userTurn = turn.find((entry) => entry.role === "user");
+                              downloadAnswer({
+                                title: conversation.title,
+                                userPrompt: userTurn?.body ?? "",
+                                initials,
+                                lead: message.lead ?? message.body,
+                                follow: message.follow,
+                              });
+                            }}
                           >
                             <Download className="size-4" strokeWidth={1.33} />
                           </ThreadIconButton>
