@@ -51,7 +51,7 @@ const MIXED_FINDINGS = [
 ];
 
 function answer(prompt: string, extras?: { titles?: ClientHomeTitle[]; findings?: ClientHomeFinding[] }) {
-  return buildAskGlobeeAnswer({
+  const result = buildAskGlobeeAnswer({
     prompt,
     titles: extras?.titles ?? ORG_TITLES,
     findings: extras?.findings ?? MIXED_FINDINGS,
@@ -59,10 +59,12 @@ function answer(prompt: string, extras?: { titles?: ClientHomeTitle[]; findings?
     now: NOW,
     bound: UNPAGINATED_MAX,
   });
+  if (!result) throw new Error(`expected a mapped Ask Globee answer for ${prompt}`);
+  return result;
 }
 
 function expectOrgTitlesOnly(
-  result: ReturnType<typeof buildAskGlobeeAnswer>,
+  result: NonNullable<ReturnType<typeof buildAskGlobeeAnswer>>,
   titles: ClientHomeTitle[] = ORG_TITLES,
 ) {
   const allowed = new Set(titles.map((row) => row.title));
@@ -166,17 +168,19 @@ describe("buildAskGlobeeAnswer", () => {
     });
   });
 
-  it("returns the honest capability line for unmapped free text and leaks no catalog facts", () => {
-    const result = answer("How much revenue did Harbor Cut make?");
-    expect(result).toEqual({
-      intent: "unmapped",
-      lead: ASK_GLOBEE.capability,
-      follow: null,
-      titleNames: [],
+  it("does not answer unmapped free text — the operator owns that path", () => {
+    const result = buildAskGlobeeAnswer({
+      prompt: "How many titles are in my catalog?",
+      titles: ORG_TITLES,
+      findings: MIXED_FINDINGS,
+      orgId: ORG,
+      now: NOW,
+      bound: UNPAGINATED_MAX,
     });
-    expect(result.lead).not.toContain("Harbor Cut");
-    expect(result.lead).not.toContain("Synopsis");
-    expectOrgTitlesOnly(result);
+    expect(result).toBeNull();
+    expect(ASK_GLOBEE.capability).toBe(
+      "I can answer catalog attention, blockers, and what to submit next.",
+    );
   });
 
   it("never emits another org's title even when my_findings includes it", () => {

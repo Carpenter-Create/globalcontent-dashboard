@@ -9,8 +9,12 @@ import {
   canRenderAskGlobeeLanding,
   isAskGlobeeThreadId,
   resolveMessagesSurface,
+  type AskGlobeeTier,
 } from "@/lib/ask-globee";
-import { buildAskGlobeeAnswer } from "@/lib/ask-globee-answer";
+import {
+  answerAskGlobeePrompt,
+  type AskGlobeeHistoryTurn,
+} from "@/lib/ask-globee-operator";
 import {
   nextAskGlobeeThumb,
   type AskGlobeeThumb,
@@ -22,10 +26,12 @@ import { createClient } from "@/lib/supabase/server";
 
 type ActionError = { error: string };
 type Client = Awaited<ReturnType<typeof createClient>>;
+type AskGlobeeOrg = {
+  ctx: OrgContext & { activeOrg: NonNullable<OrgContext["activeOrg"]> };
+  tier: AskGlobeeTier;
+};
 
-async function requireAskGlobeeOrg(): Promise<
-  { ctx: OrgContext & { activeOrg: NonNullable<OrgContext["activeOrg"]> } } | ActionError
-> {
+async function requireAskGlobeeOrg(): Promise<AskGlobeeOrg | ActionError> {
   const ctx = await getOrgContext();
   if (!ctx) return { error: "Not authenticated." };
   const tier = ctx.activeOrg ? await getActiveOrgTier(ctx.activeOrg.id) : null;
@@ -34,13 +40,19 @@ async function requireAskGlobeeOrg(): Promise<
     hasActiveOrg: !!ctx.activeOrg,
     tier,
   });
-  if (!canRenderAskGlobeeLanding(surface) || !ctx.activeOrg) {
+  if (!canRenderAskGlobeeLanding(surface) || !ctx.activeOrg || !tier) {
     return { error: "Not authorized." };
   }
-  return { ctx: { ...ctx, activeOrg: ctx.activeOrg } };
+  return { ctx: { ...ctx, activeOrg: ctx.activeOrg }, tier };
 }
 
-async function loadOrgAnswer(supabase: Client, orgId: string, prompt: string) {
+async function loadOrgAnswer(
+  supabase: Client,
+  orgId: string,
+  prompt: string,
+  tier: AskGlobeeTier,
+  history: AskGlobeeHistoryTurn[] = [],
+) {
   const { data: titleRows } = await supabase
     .from("titles")
     .select("id, title, status, created_at")
@@ -48,13 +60,17 @@ async function loadOrgAnswer(supabase: Client, orgId: string, prompt: string) {
     .order("created_at", { ascending: false })
     .range(...rangeFor(UNPAGINATED_MAX));
   const { data: allFindings } = await supabase.rpc("my_findings");
-  return buildAskGlobeeAnswer({
+  return answerAskGlobeePrompt({
     prompt,
-    titles: titleRows ?? [],
-    findings: allFindings ?? [],
-    orgId,
-    now: new Date(),
-    bound: UNPAGINATED_MAX,
+    corpus: {
+      orgId,
+      titles: titleRows ?? [],
+      findings: allFindings ?? [],
+      tier,
+      now: new Date(),
+      bound: UNPAGINATED_MAX,
+    },
+    history,
   });
 }
 
@@ -68,7 +84,8 @@ export async function startAskGlobeeConversation(
 
   const supabase = await createClient();
   const orgId = gate.ctx.activeOrg.id;
-  const answer = await loadOrgAnswer(supabase, orgId, next);
+  const answer = await loadOrgAnswer(supabase, orgId, next, gate.tier);
+  if ("error" in answer) return { error: answer.error };
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
     .insert({
@@ -124,7 +141,21 @@ export async function appendAskGlobeeTurn(
     .maybeSingle();
   if (!conversation) return { error: "Conversation not found." };
 
-  const answer = await loadOrgAnswer(supabase, orgId, next);
+  const { data: priorRows } = await supabase
+    .from("conversation_messages")
+    .select("role, body, lead")
+    .eq("conversation_id", conversationId)
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: true })
+    .range(...rangeFor(UNPAGINATED_MAX));
+  const history: AskGlobeeHistoryTurn[] = [];
+  for (const row of priorRows ?? []) {
+    if (row.role === "user") history.push({ role: "user", text: row.body });
+    if (row.role === "globee") history.push({ role: "globee", text: row.lead ?? row.body });
+  }
+
+  const answer = await loadOrgAnswer(supabase, orgId, next, gate.tier, history);
+  if ("error" in answer) return { error: answer.error };
   const { error: userError } = await supabase.from("conversation_messages").insert({
     org_id: orgId,
     conversation_id: conversationId,

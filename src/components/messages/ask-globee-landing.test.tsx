@@ -101,8 +101,14 @@ describe("AskGlobeeLanding", () => {
     expect(src).toContain("router.push(href)");
     expect(src).toContain("askGlobeeThreadHref");
     expect(src).toContain("aria-pressed={pressed}");
+    expect(src).toContain("askGlobeeUsesModel(value)");
+    expect(src).toContain("AskGlobeeThinking");
+    expect(src).toContain("if (askGlobeeUsesModel(value)) setThinking(true)");
     expect(src).not.toContain("router.replace");
     expect(src).not.toContain("AskGlobeeThread");
     expect(src).not.toContain(ASK_GLOBEE.answerLead);
+    expect(src).not.toContain("ANTHROPIC");
+    expect(src).not.toContain("ask-globee-operator");
+    expect(src).not.toMatch(/setTimeout|sleep\(/);
   });
 });

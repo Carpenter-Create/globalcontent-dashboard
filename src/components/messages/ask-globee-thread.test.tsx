@@ -102,8 +102,13 @@ describe("AskGlobeeThread", () => {
     expect(src).toContain("setAskGlobeeThumb");
     expect(src).toContain("appendAskGlobeeTurn");
     expect(src).toContain("router.refresh()");
+    expect(src).toContain("askGlobeeUsesModel(next)");
+    expect(src).toContain("AskGlobeeThinking");
+    expect(src).toContain("stopThinking");
     expect(src).not.toContain("router.replace");
     expect(src).not.toContain("askGlobeeThreadHref");
+    expect(src).not.toContain("ANTHROPIC");
+    expect(src).not.toContain("ask-globee-operator");
   });
 
   it("swaps the copy control to a brief check and does not toast", () => {
