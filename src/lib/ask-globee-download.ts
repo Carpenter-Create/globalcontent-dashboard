@@ -2,7 +2,7 @@ import { ASK_GLOBEE, askGlobeeConversationTitle } from "@/lib/ask-globee";
 import { METADATA_FIELDS } from "@/lib/metadata";
 
 // Locked conversation download (440:410 letter sheet, 440:432 filename).
-// Client-side PDF — no new dependency; one letter page, Standard 14 fonts.
+// Client-side PDF — no new dependency; letter pages, Standard 14 fonts.
 // Live title + live lead/follow only. Fixture titles are inputs, never baked in.
 
 export const ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE = "application/pdf";
@@ -154,17 +154,31 @@ export function buildAskGlobeeDownloadPdf(input: AskGlobeeDownloadInput): Uint8A
   }
   top += bubbleH + 32;
 
-  drawMark(draw, MARGIN + MARK / 2, top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
   let inkTop = top;
   const inkX = MARGIN + MARK + GAP;
+  const lineH = BODY_SIZE * LINE;
+  const factGap = BODY_SIZE * 0.55;
+  const floor = PAGE_H - MARGIN;
+
+  const breakIfNeeded = (needed: number): boolean => {
+    if (inkTop + needed <= floor) return false;
+    draw.newPage();
+    inkTop = MARGIN;
+    return true;
+  };
+
+  breakIfNeeded(Math.max(MARK, lineH));
+  drawMark(draw, MARGIN + MARK / 2, inkTop + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
   for (const [factIndex, wrapped] of inkLines.entries()) {
-    if (factIndex > 0) inkTop += BODY_SIZE * 0.55;
+    if (factIndex > 0 && !breakIfNeeded(factGap + lineH)) inkTop += factGap;
     for (const row of wrapped) {
+      breakIfNeeded(lineH);
       draw.inkRow(inkX, inkTop, row, BODY_SIZE, INK);
-      inkTop += BODY_SIZE * LINE;
+      inkTop += lineH;
     }
   }
   inkTop += 10;
+  breakIfNeeded(ATTR_SIZE);
   draw.text({
     x: inkX,
     top: inkTop,
@@ -174,7 +188,7 @@ export function buildAskGlobeeDownloadPdf(input: AskGlobeeDownloadInput): Uint8A
     rgb: INK_3,
   });
 
-  return assemblePdf(draw.toStream());
+  return assemblePdf(draw.toStreams());
 }
 
 function bodyMaxWidth(): number {
@@ -318,7 +332,12 @@ function escapePdf(text: string): string {
 }
 
 class PdfPage {
+  private readonly pages: string[] = [];
   private readonly ops: string[] = [];
+
+  newPage() {
+    this.pages.push(this.consumeOps());
+  }
 
   circle(cx: number, cyTop: number, r: number, rgb: readonly [number, number, number]) {
     const cy = pdfY(cyTop);
@@ -417,8 +436,14 @@ class PdfPage {
     this.ops.push("ET");
   }
 
-  toStream(): string {
-    return `${this.ops.join("\n")}\n`;
+  toStreams(): string[] {
+    return [...this.pages, this.consumeOps()];
+  }
+
+  private consumeOps(): string {
+    const stream = `${this.ops.join("\n")}\n`;
+    this.ops.length = 0;
+    return stream;
   }
 }
 
@@ -438,19 +463,29 @@ function fmt(value: number): string {
   return value.toFixed(2);
 }
 
-function assemblePdf(content: string): Uint8Array {
+function assemblePdf(contents: string[]): Uint8Array {
+  const streams = contents.length > 0 ? contents : [""];
   const fonts = [
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
   ];
-  const objects = [
+  const objects: string[] = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`,
-    `<< /Length ${content.length} >>\nstream\n${content}endstream`,
+    "",
     fonts[0],
     fonts[1],
   ];
+  const pageRefs: string[] = [];
+  for (const content of streams) {
+    const pageId = objects.length + 1;
+    const contentId = pageId + 1;
+    pageRefs.push(`${pageId} 0 R`);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}endstream`,
+    );
+  }
+  objects[1] = `<< /Type /Pages /Kids [${pageRefs.join(" ")}] /Count ${streams.length} >>`;
   const header = "%PDF-1.4\n";
   const chunks = [header];
   const offsets = [0];

@@ -126,4 +126,32 @@ describe("buildAskGlobeeDownloadPdf", () => {
     expect(text).not.toContain("**");
     expect(text).not.toContain("Mercury");
   });
+
+  it("continues a long catalog answer onto another letter page", () => {
+    const follow = Array.from(
+      { length: 79 },
+      (_, index) => `Title ${index + 2} is missing Genre.`,
+    ).join("\n");
+    const bytes = buildAskGlobeeDownloadPdf({
+      title: "What needs attention",
+      userPrompt: "What needs attention",
+      initials: "AC",
+      lead: "Title 1 is missing Genre.",
+      follow,
+    });
+    const raw = pdfString(bytes);
+    const text = pdfVisibleText(bytes);
+    const pageCount = Number(/\/Count (\d+)/.exec(raw)?.[1] ?? 0);
+    const ys = [...raw.matchAll(/[\d.]+ ([\d.]+) Td/g)].map((match) => Number(match[1]));
+
+    expect(pageCount).toBeGreaterThan(1);
+    expect(text).toContain("Title 1 is missing Genre.");
+    expect(text).toContain("Title 80 is missing Genre.");
+    expect(text).toContain("Globee AI");
+    expect(ys.length).toBeGreaterThan(0);
+    for (const y of ys) {
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(ASK_GLOBEE_DOWNLOAD.pageHeight);
+    }
+  });
 });
