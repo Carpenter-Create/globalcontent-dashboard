@@ -49,8 +49,12 @@ describe("askGlobee answer chrome helpers", () => {
     expect(askGlobeeAnswerText("Lead.", null)).toBe("Lead.");
   });
 
-  it("names the download from the conversation title", () => {
-    expect(askGlobeeDownloadFilename("What needs attention")).toBe("what-needs-attention.txt");
+  it("names the download globee-{slug}.pdf from the conversation title", () => {
+    expect(askGlobeeDownloadFilename("What needs attention")).toBe("globee-what-needs-attention.pdf");
+    expect(askGlobeeDownloadFilename(ASK_GLOBEE.threadTitle)).toBe(
+      "globee-whats-blocking-the-winter-line.pdf",
+    );
+    expect(askGlobeeDownloadFilename("What needs attention")).not.toMatch(/\.txt$/);
   });
 
   it("toggles the same thumb off and replaces the other", () => {
