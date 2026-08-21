@@ -28,6 +28,7 @@ import {
   type AskGlobeeThumb,
 } from "@/lib/ask-globee-conversations";
 import { askGlobeeDownloadBlob } from "@/lib/ask-globee-download";
+import { parseAskGlobeeInk, stackAskGlobeeInkFacts } from "@/lib/ask-globee-ink";
 import {
   appendAskGlobeeTurn,
   completeAskGlobeeTurn,
@@ -61,6 +62,28 @@ function ThreadIconButton({
     >
       {children}
     </button>
+  );
+}
+
+// 375:343 answer copy — conversation ink, not a markdown document.
+// Lead/support flush. Catalog fields Medium. Facts stacked at house 8.
+function AskGlobeeAnswerInk({ lead, follow }: { lead: string; follow: string | null }) {
+  return (
+    <div data-ask-globee-ink="" className="flex flex-col gap-[var(--space-2)]">
+      {stackAskGlobeeInkFacts(lead, follow).map((fact, index) => (
+        <p key={index} data-ask-globee-fact="" className="t-body text-ink">
+          {parseAskGlobeeInk(fact).map((span, spanIndex) =>
+            span.medium ? (
+              <span key={spanIndex} className="font-medium">
+                {span.text}
+              </span>
+            ) : (
+              span.text
+            ),
+          )}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -266,8 +289,7 @@ export function AskGlobeeThread({
                       {ASK_GLOBEE.globeeMark}
                     </div>
                     <div className="flex w-full max-w-[640px] flex-col gap-[var(--space-2)]">
-                      <p className="t-body text-ink">{message.lead ?? message.body}</p>
-                      {message.follow ? <p className="t-body-sm text-ink-2">{message.follow}</p> : null}
+                      <AskGlobeeAnswerInk lead={message.lead ?? message.body} follow={message.follow} />
                       <div className="flex flex-wrap items-center gap-[var(--space-4)]">
                         <p className="t-body-sm text-ink-3">
                           {formatAskGlobeeAttribution(message.created_at)}
