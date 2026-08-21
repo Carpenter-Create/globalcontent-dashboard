@@ -3,9 +3,11 @@ import { USER_MENU } from "@/lib/user-menu";
 // Ask Globee copy and gating. Lives in lib/, not JSX.
 // Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
 // 247:295 chrome on a persisted thread. Landing chips are suggested prompts —
-// same catalog-grounded operator as unmapped free text, with thinking chrome
-// on those clicks. Tools may still use the findings lookup internally. Winter
-// Line fixture strings stay here as a do-not-render lock. No checkout.
+// same catalog-grounded operator as unmapped free text. Landing persists the
+// user turn and opens the thread; thinking chrome (Esc/stop) lives on the
+// thread while the operator runs. Tools may still use the findings lookup
+// internally. Winter Line fixture strings stay here as a do-not-render lock.
+// No checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 

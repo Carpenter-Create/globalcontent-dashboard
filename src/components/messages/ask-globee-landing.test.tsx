@@ -46,9 +46,29 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("Harbor Lights");
     expect(html).not.toContain("Get support");
     expect(html).not.toContain("data-ask-globee-thread");
+    expect(html).not.toContain("data-ask-globee-thinking");
+    expect(html).not.toContain(ASK_GLOBEE.thinking);
     expect(html).not.toContain(ASK_GLOBEE.userPrompt);
     expect(html).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).not.toContain(ASK_GLOBEE.attribution);
+  });
+
+  it("never renders thinking chrome on send", () => {
+    const html = renderToStaticMarkup(<AskGlobeeLanding />);
+
+    expect(html).not.toContain("data-ask-globee-thinking");
+    expect(html).not.toContain(ASK_GLOBEE.thinking);
+    expect(html).not.toContain(ASK_GLOBEE.stop);
+    expect(html).not.toContain(ASK_GLOBEE.stopHint);
+    expect(src).toContain("startAskGlobeeConversation");
+    expect(src).toContain("router.push(href)");
+    expect(src).toContain("askGlobeeThreadHref");
+    expect(src).not.toContain("AskGlobeeThinking");
+    expect(src).not.toContain("data-ask-globee-thinking");
+    expect(src).not.toContain("setThinking");
+    expect(src).not.toContain("askGlobeeUsesModel");
+    expect(src).not.toContain("completeAskGlobeeTurn");
+    expect(src).not.toContain("emptyBlocking");
   });
 
   it("renders real HISTORY rows for this org only", () => {
@@ -101,9 +121,10 @@ describe("AskGlobeeLanding", () => {
     expect(src).toContain("router.push(href)");
     expect(src).toContain("askGlobeeThreadHref");
     expect(src).toContain("aria-pressed={pressed}");
-    expect(src).toContain("askGlobeeUsesModel(value)");
-    expect(src).toContain("AskGlobeeThinking");
-    expect(src).toContain("if (askGlobeeUsesModel(value)) setThinking(true)");
+    expect(src).not.toContain("askGlobeeUsesModel");
+    expect(src).not.toContain("AskGlobeeThinking");
+    expect(src).not.toContain("setThinking");
+    expect(src).not.toContain("data-ask-globee-thinking");
     expect(src).not.toContain("router.replace");
     expect(src).not.toContain("AskGlobeeThread");
     expect(src).not.toContain(ASK_GLOBEE.answerLead);

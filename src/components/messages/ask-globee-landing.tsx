@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -11,7 +11,6 @@ import {
   askGlobeeComposerSubmit,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
-  askGlobeeUsesModel,
 } from "@/lib/ask-globee";
 import {
   formatAskGlobeeHistoryTime,
@@ -19,12 +18,11 @@ import {
 } from "@/lib/ask-globee-conversations";
 import { cn } from "@/lib/cn";
 import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
-import { AskGlobeeThinking } from "./ask-globee-thinking";
 
 // Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
-// prompt as free text. Submit sends. HISTORY lists real org threads only.
-// No invented titles. Thinking chrome (246:296 Esc/stop) is on the model
-// path, including chip clicks.
+// prompt as free text. Submit persists the user turn, then navigates to the
+// thread. HISTORY lists real org threads only. No invented titles. Thinking
+// chrome (246:296 Esc/stop) is on the conversation page, never this landing.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -33,26 +31,14 @@ export function AskGlobeeLanding({
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [pending, setPending] = useState(false);
-  const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cancelledRef = useRef(false);
   const selected = askGlobeeSelectedChip(prompt);
-
-  function stopThinking() {
-    cancelledRef.current = true;
-    setThinking(false);
-    setPending(false);
-  }
 
   const send = async (value: string) => {
     if (pending) return;
-    cancelledRef.current = false;
     setError(null);
     setPending(true);
-    if (askGlobeeUsesModel(value)) setThinking(true);
     const result = await startAskGlobeeConversation(value);
-    if (cancelledRef.current) return;
-    setThinking(false);
     if (result.conversationId) {
       const href = askGlobeeThreadHref(result.conversationId);
       if (href) {
@@ -109,7 +95,6 @@ export function AskGlobeeLanding({
           </label>
         </form>
 
-        {thinking ? <AskGlobeeThinking onStop={stopThinking} /> : null}
         {error ? (
           <p data-ask-globee-error="" className="t-body-sm text-center text-ink-2">
             {error}

@@ -84,8 +84,6 @@ export async function startAskGlobeeConversation(
 
   const supabase = await createClient();
   const orgId = gate.ctx.activeOrg.id;
-  const answer = await loadOrgAnswer(supabase, orgId, next, gate.tier);
-  if ("error" in answer) return { error: answer.error };
   const { data: conversation, error: conversationError } = await supabase
     .from("conversations")
     .insert({
@@ -107,9 +105,52 @@ export async function startAskGlobeeConversation(
   });
   if (userError) return { error: userError.message };
 
+  revalidatePath("/messages");
+  return { conversationId: conversation.id };
+}
+
+export async function completeAskGlobeeTurn(
+  conversationId: string,
+): Promise<ActionError | Record<string, never>> {
+  const gate = await requireAskGlobeeOrg();
+  if ("error" in gate) return gate;
+  if (!isAskGlobeeThreadId(conversationId)) return { error: "Conversation not found." };
+
+  const supabase = await createClient();
+  const orgId = gate.ctx.activeOrg.id;
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!conversation) return { error: "Conversation not found." };
+
+  const { data: priorRows } = await supabase
+    .from("conversation_messages")
+    .select("role, body, lead")
+    .eq("conversation_id", conversationId)
+    .eq("org_id", orgId)
+    .order("created_at", { ascending: true })
+    .range(...rangeFor(UNPAGINATED_MAX));
+  const rows = priorRows ?? [];
+  const last = rows.at(-1);
+  if (!last || last.role !== "user") return {};
+  const next = askGlobeeComposerSubmit(last.body);
+  if (!next) return { error: "Ask a question or give a command." };
+
+  const history: AskGlobeeHistoryTurn[] = [];
+  for (const row of rows.slice(0, -1)) {
+    if (row.role === "user") history.push({ role: "user", text: row.body });
+    if (row.role === "globee") history.push({ role: "globee", text: row.lead ?? row.body });
+  }
+
+  const answer = await loadOrgAnswer(supabase, orgId, next, gate.tier, history);
+  if ("error" in answer) return { error: answer.error };
+
   const { error: globeeError } = await supabase.from("conversation_messages").insert({
     org_id: orgId,
-    conversation_id: conversation.id,
+    conversation_id: conversationId,
     role: "globee",
     body: answer.lead,
     lead: answer.lead,
@@ -118,7 +159,7 @@ export async function startAskGlobeeConversation(
   if (globeeError) return { error: globeeError.message };
 
   revalidatePath("/messages");
-  return { conversationId: conversation.id };
+  return {};
 }
 
 export async function appendAskGlobeeTurn(

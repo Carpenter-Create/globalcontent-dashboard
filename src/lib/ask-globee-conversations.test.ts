@@ -4,6 +4,7 @@ import { ASK_GLOBEE } from "@/lib/ask-globee";
 import {
   askGlobeeAnswerText,
   askGlobeeDownloadFilename,
+  askGlobeeOpenUserTurn,
   formatAskGlobeeAttribution,
   formatAskGlobeeHistoryTime,
   nextAskGlobeeThumb,
@@ -21,6 +22,22 @@ describe("sortAskGlobeeHistory", () => {
       { id: "d", pinned_at: null, updated_at: "2026-08-17T12:00:00.000Z" },
     ];
     expect(sortAskGlobeeHistory(rows).map((row) => row.id)).toEqual(["b", "a", "c", "d"]);
+  });
+});
+
+describe("askGlobeeOpenUserTurn", () => {
+  it("detects an unanswered user turn and ignores completed or blank ones", () => {
+    expect(askGlobeeOpenUserTurn([])).toBeNull();
+    expect(askGlobeeOpenUserTurn([{ role: "user", body: "What is blocking a title" }])).toBe(
+      "What is blocking a title",
+    );
+    expect(
+      askGlobeeOpenUserTurn([
+        { role: "user", body: "What is blocking a title" },
+        { role: "globee", body: "Harbor Cut is missing a synopsis." },
+      ]),
+    ).toBeNull();
+    expect(askGlobeeOpenUserTurn([{ role: "user", body: "   " }])).toBeNull();
   });
 });
 

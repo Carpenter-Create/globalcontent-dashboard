@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   appendAskGlobeeTurn: vi.fn(),
+  completeAskGlobeeTurn: vi.fn(),
   setAskGlobeeThumb: vi.fn(),
 }));
 
@@ -101,10 +102,13 @@ describe("AskGlobeeThread", () => {
     expect(src).toContain("askGlobeeDownloadFilename");
     expect(src).toContain("setAskGlobeeThumb");
     expect(src).toContain("appendAskGlobeeTurn");
+    expect(src).toContain("completeAskGlobeeTurn");
+    expect(src).toContain("askGlobeeOpenUserTurn");
     expect(src).toContain("router.refresh()");
     expect(src).toContain("askGlobeeUsesModel(next)");
     expect(src).toContain("AskGlobeeThinking");
     expect(src).toContain("stopThinking");
+    expect(html).not.toContain("data-ask-globee-thinking");
     expect(src).not.toContain("router.replace");
     expect(src).not.toContain("askGlobeeThreadHref");
     expect(src).not.toContain("ANTHROPIC");
@@ -290,6 +294,33 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain(`href="${ASK_GLOBEE.upgradeHref}"`);
     expect(html).not.toContain("data-ask-globee-gate");
     expect(html).not.toContain("data-ask-globee-upgrade");
+  });
+
+  it("shows thinking chrome while a landing-originated turn is in flight", () => {
+    const html = renderThread([
+      {
+        id: USER_MSG,
+        role: "user",
+        body: "What is blocking a title",
+        lead: null,
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:00:00.000Z",
+      },
+    ]);
+
+    expect(html).toContain("What is blocking a title");
+    expect(html).toContain('data-ask-globee-thinking=""');
+    expect(html).toContain(ASK_GLOBEE.thinking);
+    expect(html).toContain(ASK_GLOBEE.stop);
+    expect(html).toContain(ASK_GLOBEE.stopHint);
+    expect(html).toContain('data-ask-globee-user-row=""');
+    expect(html).not.toContain("Looking at");
+    expect(html).not.toContain("Winter Line");
+    expect(html).not.toContain(ASK_GLOBEE.emptyBlocking);
+    expect(html).not.toContain(ASK_GLOBEE.capability);
+    expect(src).toContain("completeAskGlobeeTurn");
+    expect(src).toContain("askGlobeeOpenUserTurn");
   });
 
   it("keeps Access isolation: the upgrade gate never renders this thread", () => {

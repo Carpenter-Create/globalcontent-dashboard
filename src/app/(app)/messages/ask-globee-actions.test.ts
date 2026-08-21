@@ -7,6 +7,7 @@ import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { ASK_GLOBEE_MODEL_ID } from "@/lib/ask-globee-operator";
 import {
   appendAskGlobeeTurn,
+  completeAskGlobeeTurn,
   startAskGlobeeConversation,
 } from "./ask-globee-actions";
 
@@ -161,8 +162,67 @@ describe("startAskGlobeeConversation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sends What is blocking a title on the model path and does not persist emptyBlocking", async () => {
+  it("persists the chip user turn and returns an id without waiting on the model", async () => {
     const { inserted, rpc } = stubWriteClient({ titles: [], findings: [] });
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+
+    await expect(startAskGlobeeConversation("What is blocking a title")).resolves.toEqual({
+      conversationId: THREAD,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(inserted).toHaveLength(2);
+    expect(inserted[0]?.table).toBe("conversations");
+    expect(inserted[0]?.row).toMatchObject({
+      org_id: "org-1",
+      title: "What is blocking a title",
+    });
+    expect(inserted[1]?.row).toMatchObject({
+      role: "user",
+      body: "What is blocking a title",
+      org_id: "org-1",
+    });
+    expect(inserted.some((row) => row.row.role === "globee")).toBe(false);
+    const payload = JSON.stringify(inserted);
+    expect(payload).not.toContain(ASK_GLOBEE.emptyBlocking);
+    expect(payload).not.toContain(ASK_GLOBEE.emptySubmitNext);
+    expect(payload).not.toContain(ASK_GLOBEE.capability);
+    expect(payload).not.toContain("Winter Line");
+    expect(payload).not.toContain("Harbor Lights");
+  });
+
+  it("persists unmapped free text the same way, still without calling the model", async () => {
+    const { inserted } = stubWriteClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+
+    await expect(startAskGlobeeConversation("How many titles are in my catalog?")).resolves.toEqual({
+      conversationId: THREAD,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(inserted.map((row) => row.row.role)).toEqual([undefined, "user"]);
+    expect(inserted[1]?.row).toMatchObject({
+      role: "user",
+      body: "How many titles are in my catalog?",
+    });
+    expect(JSON.stringify(inserted)).not.toContain(ASK_GLOBEE.capability);
+  });
+});
+
+describe("completeAskGlobeeTurn", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchMock.mockReset();
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it("sends What is blocking a title on the model path and does not persist emptyBlocking", async () => {
+    const { inserted, rpc } = stubWriteClient({
+      titles: [],
+      findings: [],
+      priorMessages: [{ role: "user", body: "What is blocking a title" }],
+    });
     process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
@@ -182,27 +242,16 @@ describe("startAskGlobeeConversation", () => {
         }),
       });
 
-    await expect(startAskGlobeeConversation("What is blocking a title")).resolves.toEqual({
-      conversationId: THREAD,
-    });
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({});
     expect(rpc).toHaveBeenCalledWith("my_findings");
     expect(fetchMock).toHaveBeenCalled();
-    expect(inserted[0]?.table).toBe("conversations");
+    expect(inserted).toHaveLength(1);
     expect(inserted[0]?.row).toMatchObject({
-      org_id: "org-1",
-      title: "What is blocking a title",
-    });
-    expect(inserted[1]?.row).toMatchObject({
-      role: "user",
-      body: "What is blocking a title",
-      org_id: "org-1",
-    });
-    expect(inserted[2]?.row).toMatchObject({
       role: "globee",
       lead: "Harbor Cut is missing a synopsis.",
       org_id: "org-1",
     });
-    expect(inserted[2]?.row.lead).not.toBe(ASK_GLOBEE.emptyBlocking);
+    expect(inserted[0]?.row.lead).not.toBe(ASK_GLOBEE.emptyBlocking);
     const payload = JSON.stringify(inserted);
     expect(payload).not.toContain(ASK_GLOBEE.emptyBlocking);
     expect(payload).not.toContain(ASK_GLOBEE.emptySubmitNext);
@@ -221,7 +270,9 @@ describe("startAskGlobeeConversation", () => {
   });
 
   it("drops other-org and orphan findings from chip tool results", async () => {
-    const { inserted } = stubWriteClient();
+    const { inserted } = stubWriteClient({
+      priorMessages: [{ role: "user", body: "What needs attention" }],
+    });
     process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("premium");
@@ -245,11 +296,9 @@ describe("startAskGlobeeConversation", () => {
         }),
       });
 
-    await expect(startAskGlobeeConversation("What needs attention")).resolves.toEqual({
-      conversationId: THREAD,
-    });
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({});
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(inserted[2]?.row).toMatchObject({
+    expect(inserted[0]?.row).toMatchObject({
       role: "globee",
       lead: "Harbor Cut needs a synopsis.",
     });
@@ -262,11 +311,13 @@ describe("startAskGlobeeConversation", () => {
   });
 
   it("fails closed on unmapped free text when the operator key is missing", async () => {
-    const { inserted } = stubWriteClient();
+    const { inserted } = stubWriteClient({
+      priorMessages: [{ role: "user", body: "How many titles are in my catalog?" }],
+    });
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
 
-    await expect(startAskGlobeeConversation("How many titles are in my catalog?")).resolves.toEqual({
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({
       error: ASK_GLOBEE.unavailable,
     });
     expect(inserted).toEqual([]);
@@ -275,11 +326,15 @@ describe("startAskGlobeeConversation", () => {
   });
 
   it("fails closed on a chip prompt when the operator key is missing", async () => {
-    const { inserted } = stubWriteClient({ titles: [], findings: [] });
+    const { inserted } = stubWriteClient({
+      titles: [],
+      findings: [],
+      priorMessages: [{ role: "user", body: "What is blocking a title" }],
+    });
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
 
-    await expect(startAskGlobeeConversation("What is blocking a title")).resolves.toEqual({
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({
       error: ASK_GLOBEE.unavailable,
     });
     expect(inserted).toEqual([]);
@@ -289,7 +344,9 @@ describe("startAskGlobeeConversation", () => {
   });
 
   it("answers unmapped free text from the model path instead of the capability stub", async () => {
-    const { inserted } = stubWriteClient();
+    const { inserted } = stubWriteClient({
+      priorMessages: [{ role: "user", body: "How many titles are in my catalog?" }],
+    });
     process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
@@ -309,10 +366,8 @@ describe("startAskGlobeeConversation", () => {
         }),
       });
 
-    await expect(startAskGlobeeConversation("How many titles are in my catalog?")).resolves.toEqual({
-      conversationId: THREAD,
-    });
-    expect(inserted[2]?.row).toMatchObject({
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({});
+    expect(inserted[0]?.row).toMatchObject({
       role: "globee",
       lead: "Your catalog has 1 title.",
     });
@@ -327,6 +382,20 @@ describe("startAskGlobeeConversation", () => {
     const toolRound = JSON.parse(String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body));
     expect(JSON.stringify(toolRound)).not.toContain(OTHER_ORG_FINDING);
     expect(JSON.stringify(toolRound)).not.toContain("ORPHAN_FINDING");
+  });
+
+  it("refuses Access and never loads conversations or findings", async () => {
+    const { from, rpc } = stubWriteClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("access");
+
+    await expect(completeAskGlobeeTurn(THREAD)).resolves.toEqual({
+      error: "Not authorized.",
+    });
+    expect(vi.mocked(createClient)).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

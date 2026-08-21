@@ -21,8 +21,9 @@ import { AskGlobeeThread } from "@/components/messages/ask-globee-thread";
 import { NotificationInbox } from "@/components/messages/notification-inbox";
 
 // Access `/messages` is the Ask Globee upgrade gate (Figma 305:320).
-// Pro/Premium see the 7:73 landing + org HISTORY, then 247:295 chrome
-// on a persisted thread. Staff without a client org keep the inbox.
+// Pro/Premium see the 7:73 landing + org HISTORY. Chip or composer send
+// persists the user turn, then 247:295 chrome on that thread. Staff
+// without a client org keep the inbox.
 export default async function MessagesPage({
   searchParams = Promise.resolve({}),
 }: {
