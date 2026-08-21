@@ -411,6 +411,7 @@ describe("MessagesPage Ask Globee persist", () => {
     expect(html).toContain('data-ask-globee-lead-slot=""');
     expect(html).toContain(ASK_GLOBEE.escToCancel);
     expect(html).toContain('data-ask-globee-stop=""');
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain(ASK_GLOBEE.thinking);
     expect(html).not.toContain("Looking at The Winter Line");
     expect(html).not.toContain("data-ask-globee-landing");

@@ -15,8 +15,13 @@ vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   setAskGlobeeThumb: vi.fn(),
 }));
 
-import { ASK_GLOBEE } from "@/lib/ask-globee";
+import {
+  ASK_GLOBEE,
+  ASK_GLOBEE_FETCHING_HOLD_MS,
+  askGlobeeThinkingPhase,
+} from "@/lib/ask-globee";
 import { CATALOG_HEALTH_EMPTY } from "@/lib/findings";
+import { AskGlobeeThinking } from "./ask-globee-thinking";
 import { AskGlobeeThread } from "./ask-globee-thread";
 
 function visible(html: string): string {
@@ -301,7 +306,7 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain("data-ask-globee-upgrade");
   });
 
-  it("shows empty-lead thinking chrome and Esc/Stop composer while a turn is in flight", () => {
+  it("plays fetching then finding-the-signal chrome while a turn is in flight", () => {
     const html = renderThread([
       {
         id: USER_MSG,
@@ -314,12 +319,23 @@ describe("AskGlobeeThread", () => {
       },
     ]);
     const composer = html.slice(html.indexOf("data-ask-globee-composer"));
+    const finding = renderToStaticMarkup(
+      <AskGlobeeThinking phase={askGlobeeThinkingPhase(ASK_GLOBEE_FETCHING_HOLD_MS)} />,
+    );
 
     expect(html).toContain("What is blocking a title");
     expect(html).toContain('data-ask-globee-thinking=""');
     expect(html).toContain('data-ask-globee-lead-slot=""');
     expect(html).toContain(ASK_GLOBEE.fetchingSkills);
     expect(html).toContain("…");
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
+    expect(finding).toContain(ASK_GLOBEE.findingSignal);
+    expect(finding).toContain("…");
+    expect(finding).toContain('data-ask-globee-handoff=""');
+    expect(finding).toContain("t-body-sm text-ink-3/55");
+    expect(finding).not.toContain(ASK_GLOBEE.fetchingSkills);
+    expect(finding).not.toContain("Winter Line");
+    expect(finding).not.toContain(ASK_GLOBEE.answerLead);
     expect(html).toContain('data-ask-globee-user-row=""');
     expect(composer).toContain('data-ask-globee-composer-busy=""');
     expect(composer).toContain(ASK_GLOBEE.escToCancel);
@@ -329,7 +345,6 @@ describe("AskGlobeeThread", () => {
     expect(composer).not.toContain(ASK_GLOBEE.composerPlaceholder);
     expect(composer).not.toContain(`aria-label="${ASK_GLOBEE.sendLabel}"`);
     expect(html).not.toContain(ASK_GLOBEE.thinking);
-    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain("Looking at");
     expect(html).not.toContain("Looking at The Winter Line");
     expect(html).not.toContain("Winter Line");
@@ -337,8 +352,11 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain(ASK_GLOBEE.capability);
     expect(src).toContain("completeAskGlobeeTurn");
     expect(src).toContain("askGlobeeOpenUserTurn");
-    expect(src).toContain("<AskGlobeeThinking />");
-    expect(src).not.toContain("<AskGlobeeThinking lead");
+    expect(src).toContain("ASK_GLOBEE_FETCHING_HOLD_MS");
+    expect(src).toContain("askGlobeeThinkingPhase");
+    expect(src).toContain("setTimeout");
+    expect(src).toContain("phase={thinkingPhase}");
+    expect(src).not.toContain(ASK_GLOBEE.answerLead);
   });
 
   it("keeps the answered turn flush with no answer bubble", () => {
@@ -356,6 +374,9 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain(ASK_GLOBEE.thumbsDownLabel);
     expect(answer).toContain("t-body text-ink");
     expect(answer).not.toContain("rounded-[var(--radius-lg)] bg-surface-muted");
+    expect(html).not.toContain("data-ask-globee-thinking");
+    expect(html).not.toContain(ASK_GLOBEE.fetchingSkills);
+    expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain("Looking at The Winter Line");
     expect(html).not.toContain("Winter Line");
   });

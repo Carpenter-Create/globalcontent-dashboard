@@ -4,14 +4,20 @@ import { USER_MENU } from "@/lib/user-menu";
 // Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
 // 247:295 chrome on a persisted thread. Landing chips are suggested prompts —
 // same catalog-grounded operator as unmapped free text. Landing persists the
-// user turn and opens the thread; thinking chrome (empty lead + fetching
-// relevant skills…) lives on the thread while the operator runs. Handoff
-// chrome (live lead + finding the signal…) is for an in-flight lead only —
-// never a hardcoded Winter Line fact, never a conversation_messages row.
+// user turn and opens the thread; thinking chrome lives on the thread while
+// the operator runs. In-flight sequence: empty lead + fetching relevant
+// skills…, then finding the signal… (optional live catalog lead as the ink
+// line). Time advances the verb — do not wait for a lead that never arrives.
+// Never a hardcoded Winter Line fact, never a conversation_messages row.
 // Tools may still use the findings lookup internally. Winter Line fixture
 // strings stay here as a do-not-render lock. No checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
+
+export type AskGlobeeThinkingPhase = "fetching" | "finding";
+
+// Readable hold on fetching before finding chrome. House 8/16/24/48 scale.
+export const ASK_GLOBEE_FETCHING_HOLD_MS = 1000;
 
 export type MessagesSurface =
   | "staff-inbox"
@@ -151,8 +157,21 @@ export function askGlobeeUsesModel(prompt: string): boolean {
   return askGlobeeComposerSubmit(prompt) !== null;
 }
 
-export function askGlobeeThinkingVerb(lead: string | null | undefined): string {
-  return lead?.trim() ? ASK_GLOBEE.findingSignal : ASK_GLOBEE.fetchingSkills;
+export function askGlobeeThinkingPhase(elapsedMs: number): AskGlobeeThinkingPhase {
+  return elapsedMs < ASK_GLOBEE_FETCHING_HOLD_MS ? "fetching" : "finding";
+}
+
+export function askGlobeeThinkingVerb(phase: AskGlobeeThinkingPhase): string {
+  return phase === "finding" ? ASK_GLOBEE.findingSignal : ASK_GLOBEE.fetchingSkills;
+}
+
+export function askGlobeeInFlightLead(
+  phase: AskGlobeeThinkingPhase,
+  lead: string | null | undefined,
+): string | null {
+  if (phase !== "finding") return null;
+  const next = lead?.trim() ?? "";
+  return next.length > 0 ? next : null;
 }
 
 export function messagesShowsThreadHeader(surface: MessagesSurface, threadId: string | null): boolean {

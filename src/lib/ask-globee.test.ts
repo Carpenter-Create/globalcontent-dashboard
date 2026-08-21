@@ -9,6 +9,9 @@ import {
   askGlobeeConversationTitle,
   askGlobeeLandingHref,
   askGlobeeSelectedChip,
+  ASK_GLOBEE_FETCHING_HOLD_MS,
+  askGlobeeInFlightLead,
+  askGlobeeThinkingPhase,
   askGlobeeThinkingVerb,
   askGlobeeThreadHref,
   askGlobeeUsesModel,
@@ -213,14 +216,21 @@ describe("Ask Globee send helpers", () => {
     }
   });
 
-  it("uses fetching chrome until a live lead exists, then finding chrome", () => {
-    expect(askGlobeeThinkingVerb(null)).toBe(ASK_GLOBEE.fetchingSkills);
-    expect(askGlobeeThinkingVerb("   ")).toBe(ASK_GLOBEE.fetchingSkills);
-    expect(askGlobeeThinkingVerb("Harbor Cut — Synopsis is required.")).toBe(
-      ASK_GLOBEE.findingSignal,
+  it("plays fetching then finding from elapsed time, not a lead that never arrives", () => {
+    expect(ASK_GLOBEE_FETCHING_HOLD_MS).toBe(1000);
+    expect(askGlobeeThinkingPhase(0)).toBe("fetching");
+    expect(askGlobeeThinkingPhase(ASK_GLOBEE_FETCHING_HOLD_MS - 1)).toBe("fetching");
+    expect(askGlobeeThinkingPhase(ASK_GLOBEE_FETCHING_HOLD_MS)).toBe("finding");
+    expect(askGlobeeThinkingVerb("fetching")).toBe(ASK_GLOBEE.fetchingSkills);
+    expect(askGlobeeThinkingVerb("finding")).toBe(ASK_GLOBEE.findingSignal);
+    expect(askGlobeeInFlightLead("fetching", "Harbor Cut — Synopsis is required.")).toBeNull();
+    expect(askGlobeeInFlightLead("finding", null)).toBeNull();
+    expect(askGlobeeInFlightLead("finding", "   ")).toBeNull();
+    expect(askGlobeeInFlightLead("finding", "Harbor Cut — Synopsis is required.")).toBe(
+      "Harbor Cut — Synopsis is required.",
     );
-    expect(askGlobeeThinkingVerb(ASK_GLOBEE.fetchingSkills)).not.toContain("Winter Line");
-    expect(askGlobeeThinkingVerb("Harbor Cut — Synopsis is required.")).not.toContain(
+    expect(askGlobeeThinkingVerb("finding")).not.toContain("Winter Line");
+    expect(askGlobeeInFlightLead("finding", "Harbor Cut — Synopsis is required.")).not.toContain(
       "Looking at",
     );
   });
