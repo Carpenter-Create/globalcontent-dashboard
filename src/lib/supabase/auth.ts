@@ -1,6 +1,8 @@
 import "server-only";
 import { cache } from "react";
 
+import { resolveAuthUserName } from "@/lib/auth-user-name";
+
 import { createClient } from "./server";
 
 // Request-scoped authenticated identity.
@@ -17,13 +19,18 @@ import { createClient } from "./server";
 // 2. React `cache()` dedupes within a single render pass. A layout and the page beneath it
 //    both calling getAuthUser() cost ONE verification, not two.
 //
-// Returns the same minimal shape the call sites actually used from `user`: id + email.
-export const getAuthUser = cache(async (): Promise<{ id: string; email: string } | null> => {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims?.sub) return null;
-  return {
-    id: data.claims.sub,
-    email: typeof data.claims.email === "string" ? data.claims.email : "",
-  };
-});
+// Returns id, email, and a real display name when the JWT already carries one.
+// Name is resolved here — layouts must not read user_metadata.
+export const getAuthUser = cache(
+  async (): Promise<{ id: string; email: string; name: string | null } | null> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getClaims();
+    if (error || !data?.claims?.sub) return null;
+    const email = typeof data.claims.email === "string" ? data.claims.email : "";
+    return {
+      id: data.claims.sub,
+      email,
+      name: resolveAuthUserName(data.claims),
+    };
+  },
+);

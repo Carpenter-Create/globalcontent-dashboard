@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,7 +8,11 @@ import {
   THEME_STORAGE_KEY,
   applyTheme,
   nextTheme,
+  readThemePreference,
+  resolveTheme,
+  setThemePreference,
   themeFromRoot,
+  themePreferenceFromStorage,
   toggleDocumentTheme,
   toggleTheme,
   type ThemeRoot,
@@ -81,7 +88,7 @@ describe("theme toggle", () => {
     expect(THEME_STORAGE_KEY).toBe("gc-theme");
   });
 
-  it("toggleDocumentTheme is the Appearance action: .dark + gc-theme", () => {
+  it("toggleDocumentTheme remains available for other callers", () => {
     const root = fakeRoot(false);
     const storage = fakeStorage();
     vi.stubGlobal("document", { documentElement: root });
@@ -92,5 +99,59 @@ describe("theme toggle", () => {
     expect(toggleDocumentTheme()).toBe("light");
     expect(root.classes.has(THEME_DARK_CLASS)).toBe(false);
     expect(storage.data[THEME_STORAGE_KEY]).toBe("light");
+  });
+});
+
+describe("theme preference", () => {
+  it("treats a missing or invalid key as light — not system", () => {
+    expect(themePreferenceFromStorage(null)).toBe("light");
+    expect(themePreferenceFromStorage(undefined)).toBe("light");
+    expect(themePreferenceFromStorage("")).toBe("light");
+    expect(themePreferenceFromStorage("auto")).toBe("light");
+    expect(readThemePreference(fakeStorage())).toBe("light");
+  });
+
+  it("reads light, dark, and system from gc-theme", () => {
+    expect(readThemePreference(fakeStorage({ [THEME_STORAGE_KEY]: "light" }))).toBe("light");
+    expect(readThemePreference(fakeStorage({ [THEME_STORAGE_KEY]: "dark" }))).toBe("dark");
+    expect(readThemePreference(fakeStorage({ [THEME_STORAGE_KEY]: "system" }))).toBe("system");
+  });
+
+  it("resolves system from the OS and leaves explicit light/dark alone", () => {
+    expect(resolveTheme("light", true)).toBe("light");
+    expect(resolveTheme("dark", false)).toBe("dark");
+    expect(resolveTheme("system", true)).toBe("dark");
+    expect(resolveTheme("system", false)).toBe("light");
+  });
+
+  it("persists the stored preference and applies the resolved class", () => {
+    const root = fakeRoot(false);
+    const storage = fakeStorage();
+    expect(setThemePreference("system", root, storage, true)).toBe("system");
+    expect(storage.data[THEME_STORAGE_KEY]).toBe("system");
+    expect(root.classes.has(THEME_DARK_CLASS)).toBe(true);
+
+    expect(setThemePreference("system", root, storage, false)).toBe("system");
+    expect(storage.data[THEME_STORAGE_KEY]).toBe("system");
+    expect(root.classes.has(THEME_DARK_CLASS)).toBe(false);
+
+    expect(setThemePreference("light", root, storage, true)).toBe("light");
+    expect(storage.data[THEME_STORAGE_KEY]).toBe("light");
+    expect(root.classes.has(THEME_DARK_CLASS)).toBe(false);
+  });
+});
+
+describe("no-flash script", () => {
+  it("handles dark, system, and unset-as-light in the root layout", () => {
+    const layoutSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../app/layout.tsx"),
+      "utf8",
+    );
+    expect(layoutSrc).toContain("localStorage.getItem('gc-theme')");
+    expect(layoutSrc).toContain("==='dark'");
+    expect(layoutSrc).toContain("==='system'");
+    expect(layoutSrc).toContain("prefers-color-scheme: dark");
+    expect(layoutSrc).toContain("classList.add('dark')");
+    expect(layoutSrc).not.toMatch(/getItem\('gc-theme'\)==='dark'\)\{document/);
   });
 });

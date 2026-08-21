@@ -1,8 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
-import { themeFromRoot, type Theme } from "@/lib/theme";
+import {
+  THEME_CHANGE_EVENT,
+  applyResolvedTheme,
+  readThemePreference,
+  resolveTheme,
+  themeFromRoot,
+  type Theme,
+  type ThemePreference,
+} from "@/lib/theme";
 
 // Reads the live `.dark` class on <html>. Light is the default base; the
 // no-flash script in layout.tsx applies a stored `gc-theme` before paint.
@@ -31,6 +39,41 @@ function getServerSnapshot(): Theme {
 
 export function useTheme(): Theme {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+function getPreferenceSnapshot(): ThemePreference {
+  try {
+    return readThemePreference(localStorage);
+  } catch {
+    return "light";
+  }
+}
+
+function subscribePreference(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(THEME_CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(THEME_CHANGE_EVENT, callback);
+  };
+}
+
+export function useThemePreference(): ThemePreference {
+  return useSyncExternalStore(subscribePreference, getPreferenceSnapshot, getServerSnapshot);
+}
+
+/** When the stored choice is system, keep `.dark` in sync with the OS. */
+export function useSystemThemeSync(preference: ThemePreference): void {
+  useEffect(() => {
+    if (preference !== "system") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      applyResolvedTheme(resolveTheme("system", media.matches), document.documentElement);
+    };
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [preference]);
 }
 
 export function ThemeGlyph({ className }: { className?: string }) {

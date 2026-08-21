@@ -7,9 +7,10 @@ export const metadata: Metadata = {
   description: "Global Content dashboard.",
 };
 
-// Applied before paint to prevent a flash. Light is the guaranteed default;
-// dark is purely opt-in (we intentionally do NOT auto-adopt the OS preference).
-const NO_FLASH_THEME = `(function(){try{if(localStorage.getItem('gc-theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+// Applied before paint to prevent a flash. Light is the guaranteed default
+// when the key is missing or invalid. `system` follows the OS; we do not
+// auto-adopt the OS when unset.
+const NO_FLASH_THEME = `(function(){try{var t=localStorage.getItem('gc-theme');if(t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
 
 export default function RootLayout({
   children,
