@@ -28,6 +28,10 @@ function visible(html: string): string {
   return html.replaceAll("&#x27;", "'");
 }
 
+function visibleText(html: string): string {
+  return visible(html).replace(/<[^>]+>/g, "");
+}
+
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "ask-globee-thread.tsx"), "utf8");
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 const USER_MSG = "3a2d9c7b-5e4f-4b22-8d33-8c9f2e1b6a55";
@@ -84,7 +88,7 @@ describe("AskGlobeeThread", () => {
 
     expect(html).toContain('data-ask-globee-thread=""');
     expect(html).toContain("What needs attention");
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.globeeMark);
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
@@ -186,7 +190,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("What needs attention");
     expect(html).toContain("What is blocking a title");
     expect(html).toContain(CATALOG_HEALTH_EMPTY);
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain('data-ask-globee-turn=""');
     expect(html).toContain("gap-[var(--space-6)]");
     expect(html).toContain("border-t border-hairline");
@@ -245,7 +249,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("What needs attention");
     expect(html).toContain("What is blocking a title");
     expect(html).toContain(CATALOG_HEALTH_EMPTY);
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
   });
 
   it("scrolls the latest turn into view when the thread grows", () => {
@@ -362,6 +366,57 @@ describe("AskGlobeeThread", () => {
     expect(src).not.toContain(ASK_GLOBEE.answerLead);
   });
 
+  it("renders a persisted answer as conversation ink, not raw markdown", () => {
+    const html = renderThread([
+      {
+        id: USER_MSG,
+        role: "user",
+        body: "What needs attention",
+        lead: null,
+        follow: null,
+        thumbs: null,
+        created_at: "2026-08-19T11:00:00.000Z",
+      },
+      {
+        id: GLOBEE_MSG,
+        role: "globee",
+        body: "Harbor Cut is missing **Genre**.",
+        lead: "Harbor Cut is missing **Genre**.",
+        follow: "- Genre is required before it can go live.\n# Synopsis and `Runtime` are also required.",
+        thumbs: null,
+        created_at: "2026-08-19T11:10:00.000Z",
+      },
+    ]);
+    const answer = html.slice(
+      html.indexOf("data-ask-globee-answer"),
+      html.indexOf("data-ask-globee-composer"),
+    );
+    const visibleAnswer = answer.replace(/<[^>]+>/g, "");
+
+    expect(answer).toContain('data-ask-globee-ink=""');
+    expect(answer.match(/data-ask-globee-fact=""/g)?.length).toBe(3);
+    expect(answer).toContain("gap-[var(--space-2)]");
+    expect(answer).toContain("t-body text-ink");
+    expect(answer).toContain("font-medium");
+    expect(answer).toMatch(/font-medium[^>]*>Genre</);
+    expect(answer).toMatch(/font-medium[^>]*>Synopsis</);
+    expect(answer).toMatch(/font-medium[^>]*>Runtime</);
+    expect(visibleAnswer).toContain("Harbor Cut is missing Genre.");
+    expect(visibleAnswer).toContain("Genre is required before it can go live.");
+    expect(visibleAnswer).toContain("Synopsis and Runtime are also required.");
+    expect(visibleAnswer).not.toContain("**");
+    expect(visibleAnswer).not.toContain("#");
+    expect(visibleAnswer).not.toContain("`");
+    expect(visibleAnswer).not.toContain("- Genre");
+    expect(answer).not.toContain("t-body-sm text-ink-2");
+    expect(html).not.toContain("Winter Line");
+    expect(html).not.toContain("Harbor Lights");
+    expect(src).toContain("parseAskGlobeeInk");
+    expect(src).toContain("stackAskGlobeeInkFacts");
+    expect(src).not.toContain("Winter Line");
+    expect(src).not.toContain("Harbor Lights");
+  });
+
   it("keeps the answered turn flush with no answer bubble", () => {
     const html = renderThread();
     const answer = html.slice(
@@ -369,7 +424,7 @@ describe("AskGlobeeThread", () => {
       html.indexOf("data-ask-globee-composer"),
     );
 
-    expect(html).toContain("Harbor Cut — Synopsis is required.");
+    expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
     expect(html).toContain(ASK_GLOBEE.downloadLabel);

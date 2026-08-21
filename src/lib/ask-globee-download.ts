@@ -1,5 +1,15 @@
 import { ASK_GLOBEE, askGlobeeConversationTitle } from "@/lib/ask-globee";
-import { METADATA_FIELDS } from "@/lib/metadata";
+import {
+  parseAskGlobeeDownloadInk,
+  stackAskGlobeeDownloadFacts,
+  type AskGlobeeDownloadInkSpan,
+} from "@/lib/ask-globee-ink";
+
+export {
+  parseAskGlobeeDownloadInk,
+  stackAskGlobeeDownloadFacts,
+  type AskGlobeeDownloadInkSpan,
+} from "@/lib/ask-globee-ink";
 
 // Locked conversation download (440:410 letter sheet, 440:432 filename).
 // Client-side PDF — no new dependency; one letter page, Standard 14 fonts.
@@ -18,11 +28,6 @@ export const ASK_GLOBEE_DOWNLOAD = {
   // Confirmed Sporty Blue — same value as --accent in tokens.css.
   accent: [0x17, 0x69, 0xff] as const,
 } as const;
-
-export type AskGlobeeDownloadInkSpan = {
-  text: string;
-  medium: boolean;
-};
 
 export type AskGlobeeDownloadInput = {
   title: string;
@@ -50,18 +55,6 @@ const MUTED = [0xf4, 0xf4, 0xf6] as const;
 const WHITE = [0xff, 0xff, 0xff] as const;
 const INK_3 = [0x9a, 0xa0, 0xa9] as const;
 
-const CATALOG_FIELD_NAMES = [
-  ...METADATA_FIELDS.map((field) => field.label),
-  "Runtime",
-]
-  .filter((name, index, all) => name.length > 1 && all.indexOf(name) === index)
-  .sort((a, b) => b.length - a.length);
-
-const CATALOG_FIELD_RE = new RegExp(
-  `\\b(${CATALOG_FIELD_NAMES.map(escapeRegExp).join("|")})\\b`,
-  "g",
-);
-
 export function askGlobeeDownloadFilename(title: string): string {
   const slug = askGlobeeConversationTitle(title)
     .toLowerCase()
@@ -70,19 +63,6 @@ export function askGlobeeDownloadFilename(title: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
   return `globee-${slug || "conversation"}.pdf`;
-}
-
-export function stackAskGlobeeDownloadFacts(lead: string, follow: string | null): string[] {
-  return [lead, follow]
-    .flatMap((block) => (block ?? "").split(/\r?\n/))
-    .map(stripDownloadBullet)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
-export function parseAskGlobeeDownloadInk(text: string): AskGlobeeDownloadInkSpan[] {
-  const marked = splitMarkdownMedium(stripDownloadBullet(text));
-  return marked.flatMap((span) => (span.medium ? [span] : emphasizeCatalogFields(span.text)));
 }
 
 export function askGlobeeDownloadBlob(input: AskGlobeeDownloadInput): Blob {
@@ -181,46 +161,6 @@ function bodyMaxWidth(): number {
   return PAGE_W - MARGIN * 2 - MARK - GAP;
 }
 
-function stripDownloadBullet(text: string): string {
-  return text.replace(/^\s*(?:[-*•]|\d+\.)\s+/, "");
-}
-
-function splitMarkdownMedium(text: string): AskGlobeeDownloadInkSpan[] {
-  const spans: AskGlobeeDownloadInkSpan[] = [];
-  const marked = /\*\*([\s\S]+?)\*\*/g;
-  let cursor = 0;
-  for (const match of text.matchAll(marked)) {
-    const start = match.index ?? 0;
-    if (start > cursor) {
-      spans.push({ text: text.slice(cursor, start), medium: false });
-    }
-    spans.push({ text: match[1] ?? "", medium: true });
-    cursor = start + match[0].length;
-  }
-  if (cursor < text.length) {
-    spans.push({ text: text.slice(cursor), medium: false });
-  }
-  return spans.filter((span) => span.text.length > 0);
-}
-
-function emphasizeCatalogFields(text: string): AskGlobeeDownloadInkSpan[] {
-  const spans: AskGlobeeDownloadInkSpan[] = [];
-  let cursor = 0;
-  CATALOG_FIELD_RE.lastIndex = 0;
-  for (const match of text.matchAll(CATALOG_FIELD_RE)) {
-    const start = match.index ?? 0;
-    if (start > cursor) {
-      spans.push({ text: text.slice(cursor, start), medium: false });
-    }
-    spans.push({ text: match[0], medium: true });
-    cursor = start + match[0].length;
-  }
-  if (cursor < text.length) {
-    spans.push({ text: text.slice(cursor), medium: false });
-  }
-  return spans.filter((span) => span.text.length > 0);
-}
-
 function wrapPlain(text: string, maxWidth: number, size: number, bold: boolean): string[] {
   if (!text) return [];
   return wrapTokens(text.split(/(\s+)/), maxWidth, size, bold);
@@ -281,10 +221,6 @@ function glyphWidth(char: string): number {
   if (/[iltfI.,:'!]/.test(char)) return 278;
   if (/[mwMW@]/.test(char)) return 833;
   return 556;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function rgbOp(rgb: readonly [number, number, number]): string {
