@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ASK_GLOBEE } from "@/lib/ask-globee";
-import { buildAskGlobeeAnswer, type AskGlobeeAnswer } from "@/lib/ask-globee-answer";
+import type { AskGlobeeAnswer } from "@/lib/ask-globee-answer";
 import {
   ASK_GLOBEE_TOOLS,
   executeAskGlobeeTool,
@@ -144,16 +144,6 @@ export async function answerAskGlobeePrompt({
   env?: AskGlobeeOperatorEnv;
   modelClient?: AskGlobeeModelClient;
 }): Promise<AskGlobeeOperatorResult> {
-  const mapped = buildAskGlobeeAnswer({
-    prompt,
-    titles: corpus.titles,
-    findings: corpus.findings,
-    orgId: corpus.orgId,
-    now: corpus.now,
-    bound: corpus.bound,
-  });
-  if (mapped) return mapped;
-
   const apiKey = readOperatorApiKey(env);
   if (!apiKey) {
     return { error: ASK_GLOBEE.unavailable };

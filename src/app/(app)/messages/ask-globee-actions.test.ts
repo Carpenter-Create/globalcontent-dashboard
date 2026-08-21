@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveOrgTier } from "@/lib/org-tier";
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import { ASK_GLOBEE_MODEL_ID } from "@/lib/ask-globee-operator";
-import { CATALOG_HEALTH_EMPTY } from "@/lib/findings";
 import {
   appendAskGlobeeTurn,
   startAskGlobeeConversation,
@@ -162,51 +161,104 @@ describe("startAskGlobeeConversation", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("persists an org-filtered answer for Pro and drops other-org findings", async () => {
-    const { inserted, rpc } = stubWriteClient();
+  it("sends What is blocking a title on the model path and does not persist emptyBlocking", async () => {
+    const { inserted, rpc } = stubWriteClient({ titles: [], findings: [] });
+    process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "tool_use",
+          content: [{ type: "tool_use", id: "toolu_1", name: "get_blockers", input: {} }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "Harbor Cut is missing a synopsis." }],
+        }),
+      });
 
-    await expect(startAskGlobeeConversation("What needs attention")).resolves.toEqual({
+    await expect(startAskGlobeeConversation("What is blocking a title")).resolves.toEqual({
       conversationId: THREAD,
     });
     expect(rpc).toHaveBeenCalledWith("my_findings");
+    expect(fetchMock).toHaveBeenCalled();
     expect(inserted[0]?.table).toBe("conversations");
     expect(inserted[0]?.row).toMatchObject({
       org_id: "org-1",
-      title: "What needs attention",
+      title: "What is blocking a title",
     });
     expect(inserted[1]?.row).toMatchObject({
       role: "user",
-      body: "What needs attention",
+      body: "What is blocking a title",
       org_id: "org-1",
     });
     expect(inserted[2]?.row).toMatchObject({
       role: "globee",
-      lead: "Harbor Cut — Synopsis is required.",
+      lead: "Harbor Cut is missing a synopsis.",
       org_id: "org-1",
     });
+    expect(inserted[2]?.row.lead).not.toBe(ASK_GLOBEE.emptyBlocking);
     const payload = JSON.stringify(inserted);
+    expect(payload).not.toContain(ASK_GLOBEE.emptyBlocking);
+    expect(payload).not.toContain(ASK_GLOBEE.emptySubmitNext);
+    expect(payload).not.toContain(ASK_GLOBEE.capability);
     expect(payload).not.toContain(OTHER_ORG_FINDING);
     expect(payload).not.toContain("ORPHAN_FINDING");
     expect(payload).not.toContain("Winter Line");
     expect(payload).not.toContain("Harbor Lights");
-    expect(fetchMock).not.toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    const body = JSON.parse(String(init.body));
+    expect(body.model).toBe(ASK_GLOBEE_MODEL_ID);
+    const toolRound = JSON.parse(String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body));
+    expect(JSON.stringify(toolRound)).not.toContain(OTHER_ORG_FINDING);
+    expect(JSON.stringify(toolRound)).not.toContain("ORPHAN_FINDING");
   });
 
-  it("tells the truth when the catalog is empty", async () => {
-    const { inserted } = stubWriteClient({ titles: [], findings: [] });
+  it("drops other-org and orphan findings from chip tool results", async () => {
+    const { inserted } = stubWriteClient();
+    process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("premium");
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "tool_use",
+          content: [
+            { type: "tool_use", id: "toolu_att", name: "get_attention", input: {} },
+            { type: "tool_use", id: "toolu_block", name: "get_blockers", input: {} },
+            { type: "tool_use", id: "toolu_next", name: "get_submit_next", input: {} },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "Harbor Cut needs a synopsis." }],
+        }),
+      });
 
     await expect(startAskGlobeeConversation("What needs attention")).resolves.toEqual({
       conversationId: THREAD,
     });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(inserted[2]?.row).toMatchObject({
       role: "globee",
-      lead: CATALOG_HEALTH_EMPTY,
+      lead: "Harbor Cut needs a synopsis.",
     });
-    expect(JSON.stringify(inserted)).not.toContain("Artwork missing");
+    const toolRound = JSON.parse(String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body));
+    const toolPayload = JSON.stringify(toolRound);
+    expect(toolPayload).not.toContain(OTHER_ORG_FINDING);
+    expect(toolPayload).not.toContain("ORPHAN_FINDING");
+    expect(JSON.stringify(inserted)).not.toContain(OTHER_ORG_FINDING);
+    expect(JSON.stringify(inserted)).not.toContain("ORPHAN_FINDING");
   });
 
   it("fails closed on unmapped free text when the operator key is missing", async () => {
@@ -219,6 +271,20 @@ describe("startAskGlobeeConversation", () => {
     });
     expect(inserted).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(ASK_GLOBEE.unavailable).not.toBe(ASK_GLOBEE.capability);
+  });
+
+  it("fails closed on a chip prompt when the operator key is missing", async () => {
+    const { inserted } = stubWriteClient({ titles: [], findings: [] });
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+
+    await expect(startAskGlobeeConversation("What is blocking a title")).resolves.toEqual({
+      error: ASK_GLOBEE.unavailable,
+    });
+    expect(inserted).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(ASK_GLOBEE.unavailable).not.toBe(ASK_GLOBEE.emptyBlocking);
     expect(ASK_GLOBEE.unavailable).not.toBe(ASK_GLOBEE.capability);
   });
 
@@ -273,8 +339,16 @@ describe("appendAskGlobeeTurn", () => {
 
   it("appends both turns to the same conversation", async () => {
     const { inserted } = stubWriteClient();
+    process.env.ANTHROPIC_API_KEY = TEST_KEY;
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
     vi.mocked(getActiveOrgTier).mockResolvedValue("pro");
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "Harbor Cut is missing a synopsis." }],
+      }),
+    });
 
     await expect(appendAskGlobeeTurn(THREAD, "What is blocking a title")).resolves.toEqual({});
     expect(inserted.some((row) => row.table === "conversations")).toBe(false);
@@ -286,7 +360,10 @@ describe("appendAskGlobeeTurn", () => {
     expect(inserted[1]?.row).toMatchObject({
       conversation_id: THREAD,
       role: "globee",
+      lead: "Harbor Cut is missing a synopsis.",
     });
+    expect(inserted[1]?.row.lead).not.toBe(ASK_GLOBEE.emptyBlocking);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("refuses Access follow-ups without loading findings", async () => {

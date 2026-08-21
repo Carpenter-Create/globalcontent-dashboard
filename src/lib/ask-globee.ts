@@ -2,9 +2,10 @@ import { USER_MENU } from "@/lib/user-menu";
 
 // Ask Globee copy and gating. Lives in lib/, not JSX.
 // Access sees the upgrade gate only. Pro/Premium see the 7:73 landing, then
-// 247:295 chrome on a persisted thread. Chip intents stay a live findings
-// lookup. Unmapped free text is the catalog-grounded operator. Winter Line
-// fixture strings stay here as a do-not-render lock. No checkout.
+// 247:295 chrome on a persisted thread. Landing chips are suggested prompts —
+// same catalog-grounded operator as unmapped free text, with thinking chrome
+// on those clicks. Tools may still use the findings lookup internally. Winter
+// Line fixture strings stay here as a do-not-render lock. No checkout.
 
 export type AskGlobeeTier = "access" | "pro" | "premium";
 
@@ -140,7 +141,7 @@ export function askGlobeeChipActivation(label: (typeof ASK_GLOBEE_TRY_PROMPTS)[n
 }
 
 export function askGlobeeUsesModel(prompt: string): boolean {
-  return askGlobeeSelectedChip(prompt) === null;
+  return askGlobeeComposerSubmit(prompt) !== null;
 }
 
 export function messagesShowsThreadHeader(surface: MessagesSurface, threadId: string | null): boolean {
