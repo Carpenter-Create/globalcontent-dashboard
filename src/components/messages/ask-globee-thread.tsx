@@ -27,10 +27,7 @@ import {
   type AskGlobeeStoredMessage,
   type AskGlobeeThumb,
 } from "@/lib/ask-globee-conversations";
-import {
-  ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE,
-  buildAskGlobeeDownloadPdf,
-} from "@/lib/ask-globee-download";
+import { askGlobeeDownloadBlob } from "@/lib/ask-globee-download";
 import {
   appendAskGlobeeTurn,
   completeAskGlobeeTurn,
@@ -74,8 +71,7 @@ function downloadAnswer(input: {
   lead: string;
   follow: string | null;
 }) {
-  const bytes = buildAskGlobeeDownloadPdf(input);
-  const blob = new Blob([bytes], { type: ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE });
+  const blob = askGlobeeDownloadBlob(input);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

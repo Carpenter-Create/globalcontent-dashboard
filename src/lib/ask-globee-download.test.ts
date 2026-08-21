@@ -7,6 +7,7 @@ import { ASK_GLOBEE } from "@/lib/ask-globee";
 import {
   ASK_GLOBEE_DOWNLOAD,
   ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE,
+  askGlobeeDownloadBlob,
   askGlobeeDownloadFilename,
   buildAskGlobeeDownloadPdf,
   parseAskGlobeeDownloadInk,
@@ -78,6 +79,13 @@ describe("buildAskGlobeeDownloadPdf", () => {
 
     expect(ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE).toBe("application/pdf");
     expect(ASK_GLOBEE_DOWNLOAD.contentType).toBe("application/pdf");
+    expect(askGlobeeDownloadBlob({
+      title: "What needs attention",
+      userPrompt: "What needs attention",
+      initials: "ac",
+      lead: "Harbor Cut is missing **Genre**.",
+      follow: "Genre is required before it can go live.",
+    }).type).toBe("application/pdf");
     expect(bytes[0]).toBe(0x25);
     expect(raw.startsWith("%PDF-")).toBe(true);
     expect(raw).toContain(`/MediaBox [0 0 ${ASK_GLOBEE_DOWNLOAD.pageWidth} ${ASK_GLOBEE_DOWNLOAD.pageHeight}]`);

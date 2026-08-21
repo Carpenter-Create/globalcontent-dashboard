@@ -85,6 +85,13 @@ export function parseAskGlobeeDownloadInk(text: string): AskGlobeeDownloadInkSpa
   return marked.flatMap((span) => (span.medium ? [span] : emphasizeCatalogFields(span.text)));
 }
 
+export function askGlobeeDownloadBlob(input: AskGlobeeDownloadInput): Blob {
+  const bytes = buildAskGlobeeDownloadPdf(input);
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return new Blob([copy], { type: ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE });
+}
+
 export function buildAskGlobeeDownloadPdf(input: AskGlobeeDownloadInput): Uint8Array {
   const title = input.title.trim();
   const userPrompt = input.userPrompt.trim();
