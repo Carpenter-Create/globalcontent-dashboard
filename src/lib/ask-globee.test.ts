@@ -195,9 +195,16 @@ describe("Ask Globee send helpers", () => {
     expect(askGlobeeLandingHref()).toBe("/messages");
     expect(askGlobeeSelectedChip("  what needs attention  ")).toBe("What needs attention");
     expect(askGlobeeSelectedChip("unmapped")).toBeNull();
-    expect(askGlobeeUsesModel("What needs attention")).toBe(false);
     expect(askGlobeeUsesModel("How many titles are in my catalog?")).toBe(true);
     expect(askGlobeeUsesModel("Would you help guide me?")).toBe(true);
+    expect(askGlobeeUsesModel("   ")).toBe(false);
+  });
+
+  it("sets thinking chrome for the three landing chip strings", () => {
+    for (const label of ASK_GLOBEE_TRY_PROMPTS) {
+      expect(askGlobeeUsesModel(label)).toBe(true);
+      expect(askGlobeeUsesModel(`  ${label}  `)).toBe(true);
+    }
   });
 
   it("truncates a long first prompt into the conversation title", () => {

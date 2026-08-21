@@ -99,19 +99,60 @@ describe("splitAskGlobeeModelText", () => {
 });
 
 describe("answerAskGlobeePrompt", () => {
-  it("keeps chip intents on the live findings path and never calls the model", async () => {
-    const modelClient = vi.fn();
+  it("sends the three landing chips on the model path instead of a deterministic chip answer", async () => {
+    const emptyCorpus = { ...CORPUS, titles: [], findings: [] };
+    for (const prompt of ASK_GLOBEE_TRY_PROMPTS) {
+      const modelClient = vi.fn(
+        scriptedClient([{ text: "Harbor Cut needs a synopsis before it can go live." }]),
+      );
+      const result = await answerAskGlobeePrompt({
+        prompt,
+        corpus: emptyCorpus,
+        env: { ANTHROPIC_API_KEY: TEST_KEY },
+        modelClient,
+      });
+      expect(modelClient).toHaveBeenCalled();
+      expect(result).toEqual({
+        intent: "unmapped",
+        lead: "Harbor Cut needs a synopsis before it can go live.",
+        follow: null,
+        titleNames: [],
+      });
+      expect(JSON.stringify(result)).not.toContain(ASK_GLOBEE.emptyBlocking);
+      expect(JSON.stringify(result)).not.toContain(ASK_GLOBEE.emptySubmitNext);
+      expect(JSON.stringify(result)).not.toContain(ASK_GLOBEE.capability);
+      for (const leak of FORBIDDEN) {
+        expect(JSON.stringify(result)).not.toContain(leak);
+      }
+    }
+  });
+
+  it("does not return the deterministic blocking chip answer as the operator reply", async () => {
+    const modelClient = scriptedClient([
+      { tools: [{ id: "toolu_1", name: "get_blockers" }] },
+      { text: "Harbor Cut is missing a synopsis." },
+    ]);
     const result = await answerAskGlobeePrompt({
-      prompt: ASK_GLOBEE_TRY_PROMPTS[0],
+      prompt: ASK_GLOBEE_TRY_PROMPTS[1],
       corpus: CORPUS,
       env: { ANTHROPIC_API_KEY: TEST_KEY },
       modelClient,
     });
-    expect(result).toMatchObject({
-      intent: "attention",
-      lead: "Harbor Cut — Synopsis is required.",
+    expect(result).toEqual({
+      intent: "unmapped",
+      lead: "Harbor Cut is missing a synopsis.",
+      follow: null,
+      titleNames: [],
     });
-    expect(modelClient).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toBe(
+      JSON.stringify({
+        intent: "blocking",
+        lead: "Harbor Cut — Synopsis is required.",
+        follow: null,
+        titleNames: ["Harbor Cut"],
+      }),
+    );
+    expect(JSON.stringify(result)).not.toContain(ASK_GLOBEE.emptyBlocking);
     expect(JSON.stringify(result)).not.toContain(ASK_GLOBEE.capability);
     for (const leak of FORBIDDEN) {
       expect(JSON.stringify(result)).not.toContain(leak);
@@ -182,6 +223,19 @@ describe("answerAskGlobeePrompt", () => {
       answerAskGlobeePrompt({
         prompt: "Would you help guide me?",
         corpus: CORPUS,
+        env: {},
+        modelClient,
+      }),
+    ).resolves.toEqual({ error: ASK_GLOBEE.unavailable });
+    expect(modelClient).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on a chip prompt when the operator key is missing", async () => {
+    const modelClient = vi.fn();
+    await expect(
+      answerAskGlobeePrompt({
+        prompt: ASK_GLOBEE_TRY_PROMPTS[1],
+        corpus: { ...CORPUS, titles: [], findings: [] },
         env: {},
         modelClient,
       }),

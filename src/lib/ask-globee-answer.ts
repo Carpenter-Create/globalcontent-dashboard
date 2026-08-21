@@ -11,9 +11,9 @@ import {
 import { CATALOG_HEALTH_EMPTY } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
 
-// Pure chip answers over the same titles + my_findings rows home already loads.
-// Unmapped prompts return null — the operator owns that path. No invented
-// titles, no other-org leakage.
+// Findings lookup used by catalog tools (get_attention, get_blockers,
+// get_submit_next). Not the user-visible send path — the operator owns that.
+// Unmapped prompts return null. No invented titles, no other-org leakage.
 
 export type AskGlobeeIntent = "attention" | "blocking" | "submit-next" | "unmapped";
 

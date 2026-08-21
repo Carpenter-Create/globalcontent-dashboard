@@ -21,9 +21,10 @@ import { cn } from "@/lib/cn";
 import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
 import { AskGlobeeThinking } from "./ask-globee-thinking";
 
-// Figma 7:73 landing chrome. Chip click fills, selects, and sends. Submit
-// sends. HISTORY lists real org threads only. No invented titles.
-// Thinking chrome (246:296 Esc/stop) is only on the real model path.
+// Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
+// prompt as free text. Submit sends. HISTORY lists real org threads only.
+// No invented titles. Thinking chrome (246:296 Esc/stop) is on the model
+// path, including chip clicks.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
