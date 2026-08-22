@@ -12,8 +12,9 @@ export {
 } from "@/lib/ask-globee-ink";
 
 // Locked conversation download (440:410 letter sheet, 440:432 filename).
-// Client-side PDF — no new dependency; one letter page, Standard 14 fonts.
-// Live title + live lead/follow only. Fixture titles are inputs, never baked in.
+// Client-side PDF — no new dependency; letter pages, Standard 14 fonts.
+// Live title + the full thread. Fixture titles are inputs, never baked in.
+// Overflow paginates; turns are not dropped.
 
 export const ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE = "application/pdf";
 
@@ -29,12 +30,20 @@ export const ASK_GLOBEE_DOWNLOAD = {
   accent: [0x17, 0x69, 0xff] as const,
 } as const;
 
+export type AskGlobeeDownloadMessage = {
+  role: "user" | "globee";
+  body: string;
+  lead?: string | null;
+  follow?: string | null;
+};
+
 export type AskGlobeeDownloadInput = {
   title: string;
-  userPrompt: string;
   initials: string;
-  lead: string;
-  follow: string | null;
+  userPrompt?: string;
+  lead?: string;
+  follow?: string | null;
+  messages?: AskGlobeeDownloadMessage[];
 };
 
 const PAGE_W = ASK_GLOBEE_DOWNLOAD.pageWidth;
@@ -49,6 +58,11 @@ const BODY_SIZE = 15;
 const HEADER_SIZE = 16;
 const ATTR_SIZE = 12;
 const LINE = 1.4;
+const AFTER_BRAND = 36;
+const AFTER_BRAND_CONTINUE = 24;
+const AFTER_TITLE = 36;
+const AFTER_USER = 32;
+const AFTER_TURN = 24;
 
 const INK = [0x14, 0x17, 0x1a] as const;
 const MUTED = [0xf4, 0xf4, 0xf6] as const;
@@ -72,89 +86,166 @@ export function askGlobeeDownloadBlob(input: AskGlobeeDownloadInput): Blob {
   return new Blob([copy], { type: ASK_GLOBEE_DOWNLOAD_CONTENT_TYPE });
 }
 
+export function saveAskGlobeeDownload(input: AskGlobeeDownloadInput): void {
+  const blob = askGlobeeDownloadBlob(input);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = askGlobeeDownloadFilename(input.title);
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function buildAskGlobeeDownloadPdf(input: AskGlobeeDownloadInput): Uint8Array {
   const title = input.title.trim();
-  const userPrompt = input.userPrompt.trim();
   const initials = input.initials.trim().slice(0, 2).toUpperCase();
-  const facts = stackAskGlobeeDownloadFacts(input.lead, input.follow);
-  const inkLines = facts.map((line) => wrapInk(parseAskGlobeeDownloadInk(line), bodyMaxWidth(), BODY_SIZE));
-
-  const draw = new PdfPage();
-  let top = MARGIN;
-
-  drawMark(draw, MARGIN + MARK / 2, top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
-  draw.text({
-    x: MARGIN + MARK + GAP,
-    top: top + 4,
-    text: ASK_GLOBEE_DOWNLOAD.brandName,
-    size: HEADER_SIZE,
-    bold: true,
-    rgb: INK,
-  });
-  top += MARK + 36;
+  const messages = resolveDownloadMessages(input);
+  const doc = new PdfDocument();
 
   const titleLines = wrapPlain(title, PAGE_W - MARGIN * 2, TITLE_SIZE, true);
   for (const line of titleLines) {
-    draw.text({ x: MARGIN, top, text: line, size: TITLE_SIZE, bold: true, rgb: INK });
-    top += TITLE_SIZE * 1.15;
+    doc.ensure(TITLE_SIZE * 1.15);
+    doc.page.text({ x: MARGIN, top: doc.top, text: line, size: TITLE_SIZE, bold: true, rgb: INK });
+    doc.top += TITLE_SIZE * 1.15;
+    doc.usedContent = true;
   }
-  top += 36;
+  if (titleLines.length > 0) doc.top += AFTER_TITLE;
 
-  const bubbleMax = PAGE_W - MARGIN * 2 - MARK - GAP;
-  const promptLines = wrapPlain(userPrompt, bubbleMax - BUBBLE_PAD * 2, BODY_SIZE, false);
+  for (const [index, message] of messages.entries()) {
+    if (message.role === "user") {
+      drawUserCard(doc, initials, message.body);
+      continue;
+    }
+    drawGlobeeTurn(doc, message);
+    if (messages[index + 1]) doc.top += AFTER_TURN;
+  }
+
+  return assemblePdf(doc.streams());
+}
+
+function resolveDownloadMessages(input: AskGlobeeDownloadInput): AskGlobeeDownloadMessage[] {
+  if (input.messages) return input.messages;
+  const messages: AskGlobeeDownloadMessage[] = [];
+  if ((input.userPrompt ?? "").trim()) {
+    messages.push({ role: "user", body: input.userPrompt ?? "" });
+  }
+  if ((input.lead ?? "").trim() || (input.follow ?? "").trim()) {
+    messages.push({
+      role: "globee",
+      body: input.lead ?? "",
+      lead: input.lead,
+      follow: input.follow ?? null,
+    });
+  }
+  return messages;
+}
+
+function drawUserCard(doc: PdfDocument, initials: string, prompt: string) {
+  const bubbleMax = bodyMaxWidth();
+  const promptLines = wrapPlain(prompt.trim(), bubbleMax - BUBBLE_PAD * 2, BODY_SIZE, false);
+  const lines = promptLines.length > 0 ? promptLines : [""];
   const bubbleW = Math.min(
     bubbleMax,
-    Math.max(measurePlain(userPrompt, BODY_SIZE, false) + BUBBLE_PAD * 2, 48),
+    Math.max(measurePlain(prompt.trim() || " ", BODY_SIZE, false) + BUBBLE_PAD * 2, 48),
   );
-  const bubbleH = BUBBLE_PAD * 2 + Math.max(promptLines.length, 1) * BODY_SIZE * LINE;
+  const lineH = BODY_SIZE * LINE;
+  const bubbleH = BUBBLE_PAD * 2 + lines.length * lineH;
+  doc.ensure(Math.min(bubbleH, MARK + BUBBLE_PAD));
 
-  draw.circle(MARGIN + MARK / 2, top + MARK / 2, MARK / 2, MUTED);
-  if (initials) {
-    draw.centeredText({
-      cx: MARGIN + MARK / 2,
-      cyTop: top + MARK / 2,
-      text: initials,
-      size: 11,
-      bold: true,
-      rgb: INK,
-    });
-  }
-  draw.roundedRect(MARGIN + MARK + GAP, top, bubbleW, bubbleH, BUBBLE_RADIUS, MUTED);
-  let promptTop = top + BUBBLE_PAD;
-  for (const line of promptLines) {
-    draw.text({
-      x: MARGIN + MARK + GAP + BUBBLE_PAD,
-      top: promptTop,
-      text: line,
-      size: BODY_SIZE,
-      bold: false,
-      rgb: INK,
-    });
-    promptTop += BODY_SIZE * LINE;
-  }
-  top += bubbleH + 32;
-
-  drawMark(draw, MARGIN + MARK / 2, top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
-  let inkTop = top;
-  const inkX = MARGIN + MARK + GAP;
-  for (const [factIndex, wrapped] of inkLines.entries()) {
-    if (factIndex > 0) inkTop += BODY_SIZE * 0.55;
-    for (const row of wrapped) {
-      draw.inkRow(inkX, inkTop, row, BODY_SIZE, INK);
-      inkTop += BODY_SIZE * LINE;
+  let lineIndex = 0;
+  let firstFragment = true;
+  while (lineIndex < lines.length) {
+    const padTop = firstFragment ? BUBBLE_PAD : GAP;
+    const available = doc.remaining() - padTop - GAP;
+    const fit = Math.max(1, Math.min(lines.length - lineIndex, Math.floor(available / lineH)));
+    const fragment = lines.slice(lineIndex, lineIndex + fit);
+    const fragmentH = padTop + GAP + fragment.length * lineH;
+    if (firstFragment) {
+      doc.page.circle(MARGIN + MARK / 2, doc.top + MARK / 2, MARK / 2, MUTED);
+      if (initials) {
+        doc.page.centeredText({
+          cx: MARGIN + MARK / 2,
+          cyTop: doc.top + MARK / 2,
+          text: initials,
+          size: 11,
+          bold: true,
+          rgb: INK,
+        });
+      }
     }
+    doc.page.roundedRect(MARGIN + MARK + GAP, doc.top, bubbleW, fragmentH, BUBBLE_RADIUS, MUTED);
+    let promptTop = doc.top + padTop;
+    for (const line of fragment) {
+      if (line) {
+        doc.page.text({
+          x: MARGIN + MARK + GAP + BUBBLE_PAD,
+          top: promptTop,
+          text: line,
+          size: BODY_SIZE,
+          bold: false,
+          rgb: INK,
+        });
+      }
+      promptTop += lineH;
+    }
+    doc.top += fragmentH;
+    doc.usedContent = true;
+    lineIndex += fit;
+    firstFragment = false;
+    if (lineIndex < lines.length) doc.newPage();
   }
-  inkTop += 10;
-  draw.text({
+  doc.top += AFTER_USER;
+}
+
+function drawGlobeeTurn(doc: PdfDocument, message: AskGlobeeDownloadMessage) {
+  const lead = (message.lead ?? message.body).trim();
+  const follow = message.follow ?? null;
+  const facts = stackAskGlobeeDownloadFacts(lead, follow);
+  const inkLines = facts.map((line) => wrapInk(parseAskGlobeeDownloadInk(line), bodyMaxWidth(), BODY_SIZE));
+  const rows = inkLines.flatMap((wrapped, factIndex) =>
+    wrapped.map((row, rowIndex) => ({ row, gapBefore: factIndex > 0 && rowIndex === 0 })),
+  );
+  const inkX = MARGIN + MARK + GAP;
+  const lineH = BODY_SIZE * LINE;
+  let markPending = true;
+
+  if (rows.length === 0) {
+    doc.ensure(MARK);
+    drawMark(doc.page, MARGIN + MARK / 2, doc.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+    doc.usedContent = true;
+  }
+
+  for (const { row, gapBefore } of rows) {
+    const needed = (gapBefore ? BODY_SIZE * 0.55 : 0) + lineH;
+    if (needed > doc.remaining() && doc.usedContent) {
+      doc.newPage();
+      markPending = true;
+    }
+    if (gapBefore) doc.top += BODY_SIZE * 0.55;
+    if (markPending) {
+      drawMark(doc.page, MARGIN + MARK / 2, doc.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+      markPending = false;
+    }
+    doc.page.inkRow(inkX, doc.top, row, BODY_SIZE, INK);
+    doc.top += lineH;
+    doc.usedContent = true;
+  }
+
+  doc.ensure(10 + ATTR_SIZE);
+  doc.top += 10;
+  if (markPending) {
+    drawMark(doc.page, MARGIN + MARK / 2, doc.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+  }
+  doc.page.text({
     x: inkX,
-    top: inkTop,
+    top: doc.top,
     text: ASK_GLOBEE_DOWNLOAD.attributionName,
     size: ATTR_SIZE,
     bold: false,
     rgb: INK_3,
   });
-
-  return assemblePdf(draw.toStream());
+  doc.top += ATTR_SIZE;
+  doc.usedContent = true;
 }
 
 function bodyMaxWidth(): number {
@@ -358,6 +449,52 @@ class PdfPage {
   }
 }
 
+class PdfDocument {
+  readonly pages: PdfPage[] = [];
+  page: PdfPage;
+  top = MARGIN;
+  usedContent = false;
+
+  constructor() {
+    this.page = this.startPage();
+  }
+
+  remaining(): number {
+    return PAGE_H - MARGIN - this.top;
+  }
+
+  ensure(height: number) {
+    if (height <= this.remaining()) return;
+    if (this.usedContent) this.newPage();
+  }
+
+  newPage() {
+    this.page = this.startPage();
+  }
+
+  streams(): string[] {
+    return this.pages.map((page) => page.toStream());
+  }
+
+  private startPage(): PdfPage {
+    const page = new PdfPage();
+    this.pages.push(page);
+    this.top = MARGIN;
+    this.usedContent = false;
+    drawMark(page, MARGIN + MARK / 2, this.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+    page.text({
+      x: MARGIN + MARK + GAP,
+      top: this.top + 4,
+      text: ASK_GLOBEE_DOWNLOAD.brandName,
+      size: HEADER_SIZE,
+      bold: true,
+      rgb: INK,
+    });
+    this.top += MARK + (this.pages.length === 1 ? AFTER_BRAND : AFTER_BRAND_CONTINUE);
+    return page;
+  }
+}
+
 function drawMark(
   draw: PdfPage,
   cx: number,
@@ -374,19 +511,30 @@ function fmt(value: number): string {
   return value.toFixed(2);
 }
 
-function assemblePdf(content: string): Uint8Array {
+function assemblePdf(pageStreams: string[]): Uint8Array {
+  const streams = pageStreams.length > 0 ? pageStreams : [""];
+  const pageCount = streams.length;
   const fonts = [
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
   ];
+  const font1 = 3 + 2 * pageCount;
+  const font2 = 4 + 2 * pageCount;
+  const kids = streams.map((_, index) => `${3 + index} 0 R`).join(" ");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>`,
-    `<< /Length ${content.length} >>\nstream\n${content}endstream`,
-    fonts[0],
-    fonts[1],
+    `<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`,
   ];
+  streams.forEach((_, index) => {
+    const contentObj = 3 + pageCount + index;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentObj} 0 R /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> >>`,
+    );
+  });
+  for (const content of streams) {
+    objects.push(`<< /Length ${content.length} >>\nstream\n${content}endstream`);
+  }
+  objects.push(fonts[0], fonts[1]);
   const header = "%PDF-1.4\n";
   const chunks = [header];
   const offsets = [0];

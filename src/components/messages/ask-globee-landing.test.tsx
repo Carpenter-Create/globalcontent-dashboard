@@ -39,6 +39,9 @@ describe("AskGlobeeLanding", () => {
     expect(html).toContain("aria-pressed");
     expect(html).toContain('data-ask-globee-clock=""');
     expect(html).toContain(ASK_GLOBEE.pastConversationsLabel);
+    expect(html).not.toContain("data-ask-globee-download");
+    expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
+    expect(src).not.toContain("Download");
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).not.toContain('href="/messages"');

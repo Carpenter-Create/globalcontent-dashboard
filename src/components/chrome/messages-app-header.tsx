@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronUp, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronUp, Download, MoreHorizontal } from "lucide-react";
 
 import { SearchField } from "@/components/layout/search-field";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/ask-globee";
 import { AskGlobeeHistoryPopover } from "@/components/messages/ask-globee-history";
 import { useAskGlobeeChrome } from "@/components/messages/ask-globee-chrome";
+import { saveAskGlobeeDownload } from "@/lib/ask-globee-download";
 import {
   deleteAskGlobeeConversation,
   pinAskGlobeeConversation,
@@ -72,6 +73,22 @@ function MessagesThreadHeader({ title }: { title: string }) {
           )}
         </button>
       </AskGlobeeHistoryPopover>
+      <button
+        type="button"
+        data-ask-globee-download=""
+        aria-label={ASK_GLOBEE.downloadLabel}
+        onClick={() => {
+          if (!chrome) return;
+          saveAskGlobeeDownload({
+            title: chrome.title,
+            initials: chrome.initials ?? "",
+            messages: chrome.messages ?? [],
+          });
+        }}
+        className="flex size-6 shrink-0 items-center justify-center text-ink-3"
+      >
+        <Download className="size-4" strokeWidth={1.33} />
+      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

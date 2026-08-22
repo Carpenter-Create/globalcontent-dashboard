@@ -93,7 +93,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
-    expect(html).toContain(ASK_GLOBEE.downloadLabel);
+    expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
     expect(html).toContain(ASK_GLOBEE.thumbsUpLabel);
     expect(html).toContain(ASK_GLOBEE.thumbsDownLabel);
     expect(html).toContain(">A<");
@@ -108,8 +108,9 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain("Winter Line");
     expect(html).not.toContain("Harbor Lights");
     expect(src).toContain("navigator.clipboard.writeText");
-    expect(src).toContain("askGlobeeDownloadFilename");
-    expect(src).toContain("askGlobeeDownloadBlob");
+    expect(src).not.toContain("askGlobeeDownloadFilename");
+    expect(src).not.toContain("askGlobeeDownloadBlob");
+    expect(src).not.toContain("<Download");
     expect(src).not.toContain("text/plain");
     expect(src).toContain("setAskGlobeeThumb");
     expect(src).toContain("appendAskGlobeeTurn");
@@ -143,8 +144,8 @@ describe("AskGlobeeThread", () => {
     expect(src).toContain("data-ask-globee-copied");
     expect(src).not.toContain("toast");
     expect(src).not.toMatch(/bounce|animate-bounce/i);
-    expect(src).toContain("askGlobeeDownloadFilename");
-    expect(src).toContain("askGlobeeDownloadBlob");
+    expect(src).not.toContain("askGlobeeDownloadFilename");
+    expect(src).not.toContain("askGlobeeDownloadBlob");
     expect(src).toContain("setAskGlobeeThumb");
   });
 
@@ -427,7 +428,7 @@ describe("AskGlobeeThread", () => {
     expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
-    expect(html).toContain(ASK_GLOBEE.downloadLabel);
+    expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
     expect(html).toContain(ASK_GLOBEE.thumbsUpLabel);
     expect(html).toContain(ASK_GLOBEE.thumbsDownLabel);
     expect(answer).toContain("t-body text-ink");
@@ -437,6 +438,24 @@ describe("AskGlobeeThread", () => {
     expect(html).not.toContain(ASK_GLOBEE.findingSignal);
     expect(html).not.toContain("Looking at The Winter Line");
     expect(html).not.toContain("Winter Line");
+  });
+
+  it("leaves download off the answer footer; copy and thumbs stay", () => {
+    const html = renderThread();
+    const answer = html.slice(
+      html.indexOf("data-ask-globee-answer"),
+      html.indexOf("data-ask-globee-composer"),
+    );
+
+    expect(answer).toContain(`aria-label="${ASK_GLOBEE.copyLabel}"`);
+    expect(answer).toContain(`aria-label="${ASK_GLOBEE.thumbsUpLabel}"`);
+    expect(answer).toContain(`aria-label="${ASK_GLOBEE.thumbsDownLabel}"`);
+    expect(answer).not.toContain(`aria-label="${ASK_GLOBEE.downloadLabel}"`);
+    expect(answer).not.toContain("data-ask-globee-download");
+    expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
+    expect(src).not.toContain("Download");
+    expect(src).not.toContain("askGlobeeDownload");
+    expect(src).not.toContain("saveAskGlobeeDownload");
   });
 
   it("keeps Access isolation: the upgrade gate never renders this thread", () => {

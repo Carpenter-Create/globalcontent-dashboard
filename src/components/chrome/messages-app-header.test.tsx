@@ -53,6 +53,8 @@ describe("MessagesAppHeader", () => {
     expect(html).toBe("");
     expect(html).not.toContain("data-header-search");
     expect(html).not.toContain("data-header-thread");
+    expect(html).not.toContain("data-ask-globee-download");
+    expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
     expect(html).not.toContain(ASK_GLOBEE.headerSearchHint);
     expect(html).not.toContain(ASK_GLOBEE.threadTitle);
   });
@@ -73,7 +75,12 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain("data-ask-globee-history-title");
     expect(html).toContain(`href="/messages"`);
     expect(html).toContain(ASK_GLOBEE.backLabel);
+    expect(html).toContain(ASK_GLOBEE.downloadLabel);
+    expect(html).toContain("data-ask-globee-download");
     expect(html).toContain(ASK_GLOBEE.moreLabel);
+    expect(src).toContain("Download");
+    expect(src).toContain("saveAskGlobeeDownload");
+    expect(src).toContain("strokeWidth={1.33}");
     expect(src).toContain("AskGlobeeHistoryPopover");
     expect(src).toContain("ChevronDown");
     expect(src).toContain("ChevronUp");

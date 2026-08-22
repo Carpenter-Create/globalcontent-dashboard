@@ -2,9 +2,12 @@
 
 import { createContext, useContext, useMemo, useState } from "react";
 
-import type { AskGlobeeHistoryRow } from "@/lib/ask-globee-conversations";
+import type { AskGlobeeHistoryRow, AskGlobeeStoredMessage } from "@/lib/ask-globee-conversations";
 
-export type AskGlobeeChromeState = Pick<AskGlobeeHistoryRow, "id" | "title" | "pinned_at">;
+export type AskGlobeeChromeState = Pick<AskGlobeeHistoryRow, "id" | "title" | "pinned_at"> & {
+  initials?: string;
+  messages?: AskGlobeeStoredMessage[];
+};
 
 type AskGlobeeChromeContextValue = {
   chrome: AskGlobeeChromeState | null;
