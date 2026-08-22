@@ -377,7 +377,7 @@ describe("MessagesPage Ask Globee persist", () => {
     expect(html).toContain("What needs attention");
     expect(html.replace(/<[^>]+>/g, "")).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(">A<");
-    expect(html).toContain(ASK_GLOBEE.attributionName);
+    expect(html).not.toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).not.toContain("data-ask-globee-landing");
     expect(html).not.toContain("data-ask-globee-gate");

@@ -43,89 +43,96 @@ function MessagesThreadHeader({ title }: { title: string }) {
   const threadTitle = chrome?.title ?? title;
 
   return (
-    <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-2)]">
-      <Link
-        href={askGlobeeLandingHref()}
-        aria-label={ASK_GLOBEE.backLabel}
-        className="flex size-4 shrink-0 items-center justify-center text-ink"
-      >
-        <ChevronLeft className="size-4" strokeWidth={1.33} />
-      </Link>
-      <AskGlobeeHistoryPopover
-        conversations={conversations}
-        currentId={chrome?.id ?? null}
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
+    <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-4)]">
+      <div className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]">
+        <Link
+          href={askGlobeeLandingHref()}
+          aria-label={ASK_GLOBEE.backLabel}
+          className="flex size-4 shrink-0 items-center justify-center text-ink"
+        >
+          <ChevronLeft className="size-4" strokeWidth={1.33} />
+        </Link>
+        <AskGlobeeHistoryPopover
+          conversations={conversations}
+          currentId={chrome?.id ?? null}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+        >
+          <button
+            type="button"
+            data-ask-globee-history-title=""
+            aria-expanded={historyOpen}
+            aria-haspopup="dialog"
+            onClick={() => setHistoryOpen((open) => !open)}
+            className="flex min-w-0 items-center gap-[var(--space-1)] text-left"
+          >
+            <span className="truncate t-heading text-ink">{threadTitle}</span>
+            {historyOpen ? (
+              <ChevronUp className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
+            ) : (
+              <ChevronDown className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
+            )}
+          </button>
+        </AskGlobeeHistoryPopover>
+      </div>
+      <div
+        data-ask-globee-header-chrome=""
+        className="flex shrink-0 items-center gap-[var(--space-4)]"
       >
         <button
           type="button"
-          data-ask-globee-history-title=""
-          aria-expanded={historyOpen}
-          aria-haspopup="dialog"
-          onClick={() => setHistoryOpen((open) => !open)}
-          className="flex min-w-0 items-center gap-[var(--space-1)] text-left"
+          data-ask-globee-download=""
+          aria-label={ASK_GLOBEE.downloadLabel}
+          onClick={() => {
+            if (!chrome) return;
+            saveAskGlobeeDownload({
+              title: chrome.title,
+              initials: chrome.initials ?? "",
+              messages: chrome.messages ?? [],
+            });
+          }}
+          className="flex size-4 shrink-0 items-center justify-center text-ink-3"
         >
-          <span className="truncate t-body-sm text-ink">{threadTitle}</span>
-          {historyOpen ? (
-            <ChevronUp className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
-          ) : (
-            <ChevronDown className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
-          )}
+          <Download className="size-4" strokeWidth={1.33} />
         </button>
-      </AskGlobeeHistoryPopover>
-      <button
-        type="button"
-        data-ask-globee-download=""
-        aria-label={ASK_GLOBEE.downloadLabel}
-        onClick={() => {
-          if (!chrome) return;
-          saveAskGlobeeDownload({
-            title: chrome.title,
-            initials: chrome.initials ?? "",
-            messages: chrome.messages ?? [],
-          });
-        }}
-        className="flex size-6 shrink-0 items-center justify-center text-ink-3"
-      >
-        <Download className="size-4" strokeWidth={1.33} />
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={ASK_GLOBEE.moreLabel}
-            className="flex size-6 shrink-0 items-center justify-center text-ink-3"
-          >
-            <MoreHorizontal className="size-4" strokeWidth={1.33} />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem
-            onSelect={() => {
-              setRenameValue(chrome?.title ?? title);
-              setRenameOpen(true);
-            }}
-          >
-            {ASK_GLOBEE.renameLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              if (!chrome) return;
-              void pinAskGlobeeConversation(chrome.id, !pinned).then((result) => {
-                if ("pinnedAt" in result) {
-                  setChrome({ ...chrome, pinned_at: result.pinnedAt });
-                  router.refresh();
-                }
-              });
-            }}
-          >
-            {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
-            {ASK_GLOBEE.deleteLabel}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={ASK_GLOBEE.moreLabel}
+              className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+            >
+              <MoreHorizontal className="size-4" strokeWidth={1.33} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              onSelect={() => {
+                setRenameValue(chrome?.title ?? title);
+                setRenameOpen(true);
+              }}
+            >
+              {ASK_GLOBEE.renameLabel}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                if (!chrome) return;
+                void pinAskGlobeeConversation(chrome.id, !pinned).then((result) => {
+                  if ("pinnedAt" in result) {
+                    setChrome({ ...chrome, pinned_at: result.pinnedAt });
+                    router.refresh();
+                  }
+                });
+              }}
+            >
+              {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
+              {ASK_GLOBEE.deleteLabel}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <Dialog
         open={renameOpen}
