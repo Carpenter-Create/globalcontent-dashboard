@@ -212,6 +212,8 @@ function drawGlobeeTurn(doc: PdfDocument, message: AskGlobeeDownloadMessage) {
   if (rows.length === 0) {
     doc.ensure(MARK);
     drawMark(doc.page, MARGIN + MARK / 2, doc.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+    markPending = false;
+    doc.top += MARK;
     doc.usedContent = true;
   }
 
@@ -231,10 +233,14 @@ function drawGlobeeTurn(doc: PdfDocument, message: AskGlobeeDownloadMessage) {
     doc.usedContent = true;
   }
 
-  doc.ensure(10 + ATTR_SIZE);
+  if (10 + ATTR_SIZE > doc.remaining() && doc.usedContent) {
+    doc.newPage();
+    markPending = true;
+  }
   doc.top += 10;
   if (markPending) {
     drawMark(doc.page, MARGIN + MARK / 2, doc.top + MARK / 2, ASK_GLOBEE_DOWNLOAD.accent, WHITE, ASK_GLOBEE_DOWNLOAD.mark);
+    markPending = false;
   }
   doc.page.text({
     x: inkX,
