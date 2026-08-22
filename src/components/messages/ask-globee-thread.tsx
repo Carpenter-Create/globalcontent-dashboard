@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Check,
   Copy,
-  Download,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
@@ -20,14 +19,12 @@ import {
 } from "@/lib/ask-globee";
 import {
   askGlobeeAnswerText,
-  askGlobeeDownloadFilename,
   askGlobeeOpenUserTurn,
   formatAskGlobeeAttribution,
   type AskGlobeeHistoryRow,
   type AskGlobeeStoredMessage,
   type AskGlobeeThumb,
 } from "@/lib/ask-globee-conversations";
-import { askGlobeeDownloadBlob } from "@/lib/ask-globee-download";
 import { parseAskGlobeeInk, stackAskGlobeeInkFacts } from "@/lib/ask-globee-ink";
 import {
   appendAskGlobeeTurn,
@@ -87,22 +84,6 @@ function AskGlobeeAnswerInk({ lead, follow }: { lead: string; follow: string | n
   );
 }
 
-function downloadAnswer(input: {
-  title: string;
-  userPrompt: string;
-  initials: string;
-  lead: string;
-  follow: string | null;
-}) {
-  const blob = askGlobeeDownloadBlob(input);
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = askGlobeeDownloadFilename(input.title);
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
 const EMPTY_HISTORY: AskGlobeeHistoryRow[] = [];
 
 // Thinking plays fetching… then finding the signal… while the turn is in
@@ -155,6 +136,8 @@ export function AskGlobeeThread({
       id: conversation.id,
       title: conversation.title,
       pinned_at: conversation.pinned_at,
+      initials,
+      messages,
     });
     setConversations(conversations);
     return () => {
@@ -166,6 +149,8 @@ export function AskGlobeeThread({
     conversation.pinned_at,
     conversation.title,
     conversations,
+    initials,
+    messages,
     setChrome,
     setConversations,
   ]);
@@ -305,21 +290,6 @@ export function AskGlobeeThread({
                             ) : (
                               <Copy className="size-4" strokeWidth={1.33} />
                             )}
-                          </ThreadIconButton>
-                          <ThreadIconButton
-                            label={ASK_GLOBEE.downloadLabel}
-                            onClick={() => {
-                              const userTurn = turn.find((entry) => entry.role === "user");
-                              downloadAnswer({
-                                title: conversation.title,
-                                userPrompt: userTurn?.body ?? "",
-                                initials,
-                                lead: message.lead ?? message.body,
-                                follow: message.follow,
-                              });
-                            }}
-                          >
-                            <Download className="size-4" strokeWidth={1.33} />
                           </ThreadIconButton>
                           <ThreadIconButton
                             label={ASK_GLOBEE.thumbsUpLabel}

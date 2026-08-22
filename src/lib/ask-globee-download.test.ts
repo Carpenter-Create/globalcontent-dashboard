@@ -108,6 +108,71 @@ describe("buildAskGlobeeDownloadPdf", () => {
     expect(src).not.toMatch(/Mercury AI|Mercury|Beta/);
   });
 
+  it("writes the full thread, not one answer, and never invents a title", () => {
+    const bytes = buildAskGlobeeDownloadPdf({
+      title: "What needs attention",
+      initials: "ac",
+      messages: [
+        { role: "user", body: "What needs attention" },
+        {
+          role: "globee",
+          body: "Harbor Cut is missing **Genre**.",
+          lead: "Harbor Cut is missing **Genre**.",
+          follow: "Genre is required before it can go live.",
+        },
+        { role: "user", body: "What is blocking a title" },
+        {
+          role: "globee",
+          body: "Harbor Cut still needs a synopsis.",
+          lead: "Harbor Cut still needs a synopsis.",
+          follow: null,
+        },
+      ],
+    });
+    const text = pdfVisibleText(bytes);
+
+    expect(text).toContain("Global Content");
+    expect(text).toContain("Globee AI");
+    expect(text).toContain("What needs attention");
+    expect(text).toContain("What is blocking a title");
+    expect(text).toContain("Harbor Cut is missing Genre.");
+    expect(text).toContain("Harbor Cut still needs a synopsis.");
+    expect(text).not.toContain("Mercury");
+    expect(text).not.toContain("Winter Line");
+    expect(text).not.toContain("Harbor Lights");
+    expect(src).not.toContain("Winter Line");
+    expect(src).not.toContain("Harbor Lights");
+  });
+
+  it("paginates a long thread instead of dropping later turns", () => {
+    const messages = Array.from({ length: 16 }, (_, index) => [
+      { role: "user" as const, body: `User turn ${index} asks about Harbor Cut.` },
+      {
+        role: "globee" as const,
+        body: `Globee turn ${index} answers about Harbor Cut.`,
+        lead: `Globee turn ${index} answers about Harbor Cut.`,
+        follow: null,
+      },
+    ]).flat();
+    const bytes = buildAskGlobeeDownloadPdf({
+      title: "What needs attention",
+      initials: "AC",
+      messages,
+    });
+    const raw = pdfString(bytes);
+    const text = pdfVisibleText(bytes);
+
+    expect(text).toContain("Global Content");
+    expect(text).toContain("Globee AI");
+    expect(text).toContain("User turn 0 asks about Harbor Cut.");
+    expect(text).toContain("Globee turn 0 answers about Harbor Cut.");
+    expect(text).toContain("User turn 15 asks about Harbor Cut.");
+    expect(text).toContain("Globee turn 15 answers about Harbor Cut.");
+    expect((raw.match(/\/Type \/Page /g) ?? []).length).toBeGreaterThan(1);
+    expect(raw).toMatch(/\/Count [2-9]/);
+    expect(raw).toContain(`/MediaBox [0 0 ${ASK_GLOBEE_DOWNLOAD.pageWidth} ${ASK_GLOBEE_DOWNLOAD.pageHeight}]`);
+  });
+
   it("uses the fixture title and lead only when they are the live turn", () => {
     const bytes = buildAskGlobeeDownloadPdf({
       title: ASK_GLOBEE.threadTitle,
