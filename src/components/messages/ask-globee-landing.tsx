@@ -16,12 +16,14 @@ import { cn } from "@/lib/cn";
 import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
 import { AskGlobeeHistoryPopover } from "./ask-globee-history";
 
-// Figma 7:73 landing chrome. Chip click fills, selects, and sends the same
-// prompt as free text. Submit persists the user turn, then navigates to the
-// thread. Quiet clock (top-left) opens past conversations. No plus on this
-// empty home. No HISTORY list. No invented titles. Thinking chrome
-// (427:352 empty lead + fetching…) is on the conversation page, never
-// this landing.
+// Figma 7:73 landing chrome (Design 2026-08-22 proto). Chip click fills,
+// selects, and sends the same prompt as free text. Submit persists the user
+// turn, then navigates to the thread. Quiet clock 16 (top-left, tertiary)
+// opens past conversations. No plus on this empty home. No HISTORY list.
+// No invented titles. Well pad and ask stack use house 48 (--space-12).
+// Greeting gap is house 24 (--space-6). Composer is 640×56 r28 pad 16 —
+// not a full pill. Thinking chrome (427:352 empty lead + fetching…) is on
+// the conversation page, never this landing.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -53,7 +55,7 @@ export function AskGlobeeLanding({
   return (
     <div
       data-ask-globee-landing=""
-      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center"
+      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center p-[var(--space-12)]"
     >
       <div className="absolute left-0 top-0">
         <AskGlobeeHistoryPopover
@@ -74,8 +76,8 @@ export function AskGlobeeLanding({
         </AskGlobeeHistoryPopover>
       </div>
 
-      <div className="flex w-full flex-col items-center gap-[var(--space-8)]">
-        <div className="flex flex-col items-center gap-[var(--space-2)]">
+      <div className="flex w-full flex-col items-center gap-[var(--space-12)]">
+        <div className="flex flex-col items-center gap-[var(--space-6)]">
           <h1 data-ask-globee-headline="" className="t-display text-center text-ink">
             {ASK_GLOBEE.headline}
           </h1>
@@ -93,7 +95,7 @@ export function AskGlobeeLanding({
             if (next) void send(next);
           }}
         >
-          <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-full border border-hairline bg-surface px-[var(--space-4)]">
+          <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]">
             <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
             <input
               type="text"

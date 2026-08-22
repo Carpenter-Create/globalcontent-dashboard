@@ -20,7 +20,9 @@ function visible(html: string): string {
   return html.replaceAll("&#x27;", "'");
 }
 
-const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "ask-globee-landing.tsx"), "utf8");
+const here = dirname(fileURLToPath(import.meta.url));
+const src = readFileSync(join(here, "ask-globee-landing.tsx"), "utf8");
+const tokens = readFileSync(join(here, "../../app/tokens.css"), "utf8");
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 
 describe("AskGlobeeLanding", () => {
@@ -34,6 +36,8 @@ describe("AskGlobeeLanding", () => {
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain("max-w-[640px]");
     expect(html).toContain("h-14");
+    expect(html).toContain("rounded-[28px]");
+    expect(html).toContain("px-[var(--space-4)]");
     expect(html).toContain(ASK_GLOBEE.tryLabel);
     expect(html).toContain('data-ask-globee-chip=""');
     expect(html).toContain("aria-pressed");
@@ -107,6 +111,9 @@ describe("AskGlobeeLanding", () => {
       ),
     );
     expect(html).toContain("data-ask-globee-clock");
+    expect(html).toContain("size-4");
+    expect(src).toContain("<Clock className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("text-ink-3");
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).toContain(ASK_GLOBEE.headline);
@@ -169,5 +176,34 @@ describe("AskGlobeeLanding", () => {
     expect(src).not.toContain("ANTHROPIC");
     expect(src).not.toContain("ask-globee-operator");
     expect(src).not.toMatch(/setTimeout|sleep\(/);
+  });
+
+  it("locks 7:73 greeting, well, composer, and chip geometry on the house 8/16/24/48 scale", () => {
+    const html = renderToStaticMarkup(<AskGlobeeLanding />);
+
+    expect(tokens).toContain("--space-12: 3rem;");
+    expect(src).toContain(
+      "relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center p-[var(--space-12)]",
+    );
+    expect(src).toContain("flex w-full flex-col items-center gap-[var(--space-12)]");
+    expect(src).toContain("flex flex-col items-center gap-[var(--space-6)]");
+    expect(html).toContain("t-body text-center text-ink-2");
+    expect(src).toContain(
+      "flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]",
+    );
+    expect(src).toContain(
+      "inline-flex items-center rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+    );
+    expect(src).not.toContain("gap-[var(--space-8)]");
+    expect(src).not.toContain("rounded-full border border-hairline bg-surface px-[var(--space-4)]");
+    expect(src).not.toContain("p-[var(--space-8)]");
+    expect(src).not.toContain("p-[var(--space-10)]");
+    expect(src).not.toContain("rounded-[12px]");
+    expect(src).not.toContain("rounded-[20px]");
+    expect(src).not.toContain("rounded-[32px]");
+    expect(src).not.toContain("rounded-[40px]");
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).not.toContain(ASK_GLOBEE.historyLabel);
+    expect(html).toContain('data-ask-globee-clock=""');
   });
 });
