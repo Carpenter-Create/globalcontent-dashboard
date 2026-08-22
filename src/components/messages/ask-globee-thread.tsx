@@ -20,7 +20,6 @@ import {
 import {
   askGlobeeAnswerText,
   askGlobeeOpenUserTurn,
-  formatAskGlobeeAttribution,
   type AskGlobeeHistoryRow,
   type AskGlobeeStoredMessage,
   type AskGlobeeThumb,
@@ -55,7 +54,7 @@ function ThreadIconButton({
       aria-label={label}
       aria-pressed={pressed}
       onClick={onClick}
-      className="flex size-6 items-center justify-center text-ink-3"
+      className="flex size-4 items-center justify-center text-ink-3"
     >
       {children}
     </button>
@@ -275,57 +274,56 @@ export function AskGlobeeThread({
                     </div>
                     <div className="flex w-full max-w-[640px] flex-col gap-[var(--space-2)]">
                       <AskGlobeeAnswerInk lead={message.lead ?? message.body} follow={message.follow} />
-                      <div className="flex flex-wrap items-center gap-[var(--space-4)]">
-                        <p className="t-body-sm text-ink-3">
-                          {formatAskGlobeeAttribution(message.created_at)}
-                        </p>
-                        <div className="flex items-center gap-[var(--space-4)]">
-                          <ThreadIconButton
-                            label={ASK_GLOBEE.copyLabel}
-                            pressed={copiedId === message.id}
-                            onClick={() => copyAnswer(message)}
-                          >
-                            {copiedId === message.id ? (
-                              <Check className="size-4" strokeWidth={1.33} data-ask-globee-copied="" />
-                            ) : (
-                              <Copy className="size-4" strokeWidth={1.33} />
-                            )}
-                          </ThreadIconButton>
-                          <ThreadIconButton
-                            label={ASK_GLOBEE.thumbsUpLabel}
-                            pressed={thumbsFor(message) === "up"}
-                            onClick={() => {
-                              void setAskGlobeeThumb(message.id, "up").then((result) => {
-                                if ("thumbs" in result) {
-                                  setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
-                                }
-                              });
-                            }}
-                          >
-                            <ThumbsUp
-                              className="size-4"
-                              strokeWidth={1.33}
-                              fill={thumbsFor(message) === "up" ? "currentColor" : "none"}
-                            />
-                          </ThreadIconButton>
-                          <ThreadIconButton
-                            label={ASK_GLOBEE.thumbsDownLabel}
-                            pressed={thumbsFor(message) === "down"}
-                            onClick={() => {
-                              void setAskGlobeeThumb(message.id, "down").then((result) => {
-                                if ("thumbs" in result) {
-                                  setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
-                                }
-                              });
-                            }}
-                          >
-                            <ThumbsDown
-                              className="size-4"
-                              strokeWidth={1.33}
-                              fill={thumbsFor(message) === "down" ? "currentColor" : "none"}
-                            />
-                          </ThreadIconButton>
-                        </div>
+                      {/* 247:378 stamp is a help-desk leftover — no Globee AI · time. */}
+                      <div
+                        data-ask-globee-answer-actions=""
+                        className="flex items-center gap-[var(--space-2)]"
+                      >
+                        <ThreadIconButton
+                          label={ASK_GLOBEE.copyLabel}
+                          pressed={copiedId === message.id}
+                          onClick={() => copyAnswer(message)}
+                        >
+                          {copiedId === message.id ? (
+                            <Check className="size-4" strokeWidth={1.33} data-ask-globee-copied="" />
+                          ) : (
+                            <Copy className="size-4" strokeWidth={1.33} />
+                          )}
+                        </ThreadIconButton>
+                        <ThreadIconButton
+                          label={ASK_GLOBEE.thumbsUpLabel}
+                          pressed={thumbsFor(message) === "up"}
+                          onClick={() => {
+                            void setAskGlobeeThumb(message.id, "up").then((result) => {
+                              if ("thumbs" in result) {
+                                setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
+                              }
+                            });
+                          }}
+                        >
+                          <ThumbsUp
+                            className="size-4"
+                            strokeWidth={1.33}
+                            fill={thumbsFor(message) === "up" ? "currentColor" : "none"}
+                          />
+                        </ThreadIconButton>
+                        <ThreadIconButton
+                          label={ASK_GLOBEE.thumbsDownLabel}
+                          pressed={thumbsFor(message) === "down"}
+                          onClick={() => {
+                            void setAskGlobeeThumb(message.id, "down").then((result) => {
+                              if ("thumbs" in result) {
+                                setThumbOverrides((current) => ({ ...current, [message.id]: result.thumbs }));
+                              }
+                            });
+                          }}
+                        >
+                          <ThumbsDown
+                            className="size-4"
+                            strokeWidth={1.33}
+                            fill={thumbsFor(message) === "down" ? "currentColor" : "none"}
+                          />
+                        </ThreadIconButton>
                       </div>
                     </div>
                   </div>

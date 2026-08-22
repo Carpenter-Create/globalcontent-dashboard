@@ -90,7 +90,7 @@ describe("AskGlobeeThread", () => {
     expect(html).toContain("What needs attention");
     expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
     expect(html).toContain(ASK_GLOBEE.globeeMark);
-    expect(html).toContain(ASK_GLOBEE.attributionName);
+    expect(html).not.toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
     expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
@@ -426,7 +426,7 @@ describe("AskGlobeeThread", () => {
     );
 
     expect(visibleText(html)).toContain("Harbor Cut — Synopsis is required.");
-    expect(html).toContain(ASK_GLOBEE.attributionName);
+    expect(html).not.toContain(ASK_GLOBEE.attributionName);
     expect(html).toContain(ASK_GLOBEE.copyLabel);
     expect(html).not.toContain(ASK_GLOBEE.downloadLabel);
     expect(html).toContain(ASK_GLOBEE.thumbsUpLabel);
@@ -446,6 +446,7 @@ describe("AskGlobeeThread", () => {
       html.indexOf("data-ask-globee-answer"),
       html.indexOf("data-ask-globee-composer"),
     );
+    const actions = answer.slice(answer.indexOf("data-ask-globee-answer-actions"));
 
     expect(answer).toContain(`aria-label="${ASK_GLOBEE.copyLabel}"`);
     expect(answer).toContain(`aria-label="${ASK_GLOBEE.thumbsUpLabel}"`);
@@ -456,6 +457,28 @@ describe("AskGlobeeThread", () => {
     expect(src).not.toContain("Download");
     expect(src).not.toContain("askGlobeeDownload");
     expect(src).not.toContain("saveAskGlobeeDownload");
+    expect(actions).toContain("gap-[var(--space-2)]");
+    expect(actions).toContain("size-4");
+    expect(actions).toContain("text-ink-3");
+    expect(actions).toContain("stroke-width=\"1.33\"");
+    expect(actions).not.toContain("gap-[var(--space-4)]");
+    expect(src).toContain('className="flex size-4 items-center justify-center text-ink-3"');
+  });
+
+  it("hides the 247:378 Globee AI · time stamp on the answered message", () => {
+    const html = renderThread();
+    const answer = html.slice(
+      html.indexOf("data-ask-globee-answer"),
+      html.indexOf("data-ask-globee-composer"),
+    );
+    const visibleAnswer = visibleText(answer);
+
+    expect(answer).not.toContain(ASK_GLOBEE.attributionName);
+    expect(answer).not.toContain(ASK_GLOBEE.attribution);
+    expect(visibleAnswer).not.toMatch(/Globee AI/);
+    expect(visibleAnswer).not.toMatch(/\d{1,2}:\d{2} [AP]M/);
+    expect(src).not.toContain("formatAskGlobeeAttribution");
+    expect(src).toContain("data-ask-globee-answer-actions");
   });
 
   it("keeps Access isolation: the upgrade gate never renders this thread", () => {

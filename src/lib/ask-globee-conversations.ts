@@ -108,6 +108,7 @@ export function formatAskGlobeeHistoryTime(iso: string, now = new Date()): strin
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(then);
 }
 
+// Help-desk leftover. Do not render on the 247:295 thread answer (247:378).
 export function formatAskGlobeeAttribution(iso: string): string {
   return `${ASK_GLOBEE.attributionName} · ${formatAskGlobeeClock(new Date(iso))}`;
 }
