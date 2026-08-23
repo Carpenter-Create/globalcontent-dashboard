@@ -81,6 +81,8 @@ describe("Ask Globee copy lock", () => {
       "Globee is unavailable right now. Try again, or ask what needs attention.",
     );
     expect(ASK_GLOBEE.attributionName).toBe("Globee AI");
+    expect(ASK_GLOBEE.downloadLabel).toBe("Download");
+    expect(ASK_GLOBEE.downloadPdfLabel).toBe("Download PDF");
     expect(ASK_GLOBEE.renameLabel).toBe("Rename");
     expect(ASK_GLOBEE.pinLabel).toBe("Pin");
     expect(ASK_GLOBEE.deleteLabel).toBe("Delete");

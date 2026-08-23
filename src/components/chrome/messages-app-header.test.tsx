@@ -79,6 +79,7 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain("data-ask-globee-download");
     expect(html).toContain("data-ask-globee-header-chrome");
     expect(html).toContain(ASK_GLOBEE.moreLabel);
+    expect(html).toContain(ASK_GLOBEE.downloadPdfLabel);
     expect(html).toContain("t-heading");
     expect(html).not.toContain("t-title");
     expect(src).toContain("Download");
@@ -90,7 +91,7 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain('aria-expanded="false"');
     expect(src).toContain("historyOpen ? (");
     expect(src).toContain("<ChevronDown");
-    expect(src).toContain("truncate t-heading text-ink");
+    expect(src).toContain("truncate t-heading text-ink max-md:hidden");
     expect(src).toContain('className="flex min-w-0 items-center gap-[var(--space-4)]"');
     expect(src).toContain("data-ask-globee-header-chrome");
     expect(src).toContain("flex shrink-0 items-center gap-[var(--space-4)]");
@@ -119,7 +120,7 @@ describe("MessagesAppHeader", () => {
     }
   });
 
-  it("sits the thread title on t-heading 17, not body 15 or 13", () => {
+  it("keeps desktop title on t-heading 17 and mobile 531:542 on t-body 15", () => {
     const tokens = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
       "utf8",
@@ -129,10 +130,10 @@ describe("MessagesAppHeader", () => {
       "utf8",
     );
 
-    expect(src).toContain("truncate t-heading text-ink");
+    expect(src).toContain("truncate t-heading text-ink max-md:hidden");
+    expect(src).toContain("truncate t-body text-ink md:hidden");
     expect(src).not.toContain("truncate t-body-sm text-ink");
     expect(src).not.toContain("t-title");
-    expect(src).not.toContain("t-body text-ink");
     expect(tokens).toMatch(/--text-lg:\s*1\.0625rem;/);
     expect(tokens).toMatch(/--text-base:\s*0\.9375rem;/);
     expect(tokens).toMatch(/--text-sm:\s*0\.8125rem;/);
@@ -141,6 +142,43 @@ describe("MessagesAppHeader", () => {
     expect(globals).toMatch(/\.t-body\s*\{[\s\S]*?font-size:\s*var\(--text-base\)/);
     expect(globals).toMatch(/\.t-body-sm\s*\{[\s\S]*?font-size:\s*var\(--text-sm\)/);
     expect(globals).toMatch(/\.t-title\s*\{[\s\S]*?font-size:\s*var\(--text-title\)/);
+  });
+
+  it("locks mobile 531:542 to thin ink and PDF inside the existing ···", () => {
+    const shell = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"),
+      "utf8",
+    );
+    const landing = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../messages/ask-globee-landing.tsx"),
+      "utf8",
+    );
+    const titles = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../titles/titles-catalog.tsx"),
+      "utf8",
+    );
+
+    expect(src).toContain('className="hidden size-4 shrink-0 items-center justify-center text-ink-3 md:flex"');
+    expect(src).toContain('className="flex size-4 shrink-0 items-center justify-center text-ink-3"');
+    expect(src).toContain('<ChevronDown className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />');
+    expect(src).toContain('<MoreHorizontal className="size-4" strokeWidth={1.33} />');
+    expect(src).toContain("ASK_GLOBEE.downloadPdfLabel");
+    expect(src).toContain("<Pencil className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("<Pin className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("<Trash2 className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("text-[#c4564a]");
+    expect(src).toContain("ASK_GLOBEE.deleteBody");
+    expect(src).not.toContain("MessagesThreadOverflow");
+    expect(src).not.toContain("data-ask-globee-mobile-overflow");
+    expect(src).toContain("text-ink max-md:text-ink-3");
+    expect(src).toContain("text-ink-3");
+    expect(src).not.toContain("font-bold");
+    expect(src).not.toContain("strokeWidth={2}");
+    expect(shell).not.toContain("MessagesThreadOverflow");
+    expect(shell).toContain("<UserMenu email={email} />");
+    expect(shell).toContain("gap-3");
+    expect(landing).not.toContain("MessagesThreadOverflow");
+    expect(titles).not.toContain("MessagesThreadOverflow");
   });
 
   it("renders nothing for the staff inbox", () => {
