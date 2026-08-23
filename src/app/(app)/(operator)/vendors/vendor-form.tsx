@@ -52,9 +52,8 @@ export function VendorForm({ initial }: { initial?: VendorInitial }) {
       setSaving(false);
       return;
     }
-    // The create form lives ON the list page, so router.push here navigates to the
-    // same route and the form stays mounted — reset its state explicitly, or the
-    // button stays stuck on "Saving…". (The edit form navigates away and unmounts.)
+    // Create lives on /vendors/new and edit on /vendors/[id]; both leave after
+    // save. Reset create state in case the form stays mounted during the push.
     setSaving(false);
     if (!initial?.id) setV(EMPTY);
     router.push("/vendors");

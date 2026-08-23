@@ -24,6 +24,20 @@ describe("GC_NAV", () => {
     ]);
   });
 
+  it("keeps the full staff rail — client destinations then the operator set", () => {
+    expect([...NAV, ...GC_NAV].map((item) => item.label)).toEqual([
+      "Dashboard",
+      "Titles",
+      "Deliveries",
+      "Catalog Health",
+      "Messages",
+      "Queue",
+      "GC Deliveries",
+      "Vendors",
+      "Clients",
+    ]);
+  });
+
   it("does not include the client deliveries path", () => {
     expect(GC_NAV.map((item) => item.href)).not.toContain("/deliveries");
   });
