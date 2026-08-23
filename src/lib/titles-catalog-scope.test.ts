@@ -53,8 +53,11 @@ describe("titles catalog scope", () => {
     expect(shell).not.toMatch(/⌘K|CommandK|command-k/i);
     expect(homePage).not.toContain("SearchField");
     expect(homePage).not.toContain("TitlesHeaderSearch");
+    expect(homePage).not.toContain("AddTitleButton");
     expect(titleDetail).not.toContain("SearchField");
     expect(titleDetail).not.toContain("TitlesHeaderSearch");
+    expect(titleDetail).not.toContain("AddTitleButton");
+    expect(titleDetail).not.toContain("data-add-title");
     expect(messagesPage).not.toContain("SearchField");
     expect(accessGate).not.toContain("SearchField");
     expect(thread).not.toContain("SearchField");

@@ -146,6 +146,7 @@ function expectNoLanding(html: string) {
   expect(html).not.toContain(ASK_GLOBEE.need);
   expect(html).not.toContain(ASK_GLOBEE.tryLabel);
   expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
+  expect(html).not.toContain(ASK_GLOBEE.composerPlaceholderMobile);
   for (const label of ASK_GLOBEE.tryPrompts) {
     expect(html).not.toContain(label);
   }
@@ -233,8 +234,9 @@ describe("MessagesPage surfaces", () => {
     expect(html).toContain("data-ask-globee-landing");
     expect(html).toContain("t-display");
     expect(html).toContain(ASK_GLOBEE.headline);
-    expect(html).toContain(ASK_GLOBEE.need);
-    expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).not.toContain(ASK_GLOBEE.need);
+    expect(html).toContain(ASK_GLOBEE.composerPlaceholderMobile);
+    expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain(ASK_GLOBEE.tryLabel);
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(html).toContain(label);
