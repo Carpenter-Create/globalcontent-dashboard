@@ -23,6 +23,7 @@ type Org = { id: string; name: string };
 // isGcStaff. Desktop 1:2 rail is unchanged.
 export function AppShell({
   email,
+  name = null,
   messagesUnread,
   isGcStaff = false,
   defaultCollapsed = false,
@@ -30,6 +31,7 @@ export function AppShell({
   children,
 }: {
   email: string;
+  name?: string | null;
   orgs: Org[];
   activeOrgId: string | null;
   /** Promise, not a number — resolved inside SideNav's Suspense boundary so the
@@ -111,7 +113,7 @@ export function AppShell({
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
         </div>
         <div className="flex items-center gap-3">
-          <UserMenu email={email} />
+          <UserMenu email={email} name={name} />
         </div>
       </header>
 

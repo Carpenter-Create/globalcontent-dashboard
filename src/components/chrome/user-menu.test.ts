@@ -6,12 +6,21 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { USER_MENU, USER_MENU_ABSENT } from "@/lib/user-menu";
-import { toggleDocumentTheme } from "@/lib/theme";
+import { setDocumentThemePreference } from "@/lib/theme";
 
 vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
+vi.mock("@/lib/theme", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/theme")>("@/lib/theme");
+  return { ...actual, setDocumentThemePreference: vi.fn() };
+});
 
 import { signOut } from "@/app/actions";
-import { onUserMenuAppearance, onUserMenuLogOut, UserMenu, UserMenuIdentity } from "./user-menu";
+import {
+  onUserMenuAppearanceSelect,
+  onUserMenuLogOut,
+  UserMenu,
+  UserMenuIdentity,
+} from "./user-menu";
 
 const menuSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"), "utf8");
 
@@ -20,10 +29,13 @@ function visibleText(html: string): string {
 }
 
 describe("UserMenuIdentity", () => {
-  it("renders avatar and email, and omits a name when none is provided", () => {
+  it("renders a vertical stack: avatar above email, and omits a name when none is provided", () => {
     const html = renderToStaticMarkup(
       createElement(UserMenuIdentity, { email: "ada@example.com" }),
     );
+    expect(html).toContain('data-user-menu-identity=""');
+    expect(html).toContain("flex flex-col items-center");
+    expect(html).toContain("text-center");
     expect(html).toContain('data-user-menu-avatar=""');
     expect(html).toContain('data-user-menu-email=""');
     expect(html).toContain("ada@example.com");
@@ -31,10 +43,11 @@ describe("UserMenuIdentity", () => {
     expect(html).toContain("px-[var(--space-4)] py-[var(--space-4)]");
     expect(html).toContain("t-body-sm text-ink-3");
     expect(html).not.toContain("data-user-menu-name");
-    expect(visibleText(html)).not.toMatch(/Profile|Notifications|Privacy/);
+    expect(html.indexOf("data-user-menu-avatar")).toBeLessThan(html.indexOf("data-user-menu-email"));
+    expect(visibleText(html)).not.toMatch(/Profile|Notifications|Security|Perks/);
   });
 
-  it("renders a name row only when a real display name is passed", () => {
+  it("renders a name only when a real display name is passed, still above the email", () => {
     const html = renderToStaticMarkup(
       createElement(UserMenuIdentity, { email: "ada@example.com", name: "Ada Lovelace" }),
     );
@@ -43,6 +56,8 @@ describe("UserMenuIdentity", () => {
     expect(html).toContain("t-body-sm font-medium text-ink");
     expect(html).toContain("t-body-sm text-ink-3");
     expect(html).not.toContain("t-body font-medium");
+    expect(html.indexOf("data-user-menu-avatar")).toBeLessThan(html.indexOf("data-user-menu-name"));
+    expect(html.indexOf("data-user-menu-name")).toBeLessThan(html.indexOf("data-user-menu-email"));
   });
 
   it("does not invent a name from the email local-part", () => {
@@ -80,10 +95,16 @@ describe("UserMenu identity source lock", () => {
       join(dirname(fileURLToPath(import.meta.url)), "../../app/(app)/layout.tsx"),
       "utf8",
     );
+    const authSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../lib/supabase/auth.ts"),
+      "utf8",
+    );
     expect(layoutSrc).toContain("email={ctx.user.email}");
+    expect(layoutSrc).toContain("name={ctx.user.name}");
     expect(layoutSrc).not.toContain("display_name");
     expect(layoutSrc).not.toContain("user_metadata");
     expect(layoutSrc).not.toContain("full_name");
+    expect(authSrc).toContain("resolveAuthUserName");
     expect(menuSrc).not.toContain("split(\"@\")");
     expect(menuSrc).not.toContain("local-part");
     expect(menuSrc).not.toContain("user_metadata");
@@ -91,31 +112,42 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("contains only Agreements, Appearance, and Log out", () => {
+  it("contains only Agreements, Privacy, Appearance, and Log out", () => {
     expect(menuSrc).toContain("USER_MENU.agreements");
     expect(menuSrc).toContain("USER_MENU.agreementsHref");
+    expect(menuSrc).toContain("USER_MENU.privacy");
+    expect(menuSrc).toContain("USER_MENU.privacyHref");
     expect(menuSrc).toContain("USER_MENU.appearance");
     expect(menuSrc).toContain("USER_MENU.logOut");
-    expect(menuSrc).toContain("onUserMenuAppearance");
+    expect(menuSrc).toContain("onUserMenuAppearanceSelect");
     expect(menuSrc).toContain("onUserMenuLogOut");
+    expect(menuSrc).toContain("DropdownMenuSub");
     for (const absent of USER_MENU_ABSENT) {
       expect(menuSrc).not.toContain(absent);
     }
     expect(menuSrc).not.toContain("/account/profile");
     expect(menuSrc).not.toContain("/settings");
     expect(menuSrc).not.toContain("lucide-react");
+    expect(menuSrc).not.toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("toggleDocumentTheme");
+    expect(menuSrc).not.toContain("onUserMenuAppearance()");
   });
 
-  it("keeps Agreements on the existing href", () => {
+  it("keeps Agreements on the existing href and Privacy as an external link", () => {
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
+    expect(USER_MENU.privacyHref).toBe("https://globalcontent.co/legal/privacy");
     expect(menuSrc).toContain("USER_MENU.agreementsHref");
     expect(menuSrc).toContain('data-user-menu-item="agreements"');
+    expect(menuSrc).toContain('data-user-menu-item="privacy"');
+    expect(menuSrc).toContain('target="_blank"');
+    expect(menuSrc).toContain('rel="noopener noreferrer"');
   });
 });
 
 describe("UserMenu actions", () => {
   beforeEach(() => {
     vi.mocked(signOut).mockClear();
+    vi.mocked(setDocumentThemePreference).mockClear();
   });
 
   it("Log out calls the existing signOut action", () => {
@@ -125,11 +157,12 @@ describe("UserMenu actions", () => {
     expect(menuSrc).toContain('from "@/app/actions"');
   });
 
-  it("Appearance reuses the existing theme toggle", () => {
-    expect(onUserMenuAppearance).toBe(toggleDocumentTheme);
-    expect(menuSrc).toContain("onUserMenuAppearance()");
-    expect(menuSrc).toContain("event.preventDefault()");
-    expect(menuSrc).toContain("ThemeGlyph");
+  it("Appearance writes the stored three-way preference", () => {
+    onUserMenuAppearanceSelect("system");
+    expect(setDocumentThemePreference).toHaveBeenCalledWith("system");
+    expect(menuSrc).toContain("onUserMenuAppearanceSelect(option.preference)");
+    expect(menuSrc).toContain("userMenuAppearanceLabel");
+    expect(menuSrc).toContain("data-user-menu-appearance-submenu");
   });
 });
 
@@ -148,17 +181,18 @@ describe("UserMenu Mercury quiet craft", () => {
     expect(menuSrc).not.toContain("t-body font-medium");
   });
 
-  it("keeps the identity hairline and adds a divider before Log out", () => {
-    const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
+  it("places one hairline above Appearance and none before Log out", () => {
     const agreements = menuSrc.indexOf('data-user-menu-item="agreements"');
+    const privacy = menuSrc.indexOf('data-user-menu-item="privacy"');
+    const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
     const appearance = menuSrc.indexOf('data-user-menu-item="appearance"');
-    const logoutRule = menuSrc.indexOf('data-user-menu-logout-hairline=""');
     const logOut = menuSrc.indexOf('data-user-menu-item="logOut"');
-    expect(hairline).toBeGreaterThan(-1);
-    expect(agreements).toBeGreaterThan(hairline);
-    expect(appearance).toBeGreaterThan(agreements);
-    expect(logoutRule).toBeGreaterThan(appearance);
-    expect(logOut).toBeGreaterThan(logoutRule);
+    expect(agreements).toBeGreaterThan(-1);
+    expect(privacy).toBeGreaterThan(agreements);
+    expect(hairline).toBeGreaterThan(privacy);
+    expect(appearance).toBeGreaterThan(hairline);
+    expect(logOut).toBeGreaterThan(appearance);
+    expect(menuSrc).not.toContain("data-user-menu-logout-hairline");
   });
 
   it("does not restore a standalone header sun", () => {
@@ -170,6 +204,24 @@ describe("UserMenu Mercury quiet craft", () => {
     expect(shellSrc).not.toContain("theme-toggle");
     expect(shellSrc).not.toContain("ThemeGlyph");
     expect(menuSrc).not.toContain("ThemeToggle");
-    expect(menuSrc).toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("ThemeGlyph");
+  });
+});
+
+describe("UserMenu appearance submenu (source)", () => {
+  it("shows the stored-preference subtitle and the three options", () => {
+    expect(menuSrc).toContain("userMenuAppearanceLabel");
+    expect(menuSrc).toContain("USER_MENU_APPEARANCE_OPTIONS");
+    expect(menuSrc).toContain('data-user-menu-appearance-value=""');
+    expect(menuSrc).toContain('data-user-menu-appearance-option={option.preference}');
+    expect(menuSrc).toContain("data-user-menu-appearance-checked");
+    expect(menuSrc).toContain("option.hint");
+    expect(menuSrc).toContain("CheckGlyph");
+    expect(menuSrc).toContain("ChevronGlyph");
+    expect(menuSrc).not.toContain("ThemeGlyph");
+    expect(USER_MENU.appearanceLight).toBe("Light mode");
+    expect(USER_MENU.appearanceDark).toBe("Dark mode");
+    expect(USER_MENU.appearanceSystem).toBe("System default");
+    expect(USER_MENU.appearanceSystemHint).toBe("We'll match your system preferences.");
   });
 });

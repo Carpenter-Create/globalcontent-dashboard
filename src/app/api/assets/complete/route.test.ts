@@ -49,7 +49,7 @@ function fakeSupabase(rpcResults: Record<string, RpcResult>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getAuthUser).mockResolvedValue({ id: "user-1", email: "u@example.com" });
+  vi.mocked(getAuthUser).mockResolvedValue({ id: "user-1", email: "u@example.com", name: null });
   vi.mocked(resolveOperableTitle).mockResolvedValue({ orgId: ORG_ID });
   vi.mocked(completeMultipart).mockResolvedValue("content-hash-1");
   vi.spyOn(console, "error").mockImplementation(() => {});
