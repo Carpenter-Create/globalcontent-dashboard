@@ -1,14 +1,15 @@
 import Link from "next/link";
+import { Store } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardBody } from "@/components/ui/card";
-import { VendorForm } from "./vendor-form";
-import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
-
-const MODE_LABELS: Record<"portal_upload" | "email", string> = {
-  portal_upload: "Portal upload",
-  email: "Email",
-};
+import { PageHeader } from "@/components/ui/page-header";
+import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
+import {
+  VENDORS_PAGE,
+  normalizeVendorDirectory,
+  vendorDirectoryHref,
+  vendorDirectoryMeta,
+} from "@/lib/vendors-directory";
 
 export default async function GcVendorsPage() {
   const supabase = await createClient();
@@ -17,39 +18,52 @@ export default async function GcVendorsPage() {
     .select("id, name, delivery_mode, active")
     .order("name", { ascending: true })
     .range(...rangeFor(UNPAGINATED_MAX));
-  const list = vendors ?? [];
+  const list = normalizeVendorDirectory(vendors);
 
   return (
     <>
-      <h1 className="t-subhead text-ink pb-1">Vendors</h1>
-      <p className="t-body-sm text-ink-3 pb-6">GC distribution partners. Portal credentials are never stored here.</p>
+      <PageHeader title={VENDORS_PAGE.title} subtitle={VENDORS_PAGE.identity} />
 
-      {list.length === 0 ? (
-        <Card>
-          <CardBody>
-            <p className="t-body-sm text-ink-3">No vendors yet.</p>
-          </CardBody>
-        </Card>
-      ) : (
-        <div className="mb-8 flex flex-col gap-2">
-          {list.map((vn) => (
-            <Link key={vn.id} href={`/vendors/${vn.id}`} className="block">
-              <Card className="transition-colors hover:bg-surface-muted">
-                <CardBody className="flex items-center justify-between gap-4">
-                  <span className="t-body font-medium text-ink">{vn.name}</span>
-                  <span className="t-body-sm text-ink-3">
-                    {MODE_LABELS[vn.delivery_mode]}
-                    {vn.active ? "" : " · inactive"}
-                  </span>
-                </CardBody>
-              </Card>
+      <div
+        data-vendors-address-book=""
+        className="rounded-[12px] border border-hairline bg-surface"
+      >
+        {list.length === 0 ? (
+          <div
+            data-vendors-empty=""
+            className="flex flex-col items-center gap-[var(--space-4)] px-[var(--space-6)] py-[var(--space-12)] text-center"
+          >
+            <span className="flex size-12 items-center justify-center rounded-full bg-surface-muted text-ink-3">
+              <Store className="size-6" strokeWidth={1.33} />
+            </span>
+            <div className="flex flex-col gap-[var(--space-2)]">
+              <p className="t-body font-medium text-ink">{VENDORS_PAGE.emptyTitle}</p>
+              <p className="t-body-sm text-ink-3">{VENDORS_PAGE.emptySupport}</p>
+            </div>
+            <Link
+              href={VENDORS_PAGE.addHref}
+              data-vendors-add=""
+              className="inline-flex items-center justify-center rounded-[12px] bg-accent px-[var(--space-4)] py-[var(--space-2)] t-body-sm font-medium text-accent-contrast"
+            >
+              {VENDORS_PAGE.addVendor}
             </Link>
-          ))}
-        </div>
-      )}
-
-      <h2 className="t-body font-medium text-ink pb-3">New vendor</h2>
-      <VendorForm />
+          </div>
+        ) : (
+          <ul data-vendors-directory="">
+            {list.map((vn) => (
+              <li key={vn.id} className="border-b border-hairline last:border-b-0">
+                <Link
+                  href={vendorDirectoryHref(vn)}
+                  className="flex items-center justify-between gap-[var(--space-4)] px-[var(--space-4)] py-[var(--space-4)] transition-colors hover:bg-surface-muted"
+                >
+                  <span className="t-body font-medium text-ink">{vn.name}</span>
+                  <span className="t-body-sm text-ink-3">{vendorDirectoryMeta(vn)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
   );
 }
