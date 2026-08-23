@@ -8,14 +8,12 @@ import { Menu, X } from "lucide-react";
 
 import { GC_NAV, MOBILE_NAV, NAV, isClientNavActive, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/cn";
-import { NavMark } from "./nav-mark";
 
 // Phone menu: lucide Menu 16 / 1.33 / tertiary opens an opaque full-bleed
 // portal. The sheet surface rises from the bottom with r24 corners — app
 // sheet, not a website panel. Header is one row: large "Menu" on the list
 // edge, close X in a muted 44 circle at top-right. Rows use the same Lucide
-// marks as the rail (Lucide 16 / 1.33, stroke only; Ask Globee uses the
-// 64 bee PNG cropped into the same 16 slot). Client destinations
+// marks as the rail (item.icon, 16 / 1.33, stroke only). Client destinations
 // only unless isGcStaff — staff get NAV, then a hairline + 24 gap, then
 // GC_NAV. Hidden at md, where the desktop rail stays.
 // Destination clicks keep the opaque portal mounted until the next route
@@ -86,6 +84,7 @@ export function MobileNavSheet({
 
   const link = (item: NavItem) => {
     const active = isClientNavActive(pathname, item);
+    const Icon = item.icon;
     return (
       <Link
         key={item.href}
@@ -96,7 +95,7 @@ export function MobileNavSheet({
           active ? "bg-surface-muted" : "hover:bg-surface-muted",
         )}
       >
-        <NavMark item={item} />
+        <Icon className="size-4 shrink-0" strokeWidth={1.33} />
         {item.label}
       </Link>
     );

@@ -217,8 +217,10 @@ describe("MobileNavSheet", () => {
     const destStart = html.indexOf("data-mobile-nav-destinations");
     const dest = html.slice(destStart);
 
-    expect(src).toContain("<NavMark item={item} />");
+    expect(src).toContain("const Icon = item.icon");
+    expect(src).toContain('<Icon className="size-4 shrink-0" strokeWidth={1.33} />');
     expect(src).toContain("flex w-full items-center");
+    expect(src).not.toContain("NavMark");
     expect(src).not.toContain("fill=");
     expect(src).not.toContain("fill-current");
     expect(src).not.toContain("strokeWidth={2}");
@@ -229,24 +231,24 @@ describe("MobileNavSheet", () => {
     expect(src).not.toContain("Chevron");
 
     for (const item of [...NAV, ...GC_NAV]) {
+      const mark = iconMark(item);
       const row = linkHtml(html, item.href);
       expect(dest).toContain(item.label);
-      expect(row).toContain("size-4");
-      expect(row).toContain("shrink-0");
-      if (item.href === "/messages") {
-        expect(row).toContain("data-ask-globee-nav-mark");
-        expect(row).toContain('src="/ask-globee/ask-globee-16.png"');
-        expect(row).toContain('srcSet="/ask-globee/ask-globee-64.png 2x"');
-        expect(row).not.toContain("lucide-");
-        continue;
-      }
-      const mark = iconMark(item);
       expect(mark.lucide).not.toBe("");
       expect(row).toContain(mark.lucide);
       expect(row).toContain(mark.svg);
+      expect(row).toContain("size-4");
+      expect(row).toContain("shrink-0");
       expect(row).toContain('stroke-width="1.33"');
       expect(row).toContain('fill="none"');
       expect(row).not.toContain('fill="currentColor"');
+      if (item.href === "/messages") {
+        expect(mark.lucide).toBe("lucide-sparkles");
+        expect(row).toContain("lucide-sparkles");
+        expect(row).not.toContain("lucide-sparkle ");
+        expect(row).not.toContain("ask-globee-16.png");
+        expect(row).not.toContain("data-ask-globee-nav-mark");
+      }
     }
   });
 
@@ -336,7 +338,6 @@ function linkHtml(html: string, href: string): string {
 }
 
 function iconMark(item: NavItem): { lucide: string; svg: string } {
-  if (!item.icon) return { lucide: "", svg: "" };
   const Icon = item.icon;
   const html = renderToStaticMarkup(<Icon className="size-4 shrink-0" strokeWidth={1.33} />);
   return {
