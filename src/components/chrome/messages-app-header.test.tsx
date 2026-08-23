@@ -79,7 +79,6 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain("data-ask-globee-download");
     expect(html).toContain("data-ask-globee-header-chrome");
     expect(html).toContain(ASK_GLOBEE.moreLabel);
-    expect(html).toContain(ASK_GLOBEE.downloadPdfLabel);
     expect(html).toContain("t-heading");
     expect(html).not.toContain("t-title");
     expect(src).toContain("Download");
@@ -105,6 +104,7 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain(ASK_GLOBEE.deleteBody);
     expect(html).toContain(ASK_GLOBEE.deleteConfirm);
     expect(html).toContain(ASK_GLOBEE.cancelLabel);
+    expect(src).toContain("ASK_GLOBEE.downloadPdfLabel");
     expect(src).toContain("ASK_GLOBEE.renameLabel");
     expect(src).toContain("ASK_GLOBEE.pinLabel");
     expect(src).toContain("ASK_GLOBEE.deleteLabel");
