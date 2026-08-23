@@ -83,8 +83,12 @@ describe("MobileNavSheet", () => {
     expect(html).not.toContain("data-tab-bar");
     expect(html).not.toContain("data-app-rail");
     expect(src).not.toContain("t-section");
-    expect(src).not.toContain("t-title");
+    expect(src).not.toContain("t-display");
     expect(src).not.toContain("clientNavCurrent");
+    expect(html).toContain("data-mobile-nav-surface");
+    expect(attrClass(html, "data-mobile-nav-surface")).toContain("rounded-t-[24px]");
+    expect(attrClass(html, "data-mobile-nav-surface")).toContain("bg-surface");
+    expect(attrClass(html, "data-mobile-nav-sheet")).not.toContain("rounded-t-[24px]");
   });
 
   it("does not restack Dashboard or Vendors as a second large title", () => {
@@ -94,10 +98,51 @@ describe("MobileNavSheet", () => {
     );
 
     expect(dash).not.toContain("t-section");
-    expect(dash).not.toContain("t-title");
     expect(vendors).not.toContain("t-section");
-    expect(vendors).not.toContain("t-title");
+    expect(dash).not.toContain(`t-title text-ink">${NAV[0].label}`);
+    expect(vendors).not.toContain(`t-title text-ink">${GC_NAV[2].label}`);
     expect(dash).toContain(`aria-label="${MOBILE_NAV.sheet}"`);
+  });
+
+  it("locks the app-sheet header: Menu left, muted 44 X circle right, r24 surface", () => {
+    const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    const headerClass = attrClass(html, "data-mobile-nav-header");
+    const titleClass = attrClass(html, "data-mobile-nav-title");
+    const closeClass = buttonClass(html, "data-mobile-nav-close");
+    const titleHtml = html.slice(
+      html.indexOf("data-mobile-nav-title"),
+      html.indexOf("data-mobile-nav-close"),
+    );
+
+    expect(MOBILE_NAV.sheet).toBe("Menu");
+    expect(tokens).toMatch(/--text-title:\s*1\.5rem/);
+    expect(html).toContain("data-mobile-nav-header");
+    expect(headerClass).toContain("justify-between");
+    expect(headerClass).toContain("items-center");
+    expect(titleClass).toContain("t-title");
+    expect(titleClass).toContain("text-ink");
+    expect(titleHtml).toContain(MOBILE_NAV.sheet);
+    expect(titleHtml).not.toContain("Staff");
+    expect(html.indexOf("data-mobile-nav-title")).toBeLessThan(html.indexOf("data-mobile-nav-close"));
+    expect(html.indexOf("data-mobile-nav-header")).toBeLessThan(
+      html.indexOf("data-mobile-nav-destinations"),
+    );
+    expect(closeClass).toContain("rounded-full");
+    expect(closeClass).toContain("bg-surface-muted");
+    expect(closeClass).toContain("items-center");
+    expect(closeClass).toContain("justify-center");
+    expect(closeClass).not.toContain("bg-accent");
+    expect(closeClass).not.toContain("self-start");
+    expect(closeClass).not.toContain("items-start");
+    expect(closeClass).not.toContain("justify-start");
+    expect(src).not.toContain("self-start");
+    expect(src).not.toContain("items-start justify-start");
+    expect(html).not.toContain("lucide-chevron");
+    expect(src).not.toContain("Chevron");
   });
 
   it("keeps the client sheet on the five client destinations and none of the staff rail", () => {
@@ -143,6 +188,7 @@ describe("MobileNavSheet", () => {
     expect(current).not.toContain('fill="currentColor"');
     expect(current).not.toContain("fill-ink");
     expect(html).not.toContain(`t-section text-ink">${NAV[0].label}`);
+    expect(html).not.toContain(`t-title text-ink">${NAV[0].label}`);
     expect(html).toContain(MOBILE_NAV.close);
     expect(html).toContain("data-mobile-nav-close");
     expect(src).toContain("<X className=\"size-4\" strokeWidth={1.33} />");
@@ -157,15 +203,11 @@ describe("MobileNavSheet", () => {
     expect(src).not.toContain("<X className=\"size-6\"");
     expect(html).toContain("stroke-width=\"1.33\"");
     expect(closeClass).toContain("text-ink-3");
+    expect(closeClass).toContain("rounded-full");
+    expect(closeClass).toContain("bg-surface-muted");
     expect(closeClass).not.toMatch(/(?:^|[\s"])size-4(?:[\s"]|$)/);
     expect(minBoxPx(closeClass, "min-h")).toBeGreaterThanOrEqual(44);
     expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
-    expect(closeClass).toContain("items-start");
-    expect(closeClass).toContain("justify-start");
-    expect(closeClass).toContain("self-start");
-    expect(closeClass).toContain("p-0");
-    expect(closeClass).not.toContain("items-center");
-    expect(closeClass).not.toContain("justify-center");
   });
 
   it("uses the desktop rail Lucide marks, 16 / 1.33 stroke, no fill, no section word", () => {
@@ -184,6 +226,8 @@ describe("MobileNavSheet", () => {
     expect(html).not.toContain("Global Content");
     expect(html).not.toContain("Staff");
     expect(html).not.toContain("t-label");
+    expect(html).not.toContain("lucide-chevron");
+    expect(src).not.toContain("Chevron");
 
     for (const item of [...NAV, ...GC_NAV]) {
       const mark = iconMark(item);

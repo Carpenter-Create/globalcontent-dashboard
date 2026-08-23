@@ -9,12 +9,13 @@ import { Menu, X } from "lucide-react";
 import { GC_NAV, MOBILE_NAV, NAV, isClientNavActive, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
-// Phone menu: lucide Menu 16 / 1.33 / tertiary opens a full-bleed opaque sheet
-// that pops up from the bottom. Client destinations only unless isGcStaff —
-// staff get NAV, then a hairline + 24 gap, then GC_NAV. Hidden at md, where
-// the desktop rail stays. Rows use the same Lucide marks as the rail
-// (item.icon, 16 / 1.33, stroke only). Close X is 16 / 1.33 / tertiary,
-// start-aligned to the list edge inside a 44 hit box.
+// Phone menu: lucide Menu 16 / 1.33 / tertiary opens an opaque full-bleed
+// portal. The sheet surface rises from the bottom with r24 corners — app
+// sheet, not a website panel. Header is one row: large "Menu" on the list
+// edge, close X in a muted 44 circle at top-right. Rows use the same Lucide
+// marks as the rail (item.icon, 16 / 1.33, stroke only). Client destinations
+// only unless isGcStaff — staff get NAV, then a hairline + 24 gap, then
+// GC_NAV. Hidden at md, where the desktop rail stays.
 // Destination clicks keep the opaque portal mounted until the next route
 // commits. Closing on click unmounted the overlay and the next segment painted
 // a blank canvas. Same-href clicks still dismiss immediately. Portal to
@@ -107,37 +108,47 @@ export function MobileNavSheet({
       aria-modal="true"
       aria-label={MOBILE_NAV.sheet}
       data-mobile-nav-sheet=""
-      className="fixed inset-0 z-50 flex h-dvh w-full flex-col gap-[var(--space-6)] overflow-hidden touch-none bg-canvas px-[var(--space-6)] py-[var(--space-12)] md:hidden"
+      className="fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end overflow-hidden touch-none bg-canvas md:hidden"
       style={{ backgroundColor: "var(--bg)" }}
     >
-      {/* Close mark stays lucide X 16 / 1.33 / tertiary. The 44×44 hit box
-          start-aligns the glyph to the destination list edge so centering
-          does not inset the mark. Extra box is hit only — not left pad. */}
-      <button
-        type="button"
-        data-mobile-nav-close=""
-        aria-label={MOBILE_NAV.close}
-        onClick={onClose}
-        className="flex min-h-[44px] min-w-[44px] shrink-0 items-start justify-start self-start p-0 text-ink-3"
+      <div
+        data-mobile-nav-surface=""
+        className="flex min-h-0 flex-1 flex-col gap-[var(--space-6)] rounded-t-[24px] bg-surface px-[var(--space-6)] py-[var(--space-12)]"
       >
-        <X className="size-4" strokeWidth={1.33} />
-      </button>
-      <nav
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y"
-        data-mobile-nav-destinations=""
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        <div className="flex flex-col gap-[var(--space-2)]">{NAV.map(link)}</div>
-        {isGcStaff ? (
-          <>
-            <div
-              data-mobile-nav-group-rule=""
-              className="my-[var(--space-6)] border-t border-hairline"
-            />
-            <div className="flex flex-col gap-[var(--space-2)]">{GC_NAV.map(link)}</div>
-          </>
-        ) : null}
-      </nav>
+        <div
+          data-mobile-nav-header=""
+          className="flex shrink-0 items-center justify-between"
+        >
+          <p data-mobile-nav-title="" className="t-title text-ink">
+            {MOBILE_NAV.sheet}
+          </p>
+          <button
+            type="button"
+            data-mobile-nav-close=""
+            aria-label={MOBILE_NAV.close}
+            onClick={onClose}
+            className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-3"
+          >
+            <X className="size-4" strokeWidth={1.33} />
+          </button>
+        </div>
+        <nav
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y"
+          data-mobile-nav-destinations=""
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          <div className="flex flex-col gap-[var(--space-2)]">{NAV.map(link)}</div>
+          {isGcStaff ? (
+            <>
+              <div
+                data-mobile-nav-group-rule=""
+                className="my-[var(--space-6)] border-t border-hairline"
+              />
+              <div className="flex flex-col gap-[var(--space-2)]">{GC_NAV.map(link)}</div>
+            </>
+          ) : null}
+        </nav>
+      </div>
     </div>
   );
 }
