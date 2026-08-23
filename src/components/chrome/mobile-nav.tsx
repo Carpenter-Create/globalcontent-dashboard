@@ -10,14 +10,11 @@ import { cn } from "@/lib/cn";
 
 // Phone menu: lucide Menu 16 / 1.33 / tertiary opens a full-canvas sheet that
 // pops up from the bottom. Client destinations only — never staff items.
-// Hidden at md, where the desktop rail stays.
+// Hidden at md, where the desktop rail stays. Destination clicks close the
+// sheet; do not sync open-state from pathname in an effect.
 export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   return (
     <>
