@@ -43,7 +43,7 @@ export type ClientOrg = {
 export const CLIENTS_PAGE = {
   title: "Clients",
   subtitle: "Every person holding an active seat on a client organization.",
-  empty: "No client organizations yet.",
+  empty: "No clients yet.",
 } as const;
 
 // Role vocabulary matches the capability names in member_can, spelled for reading.

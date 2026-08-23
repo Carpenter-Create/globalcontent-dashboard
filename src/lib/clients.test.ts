@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Constants } from "@/lib/supabase/database.types";
 import {
+  CLIENTS_PAGE,
   ORG_ROLE_LABELS,
   ORG_STATUS_LABELS,
   tierCell,
@@ -25,6 +26,13 @@ function row(over: Partial<ClientDirectoryRow> = {}): ClientDirectoryRow {
     ...over,
   };
 }
+
+describe("CLIENTS_PAGE copy", () => {
+  it("locks the staff Clients empty line", () => {
+    expect(CLIENTS_PAGE.empty).toBe("No clients yet.");
+    expect(CLIENTS_PAGE.empty.toLowerCase()).not.toContain("add");
+  });
+});
 
 // The label maps are driven off the generated enum constants rather than a hand-copied
 // list: a migration that adds an org status or role fails these instead of silently
