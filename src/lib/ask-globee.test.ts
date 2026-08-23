@@ -39,7 +39,7 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.upgradeHref).toBe(USER_MENU.agreementsHref);
   });
 
-  it("keeps the 7:73 landing lines and generic try chips", () => {
+  it("keeps the 7:73 leftover greeting as a do-not-render lock and generic try chips", () => {
     expect(ASK_GLOBEE.need).toBe("What do you need?");
     expect(ASK_GLOBEE.tryLabel).toBe("Try one of these");
     expect(ASK_GLOBEE.historyLabel).toBe("History");
@@ -57,6 +57,7 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.composerPlaceholder).toBe("Ask a question or give a command.");
     expect(ASK_GLOBEE.composerPlaceholderMobile).toBe("Ask a question or give a command");
     expect(ASK_GLOBEE.composerPlaceholderMobile.endsWith(".")).toBe(false);
+    expect(ASK_GLOBEE.composerPlaceholder.endsWith(".")).toBe(true);
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(label).not.toMatch(/Winter Line|Harbor Lights|Get support/i);
     }

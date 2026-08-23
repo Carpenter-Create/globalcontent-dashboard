@@ -36,8 +36,9 @@ describe("AskGlobeeLanding", () => {
     expect(html).toContain('data-ask-globee-landing=""');
     expect(html).toContain("t-display");
     expect(html).toContain(ASK_GLOBEE.headline);
-    expect(html).toContain(ASK_GLOBEE.need);
-    expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).not.toContain(ASK_GLOBEE.need);
+    expect(html).toContain(ASK_GLOBEE.composerPlaceholderMobile);
+    expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain("max-w-[640px]");
     expect(html).toContain("h-14");
     expect(html).toContain("rounded-[28px]");
@@ -121,7 +122,7 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain(ASK_GLOBEE.newConversationLabel);
     expect(html).toContain(ASK_GLOBEE.headline);
-    expect(html).toContain(ASK_GLOBEE.need);
+    expect(html).not.toContain(ASK_GLOBEE.need);
     expect(html).toContain(ASK_GLOBEE.tryLabel);
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(html).toContain(label);
@@ -194,20 +195,20 @@ describe("AskGlobeeLanding", () => {
       "relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center p-[var(--space-12)]",
     );
     expect(src).toContain(
-      "flex w-full flex-1 flex-col items-center max-md:justify-center max-md:gap-[var(--space-12)] md:justify-center md:gap-[var(--space-12)]",
+      "flex w-full flex-1 flex-col items-center justify-center gap-[var(--space-12)]",
     );
-    expect(src).toContain("flex flex-col items-center gap-[var(--space-6)]");
-    expect(html).toContain("t-body text-center text-ink-2");
+    expect(src).not.toContain("flex flex-col items-center gap-[var(--space-6)]");
+    expect(html).not.toContain("t-body text-center text-ink-2");
+    expect(html).not.toContain(ASK_GLOBEE.need);
     expect(src).toContain(
       "flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]",
     );
     expect(src).toContain(
-      "inline-flex items-center gap-[var(--space-2)] rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+      "inline-flex items-center gap-[var(--space-2)] rounded-full border-0 bg-surface-muted px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
     );
     expect(src).toContain("md:order-2");
     expect(src).toContain("md:order-3");
     expect(src).toContain("md:contents");
-    expect(src).toContain("max-md:justify-center");
     expect(src.indexOf("data-ask-globee-try=")).toBeLessThan(
       src.indexOf("data-ask-globee-composer="),
     );
@@ -222,6 +223,36 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain(ASK_GLOBEE.historyLabel);
     expect(html).toContain('data-ask-globee-clock=""');
+  });
+
+  it("locks desktop 7:73 tokens so a mobile-only revert fails", () => {
+    const html = visible(renderToStaticMarkup(<AskGlobeeLanding />));
+
+    expect(src).toContain(
+      "flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast",
+    );
+    expect(src).not.toContain("max-md:size-6");
+    expect(src).not.toContain("max-md:rounded-full max-md:bg-accent");
+    expect(src).toContain("border-0 bg-surface-muted");
+    expect(src).not.toContain("max-md:border-0");
+    expect(src).not.toContain("max-md:bg-surface-muted");
+    expect(src).toContain("gap-[var(--space-4)] md:order-3");
+    expect(src).not.toContain("max-md:gap-[var(--space-4)]");
+    expect(src).toContain("placeholder={ASK_GLOBEE.composerPlaceholderMobile}");
+    expect(src).not.toContain("placeholder={ASK_GLOBEE.composerPlaceholder}");
+    expect(src).not.toContain("ASK_GLOBEE.need");
+    expect(src).not.toContain("max-md:hidden");
+    expect(html).toContain(ASK_GLOBEE.composerPlaceholderMobile);
+    expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).not.toContain(ASK_GLOBEE.need);
+    expect(html).not.toContain("Beta");
+    expect(src).toContain("text-left");
+    expect(src).toContain("placeholder:text-ink-3");
+    expect(src).toContain("px-[var(--space-4)]");
+    expect(src).toContain("items-center");
+    expect(tokens).toContain("--text-tertiary: #9aa0a9;");
+    expect(tokens).toContain("--accent: #1769ff;");
+    expect(tokens).toContain("--surface-muted: #f4f4f6;");
   });
 
   it("locks 462:502 mobile stack, quiet chip marks, and unchanged copy", () => {
@@ -243,9 +274,9 @@ describe("AskGlobeeLanding", () => {
     expect(askGlobeeChipMark(2)).toBe("send");
     expect(askGlobeeChipMark(3)).toBeNull();
     expect(html).toContain(ASK_GLOBEE.headline);
-    expect(html).toContain(ASK_GLOBEE.need);
+    expect(html).not.toContain(ASK_GLOBEE.need);
     expect(html).toContain(ASK_GLOBEE.tryLabel);
-    expect(html).toContain(ASK_GLOBEE.composerPlaceholder);
+    expect(html).not.toContain(ASK_GLOBEE.composerPlaceholder);
     expect(html).toContain(ASK_GLOBEE.composerPlaceholderMobile);
     expect(html).toContain("h-14");
     expect(html).toContain("rounded-[28px]");
@@ -268,13 +299,16 @@ describe("AskGlobeeLanding", () => {
     expect(src).toContain("size-4 text-ink-3");
     expect(src).not.toContain("size-4 text-accent");
     expect(src).not.toContain("fill-");
-    expect(src).toContain("max-md:hidden");
     expect(src).toContain("max-md:px-[var(--space-4)]");
-    expect(src).toContain("max-md:gap-[var(--space-4)]");
+    expect(src).toContain("max-md:w-full max-md:flex-col max-md:items-stretch");
     expect(src).toContain("max-md:gap-[var(--space-12)]");
-    expect(src).toContain("max-md:justify-center");
-    expect(src).toContain("max-md:border-0 max-md:bg-surface-muted");
     expect(src).toContain(
+      "flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-accent-contrast",
+    );
+    expect(src).toContain("border-0 bg-surface-muted");
+    expect(src).not.toContain("max-md:hidden");
+    expect(src).not.toContain("max-md:border-0 max-md:bg-surface-muted");
+    expect(src).not.toContain(
       "max-md:size-6 max-md:rounded-full max-md:bg-accent max-md:text-accent-contrast",
     );
     expect(src).toContain("placeholder:text-ink-3");

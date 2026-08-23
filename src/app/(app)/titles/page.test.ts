@@ -241,7 +241,13 @@ describe("client /titles catalog", () => {
     expect(html).toContain(TITLES_CATALOG.searchPlaceholder);
     expect(html).toContain(TITLES_CATALOG.addTitle);
     expect(html).toContain("data-add-title");
-    expect(html).toContain("bg-accent");
+    const add = openingTagsWith(html, 'data-add-title=""');
+    expect(add).toHaveLength(1);
+    expect(add[0]).toContain("t-body-sm");
+    expect(add[0]).toContain("text-accent");
+    expect(add[0]).not.toContain("bg-accent");
+    expect(add[0]).not.toContain("max-md:text-accent");
+    expect(add[0]).not.toContain("rounded-full");
     expect(html).not.toContain("titles in Acme");
     expect(html).not.toContain("in Acme's catalog");
     expect(html).not.toMatch(/t-label[^>]*data-titles-catalog-status/);
@@ -535,8 +541,11 @@ describe("client /titles catalog", () => {
     expect(tracks[0]).not.toContain("-mx-[var(--space-4)]");
     expect(tracks[0]).not.toContain("px-[var(--space-4)]");
     expect(add).toHaveLength(1);
-    expect(add[0]).toContain("max-md:text-accent");
-    expect(add[0]).toContain("max-md:bg-transparent");
+    expect(add[0]).toContain("t-body-sm");
+    expect(add[0]).toContain("text-accent");
+    expect(add[0]).not.toContain("bg-accent");
+    expect(add[0]).not.toContain("max-md:text-accent");
+    expect(add[0]).not.toContain("max-md:bg-transparent");
     expect(html).toContain("max-md:hidden");
     expect(html).not.toContain("Recently added");
     expect(html).not.toContain("Store");
@@ -559,12 +568,36 @@ describe("client /titles catalog", () => {
     expect(html).toContain("Acme");
     expect(html).toContain(TITLES_CATALOG.addTitle);
     expect(add).toHaveLength(1);
-    expect(add[0]).toContain("max-md:text-accent");
-    expect(add[0]).toContain("max-md:bg-transparent");
+    expect(add[0]).toContain("t-body-sm");
+    expect(add[0]).toContain("text-accent");
+    expect(add[0]).not.toContain("bg-accent");
+    expect(add[0]).not.toContain("max-md:text-accent");
+    expect(add[0]).not.toContain("max-md:bg-transparent");
     expect(html).toContain(TITLES_CATALOG.emptyCanOperate);
     expect(html).not.toContain("data-titles-catalog-rail");
     expect(html).not.toContain("Store");
     expect(html).not.toContain("Recent");
     expect(html).not.toContain("Meridian Pictures");
+  });
+
+  it("locks desktop header Add Title as 13 Sporty Blue text and keeps the 1:3 grid", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    const html = await renderCatalog();
+    const add = openingTagsWith(html, 'data-add-title=""');
+
+    expect(add).toHaveLength(1);
+    expect(add[0]).toContain("t-body-sm");
+    expect(add[0]).toContain("text-accent");
+    expect(add[0]).not.toContain("bg-accent");
+    expect(add[0]).not.toContain("max-md:text-accent");
+    expect(add[0]).not.toContain("max-md:bg-transparent");
+    expect(add[0]).not.toContain("rounded-full");
+    expect(add[0]).not.toContain("px-[var(--space-6)]");
+    expect(html).toContain("data-titles-catalog-grid");
+    expect(html).toContain("md:grid-cols-3");
+    expect(html).toContain("lg:grid-cols-4");
+    expect(html).toContain("xl:grid-cols-5");
+    expect(html).toContain("hidden gap-x-[var(--space-8)]");
   });
 });

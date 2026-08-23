@@ -44,6 +44,7 @@ export function askGlobeeChipMark(index: number): AskGlobeeChipMark | null {
 export const ASK_GLOBEE = {
   pageTitle: "Messages",
   headline: "Ask Globee",
+  // Leftover 7:73 greeting — do not render on landing. Do not invent a replacement.
   need: "What do you need?",
   tryLabel: "Try one of these",
   tryPrompts: ASK_GLOBEE_TRY_PROMPTS,
@@ -65,7 +66,7 @@ export const ASK_GLOBEE = {
   answerFollow: "Synopsis and Runtime are also required. Director is recommended.",
   attribution: "Globee AI · 7:10 AM",
   composerPlaceholder: "Ask a question or give a command.",
-  // Mobile 462:502 — same line, no period. Desktop 7:73 keeps the period.
+  // Landing 7:73 + 462:502 — same line, no period. Thread 247:295 keeps the period.
   composerPlaceholderMobile: "Ask a question or give a command",
   globeeMark: "G",
   copyLabel: "Copy",

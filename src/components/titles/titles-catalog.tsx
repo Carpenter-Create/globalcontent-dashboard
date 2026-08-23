@@ -12,7 +12,7 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 // search — no Apple TV dark, ranks, Store, or second rail. First and last
 // posters sit 16 from the viewport via the frame inset — do not pair -mx-4
 // with px-4 on the track; that cancels the frame's px-4. Accent is Add Title
-// only (13 Sporty Blue text on mobile). Page-local still crop: every catalog
+// only (13 Sporty Blue text). Page-local still crop: every catalog
 // img is object-cover / object-center so Artwork's default treatment cannot
 // diverge.
 
