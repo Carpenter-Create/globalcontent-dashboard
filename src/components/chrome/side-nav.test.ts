@@ -46,7 +46,8 @@ describe("SideNav Access rail", () => {
     expect(markSrc).toContain("size-4 shrink-0");
     expect(markSrc).toContain("strokeWidth={1.33}");
     expect(markSrc).toContain("data-ask-globee-nav-mark");
-    expect(markSrc).toContain("ask-globee-64.png");
+    expect(markSrc).toContain("item.markSrc");
+    expect(markSrc).toContain("ASK_GLOBEE_NAV_MARK.fillClass");
     expect(markSrc).not.toContain("ask-globee-16.png");
     expect(markSrc).not.toContain("MessageSquare");
     expect(navSrc).toContain('flex flex-col gap-2');
