@@ -3,7 +3,16 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronUp, Download, MoreHorizontal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  Download,
+  MoreHorizontal,
+  Pencil,
+  Pin,
+  Trash2,
+} from "lucide-react";
 
 import { SearchField } from "@/components/layout/search-field";
 import { Button } from "@/components/ui/button";
@@ -32,6 +41,15 @@ import {
   renameAskGlobeeConversation,
 } from "@/app/(app)/messages/ask-globee-actions";
 
+// 532:548 ··· rows — 15 Regular, icons 16 / 1.33 tertiary. Delete is thin
+// danger on this row only (D3: no house --danger token).
+const THREAD_MENU_ITEM =
+  "gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-2)] t-body text-[length:var(--text-base)] font-normal text-ink-3 data-[highlighted]:bg-surface-muted data-[highlighted]:text-ink";
+const THREAD_MENU_DELETE =
+  "gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-2)] t-body text-[length:var(--text-base)] font-normal text-[#c4564a] data-[highlighted]:bg-surface-muted data-[highlighted]:text-[#c4564a]";
+
+// Desktop 247:295 keeps PDF + ··· after the title. Mobile 531:542 hides the
+// PDF tray; Download PDF lives in the existing ··· (532:548). No second menu.
 function MessagesThreadHeader({ title }: { title: string }) {
   const router = useRouter();
   const { chrome, setChrome, conversations } = useAskGlobeeChrome();
@@ -42,13 +60,22 @@ function MessagesThreadHeader({ title }: { title: string }) {
   const pinned = !!chrome?.pinned_at;
   const threadTitle = chrome?.title ?? title;
 
+  function downloadThread() {
+    if (!chrome) return;
+    saveAskGlobeeDownload({
+      title: chrome.title,
+      initials: chrome.initials ?? "",
+      messages: chrome.messages ?? [],
+    });
+  }
+
   return (
     <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-4)]">
       <div className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]">
         <Link
           href={askGlobeeLandingHref()}
           aria-label={ASK_GLOBEE.backLabel}
-          className="flex size-4 shrink-0 items-center justify-center text-ink"
+          className="flex size-4 shrink-0 items-center justify-center text-ink max-md:text-ink-3"
         >
           <ChevronLeft className="size-4" strokeWidth={1.33} />
         </Link>
@@ -66,7 +93,8 @@ function MessagesThreadHeader({ title }: { title: string }) {
             onClick={() => setHistoryOpen((open) => !open)}
             className="flex min-w-0 items-center gap-[var(--space-1)] text-left"
           >
-            <span className="truncate t-heading text-ink">{threadTitle}</span>
+            <span className="min-w-0 truncate t-heading text-ink max-md:hidden">{threadTitle}</span>
+            <span className="min-w-0 truncate t-body text-ink md:hidden">{threadTitle}</span>
             {historyOpen ? (
               <ChevronUp className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />
             ) : (
@@ -83,15 +111,8 @@ function MessagesThreadHeader({ title }: { title: string }) {
           type="button"
           data-ask-globee-download=""
           aria-label={ASK_GLOBEE.downloadLabel}
-          onClick={() => {
-            if (!chrome) return;
-            saveAskGlobeeDownload({
-              title: chrome.title,
-              initials: chrome.initials ?? "",
-              messages: chrome.messages ?? [],
-            });
-          }}
-          className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+          onClick={downloadThread}
+          className="hidden size-4 shrink-0 items-center justify-center text-ink-3 md:flex"
         >
           <Download className="size-4" strokeWidth={1.33} />
         </button>
@@ -105,16 +126,23 @@ function MessagesThreadHeader({ title }: { title: string }) {
               <MoreHorizontal className="size-4" strokeWidth={1.33} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className={THREAD_MENU_ITEM} onSelect={downloadThread}>
+              <Download className="size-4" strokeWidth={1.33} />
+              {ASK_GLOBEE.downloadPdfLabel}
+            </DropdownMenuItem>
             <DropdownMenuItem
+              className={THREAD_MENU_ITEM}
               onSelect={() => {
                 setRenameValue(chrome?.title ?? title);
                 setRenameOpen(true);
               }}
             >
+              <Pencil className="size-4" strokeWidth={1.33} />
               {ASK_GLOBEE.renameLabel}
             </DropdownMenuItem>
             <DropdownMenuItem
+              className={THREAD_MENU_ITEM}
               onSelect={() => {
                 if (!chrome) return;
                 void pinAskGlobeeConversation(chrome.id, !pinned).then((result) => {
@@ -125,9 +153,11 @@ function MessagesThreadHeader({ title }: { title: string }) {
                 });
               }}
             >
+              <Pin className="size-4" strokeWidth={1.33} />
               {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDeleteOpen(true)}>
+            <DropdownMenuItem className={THREAD_MENU_DELETE} onSelect={() => setDeleteOpen(true)}>
+              <Trash2 className="size-4" strokeWidth={1.33} />
               {ASK_GLOBEE.deleteLabel}
             </DropdownMenuItem>
           </DropdownMenuContent>

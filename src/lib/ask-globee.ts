@@ -71,6 +71,7 @@ export const ASK_GLOBEE = {
   globeeMark: "G",
   copyLabel: "Copy",
   downloadLabel: "Download",
+  downloadPdfLabel: "Download PDF",
   thumbsUpLabel: "Helpful",
   thumbsDownLabel: "Not helpful",
   moreLabel: "More",
