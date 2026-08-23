@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -47,16 +48,28 @@ export function MobileNavSheet({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
+    // Tailwind `md` / tokens.css phone cut — CSS `md:hidden` alone would leave
+    // `open` true and body overflow locked after a phone → desktop resize.
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onDesktop = () => {
+      if (mq.matches) onClose();
+    };
     document.addEventListener("keydown", onKey);
+    mq.addEventListener("change", onDesktop);
+    onDesktop();
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
+      mq.removeEventListener("change", onDesktop);
       document.body.style.overflow = previous;
     };
   }, [onClose]);
 
-  return (
+  // Portal out of the sticky `backdrop-blur` header. That filter is the
+  // containing block for `position: fixed`, so an in-header sheet would
+  // size to `--header-height` (56px) instead of the viewport.
+  const sheet = (
     <div
       id="mobile-nav-sheet"
       role="dialog"
@@ -95,4 +108,6 @@ export function MobileNavSheet({
       </nav>
     </div>
   );
+
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
