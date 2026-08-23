@@ -63,10 +63,17 @@ export function DashboardHomeStatusPill({ label }: { label: string }) {
   );
 }
 
-export function DashboardHomeEmpty({ children }: { children: React.ReactNode }) {
+export function DashboardHomeEmpty({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="dashboard-home-empty flex flex-1 flex-col justify-center border-t border-hairline px-[var(--space-6)] py-[var(--space-10)]">
       <p className="t-body text-ink-2">{children}</p>
+      {action}
     </div>
   );
 }
@@ -166,12 +173,32 @@ export function DashboardDoNext({ items }: { items: ClientHomeDoNextItem[] }) {
   );
 }
 
-export function DashboardJustIn({ titles }: { titles: ClientHomeJustInItem[] }) {
+export function DashboardJustIn({
+  titles,
+  catalogEmpty = false,
+  canAddTitle = false,
+}: {
+  titles: ClientHomeJustInItem[];
+  catalogEmpty?: boolean;
+  canAddTitle?: boolean;
+}) {
+  const emptyCopy = catalogEmpty ? DASHBOARD_HOME.catalogEmpty : DASHBOARD_HOME.justInEmpty;
+  const emptyAction =
+    catalogEmpty && canAddTitle ? (
+      <Link
+        href={DASHBOARD_HOME.addTitleHref}
+        data-dashboard-add-title=""
+        className="mt-[var(--space-3)] t-body-sm text-accent transition-colors hover:underline"
+      >
+        {DASHBOARD_HOME.addTitle}
+      </Link>
+    ) : undefined;
+
   return (
     <DashboardHomePanel aria-label={DASHBOARD_HOME.justIn} data-dashboard-just-in="">
       <span className="px-[var(--space-6)] py-4 t-label text-ink-3">{DASHBOARD_HOME.justIn}</span>
       {titles.length === 0 ? (
-        <DashboardHomeEmpty>{DASHBOARD_HOME.justInEmpty}</DashboardHomeEmpty>
+        <DashboardHomeEmpty action={emptyAction}>{emptyCopy}</DashboardHomeEmpty>
       ) : (
         <ul className="divide-y divide-hairline border-t border-hairline">
           {titles.map((t) => {

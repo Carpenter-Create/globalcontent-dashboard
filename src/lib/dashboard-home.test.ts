@@ -13,6 +13,7 @@ import {
 import { dashboardAttentionSummary } from "@/lib/findings";
 import { UNPAGINATED_MAX } from "@/lib/list-bounds";
 import { TITLE_STATUS_LABELS } from "@/lib/titles";
+import { TITLES_CATALOG } from "@/lib/titles-catalog";
 import {
   clientHomeSnapshot,
   dashboardCatalogValue,
@@ -194,7 +195,7 @@ describe("clientHomeSnapshot", () => {
     expect(snap).not.toHaveProperty("createdAt");
   });
 
-  it("keeps the real title status on Just in rows", () => {
+  it("keeps the real title status on Recent rows", () => {
     const snap = clientHomeSnapshot({
       titles: [
         title({
@@ -347,7 +348,7 @@ describe("client home type locks", () => {
     expect(html).not.toContain("t-section");
   });
 
-  it("puts title and pill left-clustered on Just in, with the date on the right", () => {
+  it("puts title and pill left-clustered on Recent, with the date on the right", () => {
     const created = "2026-08-12T00:00:00.000Z";
     const html = renderToStaticMarkup(
       createElement(DashboardJustIn, {
@@ -397,5 +398,80 @@ describe("client home type locks", () => {
     expect(html).toContain("size-[14px]");
     expect(html).toContain("stroke-width=\"1.33\"");
     expect(html).not.toContain("Meridian");
+  });
+});
+
+describe("client home copy lock", () => {
+  it("locks Recent, empty-catalog copy, and the existing Add Title action", () => {
+    expect(DASHBOARD_HOME.justIn).toBe("Recent");
+    expect(DASHBOARD_HOME.justIn).not.toBe("Just in");
+    expect(DASHBOARD_HOME.catalogEmpty).toBe("The catalog is empty.");
+    expect(DASHBOARD_HOME.addTitle).toBe("Add Title");
+    expect(DASHBOARD_HOME.addTitle).toBe(TITLES_CATALOG.addTitle);
+    expect(DASHBOARD_HOME.addTitleHref).toBe("/titles");
+  });
+
+  it("renders The catalog is empty. with one Add Title text control", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardJustIn, {
+        titles: [],
+        catalogEmpty: true,
+        canAddTitle: true,
+      }),
+    );
+    const marker = html.indexOf('data-dashboard-add-title=""');
+    const addStart = html.lastIndexOf("<a", marker);
+    const addEnd = html.indexOf("</a>", marker);
+    const link = html.slice(addStart, addEnd);
+
+    expect(html).toContain(`t-label text-ink-3">${DASHBOARD_HOME.justIn}`);
+    expect(html).toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html.split(DASHBOARD_HOME.catalogEmpty).length - 1).toBe(1);
+    expect(html.split(DASHBOARD_HOME.addTitle).length - 1).toBe(1);
+    expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain("Just in");
+    expect(link).toContain('href="/titles"');
+    expect(link).toContain(DASHBOARD_HOME.addTitle);
+    expect(link).toContain("t-body-sm");
+    expect(link).toContain("text-accent");
+    expect(link).toContain("hover:underline");
+    expect(link).not.toContain("bg-accent");
+    expect(link).not.toContain("data-add-title");
+    expect(html).not.toContain("data-add-title");
+  });
+
+  it("keeps No titles added recently. when the catalog has titles but none are recent", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardJustIn, {
+        titles: [],
+        catalogEmpty: false,
+        canAddTitle: true,
+      }),
+    );
+
+    expect(html).toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
+    expect(html).not.toContain(DASHBOARD_HOME.addTitle);
+  });
+
+  it("keeps an Artwork missing finding on Do next where it already is", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardDoNext, {
+        items: [
+          {
+            id: "live-1",
+            title: "Winter Light",
+            reason: "Artwork missing",
+            status: "live",
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain("Artwork missing");
+    expect(html.split("Artwork missing").length - 1).toBe(1);
+    expect(html).toContain("Winter Light");
+    expect(html).not.toContain("Metadata incomplete");
   });
 });
