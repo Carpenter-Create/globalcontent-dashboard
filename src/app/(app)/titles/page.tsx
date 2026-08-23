@@ -20,13 +20,16 @@ import {
   TitlesCatalogFrame,
   TitlesCatalogGrid,
   TitlesCatalogHeader,
+  TitlesCatalogRail,
+  TitlesCatalogRailStill,
   TitlesCatalogStill,
 } from "@/components/titles/titles-catalog";
 import type { TitleStatus } from "@/lib/titles";
 
 // Client `/titles` is the catalog you operate: every title the org owns, every
-// existing title.status, on this one page. Portrait stills — not a storefront,
-// not a CMS, not a streaming home. `catalog_id` stays GC-only.
+// existing title.status, on this one page. Desktop 1:3 is the unboxed grid.
+// Mobile 528:542 is one Recent snap rail — not a storefront, not Apple TV dark,
+// not a second catalog. `catalog_id` stays GC-only.
 
 export default async function TitlesPage({
   searchParams,
@@ -76,15 +79,28 @@ export default async function TitlesPage({
 
   const filtered = filterTitles(all, q);
 
+  const stills = filtered.map((r) => ({
+    key: r.id,
+    href: `/titles/${r.id}`,
+    title: r.title,
+    stillUrl: catalogStillSrc(r.bannerUrl, r.posterUrl),
+    status: r.status,
+    statusLabel: catalogStatusMark(r.status as TitleStatus),
+    year: catalogReleaseYear(r.release_date),
+  }));
+
   return (
-    <TitlesCatalogFrame>
+    <TitlesCatalogFrame empty={list.length === 0}>
       <TitlesCatalogHeader
+        identity={activeOrg.name}
         count={catalogCountLabel(list.length, truncated)}
         action={
           list.length > 0 || canOperate ? (
             <>
               {list.length > 0 ? (
-                <SearchField placeholder={TITLES_CATALOG.searchPlaceholder} />
+                <div className="max-md:hidden">
+                  <SearchField placeholder={TITLES_CATALOG.searchPlaceholder} />
+                </div>
               ) : null}
               {canOperate ? <AddTitleButton orgId={activeOrg.id} /> : null}
             </>
@@ -103,27 +119,46 @@ export default async function TitlesPage({
       ) : null}
 
       {list.length === 0 ? (
-        <TitlesCatalogEmpty>
-          {canOperate ? TITLES_CATALOG.emptyCanOperate : TITLES_CATALOG.emptyReadOnly}
-        </TitlesCatalogEmpty>
+        <>
+          <TitlesCatalogEmpty className="md:hidden">
+            {TITLES_CATALOG.emptyCatalog}
+          </TitlesCatalogEmpty>
+          <TitlesCatalogEmpty className="max-md:hidden">
+            {canOperate ? TITLES_CATALOG.emptyCanOperate : TITLES_CATALOG.emptyReadOnly}
+          </TitlesCatalogEmpty>
+        </>
       ) : filtered.length === 0 ? (
         <TitlesCatalogEmpty>
           {TITLES_CATALOG.searchMiss(q.trim())} {TITLES_CATALOG.searchMissHint}
         </TitlesCatalogEmpty>
       ) : (
-        <TitlesCatalogGrid>
-          {filtered.map((r) => (
-            <TitlesCatalogStill
-              key={r.id}
-              href={`/titles/${r.id}`}
-              title={r.title}
-              stillUrl={catalogStillSrc(r.bannerUrl, r.posterUrl)}
-              status={r.status}
-              statusLabel={catalogStatusMark(r.status as TitleStatus)}
-              year={catalogReleaseYear(r.release_date)}
-            />
-          ))}
-        </TitlesCatalogGrid>
+        <>
+          <TitlesCatalogRail>
+            {stills.map((r) => (
+              <TitlesCatalogRailStill
+                key={r.key}
+                href={r.href}
+                title={r.title}
+                stillUrl={r.stillUrl}
+                status={r.status}
+                year={r.year}
+              />
+            ))}
+          </TitlesCatalogRail>
+          <TitlesCatalogGrid>
+            {stills.map((r) => (
+              <TitlesCatalogStill
+                key={r.key}
+                href={r.href}
+                title={r.title}
+                stillUrl={r.stillUrl}
+                status={r.status}
+                statusLabel={r.statusLabel}
+                year={r.year}
+              />
+            ))}
+          </TitlesCatalogGrid>
+        </>
       )}
     </TitlesCatalogFrame>
   );

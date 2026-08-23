@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
+import { DASHBOARD_HOME } from "./dashboard-home";
 import {
   CATALOG_LIFECYCLE_STATES,
   TITLES_CATALOG,
@@ -100,6 +101,16 @@ describe("Add Title copy", () => {
     expect(TITLES_CATALOG.addTitle).toBe("Add Title");
     expect(TITLES_CATALOG.title).toBe("Titles");
     expect(TITLES_CATALOG.searchPlaceholder).toBe("Search titles...");
+  });
+
+  it("locks mobile 528:542 Recent and empty 529:542 copy to the home phrases", () => {
+    expect(TITLES_CATALOG.recent).toBe("Recent");
+    expect(TITLES_CATALOG.recent).not.toBe("Recently added");
+    expect(TITLES_CATALOG.emptyCatalog).toBe("The catalog is empty.");
+    expect(TITLES_CATALOG.recent).toBe(DASHBOARD_HOME.justIn);
+    expect(TITLES_CATALOG.emptyCatalog).toBe(DASHBOARD_HOME.catalogEmpty);
+    expect(TITLES_CATALOG.emptyCatalog).not.toBe(TITLES_CATALOG.empty);
+    expect(TITLES_CATALOG.emptyCatalog).not.toBe(TITLES_CATALOG.emptyCanOperate);
   });
 });
 

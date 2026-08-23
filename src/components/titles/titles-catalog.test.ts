@@ -24,6 +24,8 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 import {
   TitlesCatalogFrame,
   TitlesCatalogHeader,
+  TitlesCatalogRail,
+  TitlesCatalogRailStill,
   TitlesCatalogStill,
 } from "./titles-catalog";
 
@@ -216,9 +218,16 @@ describe("TitlesCatalogStill craft", () => {
 describe("TitlesCatalogFrame craft", () => {
   it("uses a house --space-* gap under the operate bar, not the old canyon", () => {
     const html = renderToStaticMarkup(createElement(TitlesCatalogFrame));
-    expect(html).toContain("gap-[var(--space-8)]");
+    expect(html).toContain("md:gap-[var(--space-8)]");
+    expect(html).toContain("gap-[var(--space-12)]");
     expect(html).not.toContain("gap-[var(--space-10)]");
     expect(html).not.toContain("gap-[var(--space-6)]");
+  });
+
+  it("tightens empty 529:542 to 24 between identity and copy", () => {
+    const html = renderToStaticMarkup(createElement(TitlesCatalogFrame, { empty: true }));
+    expect(html).toContain("gap-[var(--space-6)] md:gap-[var(--space-8)]");
+    expect(html).not.toContain("gap-[var(--space-12)] md:gap-[var(--space-8)]");
   });
 });
 
@@ -226,7 +235,7 @@ describe("TitlesCatalogHeader type lock", () => {
   it("keeps the page title on the 24px section step, not a second hero", () => {
     const html = renderToStaticMarkup(createElement(TitlesCatalogHeader));
 
-    expect(html).toMatch(/<h1 class="t-section text-ink">Titles<\/h1>/);
+    expect(html).toMatch(/<h1 class="t-section text-ink max-md:hidden">Titles<\/h1>/);
     expect(html).toContain(TITLES_CATALOG.title);
     expect(html).not.toMatch(/<h1[^>]*t-display/);
     expect(html).not.toMatch(/<h1[^>]*t-title/);
@@ -242,7 +251,7 @@ describe("TitlesCatalogHeader type lock", () => {
     );
 
     expect(html).toContain(
-      "titles-catalog-header flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-start sm:justify-between",
+      "titles-catalog-header flex items-center justify-between gap-[var(--space-2)] md:items-start md:gap-[var(--space-6)]",
     );
     expect(html).toContain("data-titles-catalog-count");
     expect(html).toContain("7 in catalog");
@@ -268,5 +277,63 @@ describe("TitlesCatalogHeader type lock", () => {
     expect(tokens).toMatch(/--text-title:\s*1\.5rem;/);
     expect(globals).toMatch(/\.t-section\s*\{[\s\S]*?font-size:\s*var\(--text-title\)/);
     expect(globals).toMatch(/\.t-body-sm\s*\{[\s\S]*?font-size:\s*var\(--text-sm\)/);
+  });
+
+  it("uses the org name on mobile 528:542 and Titles on desktop 1:3", () => {
+    const html = renderToStaticMarkup(
+      createElement(TitlesCatalogHeader, { identity: "Acme" }),
+    );
+    expect(html).toContain("data-titles-catalog-identity");
+    expect(html).toContain("Acme");
+    expect(html).toContain("md:hidden");
+    expect(html).toMatch(/<h1 class="t-section text-ink max-md:hidden">Titles<\/h1>/);
+    expect(html).not.toContain("Meridian Pictures");
+  });
+});
+
+describe("TitlesCatalogRail 528:542 lock", () => {
+  it("is one Recent snap rail — 140×210 r12, 16 gap, 16 side", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        TitlesCatalogRail,
+        null,
+        createElement(TitlesCatalogRailStill, {
+          href: "/titles/1",
+          title: "Craft film",
+          stillUrl: null,
+          status: "live",
+          year: "2019",
+        }),
+      ),
+    );
+    const rail = openingTagWith(html, 'data-titles-catalog-rail=""');
+    const track = openingTagWith(html, 'data-titles-catalog-rail-track=""');
+    const card = openingTagWith(html, 'data-titles-catalog-rail-card=""');
+    const frame = openingTagWith(html, 'data-titles-catalog-rail-frame=""');
+    const name = openingTagWith(html, 'data-titles-catalog-rail-name=""');
+    const year = openingTagWith(html, 'data-titles-catalog-rail-year=""');
+
+    expect(html).toContain(TITLES_CATALOG.recent);
+    expect(html).not.toContain("Recently added");
+    expect(html).not.toContain("Store");
+    expect(html).not.toContain("Spotlight");
+    expect(rail).toContain("md:hidden");
+    expect(track).toContain("snap-x");
+    expect(track).toContain("snap-mandatory");
+    expect(track).toContain("gap-[var(--space-4)]");
+    expect(track).toContain("px-[var(--space-4)]");
+    expect(card).toContain("w-[140px]");
+    expect(card).toContain("snap-start");
+    expect(frame).toContain("h-[210px]");
+    expect(frame).toContain("w-[140px]");
+    expect(frame).toContain("rounded-[12px]");
+    expect(frame).not.toContain("rounded-[var(--radius-lg)]");
+    expect(name).toContain("t-body text-ink");
+    expect(year).toContain("t-body-sm font-normal text-ink-2");
+    expect(html).toContain("2019");
+    expect(html).not.toContain("data-titles-catalog-status");
+    expect(html).not.toContain("bg-band");
+    expect(html).not.toMatch(/\bStore\b/);
+    expect(html.match(/data-titles-catalog-rail=""/g) ?? []).toHaveLength(1);
   });
 });
