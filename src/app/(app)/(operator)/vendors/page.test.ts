@@ -86,11 +86,32 @@ describe("staff /vendors address book", () => {
     expect(html).toContain("size-12");
     expect(html).toContain("size-6");
     expect(html).toContain("stroke-width=\"1.33\"");
-    expect(html).toContain("bg-accent");
-    expect(html).toContain("px-[var(--space-4)]");
     expect(html).not.toContain("border-dashed");
     expect(pageSrc).not.toContain("EmptyState");
     expect(pageSrc).toContain("PageHeader");
+  });
+
+  it("renders empty Add vendor as Sporty Blue text, matching /deliveries View titles", async () => {
+    const html = await renderVendors([]);
+    const marker = html.indexOf('data-vendors-add=""');
+    const addStart = html.lastIndexOf("<a", marker);
+    const addEnd = html.indexOf("</a>", marker);
+    const add = html.slice(addStart, addEnd);
+    const viewTitlesClass = "t-body-sm text-accent transition-colors hover:underline";
+    const deliveriesSrc = readFileSync("src/app/(app)/deliveries/page.tsx", "utf8");
+
+    expect(deliveriesSrc).toContain(viewTitlesClass);
+    expect(pageSrc).toContain(viewTitlesClass);
+    expect(add).toContain("t-body-sm");
+    expect(add).toContain("text-accent");
+    expect(add).toContain("hover:underline");
+    expect(add).toContain(VENDORS_PAGE.addVendor);
+    expect(add).not.toContain("bg-accent");
+    expect(add).not.toContain("text-accent-contrast");
+    expect(add).not.toContain("rounded-[12px]");
+    expect(add).not.toContain("px-[var(--space-4)]");
+    expect(add).not.toContain("py-[var(--space-2)]");
+    expect(add).not.toContain("inline-flex");
   });
 
   it("does not put Add vendor in the header", async () => {
