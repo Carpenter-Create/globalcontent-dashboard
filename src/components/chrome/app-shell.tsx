@@ -19,7 +19,8 @@ type Org = { id: string; name: string };
 // state persists in a cookie (read by the (app) layout → `defaultCollapsed`, so there's no
 // flash) and, when collapsed, overrides `--sidebar-width` so the header + main follow.
 // Phone: the rail is gone (hidden + width tokens collapse). A header hamburger opens a
-// bottom sheet of client NAV only. Desktop 1:2 rail is unchanged.
+// bottom sheet — client destinations, or those plus staff destinations when
+// isGcStaff. Desktop 1:2 rail is unchanged.
 export function AppShell({
   email,
   messagesUnread,
@@ -106,7 +107,7 @@ export function AppShell({
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
         <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2">
-          <MobileNav />
+          <MobileNav isGcStaff={isGcStaff} />
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
         </div>
         <div className="flex items-center gap-3">

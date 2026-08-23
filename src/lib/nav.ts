@@ -31,10 +31,11 @@ export const GC_NAV: NavItem[] = [
   { label: "Clients", href: "/gc/clients", icon: Users },
 ];
 
-// Phone sheet copy. Destinations stay NAV — never GC_NAV.
+// Phone sheet copy. Client sheet is NAV only. Staff sheet is NAV + GC_NAV.
 export const MOBILE_NAV = {
   open: "Open menu",
   close: "Close menu",
+  sheet: "Menu",
 } as const;
 
 export function isClientNavActive(pathname: string, item: NavItem): boolean {
@@ -43,4 +44,10 @@ export function isClientNavActive(pathname: string, item: NavItem): boolean {
 
 export function clientNavCurrent(pathname: string): NavItem {
   return NAV.find((item) => isClientNavActive(pathname, item)) ?? NAV[0];
+}
+
+// Client phone sheet stays the five NAV destinations. Staff already use those
+// plus the operator set — do not leave them on a client-only menu.
+export function mobileNavDestinations(isGcStaff: boolean): NavItem[] {
+  return isGcStaff ? [...NAV, ...GC_NAV] : NAV;
 }

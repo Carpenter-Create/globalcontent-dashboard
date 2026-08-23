@@ -194,7 +194,7 @@ describe("AppShell client mobile chrome", () => {
     expect(html).not.toContain("data-tab-bar");
     expect(shellSrc).toContain("hidden h-dvh flex-col");
     expect(shellSrc).toContain("md:flex");
-    expect(shellSrc).toContain("<MobileNav />");
+    expect(shellSrc).toContain("<MobileNav isGcStaff={isGcStaff} />");
     expect(shellSrc).not.toContain("GC_NAV");
   });
 

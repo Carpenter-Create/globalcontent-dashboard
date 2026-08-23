@@ -1,20 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 
-import { MOBILE_NAV, NAV, clientNavCurrent, isClientNavActive } from "@/lib/nav";
+import { MOBILE_NAV, isClientNavActive, mobileNavDestinations } from "@/lib/nav";
 import { cn } from "@/lib/cn";
 
-// Phone menu: lucide Menu 16 / 1.33 / tertiary opens a full-canvas sheet that
-// pops up from the bottom. Client destinations only — never staff items.
-// Hidden at md, where the desktop rail stays. Destination clicks close the
-// sheet; do not sync open-state from pathname in an effect.
-export function MobileNav() {
+// Phone menu: lucide Menu 16 / 1.33 / tertiary opens a full-bleed opaque sheet
+// that pops up from the bottom. Client destinations only unless isGcStaff —
+// staff get NAV + GC_NAV. Hidden at md, where the desktop rail stays.
+// Destination clicks close the sheet; do not sync open-state from pathname
+// in an effect. Portal to document.body so the header's backdrop-blur does
+// not become the fixed containing block (that left the page showing through).
+export function MobileNav({ isGcStaff = false }: { isGcStaff?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const sheet = open ? (
+    <MobileNavSheet
+      pathname={pathname}
+      onClose={() => setOpen(false)}
+      isGcStaff={isGcStaff}
+    />
+  ) : null;
 
   return (
     <>
@@ -29,7 +40,7 @@ export function MobileNav() {
       >
         <Menu className="size-4" strokeWidth={1.33} />
       </button>
-      {open ? <MobileNavSheet pathname={pathname} onClose={() => setOpen(false)} /> : null}
+      {sheet && typeof document !== "undefined" ? createPortal(sheet, document.body) : sheet}
     </>
   );
 }
@@ -37,11 +48,13 @@ export function MobileNav() {
 export function MobileNavSheet({
   pathname,
   onClose,
+  isGcStaff = false,
 }: {
   pathname: string;
   onClose: () => void;
+  isGcStaff?: boolean;
 }) {
-  const current = clientNavCurrent(pathname);
+  const destinations = mobileNavDestinations(isGcStaff);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -61,9 +74,10 @@ export function MobileNavSheet({
       id="mobile-nav-sheet"
       role="dialog"
       aria-modal="true"
-      aria-label={current.label}
+      aria-label={MOBILE_NAV.sheet}
       data-mobile-nav-sheet=""
-      className="fixed inset-x-0 bottom-0 top-0 z-50 flex flex-col gap-[var(--space-6)] bg-canvas px-[var(--space-6)] py-[var(--space-12)] md:hidden"
+      className="fixed inset-0 z-50 flex h-dvh w-full flex-col gap-[var(--space-6)] bg-canvas px-[var(--space-6)] py-[var(--space-12)] md:hidden"
+      style={{ backgroundColor: "var(--bg)" }}
     >
       <button
         type="button"
@@ -74,9 +88,8 @@ export function MobileNavSheet({
       >
         <X className="size-4" strokeWidth={1.33} />
       </button>
-      <p className="t-section text-ink">{current.label}</p>
       <nav className="flex flex-col gap-[var(--space-2)]" data-mobile-nav-destinations="">
-        {NAV.map((item) => {
+        {destinations.map((item) => {
           const active = isClientNavActive(pathname, item);
           return (
             <Link
