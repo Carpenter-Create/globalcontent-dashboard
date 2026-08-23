@@ -43,7 +43,7 @@ export default async function GcVendorsPage() {
             <Link
               href={VENDORS_PAGE.addHref}
               data-vendors-add=""
-              className="inline-flex items-center justify-center rounded-[12px] bg-accent px-[var(--space-4)] py-[var(--space-2)] t-body-sm font-medium text-accent-contrast"
+              className="t-body-sm text-accent transition-colors hover:underline"
             >
               {VENDORS_PAGE.addVendor}
             </Link>
