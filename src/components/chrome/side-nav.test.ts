@@ -38,19 +38,12 @@ describe("SideNav Access rail", () => {
     expect(itemClass).not.toContain("text-[0.875rem]");
     expect(itemClass).not.toMatch(/(?:^|[\s"])t-body(?:[\s"]|$)/);
     expect(navSrc).not.toContain("text-[0.875rem]");
-    const markSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "nav-mark.tsx"),
-      "utf8",
-    );
-    expect(navSrc).toContain("<NavMark item={item} />");
-    expect(markSrc).toContain("size-4 shrink-0");
-    expect(markSrc).toContain("strokeWidth={1.33}");
-    expect(markSrc).toContain("data-ask-globee-nav-mark");
-    expect(markSrc).toContain("item.markSrc");
-    expect(markSrc).toContain("ASK_GLOBEE_NAV_MARK.fillClass");
-    expect(markSrc).toContain("ASK_GLOBEE_NAV_MARK.src64");
-    expect(markSrc).not.toContain("size-6");
-    expect(markSrc).not.toContain("MessageSquare");
+    expect(navSrc).toContain("const Icon = item.icon");
+    expect(navSrc).toContain('<Icon className="size-4 shrink-0" strokeWidth={1.33} />');
+    expect(navSrc).not.toContain("NavMark");
+    expect(navSrc).not.toContain("markSrc");
+    expect(navSrc).not.toContain("ask-globee-16.png");
+    expect(navSrc).not.toContain("size-6");
     expect(navSrc).toContain('flex flex-col gap-2');
     expect(navSrc).toContain('collapsed ? "px-1.5" : "px-3"');
     expect(navSrc).not.toContain("strokeWidth={1.5}");

@@ -1,17 +1,17 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { Bot, MessageSquare, Sparkle, Sparkles } from "lucide-react";
 
 import { ASK_GLOBEE } from "@/lib/ask-globee";
 import {
-  ASK_GLOBEE_NAV_MARK,
   GC_NAV,
   NAV,
   clientNavCurrent,
   isClientNavActive,
-  isNavImageItem,
   mobileNavDestinations,
 } from "./nav";
+
+const navSrc = readFileSync("src/lib/nav.ts", "utf8");
 
 describe("client NAV", () => {
   it("keeps Dashboard at / and never exposes operator routes", () => {
@@ -35,49 +35,32 @@ describe("client NAV", () => {
     expect(clientNavCurrent("/queue").label).toBe("Dashboard");
   });
 
-  it("keeps /messages as Ask Globee with the 16 bee mark, not Messages or Lucide", () => {
+  it("keeps /messages as Ask Globee with Lucide Sparkles, not Messages or the bee", () => {
     const dest = NAV.find((item) => item.href === "/messages");
     expect(dest).toBeDefined();
     expect(dest?.label).toBe("Ask Globee");
     expect(dest?.href).toBe("/messages");
-    expect(isNavImageItem(dest!)).toBe(true);
-    expect(dest?.markSrc).toBe(ASK_GLOBEE_NAV_MARK.displaySrc);
-    expect(dest?.markSrc).toBe(ASK_GLOBEE_NAV_MARK.src16);
-    expect(dest?.markSrc).not.toBe(ASK_GLOBEE_NAV_MARK.src64);
-    expect(dest?.icon).toBeUndefined();
+    expect(dest?.icon).toBe(Sparkles);
+    expect(dest?.icon).not.toBe(Sparkle);
+    expect(dest?.icon).not.toBe(MessageSquare);
+    expect(dest?.icon).not.toBe(Bot);
     expect(NAV.map((item) => item.label)).not.toContain("Messages");
+    expect(navSrc).toContain("icon: Sparkles");
+    expect(navSrc).not.toContain("markSrc");
+    expect(navSrc).not.toContain("ASK_GLOBEE_NAV_MARK");
+    expect(navSrc).not.toContain("isNavImageItem");
+    expect(navSrc).not.toContain("MessageSquare");
+    expect(navSrc).not.toContain("NavImageItem");
   });
 });
 
-describe("Ask Globee Grok PNGs", () => {
-  it("stores Bee/16 18:3 and Bee/64 18:2 and displays the cropped 16 in size-4", () => {
-    const files = {
-      16: "public/ask-globee/ask-globee-16.png",
-      64: "public/ask-globee/ask-globee-64.png",
-    } as const;
-    const hashes = {
-      16: "408fa5f5fc07e30b68e31fed91b4ce26e53e6b890069ca03fd36a96398e3b4df",
-      64: "0c10c8455b297644472fd43b542f77af499d7decb98579537b239ea824a65082",
-    } as const;
-    for (const [size, path] of Object.entries(files)) {
-      const bytes = readFileSync(path);
-      expect(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
-        true,
-      );
-      expect(bytes.includes(Buffer.from("Software\0Figma"))).toBe(true);
-      const width = bytes.readUInt32BE(16);
-      const height = bytes.readUInt32BE(20);
-      expect(width).toBe(Number(size));
-      expect(height).toBe(Number(size));
-      expect(createHash("sha256").update(bytes).digest("hex")).toBe(hashes[Number(size) as 16 | 64]);
-    }
-    expect(ASK_GLOBEE_NAV_MARK.displaySrc).toBe("/ask-globee/ask-globee-16.png");
-    expect(ASK_GLOBEE_NAV_MARK.displaySrc).toBe(ASK_GLOBEE_NAV_MARK.src16);
-    expect(ASK_GLOBEE_NAV_MARK.lock).toBe("408fa5f5");
-    expect(ASK_GLOBEE_NAV_MARK.fillClass).toBe("size-4");
-    expect(ASK_GLOBEE_NAV_MARK.fillClass).not.toContain("size-6");
-    expect(() => readFileSync("public/ask-globee/ask-globee-24.png")).toThrow();
-    expect(() => readFileSync("public/ask-globee/ask-globee-32.png")).toThrow();
+describe("Ask Globee nav mark", () => {
+  it("drops the bee PNGs and the image mark path", () => {
+    expect(() => readFileSync("public/ask-globee/ask-globee-16.png")).toThrow();
+    expect(() => readFileSync("public/ask-globee/ask-globee-64.png")).toThrow();
+    expect(() => readFileSync("src/components/chrome/nav-mark.tsx")).toThrow();
+    expect(navSrc).not.toContain("ask-globee-16.png");
+    expect(navSrc).not.toContain("ask-globee-64.png");
   });
 });
 

@@ -179,6 +179,10 @@ describe("AskGlobeeLanding", () => {
     expect(src).not.toContain(ASK_GLOBEE.answerLead);
     expect(src).not.toContain("ANTHROPIC");
     expect(src).not.toContain("ask-globee-operator");
+    expect(src).not.toContain("Sparkles");
+    expect(src).not.toContain("NavMark");
+    expect(src).not.toContain("ask-globee-16.png");
+    expect(src).not.toContain("ask-globee-64.png");
     expect(src).not.toMatch(/setTimeout|sleep\(/);
   });
 

@@ -130,6 +130,9 @@ describe("AskGlobeeThread", () => {
     expect(src).not.toContain("askGlobeeThreadHref");
     expect(src).not.toContain("ANTHROPIC");
     expect(src).not.toContain("ask-globee-operator");
+    expect(src).not.toContain("Sparkles");
+    expect(src).not.toContain("ask-globee-16.png");
+    expect(src).not.toContain("ask-globee-64.png");
   });
 
   it("swaps the copy control to a brief check and does not toast", () => {
