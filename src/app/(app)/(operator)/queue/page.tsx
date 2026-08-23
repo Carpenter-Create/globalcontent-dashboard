@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody } from "@/components/ui/card";
+import { QUEUE_PAGE } from "@/lib/queue";
 import { gcTitleStatusLabel, type TitleStatus } from "@/lib/titles";
 import { LIST_PAGE, UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 
@@ -92,7 +93,7 @@ export default async function GcQueuePage() {
         {needsReview.length === 0 ? (
           <Card>
             <CardBody>
-              <p className="t-body-sm text-ink-3">Nothing awaiting review.</p>
+              <p className="t-body-sm text-ink-3">{QUEUE_PAGE.empty}</p>
             </CardBody>
           </Card>
         ) : (
@@ -121,7 +122,7 @@ export default async function GcQueuePage() {
         {readyToDeliver.length === 0 ? (
           <Card>
             <CardBody>
-              <p className="t-body-sm text-ink-3">Nothing ready to deliver.</p>
+              <p className="t-body-sm text-ink-3">{QUEUE_PAGE.empty}</p>
             </CardBody>
           </Card>
         ) : (

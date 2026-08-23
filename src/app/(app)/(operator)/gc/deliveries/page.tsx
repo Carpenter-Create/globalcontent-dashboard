@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardBody } from "@/components/ui/card";
+import { GC_DELIVERIES_EMPTY } from "@/lib/gc-deliveries";
 import { DeliveryControls } from "./delivery-controls";
 import { NewDeliveryForm } from "./new-delivery-form";
 import { ExportPanel } from "./export-panel";
@@ -104,7 +107,17 @@ export default async function GcDeliveriesPage() {
       </div>
 
       {list.length === 0 ? (
-        <Card><CardBody><p className="t-body-sm text-ink-3">No deliveries yet.</p></CardBody></Card>
+        <Card>
+          <CardBody>
+            <p className="t-body-sm text-ink-3">{GC_DELIVERIES_EMPTY.title}</p>
+            <Link
+              href={GC_DELIVERIES_EMPTY.actionHref}
+              className="t-body-sm text-accent transition-colors hover:underline"
+            >
+              {GC_DELIVERIES_EMPTY.actionLabel}
+            </Link>
+          </CardBody>
+        </Card>
       ) : (
         <div className="flex flex-col gap-2">
           {list.map((d) => {
