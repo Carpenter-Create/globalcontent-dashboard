@@ -79,12 +79,14 @@ export function MobileNavSheet({
       className="fixed inset-0 z-50 flex h-dvh w-full flex-col gap-[var(--space-6)] bg-canvas px-[var(--space-6)] py-[var(--space-12)] md:hidden"
       style={{ backgroundColor: "var(--bg)" }}
     >
+      {/* Close mark stays lucide X 16 / 1.33 / tertiary. The button box is
+          44×44 so the first tap lands. */}
       <button
         type="button"
         data-mobile-nav-close=""
         aria-label={MOBILE_NAV.close}
         onClick={onClose}
-        className="flex size-4 items-center justify-center text-ink-3"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center text-ink-3"
       >
         <X className="size-4" strokeWidth={1.33} />
       </button>
