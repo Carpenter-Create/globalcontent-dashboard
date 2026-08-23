@@ -12,7 +12,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { GC_NAV, MOBILE_NAV, NAV } from "@/lib/nav";
-import { destinationClickClosesSheet, MobileNav, MobileNavSheet } from "./mobile-nav";
+import {
+  destinationClickClosesSheet,
+  MobileNav,
+  MobileNavSheet,
+  navigationClearsOpenedOn,
+} from "./mobile-nav";
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "mobile-nav.tsx"), "utf8");
 
@@ -58,6 +63,15 @@ describe("MobileNav trigger", () => {
     expect(destinationClickClosesSheet("/", "/titles")).toBe(false);
     expect(destinationClickClosesSheet("/titles", "/titles")).toBe(true);
     expect(destinationClickClosesSheet("/titles", "/deliveries")).toBe(false);
+  });
+
+  it("clears a stale openedOn after the destination commits so back does not remount the sheet", () => {
+    expect(src).toContain("if (navigationClearsOpenedOn(openedOn, pathname))");
+    expect(src).toContain("setOpenedOn(null)");
+    expect(navigationClearsOpenedOn("/", "/")).toBe(false);
+    expect(navigationClearsOpenedOn("/", "/titles")).toBe(true);
+    expect(navigationClearsOpenedOn(null, "/")).toBe(false);
+    expect(navigationClearsOpenedOn("/titles", "/")).toBe(true);
   });
 });
 

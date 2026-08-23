@@ -21,6 +21,11 @@ import { cn } from "@/lib/cn";
 export function MobileNav({ isGcStaff = false }: { isGcStaff?: boolean }) {
   const pathname = usePathname();
   const [openedOn, setOpenedOn] = useState<string | null>(null);
+  // Destination commits leave openedOn on the prior path. Drop it so a later
+  // return (browser back or another link) does not remount the sheet.
+  if (navigationClearsOpenedOn(openedOn, pathname)) {
+    setOpenedOn(null);
+  }
   // Open only while we are still on the path the sheet was opened from.
   // A destination commit changes pathname and dismisses the overlay without
   // unmounting chrome or calling setState in an effect.
@@ -50,6 +55,15 @@ export function MobileNav({ isGcStaff = false }: { isGcStaff?: boolean }) {
       {sheet && typeof document !== "undefined" ? createPortal(sheet, document.body) : sheet}
     </>
   );
+}
+
+// Cross-route commits leave openedOn on the prior path. Clear it so returning
+// there does not remount the sheet. Same-href taps never change pathname.
+export function navigationClearsOpenedOn(
+  openedOn: string | null,
+  pathname: string,
+): boolean {
+  return openedOn !== null && openedOn !== pathname;
 }
 
 // Same-href taps never commit a new route, so the pathname effect will not run.
