@@ -233,8 +233,9 @@ describe("MobileNavSheet", () => {
       const mark = iconMark(item);
       const row = linkHtml(html, item.href);
       expect(dest).toContain(item.label);
+      expect(mark.lucide).not.toBe("");
       expect(row).toContain(mark.lucide);
-      expect(row).toContain(`d="${mark.path}"`);
+      expect(row).toContain(mark.svg);
       expect(row).toContain("size-4");
       expect(row).toContain("shrink-0");
       expect(row).toContain('stroke-width="1.33"');
@@ -328,11 +329,11 @@ function linkHtml(html: string, href: string): string {
   return start >= 0 && end >= 0 ? html.slice(start, end + 4) : "";
 }
 
-function iconMark(item: NavItem): { lucide: string; path: string } {
+function iconMark(item: NavItem): { lucide: string; svg: string } {
   const Icon = item.icon;
   const html = renderToStaticMarkup(<Icon className="size-4 shrink-0" strokeWidth={1.33} />);
   return {
     lucide: html.match(/\blucide-[a-z0-9-]+\b/)?.[0] ?? "",
-    path: html.match(/d="([^"]+)"/)?.[1] ?? "",
+    svg: html,
   };
 }
