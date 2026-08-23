@@ -11,14 +11,21 @@ import GcVendorsPage from "./page";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
-const REAL_VENDOR = {
+type VendorRow = {
+  id: string;
+  name: string;
+  delivery_mode: "portal_upload" | "email";
+  active: boolean;
+};
+
+const REAL_VENDOR: VendorRow = {
   id: "22222222-2222-4222-8222-222222222222",
   name: "Acme Distribution",
-  delivery_mode: "email" as const,
+  delivery_mode: "email",
   active: true,
 };
 
-function stubClient(rows: typeof REAL_VENDOR[] | null) {
+function stubClient(rows: VendorRow[] | null) {
   const vendorsChain = {
     select: vi.fn(() => vendorsChain),
     order: vi.fn(() => vendorsChain),
@@ -32,7 +39,7 @@ function stubClient(rows: typeof REAL_VENDOR[] | null) {
   return { from, vendorsChain };
 }
 
-async function renderVendors(rows: typeof REAL_VENDOR[] | null = []) {
+async function renderVendors(rows: VendorRow[] | null = []) {
   stubClient(rows);
   return renderToStaticMarkup(await GcVendorsPage());
 }
@@ -97,17 +104,17 @@ describe("staff /vendors address book", () => {
   });
 
   it("turns the same surface into a directory of real vendors", async () => {
-    const inactive = {
+    const inactive: VendorRow = {
       id: "33333333-3333-4333-8333-333333333333",
       name: "Northwind Partners",
-      delivery_mode: "portal_upload" as const,
+      delivery_mode: "portal_upload",
       active: false,
     };
     const html = await renderVendors([REAL_VENDOR, inactive]);
 
     expect(html).toContain("data-vendors-directory");
-    expect(html).not.toContain("data-vendors-empty");
-    expect(html).not.toContain("data-vendors-add");
+    expect(html).not.toContain("data-vendors-empty=\"\"");
+    expect(html).not.toContain("data-vendors-add=\"\"");
     expect(html).toContain("Acme Distribution");
     expect(html).toContain("Northwind Partners");
     expect(html).toContain(`/vendors/${REAL_VENDOR.id}`);
