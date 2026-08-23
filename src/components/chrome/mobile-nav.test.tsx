@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import { GC_NAV, MOBILE_NAV, NAV } from "@/lib/nav";
+import { GC_NAV, MOBILE_NAV, NAV, type NavItem } from "@/lib/nav";
 import { destinationClickClosesSheet, MobileNav, MobileNavSheet } from "./mobile-nav";
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "mobile-nav.tsx"), "utf8");
@@ -128,8 +128,20 @@ describe("MobileNavSheet", () => {
 
   it("marks Dashboard current on `/` with the muted wash, not a 24 title", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    const current = linkHtml(html, "/");
+    const currentClass = linkClass(html, "/");
 
-    expect(linkClass(html, "/")).toContain("t-body text-ink bg-surface-muted");
+    expect(currentClass).toContain("t-body text-ink bg-surface-muted");
+    expect(currentClass).toContain("p-[var(--space-4)]");
+    expect(tokens).toMatch(/--space-4:\s*1rem/);
+    expect(current).toContain('fill="none"');
+    expect(current).toContain('stroke-width="1.33"');
+    expect(current).not.toContain('fill="currentColor"');
+    expect(current).not.toContain("fill-ink");
     expect(html).not.toContain(`t-section text-ink">${NAV[0].label}`);
     expect(html).toContain(MOBILE_NAV.close);
     expect(html).toContain("data-mobile-nav-close");
@@ -148,6 +160,43 @@ describe("MobileNavSheet", () => {
     expect(closeClass).not.toMatch(/(?:^|[\s"])size-4(?:[\s"]|$)/);
     expect(minBoxPx(closeClass, "min-h")).toBeGreaterThanOrEqual(44);
     expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
+    expect(closeClass).toContain("items-start");
+    expect(closeClass).toContain("justify-start");
+    expect(closeClass).toContain("self-start");
+    expect(closeClass).toContain("p-0");
+    expect(closeClass).not.toContain("items-center");
+    expect(closeClass).not.toContain("justify-center");
+  });
+
+  it("uses the desktop rail Lucide marks, 16 / 1.33 stroke, no fill, no section word", () => {
+    const html = renderToStaticMarkup(
+      <MobileNavSheet pathname="/" onClose={() => undefined} isGcStaff />,
+    );
+    const destStart = html.indexOf("data-mobile-nav-destinations");
+    const dest = html.slice(destStart);
+
+    expect(src).toContain("const Icon = item.icon");
+    expect(src).toContain('<Icon className="size-4 shrink-0" strokeWidth={1.33} />');
+    expect(src).toContain("flex w-full items-center");
+    expect(src).not.toContain("fill=");
+    expect(src).not.toContain("fill-current");
+    expect(src).not.toContain("strokeWidth={2}");
+    expect(html).not.toContain("Global Content");
+    expect(html).not.toContain("Staff");
+    expect(html).not.toContain("t-label");
+
+    for (const item of [...NAV, ...GC_NAV]) {
+      const mark = iconMark(item);
+      const row = linkHtml(html, item.href);
+      expect(dest).toContain(item.label);
+      expect(row).toContain(mark.lucide);
+      expect(row).toContain(`d="${mark.path}"`);
+      expect(row).toContain("size-4");
+      expect(row).toContain("shrink-0");
+      expect(row).toContain('stroke-width="1.33"');
+      expect(row).toContain('fill="none"');
+      expect(row).not.toContain('fill="currentColor"');
+    }
   });
 
   it("gives staff /vendors the operator set plus the client five, with Vendors current", () => {
@@ -224,4 +273,22 @@ function attrClass(html: string, attr: string): string {
   const classThenAttr = html.match(new RegExp(`class="([^"]*)"[^>]*${escaped}`));
   const attrThenClass = html.match(new RegExp(`${escaped}[^>]*class="([^"]*)"`));
   return classThenAttr?.[1] ?? attrThenClass?.[1] ?? "";
+}
+
+function linkHtml(html: string, href: string): string {
+  const needle = `href="${href}"`;
+  const hrefAt = html.indexOf(needle);
+  if (hrefAt < 0) return "";
+  const start = html.lastIndexOf("<a", hrefAt);
+  const end = html.indexOf("</a>", hrefAt);
+  return start >= 0 && end >= 0 ? html.slice(start, end + 4) : "";
+}
+
+function iconMark(item: NavItem): { lucide: string; path: string } {
+  const Icon = item.icon;
+  const html = renderToStaticMarkup(<Icon className="size-4 shrink-0" strokeWidth={1.33} />);
+  return {
+    lucide: html.match(/\blucide-[a-z0-9-]+\b/)?.[0] ?? "",
+    path: html.match(/d="([^"]+)"/)?.[1] ?? "",
+  };
 }

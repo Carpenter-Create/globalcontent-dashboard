@@ -12,7 +12,9 @@ import { cn } from "@/lib/cn";
 // Phone menu: lucide Menu 16 / 1.33 / tertiary opens a full-bleed opaque sheet
 // that pops up from the bottom. Client destinations only unless isGcStaff —
 // staff get NAV, then a hairline + 24 gap, then GC_NAV. Hidden at md, where
-// the desktop rail stays.
+// the desktop rail stays. Rows use the same Lucide marks as the rail
+// (item.icon, 16 / 1.33, stroke only). Close X is 16 / 1.33 / tertiary,
+// start-aligned to the list edge inside a 44 hit box.
 // Destination clicks keep the opaque portal mounted until the next route
 // commits. Closing on click unmounted the overlay and the next segment painted
 // a blank canvas. Same-href clicks still dismiss immediately. Portal to
@@ -81,16 +83,18 @@ export function MobileNavSheet({
 
   const link = (item: NavItem) => {
     const active = isClientNavActive(pathname, item);
+    const Icon = item.icon;
     return (
       <Link
         key={item.href}
         href={item.href}
         onClick={destinationClickClosesSheet(pathname, item.href) ? onClose : undefined}
         className={cn(
-          "w-full rounded-[var(--radius-lg)] p-[var(--space-4)] t-body text-ink",
+          "flex w-full items-center gap-2.5 rounded-[var(--radius-lg)] p-[var(--space-4)] t-body text-ink",
           active ? "bg-surface-muted" : "hover:bg-surface-muted",
         )}
       >
+        <Icon className="size-4 shrink-0" strokeWidth={1.33} />
         {item.label}
       </Link>
     );
@@ -106,14 +110,15 @@ export function MobileNavSheet({
       className="fixed inset-0 z-50 flex h-dvh w-full flex-col gap-[var(--space-6)] overflow-hidden touch-none bg-canvas px-[var(--space-6)] py-[var(--space-12)] md:hidden"
       style={{ backgroundColor: "var(--bg)" }}
     >
-      {/* Close mark stays lucide X 16 / 1.33 / tertiary. The button box is
-          44×44 so the first tap lands. */}
+      {/* Close mark stays lucide X 16 / 1.33 / tertiary. The 44×44 hit box
+          start-aligns the glyph to the destination list edge so centering
+          does not inset the mark. Extra box is hit only — not left pad. */}
       <button
         type="button"
         data-mobile-nav-close=""
         aria-label={MOBILE_NAV.close}
         onClick={onClose}
-        className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center text-ink-3"
+        className="flex min-h-[44px] min-w-[44px] shrink-0 items-start justify-start self-start p-0 text-ink-3"
       >
         <X className="size-4" strokeWidth={1.33} />
       </button>
