@@ -65,6 +65,8 @@ export const ASK_GLOBEE = {
   answerFollow: "Synopsis and Runtime are also required. Director is recommended.",
   attribution: "Globee AI · 7:10 AM",
   composerPlaceholder: "Ask a question or give a command.",
+  // Mobile 462:502 — same line, no period. Desktop 7:73 keeps the period.
+  composerPlaceholderMobile: "Ask a question or give a command",
   globeeMark: "G",
   copyLabel: "Copy",
   downloadLabel: "Download",
