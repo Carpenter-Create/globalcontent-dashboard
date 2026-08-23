@@ -55,7 +55,9 @@ describe("staff /vendors address book", () => {
     expect(html).toContain(VENDORS_PAGE.title);
     expect(html).toContain(VENDORS_PAGE.identity);
     expect(html).toContain(VENDORS_PAGE.emptyTitle);
-    expect(html).toContain(VENDORS_PAGE.emptySupport);
+    expect(html).not.toContain("GC distribution partners.");
+    expect(html).not.toContain("Add your first partner.");
+    expect(pageSrc).not.toContain("emptySupport");
     expect(html).toContain(VENDORS_PAGE.addVendor);
     expect(html).toContain(`href="${VENDORS_PAGE.addHref}"`);
     expect(html).toContain("data-vendors-empty");

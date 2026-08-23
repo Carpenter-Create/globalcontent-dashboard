@@ -13,14 +13,13 @@ import {
 describe("VENDORS_PAGE lock copy", () => {
   it("keeps the identity line and empty address-book copy", () => {
     expect(VENDORS_PAGE.title).toBe("Vendors");
-    expect(VENDORS_PAGE.identity).toBe(
-      "GC distribution partners. Portal credentials are never stored here.",
-    );
+    expect(VENDORS_PAGE.identity).toBe("Credentials are never stored here.");
     expect(VENDORS_PAGE.emptyTitle).toBe("No vendors yet");
-    expect(VENDORS_PAGE.emptySupport).toBe("Add your first partner.");
+    expect(VENDORS_PAGE).not.toHaveProperty("emptySupport");
     expect(VENDORS_PAGE.addVendor).toBe("Add vendor");
     expect(VENDORS_PAGE.addHref).toBe("/vendors/new");
-    expect(VENDORS_PAGE.emptySupport.toLowerCase()).not.toContain("directory");
+    expect(JSON.stringify(VENDORS_PAGE)).not.toContain("GC distribution partners.");
+    expect(JSON.stringify(VENDORS_PAGE)).not.toContain("Add your first partner.");
   });
 
   it("lists the form fields that must not appear on the empty page", () => {
