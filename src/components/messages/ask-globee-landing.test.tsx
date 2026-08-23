@@ -204,8 +204,8 @@ describe("AskGlobeeLanding", () => {
     expect(src).toContain("md:order-3");
     expect(src).toContain("md:contents");
     expect(src).toContain("max-md:justify-between");
-    expect(src.indexOf("data-ask-globee-try="")).toBeLessThan(
-      src.indexOf("data-ask-globee-composer=""),
+    expect(src.indexOf("data-ask-globee-try=")).toBeLessThan(
+      src.indexOf("data-ask-globee-composer="),
     );
     expect(src).not.toContain("gap-[var(--space-8)]");
     expect(src).not.toContain("rounded-full border border-hairline bg-surface px-[var(--space-4)]");
