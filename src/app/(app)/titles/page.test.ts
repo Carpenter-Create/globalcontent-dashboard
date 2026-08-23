@@ -130,7 +130,7 @@ describe("client /titles catalog", () => {
     expect(html).toContain("data-titles-catalog");
     expect(html).toContain("data-titles-catalog-grid");
     expect(html).toContain("data-titles-catalog-card");
-    expect(html).toContain("grid-cols-1");
+    expect(html).toContain("hidden gap-x-[var(--space-8)]");
     expect(html).toContain("xl:grid-cols-5");
     expect(html).toContain("gap-x-[var(--space-8)]");
     expect(html).toContain("gap-y-[var(--space-16)]");
@@ -152,7 +152,8 @@ describe("client /titles catalog", () => {
     expect(html).not.toContain("Meridian");
     expect(html).not.toMatch(/hover:scale|group-hover:scale/);
     expect(html).not.toContain("grid-cols-6");
-    expect(html).toContain("sm:grid-cols-2");
+    expect(html).not.toContain("grid-cols-1");
+    expect(html).not.toContain("sm:grid-cols-2");
     expect(html).toContain("md:grid-cols-3");
     expect(html).toContain("lg:grid-cols-4");
     expect(html).toContain("xl:grid-cols-5");
@@ -187,7 +188,7 @@ describe("client /titles catalog", () => {
     const html = await renderCatalog();
 
     expect(html).toContain(
-      "titles-catalog-header flex flex-col gap-[var(--space-6)] sm:flex-row sm:items-start sm:justify-between",
+      "titles-catalog-header flex items-center justify-between gap-[var(--space-2)] md:items-start md:gap-[var(--space-6)]",
     );
     expect(html).not.toContain("titles-catalog-header flex flex-col gap-[var(--space-8)]");
     expect(html).toContain("data-titles-catalog-operate");
@@ -198,12 +199,13 @@ describe("client /titles catalog", () => {
       "titles-catalog-operate flex w-full items-center justify-between",
     );
     expect(html).toContain(
-      "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-8)]",
+      "titles-catalog mx-auto flex w-full flex-col px-[var(--space-4)]",
     );
+    expect(html).toContain("md:gap-[var(--space-8)]");
     expect(html).not.toContain(
       "titles-catalog mx-auto flex w-full flex-col gap-[var(--space-10)]",
     );
-    expect(html).toMatch(/<h1 class="t-section text-ink">Titles<\/h1>/);
+    expect(html).toMatch(/<h1 class="t-section text-ink max-md:hidden">Titles<\/h1>/);
     expect(html).not.toMatch(/<h1[^>]*t-display/);
     expect(html).not.toMatch(/<h1[^>]*t-title/);
     expect(html).toContain("data-titles-catalog-count");
@@ -482,6 +484,7 @@ describe("client /titles catalog", () => {
     expect(html).toContain("data-titles-catalog-operate");
     const operate = html.slice(html.indexOf("data-titles-catalog-operate"));
     expect(operate).toContain("Search titles...");
+    expect(operate).toContain("max-md:hidden");
     expect(html).not.toContain("⌘K");
     expect(html).not.toContain("CommandK");
   });
@@ -499,5 +502,59 @@ describe("client /titles catalog", () => {
     expect(html).not.toContain("Meridian");
     expect(html).not.toContain("The Cartographer");
     expect(html).not.toMatch(/hover:scale|group-hover:scale/);
+  });
+
+  it("locks mobile 528:542 to one Recent snap rail and 13 Sporty Blue Add Title", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    const html = await renderCatalog();
+    const rail = openingTagsWith(html, 'data-titles-catalog-rail=""');
+    const cards = openingTagsWith(html, 'data-titles-catalog-rail-card=""');
+    const frames = openingTagsWith(html, 'data-titles-catalog-rail-frame=""');
+    const add = openingTagsWith(html, 'data-add-title=""');
+
+    expect(html).toContain("data-titles-catalog-identity");
+    expect(html).toContain("Acme");
+    expect(html).toContain(TITLES_CATALOG.recent);
+    expect(rail).toHaveLength(1);
+    expect(cards).toHaveLength(ALL_STATUSES.length);
+    expect(frames).toHaveLength(ALL_STATUSES.length);
+    expect(html).toContain("snap-x");
+    expect(html).toContain("w-[140px]");
+    expect(html).toContain("h-[210px]");
+    expect(html).toContain("rounded-[12px]");
+    expect(html).toContain("gap-[var(--space-4)]");
+    expect(add).toHaveLength(1);
+    expect(add[0]).toContain("max-md:text-accent");
+    expect(add[0]).toContain("max-md:bg-transparent");
+    expect(html).toContain("max-md:hidden");
+    expect(html).not.toContain("Recently added");
+    expect(html).not.toContain("Store");
+    expect(html).not.toContain("Apple TV");
+    expect(html).not.toContain("bg-band");
+    expect(html).not.toMatch(/\bStore\b/);
+    expect(html.match(/data-titles-catalog-rail=""/g) ?? []).toHaveLength(1);
+    expect(html).not.toContain("data-titles-catalog-rail-2");
+  });
+
+  it("locks empty 529:542 to The catalog is empty. plus Add Title text", async () => {
+    stubClient([]);
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    const html = await renderCatalog();
+    const add = openingTagsWith(html, 'data-add-title=""');
+
+    expect(html).toContain(TITLES_CATALOG.emptyCatalog);
+    expect(html).toContain("The catalog is empty.");
+    expect(html.split("The catalog is empty.").length - 1).toBe(1);
+    expect(html).toContain("Acme");
+    expect(html).toContain(TITLES_CATALOG.addTitle);
+    expect(add).toHaveLength(1);
+    expect(add[0]).toContain("max-md:text-accent");
+    expect(add[0]).toContain("max-md:bg-transparent");
+    expect(html).toContain(TITLES_CATALOG.emptyCanOperate);
+    expect(html).not.toContain("data-titles-catalog-rail");
+    expect(html).not.toContain("Store");
+    expect(html).not.toContain("Recent");
+    expect(html).not.toContain("Meridian Pictures");
   });
 });

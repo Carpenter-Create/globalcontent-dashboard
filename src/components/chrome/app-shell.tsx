@@ -8,6 +8,7 @@ import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
 import { MobileNav } from "./mobile-nav";
 import { MessagesAppHeader } from "./messages-app-header";
+import { TitlesHeaderSearch } from "@/components/titles/titles-header-search";
 import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome";
 import { cn } from "@/lib/cn";
 import type { MessagesSurface } from "@/lib/ask-globee";
@@ -99,8 +100,8 @@ export function AppShell({
       </aside>
 
       {/* Access header is avatar / account menu only — no org switcher on any route.
-          Search mounts only on the Access `/messages` gate. `/` and `/titles` stay
-          avatar-only. */}
+          Search mounts on the Access `/messages` gate, and on mobile `/titles`
+          (528:542). Desktop 1:3, `/` 1:2, and `/titles/[id]` 1:4 stay avatar-only. */}
       <header
         className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--space-6)] md:px-[var(--content-inset)] backdrop-blur"
         data-app-header=""
@@ -109,6 +110,7 @@ export function AppShell({
         <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2">
           <MobileNav isGcStaff={isGcStaff} />
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
+          {titlesBleed ? <TitlesHeaderSearch /> : null}
         </div>
         <div className="flex items-center gap-3">
           <UserMenu email={email} />

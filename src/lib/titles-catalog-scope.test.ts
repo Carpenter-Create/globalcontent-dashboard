@@ -26,24 +26,35 @@ const OTHER_PAGES = [
 ] as const;
 
 describe("titles catalog scope", () => {
-  it("keeps catalog search on /titles and out of the global header", () => {
+  it("keeps desktop catalog search on /titles and mobile search in the /titles header", () => {
     const catalogPage = src("src/app/(app)/titles/page.tsx");
     const homePage = src("src/app/(app)/page.tsx");
     const shell = src("src/components/chrome/app-shell.tsx");
+    const headerSearch = src("src/components/titles/titles-header-search.tsx");
     const searchField = src("src/components/layout/search-field.tsx");
     const messagesPage = src("src/app/(app)/messages/page.tsx");
     const accessGate = src("src/components/messages/access-upgrade-gate.tsx");
     const thread = src("src/components/messages/ask-globee-thread.tsx");
     const landing = src("src/components/messages/ask-globee-landing.tsx");
     const messagesHeader = src("src/components/chrome/messages-app-header.tsx");
+    const titleDetail = src("src/app/(app)/titles/[id]/page.tsx");
 
     expect(catalogPage).toContain("SearchField");
     expect(catalogPage).toContain("TITLES_CATALOG.searchPlaceholder");
+    expect(catalogPage).toContain("max-md:hidden");
     expect(searchField).toContain("Search titles...");
-    expect(homePage).not.toContain("SearchField");
+    expect(headerSearch).toContain("SearchField");
+    expect(headerSearch).toContain("md:hidden");
+    expect(headerSearch).toContain("data-titles-header-search");
+    expect(shell).toContain("TitlesHeaderSearch");
+    expect(shell).toContain("titlesBleed ? <TitlesHeaderSearch");
     expect(shell).not.toContain("SearchField");
     expect(shell).not.toContain("Search titles");
     expect(shell).not.toMatch(/⌘K|CommandK|command-k/i);
+    expect(homePage).not.toContain("SearchField");
+    expect(homePage).not.toContain("TitlesHeaderSearch");
+    expect(titleDetail).not.toContain("SearchField");
+    expect(titleDetail).not.toContain("TitlesHeaderSearch");
     expect(messagesPage).not.toContain("SearchField");
     expect(accessGate).not.toContain("SearchField");
     expect(thread).not.toContain("SearchField");
