@@ -304,10 +304,12 @@ describe("client /titles catalog", () => {
     expect(html).toMatch(
       /data-titles-catalog-card[\s\S]*Dated film[\s\S]*data-titles-catalog-year[\s\S]*2019[\s\S]*data-titles-catalog-status/,
     );
-    const undatedCard = html.slice(html.indexOf("Undated film"));
+    const gridAt = html.indexOf("data-titles-catalog-grid");
+    const undatedCard = html.slice(html.indexOf("Undated film", gridAt));
     expect(undatedCard.slice(0, undatedCard.indexOf("data-titles-catalog-status"))).not.toContain(
       "data-titles-catalog-year",
     );
+    expect(html.match(/data-titles-catalog-rail-year=""/g) ?? []).toHaveLength(1);
   });
 
   it("reads each title as a full-bleed still with type in air — no boxed card", async () => {
