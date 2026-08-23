@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, use, useRef } from "react";
-import { type LucideIcon } from "lucide-react";
-
-import { GC_NAV, NAV } from "@/lib/nav";
+import { GC_NAV, NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/cn";
+import { NavMark } from "./nav-mark";
 
 // Access rail: 13px labels (--text-sm / t-body-sm), 16px Lucide at 1.33, muted grey wash when active.
 // Collapsed mode is icon-only (labels/badges hidden; title tooltips; unread → accent dot).
@@ -30,11 +29,10 @@ export function SideNav({
   };
 
   const row = (
-    item: { label: string; href: string; icon: LucideIcon; exact?: boolean },
+    item: NavItem,
     badge: React.ReactNode = null,
   ) => {
     const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-    const Icon = item.icon;
     return (
       <Link
         key={item.href}
@@ -59,7 +57,7 @@ export function SideNav({
             : "font-normal text-ink-2 hover:bg-surface-muted hover:text-ink",
         )}
       >
-        <Icon className="size-4 shrink-0" strokeWidth={1.33} />
+        <NavMark item={item} />
         {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
         {badge}
       </Link>

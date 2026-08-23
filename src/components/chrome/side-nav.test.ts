@@ -14,7 +14,7 @@ describe("SideNav Access rail", () => {
       "Titles",
       "Deliveries",
       "Catalog Health",
-      "Messages",
+      "Ask Globee",
     ]);
     expect(NAV.map((item) => item.href)).toEqual([
       "/",
@@ -38,8 +38,17 @@ describe("SideNav Access rail", () => {
     expect(itemClass).not.toContain("text-[0.875rem]");
     expect(itemClass).not.toMatch(/(?:^|[\s"])t-body(?:[\s"]|$)/);
     expect(navSrc).not.toContain("text-[0.875rem]");
-    expect(navSrc).toContain("size-4 shrink-0");
-    expect(navSrc).toContain("strokeWidth={1.33}");
+    const markSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "nav-mark.tsx"),
+      "utf8",
+    );
+    expect(navSrc).toContain("<NavMark item={item} />");
+    expect(markSrc).toContain("size-4 shrink-0");
+    expect(markSrc).toContain("strokeWidth={1.33}");
+    expect(markSrc).toContain("data-ask-globee-nav-mark");
+    expect(markSrc).toContain("ask-globee-64.png");
+    expect(markSrc).not.toContain("ask-globee-16.png");
+    expect(markSrc).not.toContain("MessageSquare");
     expect(navSrc).toContain('flex flex-col gap-2');
     expect(navSrc).toContain('collapsed ? "px-1.5" : "px-3"');
     expect(navSrc).not.toContain("strokeWidth={1.5}");
