@@ -196,6 +196,16 @@ describe("AppShell client mobile chrome", () => {
     expect(shellSrc).toContain("md:flex");
     expect(shellSrc).toContain("<MobileNav isGcStaff={isGcStaff} />");
     expect(shellSrc).not.toContain("GC_NAV");
+    expect(shellSrc).not.toMatch(/key=\{pathname\}/);
+
+    const layoutSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/(app)/layout.tsx"),
+      "utf8",
+    );
+    expect(layoutSrc).toContain("<AppShell");
+    expect(layoutSrc).toContain("{children}");
+    expect(layoutSrc).not.toMatch(/key=\{pathname\}/);
+    expect(layoutSrc).not.toMatch(/key=\{ctx/);
   });
 
   it("keeps mobile chrome on Ask Globee without restoring Search, and keeps the Access gate", () => {

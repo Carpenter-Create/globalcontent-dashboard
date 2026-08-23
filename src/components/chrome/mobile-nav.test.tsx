@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { GC_NAV, MOBILE_NAV, NAV } from "@/lib/nav";
-import { MobileNav, MobileNavSheet } from "./mobile-nav";
+import { destinationClickClosesSheet, MobileNav, MobileNavSheet } from "./mobile-nav";
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "mobile-nav.tsx"), "utf8");
 
@@ -37,13 +37,27 @@ describe("MobileNav trigger", () => {
   });
 
   it("opens the bottom sheet from the hamburger and portals it out of the header", () => {
-    expect(src).toContain("onClick={() => setOpen(true)}");
+    expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
     expect(src).toContain("createPortal");
     expect(src).toContain("document.body");
     expect(src).toContain("isGcStaff={isGcStaff}");
     expect(src).toContain("<MobileNavSheet");
     expect(src).toContain("pathname={pathname}");
-    expect(src).toContain("onClose={() => setOpen(false)}");
+    expect(src).toContain("onClose={() => setOpenedOn(null)}");
+  });
+
+  it("keeps the opaque portal mounted until the destination route commits", () => {
+    expect(src).toContain("const open = openedOn !== null && openedOn === pathname;");
+    expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
+    expect(src).not.toContain("setOpen(false)");
+    expect(src).toContain(
+      "onClick={destinationClickClosesSheet(pathname, item.href) ? onClose : undefined}",
+    );
+    expect(src).not.toContain("href={item.href}\n        onClick={onClose}");
+    expect(destinationClickClosesSheet("/", "/")).toBe(true);
+    expect(destinationClickClosesSheet("/", "/titles")).toBe(false);
+    expect(destinationClickClosesSheet("/titles", "/titles")).toBe(true);
+    expect(destinationClickClosesSheet("/titles", "/deliveries")).toBe(false);
   });
 });
 
@@ -106,6 +120,10 @@ describe("MobileNavSheet", () => {
       expect(html).not.toContain(item.label);
       expect(html).not.toContain(`href="${item.href}"`);
     }
+    expect(html).not.toContain("data-mobile-nav-group-rule");
+    expect(html).not.toContain("Global Content");
+    expect(html).not.toContain("Staff");
+    expect(html).not.toContain("t-label");
   });
 
   it("marks Dashboard current on `/` with the muted wash, not a 24 title", () => {
@@ -146,6 +164,39 @@ describe("MobileNavSheet", () => {
     expect(linkClass(html, "/vendors")).toContain("t-body text-ink bg-surface-muted");
     expect(linkClass(html, "/")).toContain("t-body text-ink hover:bg-surface-muted");
     expect(html).not.toContain("t-section");
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    expect(tokens).toMatch(/--space-6:\s*1\.5rem/);
+    expect(html).toContain("data-mobile-nav-group-rule");
+    expect(html).toContain("my-[var(--space-6)]");
+    expect(html).toContain("border-t border-hairline");
+    expect(html).not.toContain("Global Content");
+    expect(html).not.toContain("Staff");
+    expect(html).not.toContain("t-label");
+    expect(dest.indexOf("Messages")).toBeLessThan(dest.indexOf("data-mobile-nav-group-rule"));
+    expect(dest.indexOf("data-mobile-nav-group-rule")).toBeLessThan(dest.indexOf("Queue"));
+  });
+
+  it("scrolls the destination list on touch without the overlay eating the swipe", () => {
+    const html = renderToStaticMarkup(
+      <MobileNavSheet pathname="/" onClose={() => undefined} isGcStaff />,
+    );
+    const sheetClass = attrClass(html, "data-mobile-nav-sheet");
+    const destClass = attrClass(html, "data-mobile-nav-destinations");
+
+    expect(destClass).toContain("overflow-y-auto");
+    expect(destClass).toContain("overscroll-contain");
+    expect(destClass).toContain("touch-pan-y");
+    expect(destClass).toContain("min-h-0");
+    expect(destClass).toContain("flex-1");
+    expect(html).toContain("-webkit-overflow-scrolling:touch");
+    expect(src).toContain('WebkitOverflowScrolling: "touch"');
+    expect(sheetClass).toContain("overflow-hidden");
+    expect(sheetClass).toContain("touch-none");
+    expect(sheetClass).not.toContain("overflow-y-auto");
+    expect(src).not.toContain("overflow-y-scroll");
   });
 });
 
@@ -166,4 +217,11 @@ function buttonClass(html: string, attr: string): string {
 function minBoxPx(className: string, prop: "min-h" | "min-w"): number {
   const match = className.match(new RegExp(`${prop}-\\[(\\d+)px\\]`));
   return match ? Number(match[1]) : 0;
+}
+
+function attrClass(html: string, attr: string): string {
+  const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const classThenAttr = html.match(new RegExp(`class="([^"]*)"[^>]*${escaped}`));
+  const attrThenClass = html.match(new RegExp(`${escaped}[^>]*class="([^"]*)"`));
+  return classThenAttr?.[1] ?? attrThenClass?.[1] ?? "";
 }
