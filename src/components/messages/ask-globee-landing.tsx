@@ -149,26 +149,31 @@ export function AskGlobeeLanding({
               if (next) void send(next);
             }}
           >
-            <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]">
-              <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
-              <input
-                type="text"
-                name="prompt"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder={ASK_GLOBEE.composerPlaceholder}
-                autoComplete="off"
-                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none max-md:hidden"
-              />
-              <input
-                type="text"
-                name="prompt"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder={ASK_GLOBEE.composerPlaceholderMobile}
-                autoComplete="off"
-                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none md:hidden"
-              />
+            <div className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]">
+              <label className="flex min-w-0 flex-1 max-md:hidden">
+                <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
+                <input
+                  type="text"
+                  name="prompt"
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder={ASK_GLOBEE.composerPlaceholder}
+                  autoComplete="off"
+                  className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none"
+                />
+              </label>
+              <label className="flex min-w-0 flex-1 md:hidden">
+                <span className="sr-only">{ASK_GLOBEE.composerPlaceholderMobile}</span>
+                <input
+                  type="text"
+                  name="prompt"
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder={ASK_GLOBEE.composerPlaceholderMobile}
+                  autoComplete="off"
+                  className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none"
+                />
+              </label>
               <button
                 type="submit"
                 aria-label={ASK_GLOBEE.sendLabel}
@@ -176,7 +181,7 @@ export function AskGlobeeLanding({
               >
                 <ArrowRight className="size-4" strokeWidth={1.33} />
               </button>
-            </label>
+            </div>
           </form>
 
           {error ? (
