@@ -20,16 +20,16 @@ import { cn } from "@/lib/cn";
 // containing block (that left the page showing through).
 export function MobileNav({ isGcStaff = false }: { isGcStaff?: boolean }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  // Open only while we are still on the path the sheet was opened from.
+  // A destination commit changes pathname and dismisses the overlay without
+  // unmounting chrome or calling setState in an effect.
+  const open = openedOn !== null && openedOn === pathname;
 
   const sheet = open ? (
     <MobileNavSheet
       pathname={pathname}
-      onClose={() => setOpen(false)}
+      onClose={() => setOpenedOn(null)}
       isGcStaff={isGcStaff}
     />
   ) : null;
@@ -42,7 +42,7 @@ export function MobileNav({ isGcStaff = false }: { isGcStaff?: boolean }) {
         aria-label={MOBILE_NAV.open}
         aria-expanded={open}
         aria-controls="mobile-nav-sheet"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpenedOn(pathname)}
         className="flex size-4 shrink-0 items-center justify-center text-ink-3 md:hidden"
       >
         <Menu className="size-4" strokeWidth={1.33} />

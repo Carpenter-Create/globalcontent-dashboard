@@ -37,17 +37,19 @@ describe("MobileNav trigger", () => {
   });
 
   it("opens the bottom sheet from the hamburger and portals it out of the header", () => {
-    expect(src).toContain("onClick={() => setOpen(true)}");
+    expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
     expect(src).toContain("createPortal");
     expect(src).toContain("document.body");
     expect(src).toContain("isGcStaff={isGcStaff}");
     expect(src).toContain("<MobileNavSheet");
     expect(src).toContain("pathname={pathname}");
-    expect(src).toContain("onClose={() => setOpen(false)}");
+    expect(src).toContain("onClose={() => setOpenedOn(null)}");
   });
 
   it("keeps the opaque portal mounted until the destination route commits", () => {
-    expect(src).toContain("useEffect(() => {\n    setOpen(false);\n  }, [pathname]);");
+    expect(src).toContain("const open = openedOn !== null && openedOn === pathname;");
+    expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
+    expect(src).not.toContain("setOpen(false)");
     expect(src).toContain(
       "onClick={destinationClickClosesSheet(pathname, item.href) ? onClose : undefined}",
     );
