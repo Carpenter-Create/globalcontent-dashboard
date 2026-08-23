@@ -6,6 +6,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
+import { MobileNav } from "./mobile-nav";
 import { MessagesAppHeader } from "./messages-app-header";
 import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome";
 import { cn } from "@/lib/cn";
@@ -17,6 +18,8 @@ type Org = { id: string; name: string };
 // sticky header + centered content frame. The sidebar collapses to an icon-only rail; the
 // state persists in a cookie (read by the (app) layout → `defaultCollapsed`, so there's no
 // flash) and, when collapsed, overrides `--sidebar-width` so the header + main follow.
+// Phone: the rail is gone (hidden + width tokens collapse). A header hamburger opens a
+// bottom sheet of client NAV only. Desktop 1:2 rail is unchanged.
 export function AppShell({
   email,
   messagesUnread,
@@ -64,7 +67,7 @@ export function AppShell({
       }
     >
       <aside
-        className="fixed left-0 top-0 z-30 flex h-dvh flex-col border-r border-hairline bg-surface"
+        className="fixed left-0 top-0 z-30 hidden h-dvh flex-col border-r border-hairline bg-surface md:flex"
         data-app-rail=""
         style={{ width: "var(--sidebar-width)" }}
       >
@@ -98,11 +101,12 @@ export function AppShell({
           Search mounts only on the Access `/messages` gate. `/` and `/titles` stay
           avatar-only. */}
       <header
-        className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--content-inset)] backdrop-blur"
+        className="sticky top-0 z-40 flex items-center justify-end gap-4 border-b border-hairline bg-surface/85 px-[var(--space-6)] md:px-[var(--content-inset)] backdrop-blur"
         data-app-header=""
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
-        <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center">
+        <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2">
+          <MobileNav />
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
         </div>
         <div className="flex items-center gap-3">

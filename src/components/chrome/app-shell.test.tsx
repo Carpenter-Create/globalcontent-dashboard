@@ -170,3 +170,48 @@ describe("AppShell Access rail and home frame", () => {
     expect(shellSrc).not.toContain("SearchField");
   });
 });
+
+describe("AppShell client mobile chrome", () => {
+  it("hides the persistent rail below the house mobile breakpoint and keeps the desktop rail", () => {
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    expect(tokens).toMatch(/--sidebar-width:\s*220px;/);
+    expect(tokens).toMatch(/--sidebar-width-collapsed:\s*60px;/);
+    expect(tokens).toMatch(/@media \(max-width:\s*767px\)/);
+    expect(tokens).toMatch(/--sidebar-width:\s*0px;/);
+    expect(tokens).toMatch(/--sidebar-width-collapsed:\s*0px;/);
+
+    navigation.pathname = "/";
+    const html = renderShell();
+    expect(html).toMatch(
+      /<aside class="[^"]*\bhidden\b[^"]*\bmd:flex\b[^"]*" data-app-rail=""/,
+    );
+    expect(html).toContain("data-mobile-nav-trigger");
+    expect(html).toContain("Open menu");
+    expect(html).not.toContain("data-mobile-nav-sheet");
+    expect(html).not.toContain("data-tab-bar");
+    expect(shellSrc).toContain("hidden h-dvh flex-col");
+    expect(shellSrc).toContain("md:flex");
+    expect(shellSrc).toContain("<MobileNav />");
+    expect(shellSrc).not.toContain("GC_NAV");
+  });
+
+  it("keeps mobile chrome on Ask Globee without restoring Search, and keeps the Access gate", () => {
+    navigation.pathname = "/messages";
+    const landing = renderShell("ask-globee-landing");
+    expect(landing).toContain("data-mobile-nav-trigger");
+    expect(landing).toContain("data-app-header");
+    expect(landing).not.toContain("data-header-search");
+    expect(landing).not.toContain("⌘K");
+    expect(landing).toMatch(
+      /<aside class="[^"]*\bhidden\b[^"]*\bmd:flex\b[^"]*" data-app-rail=""/,
+    );
+
+    const gate = renderShell("access-gate");
+    expect(gate).toContain("data-mobile-nav-trigger");
+    expect(gate).toContain("data-header-search");
+    expect(gate).toContain("⌘K");
+  });
+});

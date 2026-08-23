@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GC_NAV, NAV } from "./nav";
+import { GC_NAV, NAV, clientNavCurrent, isClientNavActive } from "./nav";
 
 describe("client NAV", () => {
   it("keeps Dashboard at / and never exposes operator routes", () => {
@@ -11,6 +11,16 @@ describe("client NAV", () => {
     expect(hrefs).not.toContain("/queue");
     expect(hrefs).not.toContain("/vendors");
     expect(hrefs).not.toContain("/gc/clients");
+  });
+
+  it("marks Dashboard current on `/` and Titles on a title path", () => {
+    expect(clientNavCurrent("/").label).toBe("Dashboard");
+    expect(isClientNavActive("/", NAV[0])).toBe(true);
+    expect(isClientNavActive("/titles", NAV[0])).toBe(false);
+    expect(clientNavCurrent("/titles").label).toBe("Titles");
+    expect(clientNavCurrent("/titles/abc").label).toBe("Titles");
+    expect(clientNavCurrent("/messages").label).toBe("Messages");
+    expect(clientNavCurrent("/queue").label).toBe("Dashboard");
   });
 });
 
