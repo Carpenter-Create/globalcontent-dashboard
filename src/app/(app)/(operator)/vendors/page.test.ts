@@ -93,7 +93,7 @@ describe("staff /vendors address book", () => {
 
   it("renders empty Add vendor as Sporty Blue text, matching /deliveries View titles", async () => {
     const html = await renderVendors([]);
-    const marker = html.indexOf("data-vendors-add");
+    const marker = html.indexOf('data-vendors-add=""');
     const addStart = html.lastIndexOf("<a", marker);
     const addEnd = html.indexOf("</a>", marker);
     const add = html.slice(addStart, addEnd);
