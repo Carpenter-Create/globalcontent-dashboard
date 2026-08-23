@@ -31,6 +31,16 @@ export const ASK_GLOBEE_TRY_PROMPTS = [
   "What should I submit next",
 ] as const;
 
+// Quiet leading marks for the first three try chips (Figma 462:502).
+// Copy stays on tryPrompts; marks attach by index only.
+export const ASK_GLOBEE_CHIP_MARKS = ["alert", "slash", "send"] as const;
+
+export type AskGlobeeChipMark = (typeof ASK_GLOBEE_CHIP_MARKS)[number];
+
+export function askGlobeeChipMark(index: number): AskGlobeeChipMark | null {
+  return ASK_GLOBEE_CHIP_MARKS[index] ?? null;
+}
+
 export const ASK_GLOBEE = {
   pageTitle: "Messages",
   headline: "Ask Globee",

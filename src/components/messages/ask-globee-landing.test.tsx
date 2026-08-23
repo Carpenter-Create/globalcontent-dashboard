@@ -13,7 +13,11 @@ vi.mock("@/app/(app)/messages/ask-globee-actions", () => ({
   startAskGlobeeConversation: vi.fn(),
 }));
 
-import { ASK_GLOBEE } from "@/lib/ask-globee";
+import {
+  ASK_GLOBEE,
+  ASK_GLOBEE_CHIP_MARKS,
+  askGlobeeChipMark,
+} from "@/lib/ask-globee";
 import { AskGlobeeLanding } from "./ask-globee-landing";
 
 function visible(html: string): string {
@@ -183,16 +187,25 @@ describe("AskGlobeeLanding", () => {
 
     expect(tokens).toContain("--space-12: 3rem;");
     expect(src).toContain(
-      "relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center p-[var(--space-12)]",
+      "relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center p-[var(--space-12)]",
     );
-    expect(src).toContain("flex w-full flex-col items-center gap-[var(--space-12)]");
+    expect(src).toContain(
+      "flex w-full flex-1 flex-col items-center max-md:justify-between md:justify-center md:gap-[var(--space-12)]",
+    );
     expect(src).toContain("flex flex-col items-center gap-[var(--space-6)]");
     expect(html).toContain("t-body text-center text-ink-2");
     expect(src).toContain(
       "flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]",
     );
     expect(src).toContain(
-      "inline-flex items-center rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+      "inline-flex items-center gap-[var(--space-2)] rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+    );
+    expect(src).toContain("md:order-2");
+    expect(src).toContain("md:order-3");
+    expect(src).toContain("md:contents");
+    expect(src).toContain("max-md:justify-between");
+    expect(src.indexOf("data-ask-globee-try=")).toBeLessThan(
+      src.indexOf("data-ask-globee-composer="),
     );
     expect(src).not.toContain("gap-[var(--space-8)]");
     expect(src).not.toContain("rounded-full border border-hairline bg-surface px-[var(--space-4)]");
@@ -205,5 +218,50 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain(ASK_GLOBEE.historyLabel);
     expect(html).toContain('data-ask-globee-clock=""');
+  });
+
+  it("locks 462:502 mobile stack, quiet chip marks, and unchanged copy", () => {
+    const html = visible(renderToStaticMarkup(<AskGlobeeLanding />));
+
+    expect(ASK_GLOBEE.headline).toBe("Ask Globee");
+    expect(ASK_GLOBEE.need).toBe("What do you need?");
+    expect(ASK_GLOBEE.tryLabel).toBe("Try one of these");
+    expect(ASK_GLOBEE.tryPrompts).toEqual([
+      "What needs attention",
+      "What is blocking a title",
+      "What should I submit next",
+    ]);
+    expect(ASK_GLOBEE_CHIP_MARKS).toEqual(["alert", "slash", "send"]);
+    expect(askGlobeeChipMark(0)).toBe("alert");
+    expect(askGlobeeChipMark(1)).toBe("slash");
+    expect(askGlobeeChipMark(2)).toBe("send");
+    expect(askGlobeeChipMark(3)).toBeNull();
+    expect(html).toContain(ASK_GLOBEE.headline);
+    expect(html).toContain(ASK_GLOBEE.need);
+    expect(html).toContain(ASK_GLOBEE.tryLabel);
+    expect(html).toContain("h-14");
+    expect(html).toContain("rounded-[28px]");
+    expect(html).toContain('data-ask-globee-clock=""');
+    expect(src).toContain("<Clock className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).not.toContain("Plus");
+    expect(html).not.toContain("data-ask-globee-new");
+    expect(html).toContain('data-ask-globee-chip-mark="alert"');
+    expect(html).toContain('data-ask-globee-chip-mark="slash"');
+    expect(html).toContain('data-ask-globee-chip-mark="send"');
+    expect(src).toContain("CircleAlert");
+    expect(src).toContain("Slash");
+    expect(src).toContain("Send");
+    expect(src).toContain("strokeWidth={1.33}");
+    expect(src).toContain("size-4 text-ink-3");
+    expect(src).not.toContain("text-accent");
+    expect(src).not.toContain("fill-");
+    for (const label of ASK_GLOBEE.tryPrompts) {
+      expect(html).toContain(label);
+    }
+    expect(html).not.toContain("Winter Line");
+    expect(html).not.toContain("Harbor Lights");
+    expect(html).not.toContain("Get support");
+    expect(src).not.toContain("AskGlobeeThread");
+    expect(src).not.toContain("data-ask-globee-thinking");
   });
 });

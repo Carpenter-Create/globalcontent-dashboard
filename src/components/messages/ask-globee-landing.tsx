@@ -2,19 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Clock } from "lucide-react";
+import { ArrowRight, CircleAlert, Clock, Send, Slash, type LucideIcon } from "lucide-react";
 
 import {
   ASK_GLOBEE,
   askGlobeeChipActivation,
+  askGlobeeChipMark,
   askGlobeeComposerSubmit,
   askGlobeeSelectedChip,
   askGlobeeThreadHref,
+  type AskGlobeeChipMark,
 } from "@/lib/ask-globee";
 import { type AskGlobeeHistoryRow } from "@/lib/ask-globee-conversations";
 import { cn } from "@/lib/cn";
 import { startAskGlobeeConversation } from "@/app/(app)/messages/ask-globee-actions";
 import { AskGlobeeHistoryPopover } from "./ask-globee-history";
+
+const CHIP_MARK_ICON: Record<AskGlobeeChipMark, LucideIcon> = {
+  alert: CircleAlert,
+  slash: Slash,
+  send: Send,
+};
 
 // Figma 7:73 landing chrome (Design 2026-08-22 proto). Chip click fills,
 // selects, and sends the same prompt as free text. Submit persists the user
@@ -24,6 +32,8 @@ import { AskGlobeeHistoryPopover } from "./ask-globee-history";
 // Greeting gap is house 24 (--space-6). Composer is 640×56 r28 pad 16 —
 // not a full pill. Thinking chrome (427:352 empty lead + fetching…) is on
 // the conversation page, never this landing.
+// Mobile 462:502 only (max-md): greeting, then TRY chips, then composer
+// pinned low. Desktop 7:73 keeps chips under the composer (md:order).
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -55,7 +65,7 @@ export function AskGlobeeLanding({
   return (
     <div
       data-ask-globee-landing=""
-      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center justify-center p-[var(--space-12)]"
+      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center p-[var(--space-12)]"
     >
       <div className="absolute left-0 top-0">
         <AskGlobeeHistoryPopover
@@ -76,7 +86,7 @@ export function AskGlobeeLanding({
         </AskGlobeeHistoryPopover>
       </div>
 
-      <div className="flex w-full flex-col items-center gap-[var(--space-12)]">
+      <div className="flex w-full flex-1 flex-col items-center max-md:justify-between md:justify-center md:gap-[var(--space-12)]">
         <div className="flex flex-col items-center gap-[var(--space-6)]">
           <h1 data-ask-globee-headline="" className="t-display text-center text-ink">
             {ASK_GLOBEE.headline}
@@ -86,71 +96,86 @@ export function AskGlobeeLanding({
           </p>
         </div>
 
-        <form
-          data-ask-globee-composer=""
-          className="flex w-full justify-center"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const next = askGlobeeComposerSubmit(prompt);
-            if (next) void send(next);
-          }}
-        >
-          <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]">
-            <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
-            <input
-              type="text"
-              name="prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={ASK_GLOBEE.composerPlaceholder}
-              autoComplete="off"
-              className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none"
-            />
-            <button
-              type="submit"
-              aria-label={ASK_GLOBEE.sendLabel}
-              className="flex size-4 shrink-0 items-center justify-center text-ink-3"
-            >
-              <ArrowRight className="size-4" strokeWidth={1.33} />
-            </button>
-          </label>
-        </form>
-
-        {error ? (
-          <p data-ask-globee-error="" className="t-body-sm text-center text-ink-2">
-            {error}
-          </p>
-        ) : null}
-
-        <div
-          data-ask-globee-try=""
-          className="flex w-full max-w-[640px] flex-col items-center gap-[var(--space-3)]"
-        >
-          <p className="t-label text-ink-3">{ASK_GLOBEE.tryLabel}</p>
-          <div className="flex flex-wrap justify-center gap-[var(--space-2)]">
-            {ASK_GLOBEE.tryPrompts.map((label) => {
-              const pressed = selected === label;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  data-ask-globee-chip=""
-                  aria-pressed={pressed}
-                  onClick={() => {
-                    const activation = askGlobeeChipActivation(label);
-                    setPrompt(activation.prompt);
-                    void send(activation.send);
-                  }}
-                  className={cn(
-                    "inline-flex items-center rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
-                    pressed ? "border-ink bg-surface-muted" : "border-hairline",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
+        <div className="flex w-full flex-col items-center max-md:gap-[var(--space-6)] md:contents">
+          <div
+            data-ask-globee-try=""
+            className="flex w-full max-w-[640px] flex-col items-center gap-[var(--space-3)] md:order-3"
+          >
+            <p className="t-label text-ink-3">{ASK_GLOBEE.tryLabel}</p>
+            <div className="flex flex-wrap justify-center gap-[var(--space-2)] max-md:w-full max-md:flex-col max-md:items-stretch">
+              {ASK_GLOBEE.tryPrompts.map((label, index) => {
+                const pressed = selected === label;
+                const mark = askGlobeeChipMark(index);
+                const MarkIcon = mark ? CHIP_MARK_ICON[mark] : null;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    data-ask-globee-chip=""
+                    data-ask-globee-chip-mark={mark ?? undefined}
+                    aria-pressed={pressed}
+                    onClick={() => {
+                      const activation = askGlobeeChipActivation(label);
+                      setPrompt(activation.prompt);
+                      void send(activation.send);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-[var(--space-2)] rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+                      pressed ? "border-ink bg-surface-muted" : "border-hairline",
+                    )}
+                  >
+                    {MarkIcon ? (
+                      <MarkIcon
+                        aria-hidden="true"
+                        className="size-4 text-ink-3"
+                        strokeWidth={1.33}
+                      />
+                    ) : null}
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          <form
+            data-ask-globee-composer=""
+            className="flex w-full justify-center md:order-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const next = askGlobeeComposerSubmit(prompt);
+              if (next) void send(next);
+            }}
+          >
+            <label className="flex h-14 w-full max-w-[640px] items-center justify-between rounded-[28px] border border-hairline bg-surface px-[var(--space-4)]">
+              <span className="sr-only">{ASK_GLOBEE.composerPlaceholder}</span>
+              <input
+                type="text"
+                name="prompt"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder={ASK_GLOBEE.composerPlaceholder}
+                autoComplete="off"
+                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none"
+              />
+              <button
+                type="submit"
+                aria-label={ASK_GLOBEE.sendLabel}
+                className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+              >
+                <ArrowRight className="size-4" strokeWidth={1.33} />
+              </button>
+            </label>
+          </form>
+
+          {error ? (
+            <p
+              data-ask-globee-error=""
+              className="t-body-sm text-center text-ink-2 md:order-2"
+            >
+              {error}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
