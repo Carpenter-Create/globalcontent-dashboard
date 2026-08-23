@@ -13,6 +13,7 @@ import { ThemeGlyph } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import { toggleDocumentTheme } from "@/lib/theme";
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
+import { MobileAccountMenu } from "./account-overlay";
 
 export const onUserMenuAppearance = toggleDocumentTheme;
 
@@ -72,45 +73,50 @@ export function UserMenu({
   const initial = userMenuAvatarInitial(email);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        data-user-menu-trigger=""
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 transition-colors hover:text-ink"
-      >
-        {initial}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className="min-w-[17.5rem] rounded-[var(--radius)] p-[var(--space-2)]"
-        data-user-menu=""
-        sideOffset={10}
-      >
-        <UserMenuIdentity email={email} name={name} />
-        <DropdownMenuSeparator data-user-menu-hairline="" className={USER_MENU_RULE_CLASS} />
-        <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
-          <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
-            {USER_MENU.agreements}
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={USER_MENU_ITEM_CLASS}
-          data-user-menu-item="appearance"
-          onSelect={(event) => {
-            event.preventDefault();
-            onUserMenuAppearance();
-          }}
-        >
-          <span className="flex-1">{USER_MENU.appearance}</span>
-          <ThemeGlyph className="text-ink-3" />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator data-user-menu-logout-hairline="" className={USER_MENU_RULE_CLASS} />
-        <DropdownMenuItem
-          className={USER_MENU_ITEM_CLASS}
-          data-user-menu-item="logOut"
-          onSelect={() => onUserMenuLogOut()}
-        >
-          {USER_MENU.logOut}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <MobileAccountMenu email={email} name={name} />
+      <div className="hidden md:block" data-user-menu-desktop="">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            data-user-menu-trigger=""
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 transition-colors hover:text-ink"
+          >
+            {initial}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="min-w-[17.5rem] rounded-[var(--radius)] p-[var(--space-2)]"
+            data-user-menu=""
+            sideOffset={10}
+          >
+            <UserMenuIdentity email={email} name={name} />
+            <DropdownMenuSeparator data-user-menu-hairline="" className={USER_MENU_RULE_CLASS} />
+            <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
+              <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
+                {USER_MENU.agreements}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className={USER_MENU_ITEM_CLASS}
+              data-user-menu-item="appearance"
+              onSelect={(event) => {
+                event.preventDefault();
+                onUserMenuAppearance();
+              }}
+            >
+              <span className="flex-1">{USER_MENU.appearance}</span>
+              <ThemeGlyph className="text-ink-3" />
+            </DropdownMenuItem>
+            <DropdownMenuSeparator data-user-menu-logout-hairline="" className={USER_MENU_RULE_CLASS} />
+            <DropdownMenuItem
+              className={USER_MENU_ITEM_CLASS}
+              data-user-menu-item="logOut"
+              onSelect={() => onUserMenuLogOut()}
+            >
+              {USER_MENU.logOut}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </>
   );
 }

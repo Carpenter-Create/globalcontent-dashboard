@@ -8,6 +8,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { USER_MENU, USER_MENU_ABSENT } from "@/lib/user-menu";
 import { toggleDocumentTheme } from "@/lib/theme";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
+}));
 vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { signOut } from "@/app/actions";
@@ -71,6 +75,17 @@ describe("UserMenu close control", () => {
     expect(menuSrc).not.toContain("<X ");
     expect(menuSrc).not.toContain("lucide-react");
     expect(menuSrc).not.toContain("data-mobile-nav-close");
+  });
+
+  it("opens the mobile 537:557 overlay from the avatar and keeps the desktop leftover", () => {
+    expect(menuSrc).toContain("MobileAccountMenu");
+    expect(menuSrc).toContain("<MobileAccountMenu email={email} name={name} />");
+    expect(menuSrc).toContain('data-user-menu-desktop=""');
+    expect(menuSrc).toContain("hidden md:block");
+    expect(menuSrc).toContain("USER_MENU.appearance");
+    expect(menuSrc).toContain("USER_MENU.logOut");
+    expect(menuSrc).not.toContain("data-account-overlay-close");
+    expect(menuSrc).not.toContain("data-mobile-nav-sheet");
   });
 });
 
