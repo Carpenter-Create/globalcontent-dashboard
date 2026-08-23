@@ -30,3 +30,17 @@ export const GC_NAV: NavItem[] = [
   { label: "Vendors", href: "/vendors", icon: Store },
   { label: "Clients", href: "/gc/clients", icon: Users },
 ];
+
+// Phone sheet copy. Destinations stay NAV — never GC_NAV.
+export const MOBILE_NAV = {
+  open: "Open menu",
+  close: "Close menu",
+} as const;
+
+export function isClientNavActive(pathname: string, item: NavItem): boolean {
+  return item.exact ? pathname === item.href : pathname.startsWith(item.href);
+}
+
+export function clientNavCurrent(pathname: string): NavItem {
+  return NAV.find((item) => isClientNavActive(pathname, item)) ?? NAV[0];
+}

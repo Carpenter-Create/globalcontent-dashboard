@@ -80,6 +80,15 @@
   --page-max-width: 67.5rem;   /* 1080px — the single centered page cap */
 }
 
+/* Phone chrome: persistent rail is gone. Width tokens collapse so header +
+   main go full-canvas. Desktop 1:2 rail stays 220 / 60 at md and up. */
+@media (max-width: 767px) {
+  :root {
+    --sidebar-width: 0px;
+    --sidebar-width-collapsed: 0px;
+  }
+}
+
 /* --- Neutral ramp — DARK (secondary; add class="dark") --- */
 .dark {
   --bg:            #0f1114;
