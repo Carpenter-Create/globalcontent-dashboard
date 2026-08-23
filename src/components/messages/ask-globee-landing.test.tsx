@@ -256,8 +256,8 @@ describe("AskGlobeeLanding", () => {
     expect(html).not.toContain("data-ask-globee-new");
     expect(html).not.toContain("Beta");
     expect(html).not.toContain("Mercury");
-    expect(src).not.toContain("purple");
-    expect(src).not.toContain("#7C");
+    expect(html).not.toContain("purple");
+    expect(html).not.toContain("#7C");
     expect(html).toContain('data-ask-globee-chip-mark="alert"');
     expect(html).toContain('data-ask-globee-chip-mark="slash"');
     expect(html).toContain('data-ask-globee-chip-mark="send"');

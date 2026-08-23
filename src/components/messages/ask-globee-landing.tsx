@@ -35,7 +35,7 @@ const CHIP_MARK_ICON: Record<AskGlobeeChipMark, LucideIcon> = {
 // Mobile 462:502 only (max-md): centered stack, 48 between headline / chips /
 // composer. Drop "What do you need?" on mobile. Chips stay above the
 // composer. Desktop 7:73 keeps the greeting and chips under the composer
-// (md:order). No Beta. No Mercury / Circle purple.
+// (md:order). No Beta. No Mercury. No Circle brand fill.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
