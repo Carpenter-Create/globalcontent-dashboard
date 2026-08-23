@@ -521,11 +521,19 @@ describe("client /titles catalog", () => {
     expect(rail).toHaveLength(1);
     expect(cards).toHaveLength(ALL_STATUSES.length);
     expect(frames).toHaveLength(ALL_STATUSES.length);
+    const tracks = openingTagsWith(html, 'data-titles-catalog-rail-track=""');
     expect(html).toContain("snap-x");
     expect(html).toContain("w-[140px]");
     expect(html).toContain("h-[210px]");
     expect(html).toContain("rounded-[12px]");
     expect(html).toContain("gap-[var(--space-4)]");
+    expect(html).toContain(
+      "titles-catalog mx-auto flex w-full flex-col px-[var(--space-4)]",
+    );
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toContain("gap-[var(--space-4)]");
+    expect(tracks[0]).not.toContain("-mx-[var(--space-4)]");
+    expect(tracks[0]).not.toContain("px-[var(--space-4)]");
     expect(add).toHaveLength(1);
     expect(add[0]).toContain("max-md:text-accent");
     expect(add[0]).toContain("max-md:bg-transparent");

@@ -292,20 +292,25 @@ describe("TitlesCatalogHeader type lock", () => {
 });
 
 describe("TitlesCatalogRail 528:542 lock", () => {
-  it("is one Recent snap rail — 140×210 r12, 16 gap, 16 side", () => {
+  it("is one Recent snap rail — 140×210 r12, 16 gap, 16 side from the frame", () => {
     const html = renderToStaticMarkup(
       createElement(
-        TitlesCatalogRail,
+        TitlesCatalogFrame,
         null,
-        createElement(TitlesCatalogRailStill, {
-          href: "/titles/1",
-          title: "Craft film",
-          stillUrl: null,
-          status: "live",
-          year: "2019",
-        }),
+        createElement(
+          TitlesCatalogRail,
+          null,
+          createElement(TitlesCatalogRailStill, {
+            href: "/titles/1",
+            title: "Craft film",
+            stillUrl: null,
+            status: "live",
+            year: "2019",
+          }),
+        ),
       ),
     );
+    const catalog = openingTagWith(html, 'data-titles-catalog=""');
     const rail = openingTagWith(html, 'data-titles-catalog-rail=""');
     const track = openingTagWith(html, 'data-titles-catalog-rail-track=""');
     const card = openingTagWith(html, 'data-titles-catalog-rail-card=""');
@@ -317,11 +322,13 @@ describe("TitlesCatalogRail 528:542 lock", () => {
     expect(html).not.toContain("Recently added");
     expect(html).not.toContain("Store");
     expect(html).not.toContain("Spotlight");
+    expect(catalog).toContain("px-[var(--space-4)]");
     expect(rail).toContain("md:hidden");
     expect(track).toContain("snap-x");
     expect(track).toContain("snap-mandatory");
     expect(track).toContain("gap-[var(--space-4)]");
-    expect(track).toContain("px-[var(--space-4)]");
+    expect(track).not.toContain("-mx-[var(--space-4)]");
+    expect(track).not.toContain("px-[var(--space-4)]");
     expect(card).toContain("w-[140px]");
     expect(card).toContain("snap-start");
     expect(frame).toContain("h-[210px]");
