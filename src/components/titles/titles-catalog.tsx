@@ -8,10 +8,13 @@ import { TITLES_CATALOG } from "@/lib/titles-catalog";
 // those must not restyle home, Deliveries, Catalog Health, or staff surfaces.
 // Desktop 1:3 stays the unboxed grid: full-bleed 2:3 art, type in air, year and
 // TITLE_STATUS_LABELS hairline pill. Mobile 528:542 / empty 529:542 is one
-// Recent snap rail (140×210 r12, title + year) and header search — no Apple TV
-// dark, ranks, Store, or second rail. Accent is Add Title only (13 Sporty Blue
-// text on mobile). Page-local still crop: every catalog img is object-cover /
-// object-center so Artwork's default treatment cannot diverge.
+// Recent snap rail (140×210 r12, title + year, 16 between cards) and header
+// search — no Apple TV dark, ranks, Store, or second rail. First and last
+// posters sit 16 from the viewport via the frame inset — do not pair -mx-4
+// with px-4 on the track; that cancels the frame's px-4. Accent is Add Title
+// only (13 Sporty Blue text on mobile). Page-local still crop: every catalog
+// img is object-cover / object-center so Artwork's default treatment cannot
+// diverge.
 
 export function TitlesCatalogFrame({
   className,
@@ -108,7 +111,7 @@ export function TitlesCatalogRail({ children }: { children: React.ReactNode }) {
     >
       <p className="t-body-sm text-ink-2">{TITLES_CATALOG.recent}</p>
       <div
-        className="-mx-[var(--space-4)] flex snap-x snap-mandatory gap-[var(--space-4)] overflow-x-auto px-[var(--space-4)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory gap-[var(--space-4)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-titles-catalog-rail-track=""
       >
         {children}
