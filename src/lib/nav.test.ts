@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GC_NAV, NAV, clientNavCurrent, isClientNavActive } from "./nav";
+import { GC_NAV, NAV, clientNavCurrent, isClientNavActive, mobileNavDestinations } from "./nav";
 
 describe("client NAV", () => {
   it("keeps Dashboard at / and never exposes operator routes", () => {
@@ -50,5 +50,34 @@ describe("GC_NAV", () => {
 
   it("does not include the client deliveries path", () => {
     expect(GC_NAV.map((item) => item.href)).not.toContain("/deliveries");
+  });
+});
+
+describe("mobileNavDestinations", () => {
+  it("keeps the client sheet on the five NAV destinations", () => {
+    expect(mobileNavDestinations(false).map((item) => item.label)).toEqual([
+      "Dashboard",
+      "Titles",
+      "Deliveries",
+      "Catalog Health",
+      "Messages",
+    ]);
+    expect(mobileNavDestinations(false).map((item) => item.href)).not.toContain("/queue");
+    expect(mobileNavDestinations(false).map((item) => item.href)).not.toContain("/vendors");
+    expect(mobileNavDestinations(false).map((item) => item.href)).not.toContain("/gc/clients");
+  });
+
+  it("gives staff the operator destinations plus the client five", () => {
+    expect(mobileNavDestinations(true).map((item) => item.label)).toEqual([
+      "Dashboard",
+      "Titles",
+      "Deliveries",
+      "Catalog Health",
+      "Messages",
+      "Queue",
+      "GC Deliveries",
+      "Vendors",
+      "Clients",
+    ]);
   });
 });

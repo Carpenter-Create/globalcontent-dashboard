@@ -36,29 +36,61 @@ describe("MobileNav trigger", () => {
     expect(src).not.toContain("size-6");
   });
 
-  it("opens the bottom sheet from the hamburger", () => {
+  it("opens the bottom sheet from the hamburger and portals it out of the header", () => {
     expect(src).toContain("onClick={() => setOpen(true)}");
-    expect(src).toContain("{open ? <MobileNavSheet pathname={pathname} onClose={() => setOpen(false)} /> : null}");
+    expect(src).toContain("createPortal");
+    expect(src).toContain("document.body");
+    expect(src).toContain("isGcStaff={isGcStaff}");
+    expect(src).toContain("<MobileNavSheet");
+    expect(src).toContain("pathname={pathname}");
+    expect(src).toContain("onClose={() => setOpen(false)}");
   });
 });
 
 describe("MobileNavSheet", () => {
-  it("is a bottom sheet of the five client destinations and none of the staff rail", () => {
+  it("is a full-bleed opaque canvas overlay — nothing from the page shows through", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
-    const destStart = html.indexOf("data-mobile-nav-destinations");
-    const dest = html.slice(destStart);
 
     expect(html).toContain("data-mobile-nav-sheet");
-    expect(html).toContain("bottom-0");
-    expect(html).toContain("inset-x-0");
-    expect(html).toContain("top-0");
-    expect(html).toContain("flex-col");
+    expect(html).toContain("inset-0");
+    expect(html).toContain("h-dvh");
+    expect(html).toContain("w-full");
     expect(html).toContain("bg-canvas");
+    expect(html).toContain("background-color:var(--bg)");
     expect(html).toContain("md:hidden");
+    expect(html).not.toContain("bg-canvas/");
+    expect(html).not.toContain("bg-surface/");
+    expect(html).not.toContain("backdrop-blur");
+    expect(html).not.toContain("No vendors yet");
+    expect(html).not.toContain("Add vendor");
+    expect(html).not.toContain("Credentials are never stored here.");
     expect(html).not.toContain("grid-cols-5");
     expect(html).not.toContain("tab-bar");
     expect(html).not.toContain("data-tab-bar");
     expect(html).not.toContain("data-app-rail");
+    expect(src).not.toContain("t-section");
+    expect(src).not.toContain("t-title");
+    expect(src).not.toContain("clientNavCurrent");
+  });
+
+  it("does not restack Dashboard or Vendors as a second large title", () => {
+    const dash = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
+    const vendors = renderToStaticMarkup(
+      <MobileNavSheet pathname="/vendors" onClose={() => undefined} isGcStaff />,
+    );
+
+    expect(dash).not.toContain("t-section");
+    expect(dash).not.toContain("t-title");
+    expect(vendors).not.toContain("t-section");
+    expect(vendors).not.toContain("t-title");
+    expect(dash).toContain(`aria-label="${MOBILE_NAV.sheet}"`);
+  });
+
+  it("keeps the client sheet on the five client destinations and none of the staff rail", () => {
+    const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
+    const destStart = html.indexOf("data-mobile-nav-destinations");
+    const dest = html.slice(destStart);
+
     expect(NAV.map((item) => item.label)).toEqual([
       "Dashboard",
       "Titles",
@@ -74,19 +106,34 @@ describe("MobileNavSheet", () => {
       expect(html).not.toContain(item.label);
       expect(html).not.toContain(`href="${item.href}"`);
     }
-    expect(src).toContain("NAV.map");
-    expect(src).not.toContain("GC_NAV");
-    expect(src).not.toContain("isGcStaff");
   });
 
-  it("marks Dashboard current on `/` with the muted wash and a 24 title", () => {
+  it("marks Dashboard current on `/` with the muted wash, not a 24 title", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
     const dash = html.slice(html.indexOf('href="/"'), html.indexOf('href="/titles"'));
 
-    expect(html).toContain(`t-section text-ink">${NAV[0].label}`);
     expect(dash).toContain("bg-surface-muted");
+    expect(html).not.toContain(`t-section text-ink">${NAV[0].label}`);
     expect(html).toContain(MOBILE_NAV.close);
     expect(html).toContain("data-mobile-nav-close");
     expect(src).toContain("<X className=\"size-4\" strokeWidth={1.33} />");
+  });
+
+  it("gives staff /vendors the operator set plus the client five, with Vendors current", () => {
+    const html = renderToStaticMarkup(
+      <MobileNavSheet pathname="/vendors" onClose={() => undefined} isGcStaff />,
+    );
+    const destStart = html.indexOf("data-mobile-nav-destinations");
+    const dest = html.slice(destStart);
+    const vendors = dest.slice(dest.indexOf('href="/vendors"'), dest.indexOf('href="/gc/clients"'));
+    const dash = dest.slice(dest.indexOf('href="/"'), dest.indexOf('href="/titles"'));
+
+    for (const item of [...NAV, ...GC_NAV]) {
+      expect(dest).toContain(item.label);
+      expect(dest).toContain(`href="${item.href}"`);
+    }
+    expect(vendors).toContain("bg-surface-muted");
+    expect(dash).not.toContain("bg-surface-muted");
+    expect(html).not.toContain("t-section");
   });
 });
