@@ -65,6 +65,15 @@ describe("UserMenu trigger", () => {
   });
 });
 
+describe("UserMenu close control", () => {
+  it("has no sheet-style close X sharing the 16px tap target", () => {
+    expect(menuSrc).not.toContain("data-user-menu-close");
+    expect(menuSrc).not.toContain("<X ");
+    expect(menuSrc).not.toContain("lucide-react");
+    expect(menuSrc).not.toContain("data-mobile-nav-close");
+  });
+});
+
 describe("UserMenu identity source lock", () => {
   it("does not manufacture a name in the shell or layout", () => {
     const layoutSrc = readFileSync(

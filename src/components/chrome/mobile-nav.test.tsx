@@ -118,6 +118,20 @@ describe("MobileNavSheet", () => {
     expect(src).toContain("<X className=\"size-4\" strokeWidth={1.33} />");
   });
 
+  it("keeps the close glyph at 16 and expands the tap box to at least 44", () => {
+    const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
+    const closeClass = buttonClass(html, "data-mobile-nav-close");
+
+    expect(src).toContain('<X className="size-4" strokeWidth={1.33} />');
+    expect(src).not.toContain("<X className=\"size-5\"");
+    expect(src).not.toContain("<X className=\"size-6\"");
+    expect(html).toContain("stroke-width=\"1.33\"");
+    expect(closeClass).toContain("text-ink-3");
+    expect(closeClass).not.toMatch(/(?:^|[\s"])size-4(?:[\s"]|$)/);
+    expect(minBoxPx(closeClass, "min-h")).toBeGreaterThanOrEqual(44);
+    expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
+  });
+
   it("gives staff /vendors the operator set plus the client five, with Vendors current", () => {
     const html = renderToStaticMarkup(
       <MobileNavSheet pathname="/vendors" onClose={() => undefined} isGcStaff />,
@@ -140,4 +154,16 @@ function linkClass(html: string, href: string): string {
   const classThenHref = html.match(new RegExp(`<a class="([^"]*)"[^>]*href="${escaped}"`));
   const hrefThenClass = html.match(new RegExp(`<a href="${escaped}"[^>]*class="([^"]*)"`));
   return classThenHref?.[1] ?? hrefThenClass?.[1] ?? "";
+}
+
+function buttonClass(html: string, attr: string): string {
+  const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const classThenAttr = html.match(new RegExp(`<button class="([^"]*)"[^>]*${escaped}`));
+  const attrThenClass = html.match(new RegExp(`<button[^>]*${escaped}[^>]*class="([^"]*)"`));
+  return classThenAttr?.[1] ?? attrThenClass?.[1] ?? "";
+}
+
+function minBoxPx(className: string, prop: "min-h" | "min-w"): number {
+  const match = className.match(new RegExp(`${prop}-\\[(\\d+)px\\]`));
+  return match ? Number(match[1]) : 0;
 }
