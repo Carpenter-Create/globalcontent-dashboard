@@ -29,19 +29,15 @@ export type NavImageItem = {
 
 export type NavItem = NavLucideItem | NavImageItem;
 
-// Adam's 3/4 line bee — Design Figma Icon/ask-globee 483:532. Hash 028551fa.
-// Four Design PNG exports are the source of truth. The 16 export is padded;
-// the rail displays the 64, cropped/scaled into the same 16 box as Dashboard.
+// Adam's Grok bee — Figma K0vd70n4Xvftm0aSpuWu77 Bee/16 18:3 and Bee/64 18:2.
+// Display the already-cropped 16 in the size-4 slot. Keep 64 for 2x.
+// Not the padded Design 483:532 export. Do not invent an SVG.
 export const ASK_GLOBEE_NAV_MARK = {
   src16: "/ask-globee/ask-globee-16.png",
-  src24: "/ask-globee/ask-globee-24.png",
-  src32: "/ask-globee/ask-globee-32.png",
   src64: "/ask-globee/ask-globee-64.png",
-  displaySrc: "/ask-globee/ask-globee-64.png",
-  lock: "028551fa",
-  // 24 CSS px of the 64 PNG, clipped to the 16 slot — fills the box instead
-  // of shipping the inset/faint 16 export. Display box stays size-4.
-  fillClass: "absolute left-1/2 top-1/2 size-6 max-w-none -translate-x-1/2 -translate-y-1/2",
+  displaySrc: "/ask-globee/ask-globee-16.png",
+  lock: "408fa5f5",
+  fillClass: "size-4",
 } as const;
 
 export function isNavImageItem(item: NavItem): item is NavImageItem {

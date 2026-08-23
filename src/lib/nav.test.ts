@@ -35,27 +35,29 @@ describe("client NAV", () => {
     expect(clientNavCurrent("/queue").label).toBe("Dashboard");
   });
 
-  it("keeps /messages as Ask Globee with the 64 bee mark, not Messages or Lucide", () => {
+  it("keeps /messages as Ask Globee with the 16 bee mark, not Messages or Lucide", () => {
     const dest = NAV.find((item) => item.href === "/messages");
     expect(dest).toBeDefined();
     expect(dest?.label).toBe("Ask Globee");
     expect(dest?.href).toBe("/messages");
     expect(isNavImageItem(dest!)).toBe(true);
     expect(dest?.markSrc).toBe(ASK_GLOBEE_NAV_MARK.displaySrc);
-    expect(dest?.markSrc).toBe(ASK_GLOBEE_NAV_MARK.src64);
-    expect(dest?.markSrc).not.toBe(ASK_GLOBEE_NAV_MARK.src16);
+    expect(dest?.markSrc).toBe(ASK_GLOBEE_NAV_MARK.src16);
+    expect(dest?.markSrc).not.toBe(ASK_GLOBEE_NAV_MARK.src64);
     expect(dest?.icon).toBeUndefined();
     expect(NAV.map((item) => item.label)).not.toContain("Messages");
   });
 });
 
-describe("Ask Globee Design PNGs", () => {
-  it("stores the four Figma 483:532 exports and displays the 64, not the padded 16", () => {
+describe("Ask Globee Grok PNGs", () => {
+  it("stores Bee/16 18:3 and Bee/64 18:2 and displays the cropped 16 in size-4", () => {
     const files = {
       16: "public/ask-globee/ask-globee-16.png",
-      24: "public/ask-globee/ask-globee-24.png",
-      32: "public/ask-globee/ask-globee-32.png",
       64: "public/ask-globee/ask-globee-64.png",
+    } as const;
+    const hashes = {
+      16: "408fa5f5fc07e30b68e31fed91b4ce26e53e6b890069ca03fd36a96398e3b4df",
+      64: "0c10c8455b297644472fd43b542f77af499d7decb98579537b239ea824a65082",
     } as const;
     for (const [size, path] of Object.entries(files)) {
       const bytes = readFileSync(path);
@@ -67,14 +69,15 @@ describe("Ask Globee Design PNGs", () => {
       const height = bytes.readUInt32BE(20);
       expect(width).toBe(Number(size));
       expect(height).toBe(Number(size));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(hashes[Number(size) as 16 | 64]);
     }
-    expect(ASK_GLOBEE_NAV_MARK.displaySrc).toBe("/ask-globee/ask-globee-64.png");
-    expect(ASK_GLOBEE_NAV_MARK.displaySrc).not.toBe(ASK_GLOBEE_NAV_MARK.src16);
-    expect(ASK_GLOBEE_NAV_MARK.lock).toBe("028551fa");
-    expect(ASK_GLOBEE_NAV_MARK.fillClass).toContain("size-6");
-    expect(ASK_GLOBEE_NAV_MARK.fillClass).not.toContain("size-5");
-    const display = readFileSync("public/ask-globee/ask-globee-64.png");
-    expect(createHash("sha256").update(display).digest("hex")).toHaveLength(64);
+    expect(ASK_GLOBEE_NAV_MARK.displaySrc).toBe("/ask-globee/ask-globee-16.png");
+    expect(ASK_GLOBEE_NAV_MARK.displaySrc).toBe(ASK_GLOBEE_NAV_MARK.src16);
+    expect(ASK_GLOBEE_NAV_MARK.lock).toBe("408fa5f5");
+    expect(ASK_GLOBEE_NAV_MARK.fillClass).toBe("size-4");
+    expect(ASK_GLOBEE_NAV_MARK.fillClass).not.toContain("size-6");
+    expect(() => readFileSync("public/ask-globee/ask-globee-24.png")).toThrow();
+    expect(() => readFileSync("public/ask-globee/ask-globee-32.png")).toThrow();
   });
 });
 

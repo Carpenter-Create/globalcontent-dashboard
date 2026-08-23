@@ -1,19 +1,20 @@
 import { ASK_GLOBEE_NAV_MARK, isNavImageItem, type NavItem } from "@/lib/nav";
 
 // Rail / sheet mark. Lucide destinations stay 16 / 1.33. Ask Globee uses
-// Adam's 64 PNG cropped into the same size-4 slot — not the padded 16 export,
-// not a Lucide redraw, not an invented SVG.
+// Adam's Grok Bee/16 18:3 PNG in the size-4 slot — already cropped. 64 is 2x.
+// Not a Lucide redraw. Not an invented SVG.
 export function NavMark({ item }: { item: NavItem }) {
   if (isNavImageItem(item)) {
     return (
-      <span data-ask-globee-nav-mark="" className="relative size-4 shrink-0 overflow-hidden">
-        {/* Adam's Design PNG. next/image would rewrite the mark. */}
+      <span data-ask-globee-nav-mark="" className="size-4 shrink-0">
+        {/* Adam's Grok PNG. next/image would rewrite the mark. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.markSrc}
+          srcSet={`${ASK_GLOBEE_NAV_MARK.src64} 2x`}
           alt=""
-          width={64}
-          height={64}
+          width={16}
+          height={16}
           className={ASK_GLOBEE_NAV_MARK.fillClass}
         />
       </span>

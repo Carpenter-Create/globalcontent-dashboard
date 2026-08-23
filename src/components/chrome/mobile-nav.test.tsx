@@ -235,9 +235,9 @@ describe("MobileNavSheet", () => {
       expect(row).toContain("shrink-0");
       if (item.href === "/messages") {
         expect(row).toContain("data-ask-globee-nav-mark");
-        expect(row).toContain('src="/ask-globee/ask-globee-64.png"');
+        expect(row).toContain('src="/ask-globee/ask-globee-16.png"');
+        expect(row).toContain('srcSet="/ask-globee/ask-globee-64.png 2x"');
         expect(row).not.toContain("lucide-");
-        expect(row).not.toContain("ask-globee-16.png");
         continue;
       }
       const mark = iconMark(item);
