@@ -110,9 +110,8 @@ describe("MobileNavSheet", () => {
 
   it("marks Dashboard current on `/` with the muted wash, not a 24 title", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
-    const dash = html.slice(html.indexOf('href="/"'), html.indexOf('href="/titles"'));
 
-    expect(dash).toContain("bg-surface-muted");
+    expect(linkClass(html, "/")).toContain("t-body text-ink bg-surface-muted");
     expect(html).not.toContain(`t-section text-ink">${NAV[0].label}`);
     expect(html).toContain(MOBILE_NAV.close);
     expect(html).toContain("data-mobile-nav-close");
@@ -125,15 +124,20 @@ describe("MobileNavSheet", () => {
     );
     const destStart = html.indexOf("data-mobile-nav-destinations");
     const dest = html.slice(destStart);
-    const vendors = dest.slice(dest.indexOf('href="/vendors"'), dest.indexOf('href="/gc/clients"'));
-    const dash = dest.slice(dest.indexOf('href="/"'), dest.indexOf('href="/titles"'));
 
     for (const item of [...NAV, ...GC_NAV]) {
       expect(dest).toContain(item.label);
       expect(dest).toContain(`href="${item.href}"`);
     }
-    expect(vendors).toContain("bg-surface-muted");
-    expect(dash).not.toContain("bg-surface-muted");
+    expect(linkClass(html, "/vendors")).toContain("t-body text-ink bg-surface-muted");
+    expect(linkClass(html, "/")).toContain("t-body text-ink hover:bg-surface-muted");
     expect(html).not.toContain("t-section");
   });
 });
+
+function linkClass(html: string, href: string): string {
+  const escaped = href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const classThenHref = html.match(new RegExp(`<a class="([^"]*)"[^>]*href="${escaped}"`));
+  const hrefThenClass = html.match(new RegExp(`<a href="${escaped}"[^>]*class="([^"]*)"`));
+  return classThenHref?.[1] ?? hrefThenClass?.[1] ?? "";
+}

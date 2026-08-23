@@ -19,7 +19,8 @@ type Org = { id: string; name: string };
 // state persists in a cookie (read by the (app) layout → `defaultCollapsed`, so there's no
 // flash) and, when collapsed, overrides `--sidebar-width` so the header + main follow.
 // Phone: the rail is gone (hidden + width tokens collapse). A header hamburger opens a
-// bottom sheet — client NAV, or NAV + GC_NAV for staff. Desktop 1:2 rail is unchanged.
+// bottom sheet — client destinations, or those plus staff destinations when
+// isGcStaff. Desktop 1:2 rail is unchanged.
 export function AppShell({
   email,
   messagesUnread,
