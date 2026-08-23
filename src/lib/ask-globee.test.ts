@@ -55,6 +55,8 @@ describe("Ask Globee copy lock", () => {
     ]);
     expect(ASK_GLOBEE.tryPrompts).toBe(ASK_GLOBEE_TRY_PROMPTS);
     expect(ASK_GLOBEE.composerPlaceholder).toBe("Ask a question or give a command.");
+    expect(ASK_GLOBEE.composerPlaceholderMobile).toBe("Ask a question or give a command");
+    expect(ASK_GLOBEE.composerPlaceholderMobile.endsWith(".")).toBe(false);
     for (const label of ASK_GLOBEE.tryPrompts) {
       expect(label).not.toMatch(/Winter Line|Harbor Lights|Get support/i);
     }

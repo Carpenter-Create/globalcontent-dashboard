@@ -32,8 +32,10 @@ const CHIP_MARK_ICON: Record<AskGlobeeChipMark, LucideIcon> = {
 // Greeting gap is house 24 (--space-6). Composer is 640×56 r28 pad 16 —
 // not a full pill. Thinking chrome (427:352 empty lead + fetching…) is on
 // the conversation page, never this landing.
-// Mobile 462:502 only (max-md): greeting, then TRY chips, then composer
-// pinned low. Desktop 7:73 keeps chips under the composer (md:order).
+// Mobile 462:502 only (max-md): centered stack, 48 between headline / chips /
+// composer. Drop "What do you need?" on mobile. Chips stay above the
+// composer. Desktop 7:73 keeps the greeting and chips under the composer
+// (md:order). No Beta. No Mercury. No Circle brand fill.
 export function AskGlobeeLanding({
   conversations = [],
 }: {
@@ -65,7 +67,7 @@ export function AskGlobeeLanding({
   return (
     <div
       data-ask-globee-landing=""
-      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center p-[var(--space-12)]"
+      className="relative flex min-h-[min(36rem,calc(100dvh-var(--header-height)-var(--content-inset)*2))] flex-col items-center p-[var(--space-12)] max-md:px-[var(--space-4)]"
     >
       <div className="absolute left-0 top-0">
         <AskGlobeeHistoryPopover
@@ -86,20 +88,20 @@ export function AskGlobeeLanding({
         </AskGlobeeHistoryPopover>
       </div>
 
-      <div className="flex w-full flex-1 flex-col items-center max-md:justify-between md:justify-center md:gap-[var(--space-12)]">
+      <div className="flex w-full flex-1 flex-col items-center max-md:justify-center max-md:gap-[var(--space-12)] md:justify-center md:gap-[var(--space-12)]">
         <div className="flex flex-col items-center gap-[var(--space-6)]">
           <h1 data-ask-globee-headline="" className="t-display text-center text-ink">
             {ASK_GLOBEE.headline}
           </h1>
-          <p data-ask-globee-need="" className="t-body text-center text-ink-2">
+          <p data-ask-globee-need="" className="t-body text-center text-ink-2 max-md:hidden">
             {ASK_GLOBEE.need}
           </p>
         </div>
 
-        <div className="flex w-full flex-col items-center max-md:gap-[var(--space-6)] md:contents">
+        <div className="flex w-full flex-col items-center max-md:gap-[var(--space-12)] md:contents">
           <div
             data-ask-globee-try=""
-            className="flex w-full max-w-[640px] flex-col items-center gap-[var(--space-3)] md:order-3"
+            className="flex w-full max-w-[640px] flex-col items-center gap-[var(--space-3)] max-md:gap-[var(--space-4)] md:order-3"
           >
             <p className="t-label text-ink-3">{ASK_GLOBEE.tryLabel}</p>
             <div className="flex flex-wrap justify-center gap-[var(--space-2)] max-md:w-full max-md:flex-col max-md:items-stretch">
@@ -120,7 +122,7 @@ export function AskGlobeeLanding({
                       void send(activation.send);
                     }}
                     className={cn(
-                      "inline-flex items-center gap-[var(--space-2)] rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink",
+                      "inline-flex items-center gap-[var(--space-2)] rounded-full border bg-surface px-[var(--space-4)] py-[var(--space-2)] t-body-sm text-ink max-md:border-0 max-md:bg-surface-muted",
                       pressed ? "border-ink bg-surface-muted" : "border-hairline",
                     )}
                   >
@@ -156,12 +158,21 @@ export function AskGlobeeLanding({
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder={ASK_GLOBEE.composerPlaceholder}
                 autoComplete="off"
-                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none max-md:hidden"
+              />
+              <input
+                type="text"
+                name="prompt"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder={ASK_GLOBEE.composerPlaceholderMobile}
+                autoComplete="off"
+                className="min-w-0 flex-1 bg-transparent t-body-sm text-ink placeholder:text-ink-3 focus:outline-none md:hidden"
               />
               <button
                 type="submit"
                 aria-label={ASK_GLOBEE.sendLabel}
-                className="flex size-4 shrink-0 items-center justify-center text-ink-3"
+                className="flex size-4 shrink-0 items-center justify-center text-ink-3 max-md:size-6 max-md:rounded-full max-md:bg-accent max-md:text-accent-contrast"
               >
                 <ArrowRight className="size-4" strokeWidth={1.33} />
               </button>
