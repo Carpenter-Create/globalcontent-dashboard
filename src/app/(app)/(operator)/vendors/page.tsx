@@ -36,10 +36,7 @@ export default async function GcVendorsPage() {
             <span className="flex size-12 items-center justify-center rounded-full bg-surface-muted text-ink-3">
               <Store className="size-6" strokeWidth={1.33} />
             </span>
-            <div className="flex flex-col gap-[var(--space-2)]">
-              <p className="t-body font-medium text-ink">{VENDORS_PAGE.emptyTitle}</p>
-              <p className="t-body-sm text-ink-3">{VENDORS_PAGE.emptySupport}</p>
-            </div>
+            <p className="t-body font-medium text-ink">{VENDORS_PAGE.emptyTitle}</p>
             <Link
               href={VENDORS_PAGE.addHref}
               data-vendors-add=""

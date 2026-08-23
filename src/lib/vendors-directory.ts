@@ -4,9 +4,8 @@
 
 export const VENDORS_PAGE = {
   title: "Vendors",
-  identity: "GC distribution partners. Portal credentials are never stored here.",
+  identity: "Credentials are never stored here.",
   emptyTitle: "No vendors yet",
-  emptySupport: "Add your first partner.",
   addVendor: "Add vendor",
   addHref: "/vendors/new",
 } as const;
