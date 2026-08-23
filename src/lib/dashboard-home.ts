@@ -1,13 +1,19 @@
 import { isJustIn } from "@/lib/releases";
 import { TITLE_STATUS_LABELS, type TitleStatus } from "@/lib/titles";
+import { TITLES_CATALOG } from "@/lib/titles-catalog";
 
 // Client `/` portfolio copy and snapshot derivation. Lives in lib/, not JSX.
 // Identity on `/` is the real org name only — no status, role, or term line.
 // Do not invent Access, upcoming, revenue, or a "stuck too long" metric.
+// Empty-catalog CTA is the existing Titles Add Title action — do not invent a
+// second control. Artwork-missing copy is a finding message, never invented here.
 
 export const DASHBOARD_HOME = {
-  justIn: "Just in",
+  justIn: "Recent",
   justInEmpty: "No titles added recently.",
+  catalogEmpty: "The catalog is empty.",
+  addTitle: TITLES_CATALOG.addTitle,
+  addTitleHref: "/titles",
   catalogHealthCta: "Catalog Health",
   catalog: "Catalog",
   needsAttention: "Needs attention",

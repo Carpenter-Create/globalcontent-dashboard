@@ -18,10 +18,11 @@ import { UNPAGINATED_MAX, rangeFor } from "@/lib/list-bounds";
 import { GcClientsDirectory } from "@/app/(app)/(operator)/gc/clients/clients-directory";
 
 // Client `/` is the organization-scoped portfolio: identity, three live numbers,
-// what to do next (findings + drafts), and what just arrived. No chart, no
-// revenue seam, no upcoming or platform-placement row. Catalog Health remains
-// the full findings surface — the blue pill is the one action. Staff without a
-// client org still see the GC-wide clients roster.
+// what to do next (findings + drafts), and Recent. No chart, no revenue seam, no
+// upcoming or platform-placement row. Catalog Health remains the full findings
+// surface — the blue pill is the one filled action. An empty catalog reuses the
+// existing Titles Add Title control as text, not a second button. Staff without
+// a client org still see the GC-wide clients roster.
 export default async function DashboardPage() {
   const supabase = await createClient();
   // Resolved once per request and shared with the layout above (React cache()).
@@ -77,7 +78,11 @@ export default async function DashboardPage() {
 
       <div className="flex flex-col gap-[var(--space-8)]">
         <DashboardDoNext items={snapshot.doNext} />
-        <DashboardJustIn titles={snapshot.justIn} />
+        <DashboardJustIn
+          titles={snapshot.justIn}
+          catalogEmpty={snapshot.catalog === 0}
+          canAddTitle={ctx.canOperate}
+        />
       </div>
     </div>
   );

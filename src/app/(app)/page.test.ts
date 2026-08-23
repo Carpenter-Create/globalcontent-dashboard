@@ -110,11 +110,18 @@ describe("DashboardPage modes", () => {
     expect(html).toContain('href="/catalog-health"');
     expect(html).toContain("h-9");
     expect(html).toContain("size-[14px]");
-    expect(html).toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html.split(DASHBOARD_HOME.catalogEmpty).length - 1).toBe(1);
+    expect(html).toContain(DASHBOARD_HOME.addTitle);
+    expect(html.split(DASHBOARD_HOME.addTitle).length - 1).toBe(1);
+    expect(html).toContain(`href="${DASHBOARD_HOME.addTitleHref}"`);
+    expect(html).toContain("data-dashboard-add-title");
+    expect(html).not.toContain("data-add-title");
+    expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain("Just in");
     expect(html).toContain(DASHBOARD_HOME.catalogHealthCta);
     expect(html).toContain("bg-accent");
     expect(html).toContain("text-accent-contrast");
-    expect(html).not.toContain("t-body-sm text-accent");
     expect(html).not.toContain(CLIENTS_PAGE.title);
     expect(html).not.toContain(CLIENTS_PAGE.subtitle);
     expect(html).not.toContain("lg:grid-cols-2");
@@ -149,6 +156,9 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain("t-subhead");
     expect(html).not.toContain("t-title");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
+    expect(html).not.toContain(DASHBOARD_HOME.addTitle);
     expect(html).not.toContain("t-body-sm text-accent");
     expect(html).toContain(TITLE_STATUS_LABELS.live);
     expect(html).toContain("data-dashboard-status-pill");
@@ -190,6 +200,9 @@ describe("DashboardPage modes", () => {
     expect(html).not.toContain("data-dashboard-home");
     expect(html).not.toContain("dashboard-home-pill");
     expect(html).not.toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
+    expect(html).not.toContain(DASHBOARD_HOME.addTitle);
     expect(html).not.toContain("data-dashboard-snapshot");
     expect(html).not.toContain(DASHBOARD_HOME.doNext);
   });
@@ -221,7 +234,7 @@ describe("DashboardPage modes", () => {
 describe("client home information model", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows three numbers, Do next, Just in, and no chart or revenue", async () => {
+  it("shows three numbers, Do next, Recent, and no chart or revenue", async () => {
     stubClient(
       [
         {
@@ -276,6 +289,9 @@ describe("client home information model", () => {
     expect(html).toContain("flex flex-col gap-[var(--space-6)]");
     expect(html).not.toContain("lg:grid-cols-2");
     expect(html).toContain(DASHBOARD_HOME.justIn);
+    expect(html).not.toContain("Just in");
+    expect(html).not.toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
     expect(html).not.toContain(`${ORG_STATUS_LABELS.active} · ${ORG_ROLE_LABELS.account_owner}`);
     expect(html).not.toContain(ORG_STATUS_LABELS.active);
     expect(html).not.toContain(ORG_ROLE_LABELS.account_owner);
@@ -338,5 +354,97 @@ describe("client home information model", () => {
     expect(html).toContain(TITLE_STATUS_LABELS.draft);
     expect(html).not.toMatch(/stuck/i);
     expect(html).not.toContain(DASHBOARD_ATTENTION_CLEAR);
+    expect(html).toContain(DASHBOARD_HOME.justInEmpty);
+    expect(html).not.toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
+  });
+});
+
+describe("client home copy lock", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("locks empty catalog copy to The catalog is empty. and the existing Add Title action", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+    const marker = html.indexOf('data-dashboard-add-title=""');
+    const addStart = html.lastIndexOf("<a", marker);
+    const addEnd = html.indexOf("</a>", marker);
+    const link = html.slice(addStart, addEnd);
+
+    expect(DASHBOARD_HOME.catalogEmpty).toBe("The catalog is empty.");
+    expect(DASHBOARD_HOME.addTitle).toBe("Add Title");
+    expect(html).toContain("The catalog is empty.");
+    expect(html.split("The catalog is empty.").length - 1).toBe(1);
+    expect(html.split("Add Title").length - 1).toBe(1);
+    expect(html).toContain('href="/titles"');
+    expect(link).toContain("data-dashboard-add-title");
+    expect(link).toContain("Add Title");
+    expect(link).toContain('href="/titles"');
+    expect(link).toContain("t-body-sm");
+    expect(link).toContain("text-accent");
+    expect(link).toContain("hover:underline");
+    expect(link).not.toContain("bg-accent");
+    expect(link).not.toContain("text-accent-contrast");
+    expect(link).not.toContain("data-add-title");
+    expect(html).not.toContain("data-add-title");
+    expect(html).not.toContain("No titles added recently.");
+    expect(html).not.toContain("No titles yet.");
+  });
+
+  it("labels the section Recent, not Just in", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(DASHBOARD_HOME.justIn).toBe("Recent");
+    expect(html).toContain(`t-label text-ink-3">${DASHBOARD_HOME.justIn}`);
+    expect(html).toContain(">Recent<");
+    expect(html).not.toContain("Just in");
+  });
+
+  it("keeps an Artwork missing finding on Do next and does not invent one", async () => {
+    stubClient(
+      [
+        {
+          id: "title-1",
+          title: "Winter Light",
+          status: "live",
+          created_at: new Date().toISOString(),
+        },
+      ],
+      [{ org_id: "org-1", entity_id: "title-1", message: "Artwork missing" }],
+    );
+    vi.mocked(getOrgContext).mockResolvedValue(
+      ctx({ isGcStaff: false, orgStatus: "active" }) as never,
+    );
+
+    const html = renderToStaticMarkup(await DashboardPage());
+    const rowStart = html.indexOf('data-dashboard-do-next-row="title-1"');
+    const row = html.slice(rowStart, html.indexOf("</li>", rowStart));
+
+    expect(row).toContain("Artwork missing");
+    expect(html.split("Artwork missing").length - 1).toBe(1);
+    expect(html).not.toContain("Metadata incomplete");
+  });
+
+  it("hides Add Title on an empty catalog when the viewer cannot operate", async () => {
+    stubClient();
+    vi.mocked(getOrgContext).mockResolvedValue({
+      ...ctx({ isGcStaff: false, orgStatus: "active" }),
+      canOperate: false,
+    } as never);
+
+    const html = renderToStaticMarkup(await DashboardPage());
+
+    expect(html).toContain(DASHBOARD_HOME.catalogEmpty);
+    expect(html).not.toContain("data-dashboard-add-title");
+    expect(html).not.toContain(DASHBOARD_HOME.addTitle);
   });
 });
