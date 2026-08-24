@@ -1,20 +1,21 @@
 // Account-menu copy and lock. Lives in lib/, not JSX.
 // One list for both instances: desktop panel and mobile sheet.
 // Chrome may differ (sheet vs fuller panel). Labels may not.
-// Profile is /account only. Company stays off this menu — do not merge
-// Company onto /account. Agreements is /account/agreements. Appearance
-// is a second face, not a page — do not invent /account/appearance.
-// Help and Refer are house empty pages. Legal is the public site.
-// Do not invent /account/profile, Phone, Job, Notifications, Privacy,
-// Manage account, or a name derived from the email local-part.
+// Profile is /settings#profile. Agreements is /settings#agreements.
+// Company stays off this menu — do not merge Company onto /settings.
+// Appearance is a second face, not a page — do not invent
+// /account/appearance or /settings#appearance. Help and Refer are
+// house empty pages. Legal is the public site. Do not invent
+// /account/profile, Phone, Job, Notifications, Privacy, Manage account,
+// or a name derived from the email local-part.
 
 import { version as APP_VERSION } from "../../package.json";
 
 export const USER_MENU = {
   profile: "Profile",
-  profileHref: "/account",
+  profileHref: "/settings#profile",
   agreements: "Agreements",
-  agreementsHref: "/account/agreements",
+  agreementsHref: "/settings#agreements",
   appearance: "Appearance",
   help: "Help",
   helpHref: "/help",

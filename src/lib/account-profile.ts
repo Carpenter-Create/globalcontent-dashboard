@@ -1,14 +1,14 @@
-// /account and /account/company copy + identity helpers. Copy lives here,
-// not in JSX. Name is user_metadata.display_name (already written at org
-// create). Email is auth.users — shown, not changed. Company name is
-// organizations.name.
+// /settings#profile and /account/company copy + identity helpers. Copy
+// lives here, not in JSX. Name is user_metadata.display_name (already
+// written at org create). Email is auth.users — shown, not changed.
+// Company name is organizations.name. Company stays off /settings.
 
 import { z } from "zod";
 
 import { USER_MENU, userMenuName } from "@/lib/user-menu";
 
-// /account page title stays User Profile. The Identity menu label is Profile.
-// Do not merge Company onto /account.
+// Settings section title is Profile. The Identity menu label is Profile.
+// Do not merge Company onto /settings.
 
 /** Conservative bound — same ceiling as other person/company name writes. */
 export const ACCOUNT_NAME_MAX = 200;
@@ -23,7 +23,7 @@ export const ACCOUNT_PHOTO_CIRCLE_CLASS =
   "size-12 shrink-0 overflow-hidden rounded-full bg-surface-muted";
 
 export const ACCOUNT_PROFILE = {
-  title: "User Profile",
+  title: "Profile",
   href: USER_MENU.profileHref,
   nameLabel: "Name",
   emailLabel: "Email",

@@ -92,7 +92,7 @@ describe("saveAccountName", () => {
       refreshSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     expect(updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ email: expect.anything() }));
-    expect(revalidatePath).toHaveBeenCalledWith("/account");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
@@ -155,7 +155,7 @@ describe("uploadAccountPhoto", () => {
     expect(userId).toBe(USER.id);
     expect(type).toBe("image/jpeg");
     expect(body).toBeInstanceOf(Uint8Array);
-    expect(revalidatePath).toHaveBeenCalledWith("/account");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
   });
 
   it("rejects a missing file, a gif, and an oversized file before S3", async () => {
