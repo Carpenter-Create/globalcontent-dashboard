@@ -70,8 +70,7 @@ describe("saveAccountName", () => {
     await expect(saveAccountName("  Ada Lovelace  ")).resolves.toEqual({});
     expect(updateUser).toHaveBeenCalledWith({ data: { display_name: "Ada Lovelace" } });
     expect(updateUser).toHaveBeenCalledTimes(1);
-    const payload = updateUser.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(payload).not.toHaveProperty("email");
+    expect(updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ email: expect.anything() }));
     expect(revalidatePath).toHaveBeenCalledWith("/account");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });

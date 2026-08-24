@@ -1,4 +1,3 @@
-import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,7 +43,7 @@ describe("CompanyProfilePage", () => {
 
   it("renders the existing organizations.name and a save control for the owner", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
-    const html = renderToStaticMarkup(createElement(await CompanyProfilePage()));
+    const html = renderToStaticMarkup(await CompanyProfilePage());
     expect(html).toContain(COMPANY_PROFILE.title);
     expect(html).toContain(COMPANY_PROFILE.nameLabel);
     expect(html).toContain("Acme Films");
@@ -54,7 +53,7 @@ describe("CompanyProfilePage", () => {
 
   it("is read-only for delivery_ops", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx({ role: "delivery_ops" }) as never);
-    const html = renderToStaticMarkup(createElement(await CompanyProfilePage()));
+    const html = renderToStaticMarkup(await CompanyProfilePage());
     expect(html).toContain("Acme Films");
     expect(html).toContain(COMPANY_PROFILE.forbidden);
     expect(html).not.toContain(`>${COMPANY_PROFILE.save}<`);

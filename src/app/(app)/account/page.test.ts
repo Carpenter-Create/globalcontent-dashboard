@@ -1,4 +1,3 @@
-import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,7 +32,7 @@ describe("AccountPage", () => {
 
   it("renders name and email from the session user — empty name stays empty", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx(null) as never);
-    const html = renderToStaticMarkup(createElement(await AccountPage()));
+    const html = renderToStaticMarkup(await AccountPage());
     expect(html).toContain(ACCOUNT_PROFILE.title);
     expect(html).toContain(ACCOUNT_PROFILE.nameLabel);
     expect(html).toContain(ACCOUNT_PROFILE.emailLabel);
@@ -48,14 +47,14 @@ describe("AccountPage", () => {
 
   it("fills a real display name when the session already has one", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx("Ada Lovelace") as never);
-    const html = renderToStaticMarkup(createElement(await AccountPage()));
+    const html = renderToStaticMarkup(await AccountPage());
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain("ada@example.com");
   });
 
   it("does not invent a name from the email local-part", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx(null, "jane.doe@studio.com") as never);
-    const html = renderToStaticMarkup(createElement(await AccountPage()));
+    const html = renderToStaticMarkup(await AccountPage());
     expect(html).toContain("jane.doe@studio.com");
     expect(html).not.toContain("Jane Doe");
     expect(html).not.toContain('value="jane.doe"');

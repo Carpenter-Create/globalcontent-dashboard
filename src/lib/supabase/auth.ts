@@ -9,7 +9,7 @@ export type AuthUser = {
   id: string;
   email: string;
   /** user_metadata.display_name when present. Never invented from email. */
-  name: string | null;
+  name?: string | null;
 };
 
 // Request-scoped authenticated identity.
