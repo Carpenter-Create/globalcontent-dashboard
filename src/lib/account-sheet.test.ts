@@ -28,10 +28,11 @@ describe("account sheet lock", () => {
   });
 
   it("wires only existing or founder-named account routes", () => {
+    expect(ACCOUNT_SHEET.companyHref).toBe("/account/company");
     expect(ACCOUNT_SHEET_ITEMS[0]).toEqual({
       kind: "companyProfile",
       label: "Company Profile",
-      href: null,
+      href: ACCOUNT_SHEET.companyHref,
     });
     expect(ACCOUNT_SHEET_ITEMS[1]).toEqual({
       kind: "agreements",
@@ -40,8 +41,8 @@ describe("account sheet lock", () => {
     });
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
     const hrefs = ACCOUNT_SHEET_ITEMS.flatMap((item) => (item.href ? [item.href] : []));
-    expect(hrefs).toEqual(["/account/agreements"]);
-    expect(hrefs.join(" ")).not.toMatch(/company|profile|settings|notifications/i);
+    expect(hrefs).toEqual(["/account/company", "/account/agreements"]);
+    expect(hrefs.join(" ")).not.toMatch(/settings|notifications/i);
   });
 
   it("does not dump the rail, theme, User Profile, or Adobe leftovers into the sheet", () => {

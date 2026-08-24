@@ -28,8 +28,12 @@ vi.mock("./side-nav", () => ({
   SideNav: () => createElement("nav", { "data-side-nav": "" }),
 }));
 vi.mock("./user-menu", () => ({
-  UserMenu: ({ email }: { email: string }) =>
-    createElement("div", { "data-user-menu-host": "", "data-email": email }),
+  UserMenu: ({ email, name }: { email: string; name?: string | null }) =>
+    createElement("div", {
+      "data-user-menu-host": "",
+      "data-email": email,
+      "data-name": name ?? "",
+    }),
 }));
 
 import { AppShell } from "./app-shell";
@@ -37,10 +41,11 @@ import type { MessagesSurface } from "@/lib/ask-globee";
 
 const shellSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"), "utf8");
 
-function renderShell(messagesSurface?: MessagesSurface): string {
+function renderShell(messagesSurface?: MessagesSurface, name?: string | null): string {
   return renderToStaticMarkup(
     <AppShell
       email="ada@example.com"
+      name={name}
       orgs={[{ id: "org-1", name: "Acme" }]}
       activeOrgId="org-1"
       messagesUnread={Promise.resolve(0)}
@@ -72,7 +77,9 @@ describe("AppShell header", () => {
     navigation.pathname = "/";
     const html = renderShell();
     expect(html).toContain('data-email="ada@example.com"');
-    expect(shellSrc).toContain("<UserMenu email={email} />");
+    expect(html).toContain('data-name=""');
+    expect(renderShell(undefined, "Ada Lovelace")).toContain('data-name="Ada Lovelace"');
+    expect(shellSrc).toContain("<UserMenu email={email} name={name} />");
     expect(shellSrc).toContain("Phone avatar opens 544:561");
     expect(shellSrc).toContain("<MobileNav isGcStaff={isGcStaff} />");
     expect(shellSrc).not.toContain("AccountOverlay");
@@ -82,7 +89,7 @@ describe("AppShell header", () => {
   it("is avatar-only on every Access route — no org switcher", () => {
     expect(shellSrc).not.toContain("OrganizationSwitcher");
     expect(shellSrc).toContain("justify-end");
-    expect(shellSrc).toContain("<UserMenu email={email} />");
+    expect(shellSrc).toContain("<UserMenu email={email} name={name} />");
 
     for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages"]) {
       navigation.pathname = path;

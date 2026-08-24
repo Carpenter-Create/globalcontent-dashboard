@@ -192,11 +192,11 @@ describe("AccountSheet 544:561", () => {
     expect(html).toContain('data-sheet-group-item="agreements"');
     expect(html).toContain('data-sheet-group-item="logOut"');
     expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
+    expect(html).toContain(`href="${ACCOUNT_SHEET.companyHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
-    expect(html).not.toContain('href="/account/company"');
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
-    expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBeNull();
+    expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBe(ACCOUNT_SHEET.companyHref);
     expect(src).toContain('from "@/app/actions"');
     expect(src).toContain("void signOut()");
     expect(logOutClass).toContain("text-[length:var(--text-base)]");

@@ -3,7 +3,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 
 import { createClient } from "./server";
-import { getAuthUser } from "./auth";
+import { getAuthUser, type AuthUser } from "./auth";
 import type { Database } from "./database.types";
 
 export type OrgRole = Database["public"]["Enums"]["org_role"];
@@ -11,7 +11,7 @@ export type OrgStatus = Database["public"]["Enums"]["org_status"];
 export type OrgRow = { id: string; name: string; status: OrgStatus };
 
 export type OrgContext = {
-  user: { id: string; email: string };
+  user: AuthUser;
   /** Active memberships with their org, RLS-scoped. */
   rows: { role: OrgRole; organizations: OrgRow }[];
   orgs: { id: string; name: string }[];

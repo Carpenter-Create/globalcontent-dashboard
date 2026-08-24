@@ -4,6 +4,7 @@
 // Options after the hairline: Manage account, Company Profile, Agreements,
 // then Log out. Destinations use existing routes only.
 
+import { COMPANY_PROFILE } from "@/lib/account-profile";
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
 export const ACCOUNT_SHEET = {
@@ -13,6 +14,7 @@ export const ACCOUNT_SHEET = {
   manageHref: "/account",
   group: "ACCOUNT",
   companyProfile: "Company Profile",
+  companyHref: COMPANY_PROFILE.href,
   agreements: "Agreements",
   logOut: USER_MENU.logOut,
 } as const;
@@ -37,10 +39,10 @@ export type AccountSheetItem = {
 };
 
 // Manage account opens /account (the user-profile door). No User Profile
-// row. Company Profile has no route in this repo. Agreements is the
-// existing page. Log out is the existing desktop signOut action.
+// row. Company Profile is /account/company. Agreements is the existing
+// page. Log out is the existing desktop signOut action.
 export const ACCOUNT_SHEET_ITEMS: readonly AccountSheetItem[] = [
-  { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: null },
+  { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: ACCOUNT_SHEET.companyHref },
   { kind: "agreements", label: ACCOUNT_SHEET.agreements, href: USER_MENU.agreementsHref },
 ];
 

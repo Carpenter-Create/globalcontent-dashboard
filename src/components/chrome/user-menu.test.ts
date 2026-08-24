@@ -96,6 +96,7 @@ describe("UserMenu identity source lock", () => {
       "utf8",
     );
     expect(layoutSrc).toContain("email={ctx.user.email}");
+    expect(layoutSrc).toContain("name={ctx.user.name}");
     expect(layoutSrc).not.toContain("display_name");
     expect(layoutSrc).not.toContain("user_metadata");
     expect(layoutSrc).not.toContain("full_name");

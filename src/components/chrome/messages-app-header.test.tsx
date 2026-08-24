@@ -204,7 +204,7 @@ describe("MessagesAppHeader", () => {
     expect(src).not.toContain("strokeWidth={2}");
     expect((src.match(/<MoreHorizontal/g) ?? []).length).toBe(1);
     expect(shell).not.toContain("MessagesThreadOverflow");
-    expect(shell).toContain("<UserMenu email={email} />");
+    expect(shell).toContain("<UserMenu email={email} name={name} />");
     expect(shell).toContain("justify-end gap-4");
     expect(shell).toContain("px-[var(--space-6)] md:px-[var(--content-inset)]");
     expect(shell).toContain("gap-3");
