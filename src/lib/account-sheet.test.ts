@@ -28,15 +28,15 @@ describe("account sheet lock", () => {
     ]);
   });
 
-  it("wires only existing account routes — Appearance is a door, not a toggle", () => {
+  it("wires only existing account routes — Appearance is a nested face, not a page", () => {
     const hrefs = ACCOUNT_SHEET_ITEMS.flatMap((item) => ("href" in item ? [item.href] : []));
     expect(hrefs).toEqual([
       USER_MENU.userProfileHref,
       USER_MENU.companyProfileHref,
       USER_MENU.agreementsHref,
-      USER_MENU.appearanceHref,
     ]);
-    expect(USER_MENU.appearanceHref).toBe("/account/appearance");
+    expect(USER_MENU).not.toHaveProperty("appearanceHref");
+    expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs.join(" ")).not.toMatch(/settings|notifications/i);
     expect(hrefs).not.toContain("/account/profile");
   });
@@ -90,6 +90,6 @@ describe("account sheet destination close", () => {
     expect(destinationClickClosesSheet("/", "/account")).toBe(false);
     expect(destinationClickClosesSheet("/account/agreements", "/account/agreements")).toBe(true);
     expect(destinationClickClosesSheet("/account", "/account/agreements")).toBe(false);
-    expect(destinationClickClosesSheet("/account/appearance", "/account/appearance")).toBe(true);
+    expect(destinationClickClosesSheet("/account/company", "/account/company")).toBe(true);
   });
 });

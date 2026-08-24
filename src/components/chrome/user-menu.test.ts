@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { signOut } from "@/app/actions";
+import { APPEARANCE } from "@/lib/appearance";
 import { onUserMenuLogOut, UserMenu, UserMenuIdentity } from "./user-menu";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -104,30 +105,35 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("renders the shared USER_MENU_ACTIONS list — Appearance is a door", () => {
+  it("renders the shared USER_MENU_ACTIONS list — Appearance opens the nested face", () => {
     expect(menuSrc).toContain("USER_MENU_ACTIONS.map");
     expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS.map");
     expect(menuSrc).toContain("data-user-menu-item={item.kind}");
     expect(menuSrc).toContain("item.href");
     expect(menuSrc).toContain("onUserMenuLogOut");
+    expect(menuSrc).toContain('onFace("appearance")');
+    expect(menuSrc).toContain("UserMenuDesktopContent");
     expect(menuSrc).not.toContain("onUserMenuAppearance");
     expect(menuSrc).not.toContain("toggleDocumentTheme");
     expect(menuSrc).not.toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("/account/appearance");
+    expect(menuSrc).not.toContain("type=\"radio\"");
+    expect(menuSrc).not.toContain("lucide-react");
     for (const absent of USER_MENU_ABSENT) {
       expect(menuSrc).not.toContain(absent);
     }
     expect(menuSrc).not.toContain("/account/profile");
     expect(menuSrc).not.toContain("/settings");
-    expect(menuSrc).not.toContain("lucide-react");
   });
 
-  it("keeps User Profile on /account and Appearance on /account/appearance", () => {
+  it("keeps User Profile on /account and Appearance off any page door", () => {
     expect(USER_MENU.userProfileHref).toBe("/account");
     expect(USER_MENU.userProfile).toBe("User Profile");
     expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
-    expect(USER_MENU.appearanceHref).toBe("/account/appearance");
+    expect(USER_MENU).not.toHaveProperty("appearanceHref");
     expect(USER_MENU.appearance).toBe("Appearance");
+    expect(APPEARANCE.back).toBe("Back to main menu");
   });
 });
 
@@ -143,10 +149,24 @@ describe("UserMenu actions", () => {
     expect(menuSrc).toContain('from "@/app/actions"');
   });
 
-  it("does not toggle theme from the menu row", () => {
-    expect(menuSrc).not.toContain("onUserMenuAppearance");
-    expect(menuSrc).not.toContain("applyDocumentThemePreference");
+  it("nests Light, Dark, Auto as the same rows — selected is a quiet check", () => {
+    expect(menuSrc).toContain('data-account-menu-face="appearance"');
+    expect(menuSrc).toContain("APPEARANCE.back");
+    expect(menuSrc).toContain("APPEARANCE_OPTIONS.map");
+    expect(menuSrc).toContain('data-user-menu-item="back"');
+    expect(menuSrc).toContain("AppearanceCheck");
+    expect(menuSrc).toContain("applyDocumentThemePreference");
+    expect(menuSrc).toContain("event.preventDefault()");
+    expect(menuSrc).toContain('if (!open) setFace("main")');
+    expect(menuSrc).toContain('onFace("appearance")');
+    expect(menuSrc).not.toContain('type="radio"');
+    expect(menuSrc).not.toContain("radiogroup");
     expect(menuSrc).not.toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("/account/appearance");
+    expect(APPEARANCE.back).toBe("Back to main menu");
+    expect(APPEARANCE.light).toBe("Light");
+    expect(APPEARANCE.dark).toBe("Dark");
+    expect(APPEARANCE.auto).toBe("Auto");
   });
 });
 

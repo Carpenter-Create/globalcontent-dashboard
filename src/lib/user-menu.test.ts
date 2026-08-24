@@ -27,11 +27,12 @@ describe("user menu lock", () => {
     ]);
   });
 
-  it("points each door at its existing route — Appearance is /account/appearance", () => {
+  it("points each door at its existing route — Appearance is not a page", () => {
     expect(USER_MENU.userProfileHref).toBe("/account");
     expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
-    expect(USER_MENU.appearanceHref).toBe("/account/appearance");
+    expect(USER_MENU).not.toHaveProperty("appearanceHref");
+    expect(USER_MENU.appearance).toBe("Appearance");
     expect(USER_MENU_ACTIONS[0]).toEqual({
       kind: "userProfile",
       label: "User Profile",
@@ -50,23 +51,18 @@ describe("user menu lock", () => {
     expect(USER_MENU_ACTIONS[3]).toEqual({
       kind: "appearance",
       label: "Appearance",
-      href: "/account/appearance",
     });
   });
 
-  it("does not invent /account/profile, Manage account, Notifications, Privacy, or Sign out", () => {
+  it("does not invent /account/appearance, /account/profile, Manage account, Notifications, Privacy, or Sign out", () => {
     const labels = USER_MENU_ACTIONS.map((item) => item.label);
     const hrefs = USER_MENU_ACTIONS.flatMap((item) => ("href" in item ? [item.href] : []));
     for (const absent of USER_MENU_ABSENT) {
       expect(labels).not.toContain(absent);
     }
     expect(labels).not.toContain("Profile");
-    expect(hrefs).toEqual([
-      "/account",
-      "/account/company",
-      "/account/agreements",
-      "/account/appearance",
-    ]);
+    expect(hrefs).toEqual(["/account", "/account/company", "/account/agreements"]);
+    expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs).not.toContain("/account/profile");
     expect(hrefs.join(" ")).not.toMatch(/notifications|privacy|settings/i);
   });
