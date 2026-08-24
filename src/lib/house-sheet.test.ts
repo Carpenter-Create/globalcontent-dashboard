@@ -61,8 +61,10 @@ describe("house sheet lock", () => {
     expect(IDENTITY_BLOCK_CLASS).not.toContain("rounded-[");
     expect(IDENTITY_NAME_CLASS).toContain("t-body");
     expect(IDENTITY_NAME_CLASS).toContain("text-ink");
+    expect(IDENTITY_NAME_CLASS).not.toContain("truncate");
     expect(IDENTITY_EMAIL_CLASS).toContain("t-body-sm");
     expect(IDENTITY_EMAIL_CLASS).toContain("text-ink-3");
+    expect(IDENTITY_EMAIL_CLASS).not.toContain("truncate");
   });
 
   it("keeps Group on 12 tracked ACCOUNT rows and 15 Regular items", () => {

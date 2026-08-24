@@ -145,6 +145,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
     expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
+    expect(surfaceClass).not.toContain("w-[264px]");
     expect(surfaceClass).not.toContain("w-[277px]");
     expect(surfaceClass).not.toContain("h-auto");
     expect(surfaceClass).not.toContain("top-[var(--header-height)]");
@@ -186,9 +187,12 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(accent).toContain("left-0");
     expect(accent).toContain("bg-accent");
     expect(accent).not.toContain("#1769");
-    expect(dropdownSurface).toContain("p-[var(--space-6)]");
+    expect(dropdownSurface).toContain("px-[var(--space-4)]");
+    expect(dropdownSurface).toContain("pb-[var(--space-4)]");
+    expect(dropdownSurface).toContain("pt-[calc(4px+var(--space-6))]");
     expect(dropdownSurface).not.toContain("pt-[calc(4px+var(--space-8))]");
     expect(dropdownSurface).not.toContain("pb-[var(--space-8)]");
+    expect(dropdownSurface.split(" ")).not.toContain("p-[var(--space-6)]");
   });
 
   it("puts Identity and Close/44 on one top row, centers aligned", () => {
@@ -476,16 +480,64 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(dismissClass).not.toContain(APP_SHEET_SCRIM_FADE_CLASS);
     expect(surfaceClass).toBe(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS);
     expect(surfaceClass).toContain("h-auto");
-    expect(surfaceClass).toContain("w-[277px]");
+    expect(surfaceClass).toContain("w-[264px]");
     expect(surfaceClass).toContain("rounded-[12px]");
+    expect(surfaceClass).toContain("px-[var(--space-4)]");
+    expect(surfaceClass).toContain("pb-[var(--space-4)]");
+    expect(surfaceClass).toContain("pt-[calc(4px+var(--space-6))]");
+    expect(surfaceClass).toContain("gap-[var(--space-4)]");
+    expect(surfaceClass).toContain("overflow-hidden");
     expect(surfaceClass).toContain("top-[calc(var(--header-height)+var(--space-2))]");
     expect(surfaceClass).toContain("right-[var(--content-inset)]");
+    expect(surfaceClass).not.toContain("w-[277px]");
     expect(surfaceClass).not.toContain("h-[90dvh]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain(APP_SHEET_RISE_CLASS);
     expect(scrollClass).toBe(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS);
     expect(src).toContain("useAccountMenuDismiss(onClose, false)");
     expect(src).not.toContain("md:w-[390px]");
+    expect(tokens).toMatch(/--space-4:\s*1rem/);
+    expect(tokens).toMatch(/--space-6:\s*1\.5rem/);
+    expect(tokens).toContain("--accent: #1769ff;");
+  });
+
+  it("kills Close, stacks live identity, and never ellipsizes name or email", () => {
+    const html = renderDropdown("ada@example.com", "Ada Lovelace");
+    const long = renderDropdown(
+      "very.long.local-part@studio.example.com",
+      "Ada King-Noel Lovelace Byron",
+    );
+    const head = html.slice(
+      html.indexOf("data-account-sheet-head"),
+      html.indexOf("data-account-sheet-rule"),
+    );
+    const identityClass = attrClass(html, "data-identity-block");
+    const nameClass = attrClass(html, "data-identity-name");
+    const emailClass = attrClass(html, "data-identity-email");
+    const avatarClass = attrClass(html, "data-identity-avatar");
+
+    expect(html).not.toContain("data-account-sheet-close");
+    expect(head).not.toContain("Close account");
+    expect(head).toContain("data-identity-block");
+    expect(head).toContain("Ada Lovelace");
+    expect(head).toContain("ada@example.com");
+    expect(identityClass).toContain("flex-col");
+    expect(identityClass).toContain("items-start");
+    expect(identityClass).not.toContain("truncate");
+    expect(nameClass).not.toContain("truncate");
+    expect(nameClass).not.toContain("ellipsis");
+    expect(emailClass).not.toContain("truncate");
+    expect(emailClass).not.toContain("ellipsis");
+    expect(avatarClass).toContain("size-12");
+    expect(html).not.toContain("Adam Carpenter");
+    expect(html).not.toContain("admin@ccbfg.com");
+    expect(long).toContain("Ada King-Noel Lovelace Byron");
+    expect(long).toContain("very.long.local-part@studio.example.com");
+    expect(long).not.toContain("…");
+    expect(long).not.toContain("&hellip;");
+    expect(src).toContain("open ? closeMenu : openMenu");
+    expect(src).toContain('variant="dropdown"');
+    expect(src).toContain('variant="sheet"');
   });
 
   it("keeps the same SSOT items, Sporty Blue Log out, and pinned 13/16 footer", () => {
@@ -534,6 +586,7 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(accent).toContain("bg-accent");
     expect(accent).not.toContain("#1769");
     expect(appearance).not.toContain("data-menu-surface-accent");
+    expect(appearance).not.toContain("data-account-sheet-close");
   });
 
   it("opens from the desktop avatar and does not reuse the 90% sheet", () => {
