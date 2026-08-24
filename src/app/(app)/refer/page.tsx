@@ -1,13 +1,8 @@
-import { PageHeader } from "@/components/ui/page-header";
-import { HouseEmpty } from "@/components/chrome/house";
+import { redirect } from "next/navigation";
+
 import { REFER } from "@/lib/refer";
 
-// House empty. Door only — do not invent a referral product.
+// Old door. Refer a friend now lives on /settings/refer as a house empty.
 export default function ReferPage() {
-  return (
-    <>
-      <PageHeader title={REFER.title} />
-      <HouseEmpty>{REFER.empty}</HouseEmpty>
-    </>
-  );
+  redirect(REFER.href);
 }

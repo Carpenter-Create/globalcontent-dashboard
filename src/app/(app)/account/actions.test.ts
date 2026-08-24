@@ -93,6 +93,7 @@ describe("saveAccountName", () => {
     );
     expect(updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ email: expect.anything() }));
     expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
@@ -156,6 +157,7 @@ describe("uploadAccountPhoto", () => {
     expect(type).toBe("image/jpeg");
     expect(body).toBeInstanceOf(Uint8Array);
     expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
   });
 
   it("rejects a missing file, a gif, and an oversized file before S3", async () => {

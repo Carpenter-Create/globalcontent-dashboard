@@ -1,7 +1,8 @@
-import { SETTINGS } from "@/lib/settings";
-import { HashRedirect } from "@/components/chrome/hash-redirect";
+import { redirect } from "next/navigation";
 
-// Old door. Agreements now lives on /settings#agreements as a house empty.
+import { SETTINGS } from "@/lib/settings";
+
+// Old door. Agreements now lives on /settings/agreements as a house empty.
 export default function AccountAgreementsPage() {
-  return <HashRedirect href={SETTINGS.agreementsHref} />;
+  redirect(SETTINGS.agreementsHref);
 }

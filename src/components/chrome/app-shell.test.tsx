@@ -263,6 +263,7 @@ describe("AppShell /settings rail", () => {
     expect(html).toContain("Dashboard");
     expect(html).toContain("Profile");
     expect(html).toContain("Agreements");
+    expect(html).toContain("Refer a friend");
     expect(html).not.toContain("data-side-nav");
     expect(html).not.toContain("Titles");
     expect(html).not.toContain("Deliveries");
@@ -286,7 +287,7 @@ describe("AppShell /settings rail", () => {
   });
 
   it("keeps the Access rail on neighboring routes", () => {
-    for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages"]) {
+    for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages", "/help"]) {
       navigation.pathname = path;
       const html = renderShell();
       expect(html).toContain("data-side-nav");
@@ -294,6 +295,19 @@ describe("AppShell /settings rail", () => {
       expect(html).not.toContain("data-settings-rail-nav");
       expect(html).toContain("data-mobile-nav-trigger");
       expect(html).toContain("Collapse sidebar");
+    }
+  });
+
+  it("keeps the focused 220 rail on every /settings path", () => {
+    for (const path of ["/settings/profile", "/settings/agreements", "/settings/refer"]) {
+      navigation.pathname = path;
+      const html = renderShell();
+      expect(html).toContain('data-settings-rail=""');
+      expect(html).toContain("data-settings-rail-nav");
+      expect(html).toContain("Refer a friend");
+      expect(html).not.toContain("data-side-nav");
+      expect(html).not.toContain("data-mobile-nav-trigger");
+      expect(html).not.toContain("Collapse sidebar");
     }
   });
 });

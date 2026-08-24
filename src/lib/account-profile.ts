@@ -1,4 +1,4 @@
-// /settings#profile and /account/company copy + identity helpers. Copy
+// /settings/profile and /account/company copy + identity helpers. Copy
 // lives here, not in JSX. Name is user_metadata.display_name (already
 // written at org create). Email is auth.users — shown, not changed.
 // Company name is organizations.name. Company stays off /settings.

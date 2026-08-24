@@ -31,12 +31,13 @@ export async function saveAccountName(name: unknown): Promise<{ error?: string }
 
   // updateUser writes user_metadata but leaves the access-token JWT as a
   // snapshot. getAuthUser reads display_name from getClaims(), so
-  // /settings#profile and the account-sheet Identity stay empty until
+  // /settings/profile and the account-sheet Identity stay empty until
   // this refresh.
   const { error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError) return { error: refreshError.message || ACCOUNT_PROFILE.saveFailed };
 
   revalidatePath("/settings");
+  revalidatePath("/settings/profile");
   revalidatePath("/");
   return {};
 }
@@ -62,6 +63,7 @@ export async function uploadAccountPhoto(formData: FormData): Promise<{ error?: 
   }
 
   revalidatePath("/settings");
+  revalidatePath("/settings/profile");
   revalidatePath("/");
   return {};
 }

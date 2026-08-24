@@ -19,7 +19,7 @@ import { accountSheetIdentity } from "./account-sheet";
 const here = dirname(fileURLToPath(import.meta.url));
 const actionSrc = readFileSync(join(here, "../app/(app)/account/actions.ts"), "utf8");
 const authSrc = readFileSync(join(here, "./supabase/auth.ts"), "utf8");
-const pageSrc = readFileSync(join(here, "../app/(app)/settings/page.tsx"), "utf8");
+const pageSrc = readFileSync(join(here, "../app/(app)/settings/profile/page.tsx"), "utf8");
 const layoutSrc = readFileSync(join(here, "../app/(app)/layout.tsx"), "utf8");
 const formSrc = readFileSync(join(here, "../app/(app)/account/account-profile-form.tsx"), "utf8");
 const companyFormSrc = readFileSync(
@@ -32,7 +32,7 @@ const globalsSrc = readFileSync(join(here, "../app/globals.css"), "utf8");
 describe("account profile copy", () => {
   it("keeps Profile and Company Profile titles, no banned voice", () => {
     expect(ACCOUNT_PROFILE.title).toBe("Profile");
-    expect(ACCOUNT_PROFILE.href).toBe("/settings#profile");
+    expect(ACCOUNT_PROFILE.href).toBe("/settings/profile");
     expect(ACCOUNT_PROFILE.href).not.toBe("/account/profile");
     expect(COMPANY_PROFILE.title).toBe("Company Profile");
     expect(COMPANY_PROFILE.href).toBe("/account/company");
@@ -136,7 +136,7 @@ describe("account name persist read-after-write", () => {
 });
 
 describe("account field 16px lock", () => {
-  it("locks /settings#profile and /account/company inputs at 16px and leaves dashboard Input on t-body", () => {
+  it("locks /settings/profile and /account/company inputs at 16px and leaves dashboard Input on t-body", () => {
     expect(ACCOUNT_FIELD_CLASS).toContain("16px");
     expect(globalsSrc).toMatch(/\.t-body\s*\{[\s\S]*?font-size:\s*var\(--text-base\)/);
     expect(inputSrc).toContain("t-body");
