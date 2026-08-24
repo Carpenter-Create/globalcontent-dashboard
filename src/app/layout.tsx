@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 
+import { ThemeSync } from "@/components/theme-toggle";
+import { NO_FLASH_THEME_SCRIPT } from "@/lib/theme";
+
 export const metadata: Metadata = {
   title: "Global Content",
   description: "Global Content dashboard.",
 };
 
 // Applied before paint to prevent a flash. Light is the guaranteed default;
-// dark is purely opt-in (we intentionally do NOT auto-adopt the OS preference).
-const NO_FLASH_THEME = `(function(){try{if(localStorage.getItem('gc-theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+// dark and Auto are explicit gc-theme choices. Auto is never implied.
 
 export default function RootLayout({
   children,
@@ -20,9 +22,12 @@ export default function RootLayout({
       className={`${GeistSans.variable} h-full`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME_SCRIPT }} />
       </head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <ThemeSync />
+        {children}
+      </body>
     </html>
   );
 }

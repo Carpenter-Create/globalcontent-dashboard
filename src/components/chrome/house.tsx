@@ -85,14 +85,16 @@ export function SheetGroup({
   label,
   children,
 }: {
-  label: string;
+  label?: string;
   children: ReactNode;
 }) {
   return (
     <div data-sheet-group="" className={SHEET_GROUP_CLASS}>
-      <p data-sheet-group-label="" className={SHEET_GROUP_LABEL_CLASS}>
-        {label}
-      </p>
+      {label ? (
+        <p data-sheet-group-label="" className={SHEET_GROUP_LABEL_CLASS}>
+          {label}
+        </p>
+      ) : null}
       {children}
     </div>
   );

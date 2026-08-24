@@ -5,12 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 
 import { signOut } from "@/app/actions";
-import {
-  ACCOUNT_SHEET,
-  ACCOUNT_SHEET_ITEMS,
-  accountSheetIdentity,
-  destinationClickClosesSheet,
-} from "@/lib/account-sheet";
+import { ACCOUNT_SHEET, ACCOUNT_SHEET_ITEMS, accountSheetIdentity, destinationClickClosesSheet } from "@/lib/account-sheet";
 import { APP_SHEET_SCRIM_CLASS } from "@/lib/house-sheet";
 import { userMenuAvatarInitial } from "@/lib/user-menu";
 import {
@@ -25,8 +20,8 @@ import {
 
 // Phone 544:561 — avatar opens this sheet. Hamburger stays the nav sheet.
 // Same app-sheet chrome as nav (543:576), account body. Quiet scrim; page stays under.
-// Identity (avatar, name, email) — hairline — Manage account, Company Profile,
-// Agreements — then Log out via the existing desktop signOut action.
+// Identity (avatar, name, email) — hairline — USER_MENU_ACTIONS. Appearance
+// is a door to /account/appearance, not an inline toggle.
 export function MobileAccountMenu({
   email,
   name,
@@ -117,37 +112,35 @@ export function AccountSheet({
           email={identity.email}
         />
         <AppSheetHairline data-account-sheet-rule="" />
-        <SheetGroup label={ACCOUNT_SHEET.group}>
-          <SheetGroupItem
-            item="manage"
-            href={ACCOUNT_SHEET.manageHref}
-            onClick={
-              destinationClickClosesSheet(pathname, ACCOUNT_SHEET.manageHref) ? onClose : undefined
+        <SheetGroup>
+          {ACCOUNT_SHEET_ITEMS.map((item) => {
+            if (item.kind === "logOut") {
+              return (
+                <SheetGroupItem
+                  key={item.kind}
+                  item={item.kind}
+                  onClick={() => {
+                    onClose();
+                    void signOut();
+                  }}
+                >
+                  {item.label}
+                </SheetGroupItem>
+              );
             }
-          >
-            {ACCOUNT_SHEET.manage}
-          </SheetGroupItem>
-          {ACCOUNT_SHEET_ITEMS.map((item) => (
-            <SheetGroupItem
-              key={item.kind}
-              item={item.kind}
-              href={item.href}
-              onClick={
-                item.href && destinationClickClosesSheet(pathname, item.href) ? onClose : undefined
-              }
-            >
-              {item.label}
-            </SheetGroupItem>
-          ))}
-          <SheetGroupItem
-            item="logOut"
-            onClick={() => {
-              onClose();
-              void signOut();
-            }}
-          >
-            {ACCOUNT_SHEET.logOut}
-          </SheetGroupItem>
+            return (
+              <SheetGroupItem
+                key={item.kind}
+                item={item.kind}
+                href={item.href}
+                onClick={
+                  destinationClickClosesSheet(pathname, item.href) ? onClose : undefined
+                }
+              >
+                {item.label}
+              </SheetGroupItem>
+            );
+          })}
         </SheetGroup>
       </AppSheetSurface>
     </div>

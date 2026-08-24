@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { USER_MENU } from "@/lib/user-menu";
+import { USER_MENU, USER_MENU_ACTIONS } from "@/lib/user-menu";
 import {
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
@@ -10,50 +10,42 @@ import {
 } from "./account-sheet";
 
 describe("account sheet lock", () => {
-  it("keeps Manage account on /account and ACCOUNT items in Figma order", () => {
-    expect(ACCOUNT_SHEET.manage).toBe("Manage account");
-    expect(ACCOUNT_SHEET.manageHref).toBe("/account");
-    expect(ACCOUNT_SHEET.manageHref).toBe(USER_MENU.userProfileHref);
-    expect(ACCOUNT_SHEET.companyHref).toBe(USER_MENU.companyProfileHref);
-    expect(ACCOUNT_SHEET.manageHref).not.toBe("/account/profile");
-    expect(ACCOUNT_SHEET.group).toBe("ACCOUNT");
+  it("uses the same USER_MENU_ACTIONS list as the desktop menu", () => {
+    expect(ACCOUNT_SHEET_ITEMS).toBe(USER_MENU_ACTIONS);
     expect(ACCOUNT_SHEET_ITEMS.map((item) => item.kind)).toEqual([
+      "userProfile",
       "companyProfile",
       "agreements",
+      "appearance",
+      "logOut",
     ]);
     expect(ACCOUNT_SHEET_ITEMS.map((item) => item.label)).toEqual([
+      "User Profile",
       "Company Profile",
       "Agreements",
+      "Appearance",
+      "Log out",
     ]);
-    expect(ACCOUNT_SHEET_ITEMS.map((item) => item.kind)).not.toContain("userProfile");
-    expect(ACCOUNT_SHEET.logOut).toBe("Log out");
-    expect(ACCOUNT_SHEET.logOut).toBe(USER_MENU.logOut);
   });
 
-  it("wires only existing or founder-named account routes", () => {
-    expect(ACCOUNT_SHEET.companyHref).toBe("/account/company");
-    expect(ACCOUNT_SHEET_ITEMS[0]).toEqual({
-      kind: "companyProfile",
-      label: "Company Profile",
-      href: ACCOUNT_SHEET.companyHref,
-    });
-    expect(ACCOUNT_SHEET_ITEMS[1]).toEqual({
-      kind: "agreements",
-      label: "Agreements",
-      href: USER_MENU.agreementsHref,
-    });
-    expect(USER_MENU.agreementsHref).toBe("/account/agreements");
-    const hrefs = ACCOUNT_SHEET_ITEMS.flatMap((item) => (item.href ? [item.href] : []));
-    expect(hrefs).toEqual(["/account/company", "/account/agreements"]);
+  it("wires only existing account routes — Appearance is a door, not a toggle", () => {
+    const hrefs = ACCOUNT_SHEET_ITEMS.flatMap((item) => ("href" in item ? [item.href] : []));
+    expect(hrefs).toEqual([
+      USER_MENU.userProfileHref,
+      USER_MENU.companyProfileHref,
+      USER_MENU.agreementsHref,
+      USER_MENU.appearanceHref,
+    ]);
+    expect(USER_MENU.appearanceHref).toBe("/account/appearance");
     expect(hrefs.join(" ")).not.toMatch(/settings|notifications/i);
+    expect(hrefs).not.toContain("/account/profile");
   });
 
-  it("does not dump the rail, theme, User Profile, or Adobe leftovers into the sheet", () => {
-    const labels = [
-      ACCOUNT_SHEET.manage,
-      ACCOUNT_SHEET.group,
-      ...ACCOUNT_SHEET_ITEMS.map((item) => item.label),
-    ];
+  it("does not dump the rail, Manage account, ACCOUNT, or Adobe leftovers into the sheet", () => {
+    const labels = ACCOUNT_SHEET_ITEMS.map((item) => item.label);
+    expect(labels).not.toContain("Manage account");
+    expect(ACCOUNT_SHEET).not.toHaveProperty("manage");
+    expect(ACCOUNT_SHEET).not.toHaveProperty("group");
     for (const absent of ACCOUNT_SHEET_ABSENT) {
       expect(labels).not.toContain(absent);
     }
@@ -98,5 +90,6 @@ describe("account sheet destination close", () => {
     expect(destinationClickClosesSheet("/", "/account")).toBe(false);
     expect(destinationClickClosesSheet("/account/agreements", "/account/agreements")).toBe(true);
     expect(destinationClickClosesSheet("/account", "/account/agreements")).toBe(false);
+    expect(destinationClickClosesSheet("/account/appearance", "/account/appearance")).toBe(true);
   });
 });

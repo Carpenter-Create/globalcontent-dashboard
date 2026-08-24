@@ -47,18 +47,16 @@ describe("shared menu surface instances", () => {
 
   it("keeps profile contents on the surface and off the thread menu", () => {
     expect(userMenuSrc).toContain("UserMenuIdentity");
-    expect(userMenuSrc).toContain("USER_MENU.agreements");
-    expect(userMenuSrc).toContain("USER_MENU.appearance");
-    expect(userMenuSrc).toContain("USER_MENU.logOut");
+    expect(userMenuSrc).toContain("USER_MENU_ACTIONS");
+    expect(userMenuSrc).toContain("onUserMenuLogOut");
     expect(headerSrc).toContain("ASK_GLOBEE.downloadPdfLabel");
     expect(headerSrc).toContain("ASK_GLOBEE.renameLabel");
     expect(headerSrc).toContain("ASK_GLOBEE.pinLabel");
     expect(headerSrc).toContain("ASK_GLOBEE.deleteLabel");
     expect(headerSrc).not.toContain("UserMenuIdentity");
     expect(headerSrc).not.toContain("data-user-menu-identity");
-    expect(headerSrc).not.toContain("USER_MENU.agreements");
-    expect(headerSrc).not.toContain("USER_MENU.appearance");
-    expect(headerSrc).not.toContain("USER_MENU.logOut");
+    expect(headerSrc).not.toContain("USER_MENU_ACTIONS");
+    expect(headerSrc).not.toContain("onUserMenuLogOut");
     expect(headerSrc).not.toContain(USER_MENU.agreements);
     expect(headerSrc).not.toContain(USER_MENU.appearance);
     expect(headerSrc).not.toContain(USER_MENU.logOut);
@@ -77,10 +75,10 @@ describe("shared menu surface instances", () => {
     expect(hairline).toBeGreaterThan(pin);
     expect(del).toBeGreaterThan(hairline);
 
-    const appearance = userMenuSrc.indexOf('data-user-menu-item="appearance"');
+    const actions = userMenuSrc.indexOf("USER_MENU_ACTIONS.map");
     const logoutRule = userMenuSrc.indexOf('data-user-menu-logout-hairline=""');
-    const logOut = userMenuSrc.indexOf('data-user-menu-item="logOut"');
-    expect(logoutRule).toBeGreaterThan(appearance);
+    const logOut = userMenuSrc.indexOf("onSelect={() => onUserMenuLogOut()}");
+    expect(logoutRule).toBeGreaterThan(actions);
     expect(logOut).toBeGreaterThan(logoutRule);
   });
 });

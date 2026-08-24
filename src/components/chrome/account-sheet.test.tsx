@@ -134,7 +134,7 @@ describe("AccountSheet 544:561", () => {
       html.indexOf("data-identity-block"),
       html.indexOf("data-account-sheet-rule"),
     );
-    const manageClass = attrClass(html, 'data-sheet-group-item="manage"');
+    const userProfileClass = attrClass(html, 'data-sheet-group-item="userProfile"');
     const nameClass = attrClass(html, "data-identity-name");
     const emailClass = attrClass(html, "data-identity-email");
 
@@ -145,19 +145,19 @@ describe("AccountSheet 544:561", () => {
     expect(identity).not.toContain("—");
     expect(identity).toContain("ada@example.com");
     expect(identity).not.toContain("Ada Lovelace");
-    expect(identity).not.toContain(ACCOUNT_SHEET.manage);
+    expect(identity).not.toContain("Manage account");
     expect(nameClass).toContain("t-body");
     expect(nameClass).toContain("text-ink");
     expect(nameClass).not.toContain("text-accent");
     expect(emailClass).toContain("t-body-sm");
     expect(emailClass).toContain("text-ink-3");
-    expect(html).toContain(ACCOUNT_SHEET.manage);
-    expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
-    expect(manageClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(html).toContain(USER_MENU.userProfile);
+    expect(html).toContain(`href="${USER_MENU.userProfileHref}"`);
+    expect(userProfileClass).toBe(SHEET_GROUP_ITEM_CLASS);
     expect(src).toContain("<IdentityBlock");
     expect(src).not.toContain("TextAction");
     expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-account-sheet-rule"));
-    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf('data-sheet-group-item="manage"'));
+    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf('data-sheet-group-item="userProfile"'));
     expect(html).toContain("data-account-sheet-rule");
     expect(attrClass(html, "data-account-sheet-rule")).toContain("bg-hairline");
   });
@@ -178,46 +178,49 @@ describe("AccountSheet 544:561", () => {
     expect(html).toContain("data-identity-name");
   });
 
-  it("lists Manage account, Company Profile, Agreements, then Log out — no User Profile row", () => {
+  it("lists User Profile, Company Profile, Agreements, Appearance, then Log out", () => {
     const html = renderSheet();
     const group = html.slice(html.indexOf("data-sheet-group"));
-    const manageClass = attrClass(html, 'data-sheet-group-item="manage"');
+    const userProfileClass = attrClass(html, 'data-sheet-group-item="userProfile"');
     const companyClass = attrClass(html, 'data-sheet-group-item="companyProfile"');
     const agreementsClass = attrClass(html, 'data-sheet-group-item="agreements"');
+    const appearanceClass = attrClass(html, 'data-sheet-group-item="appearance"');
     const logOutClass = attrClass(html, 'data-sheet-group-item="logOut"');
 
-    expect(html).toContain(ACCOUNT_SHEET.group);
-    expect(attrClass(html, "data-sheet-group-label")).toContain("tracking-[0.08em]");
-    expect(attrClass(html, "data-sheet-group-label")).toContain("uppercase");
-    expect(group.indexOf("Manage account")).toBeLessThan(group.indexOf("Company Profile"));
+    expect(html).not.toContain("Manage account");
+    expect(html).not.toContain("data-sheet-group-label");
+    expect(html).not.toContain(">ACCOUNT<");
+    expect(group.indexOf("User Profile")).toBeLessThan(group.indexOf("Company Profile"));
     expect(group.indexOf("Company Profile")).toBeLessThan(group.indexOf("Agreements"));
-    expect(group.indexOf("Agreements")).toBeLessThan(group.indexOf("Log out"));
-    expect(html).not.toContain("User Profile");
-    expect(html).toContain('data-sheet-group-item="manage"');
+    expect(group.indexOf("Agreements")).toBeLessThan(group.indexOf("Appearance"));
+    expect(group.indexOf("Appearance")).toBeLessThan(group.indexOf("Log out"));
+    expect(html).toContain('data-sheet-group-item="userProfile"');
     expect(html).toContain('data-sheet-group-item="companyProfile"');
     expect(html).toContain('data-sheet-group-item="agreements"');
+    expect(html).toContain('data-sheet-group-item="appearance"');
     expect(html).toContain('data-sheet-group-item="logOut"');
-    expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
-    expect(html).toContain(`href="${ACCOUNT_SHEET.companyHref}"`);
+    expect(html).toContain(`href="${USER_MENU.userProfileHref}"`);
+    expect(html).toContain(`href="${USER_MENU.companyProfileHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
+    expect(html).toContain(`href="${USER_MENU.appearanceHref}"`);
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
-    expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBe(ACCOUNT_SHEET.companyHref);
+    expect(ACCOUNT_SHEET_ITEMS).toBeDefined();
     expect(src).toContain('from "@/app/actions"');
     expect(src).toContain("void signOut()");
-    expect(src).toContain('item="manage"');
     expect(src).toContain("<SheetGroupItem");
     expect(src).not.toContain("TextAction");
     expect(src).not.toContain("data-account-sheet-manage");
-    expect(manageClass).toBe(companyClass);
-    expect(manageClass).toBe(agreementsClass);
-    expect(manageClass).toBe(logOutClass);
-    expect(manageClass).toBe(SHEET_GROUP_ITEM_CLASS);
-    expect(manageClass).toContain("text-[length:var(--text-base)]");
-    expect(manageClass).toContain("font-normal");
-    expect(manageClass).toContain("text-ink");
-    expect(manageClass).not.toContain("t-body-sm");
-    expect(manageClass).not.toContain("text-accent");
+    expect(userProfileClass).toBe(companyClass);
+    expect(userProfileClass).toBe(agreementsClass);
+    expect(userProfileClass).toBe(appearanceClass);
+    expect(userProfileClass).toBe(logOutClass);
+    expect(userProfileClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(userProfileClass).toContain("text-[length:var(--text-base)]");
+    expect(userProfileClass).toContain("font-normal");
+    expect(userProfileClass).toContain("text-ink");
+    expect(userProfileClass).not.toContain("t-body-sm");
+    expect(userProfileClass).not.toContain("text-accent");
     expect(logOutClass).toContain("text-[length:var(--text-base)]");
     expect(logOutClass).toContain("font-normal");
     expect(logOutClass).toContain("text-ink");

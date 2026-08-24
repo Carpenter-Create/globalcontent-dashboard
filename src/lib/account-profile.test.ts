@@ -14,7 +14,7 @@ import {
   companySaveSchema,
 } from "./account-profile";
 import { USER_MENU, userMenuName } from "./user-menu";
-import { ACCOUNT_SHEET, accountSheetIdentity } from "./account-sheet";
+import { accountSheetIdentity } from "./account-sheet";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const actionSrc = readFileSync(join(here, "../app/(app)/account/actions.ts"), "utf8");
@@ -37,9 +37,7 @@ describe("account profile copy", () => {
     expect(COMPANY_PROFILE.title).toBe("Company Profile");
     expect(COMPANY_PROFILE.href).toBe("/account/company");
     expect(ACCOUNT_PROFILE.href).toBe(USER_MENU.userProfileHref);
-    expect(ACCOUNT_PROFILE.href).toBe(ACCOUNT_SHEET.manageHref);
     expect(COMPANY_PROFILE.href).toBe(USER_MENU.companyProfileHref);
-    expect(COMPANY_PROFILE.href).toBe(ACCOUNT_SHEET.companyHref);
     const blob = `${ACCOUNT_PROFILE.subtitle} ${COMPANY_PROFILE.subtitle}`;
     expect(blob).not.toMatch(/seamless|frictionless|elevate|amplify|unleash|supercharge/i);
   });

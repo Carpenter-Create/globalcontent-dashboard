@@ -1,21 +1,14 @@
 // Mobile 544:561 / 547:612 account sheet. Copy lives here, not in JSX.
 // Identity is avatar + name + email from the same values /account would
 // show. Always render both fields. No dashes, no invented local-part name.
-// Options after the hairline: Manage account, Company Profile, Agreements,
-// then Log out. Destinations use existing routes only.
+// Items after the hairline are USER_MENU_ACTIONS — the same list as the
+// desktop menu. Destinations use existing routes only.
 
-import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
+import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
 export const ACCOUNT_SHEET = {
   close: "Close account",
   sheet: "Account",
-  manage: "Manage account",
-  manageHref: USER_MENU.userProfileHref,
-  group: "ACCOUNT",
-  companyProfile: USER_MENU.companyProfile,
-  companyHref: USER_MENU.companyProfileHref,
-  agreements: "Agreements",
-  logOut: USER_MENU.logOut,
 } as const;
 
 export const ACCOUNT_SHEET_ABSENT = [
@@ -25,25 +18,14 @@ export const ACCOUNT_SHEET_ABSENT = [
   "Catalog Health",
   "Ask Globee",
   "Queue",
-  "Appearance",
-  "User Profile",
+  "Manage account",
+  "ACCOUNT",
   "credits",
   "Buy",
 ] as const;
 
-export type AccountSheetItem = {
-  kind: "companyProfile" | "agreements";
-  label: string;
-  href: string | null;
-};
-
-// Manage account opens /account (the user-profile door). No User Profile
-// row. Company Profile is /account/company. Agreements is the existing
-// page. Log out is the existing desktop signOut action.
-export const ACCOUNT_SHEET_ITEMS: readonly AccountSheetItem[] = [
-  { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: ACCOUNT_SHEET.companyHref },
-  { kind: "agreements", label: ACCOUNT_SHEET.agreements, href: USER_MENU.agreementsHref },
-];
+// One source, both instances. Sheet chrome may differ; labels may not.
+export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 
 export type AccountSheetIdentity = {
   avatarInitial: string;

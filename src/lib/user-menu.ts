@@ -1,9 +1,10 @@
 // Account-menu copy and lock. Lives in lib/, not JSX.
-// Real items only, Mercury order. User Profile is /account — the same
-// page Manage account opens. Company Profile is /account/company.
-// Both routes are desktop + mobile (same save). Do not invent
-// /account/profile, Notifications, Privacy, or a name derived from
-// the email local-part.
+// One list for both instances: desktop dropdown and mobile sheet.
+// Chrome may differ (sheet vs dropdown). Labels may not.
+// User Profile is /account. Company Profile is /account/company.
+// Agreements is /account/agreements. Appearance is /account/appearance.
+// Do not invent /account/profile, Notifications, Privacy, Manage account,
+// or a name derived from the email local-part.
 
 export const USER_MENU = {
   userProfile: "User Profile",
@@ -13,12 +14,13 @@ export const USER_MENU = {
   agreements: "Agreements",
   agreementsHref: "/account/agreements",
   appearance: "Appearance",
+  appearanceHref: "/account/appearance",
   logOut: "Log out",
 } as const;
 
-export const USER_MENU_ABSENT = ["Notifications", "Privacy", "Sign out"] as const;
+export const USER_MENU_ABSENT = ["Manage account", "Notifications", "Privacy", "Sign out"] as const;
 
-export type UserMenuAction =
+export type UserMenuLinkAction =
   | {
       kind: "userProfile";
       label: typeof USER_MENU.userProfile;
@@ -34,14 +36,19 @@ export type UserMenuAction =
       label: typeof USER_MENU.agreements;
       href: typeof USER_MENU.agreementsHref;
     }
-  | { kind: "appearance"; label: typeof USER_MENU.appearance }
-  | { kind: "logOut"; label: typeof USER_MENU.logOut };
+  | {
+      kind: "appearance";
+      label: typeof USER_MENU.appearance;
+      href: typeof USER_MENU.appearanceHref;
+    };
+
+export type UserMenuAction = UserMenuLinkAction | { kind: "logOut"; label: typeof USER_MENU.logOut };
 
 export const USER_MENU_ACTIONS: readonly UserMenuAction[] = [
   { kind: "userProfile", label: USER_MENU.userProfile, href: USER_MENU.userProfileHref },
   { kind: "companyProfile", label: USER_MENU.companyProfile, href: USER_MENU.companyProfileHref },
   { kind: "agreements", label: USER_MENU.agreements, href: USER_MENU.agreementsHref },
-  { kind: "appearance", label: USER_MENU.appearance },
+  { kind: "appearance", label: USER_MENU.appearance, href: USER_MENU.appearanceHref },
   { kind: "logOut", label: USER_MENU.logOut },
 ];
 
