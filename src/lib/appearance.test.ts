@@ -9,10 +9,11 @@ import { APPEARANCE, APPEARANCE_OPTIONS } from "./appearance";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("appearance copy", () => {
-  it("is a nested face — Back to main menu, Light, Dark, Auto — not a page", () => {
+  it("is a nested face — icon-only back, Light, Dark, Auto — not a page", () => {
     expect(APPEARANCE.title).toBe("Appearance");
     expect(APPEARANCE.title).toBe(USER_MENU.appearance);
-    expect(APPEARANCE.back).toBe("Back to main menu");
+    expect(APPEARANCE.back).toBe("Back");
+    expect(APPEARANCE.back).not.toBe("Back to main menu");
     expect(APPEARANCE.light).toBe("Light");
     expect(APPEARANCE.dark).toBe("Dark");
     expect(APPEARANCE.auto).toBe("Auto");

@@ -412,14 +412,21 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(src).not.toContain("type=\"radio\"");
   });
 
-  it("opens Appearance as a second face with Back to main menu and quiet checks", () => {
+  it("opens Appearance as a second face with a house 16 back chevron and quiet checks", () => {
     const html = renderToStaticMarkup(<AccountSheetAppearance onBack={() => undefined} />);
     const backClass = attrClass(html, 'data-sheet-group-item="back"');
     const lightClass = attrClass(html, 'data-sheet-group-item="light"');
     const darkClass = attrClass(html, 'data-sheet-group-item="dark"');
     const autoClass = attrClass(html, 'data-sheet-group-item="auto"');
+    const backTag = tagWith(html, 'data-sheet-group-item="back"');
 
-    expect(html).toContain(APPEARANCE.back);
+    expect(html).not.toContain("Back to main menu");
+    expect(backTag).toContain(`aria-label="${APPEARANCE.back}"`);
+    expect(html).toContain("lucide-chevron-left");
+    expect(html).toContain(SHEET_GROUP_CHEVRON_CLASS);
+    expect(html).toContain("stroke-width=\"1.33\"");
+    expect(html).toContain("text-ink-3");
+    expect(backTag).not.toContain("Back to main menu");
     expect(html).toContain(APPEARANCE.light);
     expect(html).toContain(APPEARANCE.dark);
     expect(html).toContain(APPEARANCE.auto);
@@ -437,6 +444,9 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(src).toContain("applyDocumentThemePreference");
     expect(src).toContain("AppearanceCheck");
     expect(src).toContain("APPEARANCE.back");
+    expect(src).toContain("ChevronLeft");
+    expect(src).toContain("AccountBackChevron");
+    expect(src).not.toContain("Back to main menu");
   });
 
   it("does not restyle Ask Globee landing or merge account into the hamburger sheet", () => {

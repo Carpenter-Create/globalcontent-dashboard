@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { ChevronRight, LogOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 
 import { AppearanceCheck } from "./appearance-check";
 import { useThemePreference } from "@/components/theme-toggle";
@@ -44,6 +44,10 @@ import {
 
 function AccountRowChevron() {
   return <ChevronRight className={SHEET_GROUP_CHEVRON_CLASS} strokeWidth={1.33} />;
+}
+
+function AccountBackChevron() {
+  return <ChevronLeft className={SHEET_GROUP_CHEVRON_CLASS} strokeWidth={1.33} />;
 }
 
 function AccountMenuTrigger({
@@ -296,8 +300,8 @@ export function AccountSheetAppearance({
 
   return (
     <SheetGroup>
-      <SheetGroupItem item="back" onClick={onBack}>
-        {APPEARANCE.back}
+      <SheetGroupItem item="back" onClick={onBack} label={APPEARANCE.back}>
+        <AccountBackChevron />
       </SheetGroupItem>
       {APPEARANCE_OPTIONS.map((option) => (
         <SheetGroupItem
