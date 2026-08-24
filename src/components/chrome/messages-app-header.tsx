@@ -47,8 +47,9 @@ import {
   renameAskGlobeeConversation,
 } from "@/app/(app)/messages/ask-globee-actions";
 
-// Desktop 247:295 keeps PDF + ··· after the title. Mobile 531:542 hides the
-// PDF tray; Download PDF lives in the existing ··· (532:548). No second menu.
+// Desktop 247:295 keeps PDF + ··· in the right cluster, 16 from the avatar.
+// Mobile 531:542 hides the PDF tray; Download PDF lives in the existing ···
+// (532:548). No second menu.
 function MessagesThreadHeader({ title }: { title: string }) {
   const router = useRouter();
   const { chrome, setChrome, conversations } = useAskGlobeeChrome();
@@ -68,16 +69,16 @@ function MessagesThreadHeader({ title }: { title: string }) {
     });
   }
 
-  // Desktop 247:295: title+chevron hug, then 16 to the download/··· cluster,
-  // avatar stays far right (header-leading mr-auto). flex-1 on the title
-  // cluster collapses that 16 on a shrink-to-fit row — keep flex-1 mobile
-  // only. Mobile 531:542: this row is flex-1 so ··· docks 16 from the avatar
-  // (app-shell header gap-4), not flush to the title.
+  // Title+chevron stay left. Download/··· dock 16 from the avatar via
+  // app-shell header gap-4 — same relationship as mobile #182. flex-1 on
+  // this row and the title cluster; without it the row shrinks to the
+  // words and actions read as title chrome. Do not put actions flush to
+  // the title. Desktop PDF tray stays in this right cluster, before ···.
   return (
-    <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1">
+    <div data-header-thread="" className="flex min-w-0 flex-1 items-center gap-[var(--space-4)]">
       <div
         data-ask-globee-title-cluster=""
-        className="flex min-w-0 items-center gap-[var(--space-2)] max-md:flex-1"
+        className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"
       >
         <Link
           href={askGlobeeLandingHref()}

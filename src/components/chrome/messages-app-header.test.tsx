@@ -83,7 +83,7 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain("data-ask-globee-download");
     expect(html).toContain("data-ask-globee-header-chrome");
     expect(html).toContain("data-ask-globee-title-cluster");
-    expect(html).toContain("max-md:flex-1");
+    expect(html).toContain("flex-1");
     expect(html).toContain(ASK_GLOBEE.moreLabel);
     const titleClusterStart = html.indexOf("data-ask-globee-title-cluster");
     const chromeStart = html.indexOf("data-ask-globee-header-chrome");
@@ -104,7 +104,7 @@ describe("MessagesAppHeader", () => {
     expect(src).toContain("<ChevronDown");
     expect(src).toContain("truncate t-heading text-ink max-md:hidden");
     expect(src).toContain(
-      'className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1"',
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-4)]"',
     );
     expect(src).toContain("data-ask-globee-header-chrome");
     expect(src).toContain("flex shrink-0 items-center gap-[var(--space-4)]");
@@ -173,7 +173,10 @@ describe("MessagesAppHeader", () => {
     );
 
     expect(src).toContain(
-      'className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1"',
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-4)]"',
+    );
+    expect(src).toContain(
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"',
     );
     expect(src).toContain('data-ask-globee-title-cluster=""');
     expect(src.indexOf("data-ask-globee-title-cluster")).toBeLessThan(
@@ -214,7 +217,7 @@ describe("MessagesAppHeader", () => {
     expect(titles).not.toContain("data-ask-globee-title-cluster");
   });
 
-  it("keeps 16 between the title+chevron cluster and the download/··· cluster", () => {
+  it("docks desktop download/··· 16 from the avatar; title stays left", () => {
     navigation.search = `thread=${THREAD}`;
     const html = visible(
       renderToStaticMarkup(
@@ -225,19 +228,30 @@ describe("MessagesAppHeader", () => {
         </AskGlobeeChromeProvider>,
       ),
     );
+    const shell = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"),
+      "utf8",
+    );
     const userMenu = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"),
       "utf8",
     );
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
 
     expect(src).toContain(
-      'className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1"',
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-4)]"',
     );
     expect(src).toContain(
-      'className="flex min-w-0 items-center gap-[var(--space-2)] max-md:flex-1"',
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"',
     );
     expect(src).not.toContain(
-      'className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"',
+      'className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1"',
+    );
+    expect(src).not.toContain(
+      'className="flex min-w-0 items-center gap-[var(--space-2)] max-md:flex-1"',
     );
     expect(src).toContain("flex shrink-0 items-center gap-[var(--space-4)]");
     expect(html).toContain("data-ask-globee-title-cluster");
@@ -249,13 +263,25 @@ describe("MessagesAppHeader", () => {
     expect(titleClusterStart).toBeGreaterThan(-1);
     expect(chromeStart).toBeGreaterThan(titleClusterStart);
     expect(html.slice(titleClusterStart, chromeStart)).toContain("data-ask-globee-history-title");
+    expect(src.indexOf("<ChevronDown")).toBeGreaterThan(src.indexOf("data-ask-globee-title-cluster"));
+    expect(src.indexOf("<ChevronDown")).toBeLessThan(src.indexOf("data-ask-globee-header-chrome"));
     expect(html.slice(titleClusterStart, chromeStart)).not.toContain(ASK_GLOBEE.downloadLabel);
     expect(html.slice(titleClusterStart, chromeStart)).not.toContain(ASK_GLOBEE.moreLabel);
     expect(html.slice(chromeStart)).toContain(ASK_GLOBEE.downloadLabel);
     expect(html.slice(chromeStart)).toContain(ASK_GLOBEE.moreLabel);
+    expect(html.slice(chromeStart).indexOf(ASK_GLOBEE.downloadLabel)).toBeLessThan(
+      html.slice(chromeStart).indexOf(ASK_GLOBEE.moreLabel),
+    );
     expect(src).toContain('className="hidden size-4 shrink-0 items-center justify-center text-ink-3 md:flex"');
+    expect(src.indexOf("data-ask-globee-download")).toBeLessThan(src.indexOf("<MoreHorizontal"));
+    expect(shell).toContain("justify-end gap-4");
+    expect(shell).toContain('data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2"');
+    expect(shell).toContain("<UserMenu email={email} name={name} />");
+    expect(shell.indexOf("<MessagesAppHeader")).toBeLessThan(shell.indexOf("<UserMenu"));
+    expect(tokens).toMatch(/--space-4:\s*1rem;/);
     expect(userMenu).not.toContain("data-ask-globee-title-cluster");
     expect(userMenu).not.toContain("data-header-thread");
+    expect(userMenu).not.toContain("data-ask-globee-header-chrome");
   });
 
   it("instances SSOT Thread Popover 544:592, not the avatar/account menu", () => {
