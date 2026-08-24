@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
-import { COMPANY_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_FIELD_CLASS, COMPANY_PROFILE } from "@/lib/account-profile";
 import CompanyProfilePage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -64,6 +64,7 @@ describe("CompanyProfilePage", () => {
     expect(html).toContain("Acme Films");
     expect(html).toContain(COMPANY_PROFILE.save);
     expect(html).toContain('id="company-name"');
+    expect(html).toContain(ACCOUNT_FIELD_CLASS);
   });
 
   it("is read-only when member_can manage_settings is false", async () => {
@@ -99,6 +100,8 @@ describe("CompanyProfilePage", () => {
     expect(pageSrc).toContain("CompanyProfileForm");
     expect(formSrc).toContain("saveCompanyName");
     expect(formSrc).toContain("orgId");
+    expect(formSrc).toContain("ACCOUNT_FIELD_CLASS");
+    expect(formSrc).toContain(".blur(");
     expect(actionSrc).toContain('from("organizations")');
     expect(actionSrc).toContain('rpc("member_can"');
     expect(actionSrc).toContain("parsed.data.orgId");

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getOrgContext } from "@/lib/supabase/context";
-import { ACCOUNT_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_FIELD_CLASS, ACCOUNT_PROFILE } from "@/lib/account-profile";
 import AccountPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -43,6 +43,7 @@ describe("AccountPage", () => {
     expect(html).toContain(ACCOUNT_PROFILE.emailHint);
     expect(html).toContain('id="account-name"');
     expect(html).toContain('id="account-email"');
+    expect(html).toContain(ACCOUNT_FIELD_CLASS);
     expect(html).toContain("readOnly");
     expect(html).not.toContain("Jane Doe");
     expect(html).not.toContain("ada</");
@@ -75,8 +76,11 @@ describe("AccountPage", () => {
     const actionSrc = readFileSync(join(here, "actions.ts"), "utf8");
     expect(pageSrc).toContain("AccountProfileForm");
     expect(formSrc).toContain("saveAccountName");
+    expect(formSrc).toContain("ACCOUNT_FIELD_CLASS");
+    expect(formSrc).toContain(".blur(");
     expect(actionSrc).toContain("updateUser");
     expect(actionSrc).toContain("display_name");
+    expect(actionSrc).toContain("refreshSession");
     expect(`${pageSrc}${formSrc}`).not.toMatch(/md:hidden|hidden md:|max-md:/);
     expect(pageSrc).not.toContain("/account/profile");
     expect(ACCOUNT_PROFILE.href).toBe("/account");

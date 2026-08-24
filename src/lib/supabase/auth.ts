@@ -27,6 +27,8 @@ export type AuthUser = {
 //    both calling getAuthUser() cost ONE verification, not two.
 //
 // Returns id + email + the existing display_name on the JWT when present.
+// That JWT is a snapshot — saveAccountName refreshes the session after
+// updateUser so the next getClaims() read sees the written display_name.
 export const getAuthUser = cache(async (): Promise<AuthUser | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
