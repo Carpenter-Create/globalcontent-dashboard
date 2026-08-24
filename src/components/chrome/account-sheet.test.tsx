@@ -322,7 +322,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).not.toContain("/account/appearance");
     expect(html).not.toContain("/account/company");
     expect(html).not.toContain('href="/account/profile"');
-    expect(html).not.toContain("/settings");
+    expect(html).toContain("/settings#profile");
+    expect(html).toContain("/settings#agreements");
     expect(ACCOUNT_SHEET_ITEMS).toBeDefined();
     expect(src).toContain('from "@/app/actions"');
     expect(src).toContain("void signOut()");

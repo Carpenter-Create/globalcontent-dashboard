@@ -35,7 +35,7 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.analyze).toBe("Analyze anything about your catalog.");
     expect(ASK_GLOBEE.included).toBe("Included with Pro and Premium.");
     expect(ASK_GLOBEE.upgrade).toBe("Upgrade");
-    expect(ASK_GLOBEE.upgradeHref).toBe("/account/agreements");
+    expect(ASK_GLOBEE.upgradeHref).toBe("/settings#agreements");
     expect(ASK_GLOBEE.upgradeHref).toBe(USER_MENU.agreementsHref);
   });
 
