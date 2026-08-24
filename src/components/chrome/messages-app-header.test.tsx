@@ -287,7 +287,8 @@ describe("MessagesAppHeader", () => {
     expect(src).not.toContain("data-user-menu");
     expect(src).not.toContain("UserMenuIdentity");
     expect(src).not.toContain("sideOffset={10}");
-    expect(src).not.toContain("p-[var(--space-2)]");
+    expect(houseSheetSrc).toContain('p-[var(--space-4)] shadow-none');
+    expect(houseSheetSrc).not.toContain('p-[var(--space-2)] shadow');
     expect(userMenu).toContain("min-w-[17.5rem]");
     expect(userMenu).toContain("rounded-[var(--radius)]");
     expect(userMenu).toContain("t-body-sm");
