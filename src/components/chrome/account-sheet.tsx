@@ -286,7 +286,7 @@ export function AccountSheet({
               <p data-account-sheet-version="" className={ACCOUNT_SHEET_VERSION_CLASS}>
                 {userMenuVersion()}
               </p>
-              <TextAction href={USER_MENU.legalHref} data-account-sheet-legal="">
+              <TextAction href={USER_MENU.legalHref} target="_blank" rel="noopener" data-account-sheet-legal="">
                 {USER_MENU.legal}
               </TextAction>
             </div>
