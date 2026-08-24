@@ -19,10 +19,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ThreadPopoverContent,
+  ThreadPopoverItem,
+} from "./house";
+import {
+  THREAD_POPOVER_DELETE_ICON_CLASS,
+  THREAD_POPOVER_ICON_CLASS,
+} from "@/lib/house-sheet";
 import { Input } from "@/components/ui/input";
 import {
   ASK_GLOBEE,
@@ -40,13 +46,6 @@ import {
   pinAskGlobeeConversation,
   renameAskGlobeeConversation,
 } from "@/app/(app)/messages/ask-globee-actions";
-
-// 532:548 ··· rows — 15 Regular, icons 16 / 1.33 tertiary. Delete is thin
-// danger on this row only (D3: no house --danger token).
-const THREAD_MENU_ITEM =
-  "gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-2)] t-body text-[length:var(--text-base)] font-normal text-ink-3 data-[highlighted]:bg-surface-muted data-[highlighted]:text-ink";
-const THREAD_MENU_DELETE =
-  "gap-[var(--space-2)] px-[var(--space-4)] py-[var(--space-2)] t-body text-[length:var(--text-base)] font-normal text-[#c4564a] data-[highlighted]:bg-surface-muted data-[highlighted]:text-[#c4564a]";
 
 // Desktop 247:295 keeps PDF + ··· after the title. Mobile 531:542 hides the
 // PDF tray; Download PDF lives in the existing ··· (532:548). No second menu.
@@ -132,23 +131,21 @@ function MessagesThreadHeader({ title }: { title: string }) {
               <MoreHorizontal className="size-4" strokeWidth={1.33} />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className={THREAD_MENU_ITEM} onSelect={downloadThread}>
-              <Download className="size-4" strokeWidth={1.33} />
+          <ThreadPopoverContent align="end">
+            <ThreadPopoverItem onSelect={downloadThread}>
+              <Download className={THREAD_POPOVER_ICON_CLASS} strokeWidth={1.33} />
               {ASK_GLOBEE.downloadPdfLabel}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className={THREAD_MENU_ITEM}
+            </ThreadPopoverItem>
+            <ThreadPopoverItem
               onSelect={() => {
                 setRenameValue(chrome?.title ?? title);
                 setRenameOpen(true);
               }}
             >
-              <Pencil className="size-4" strokeWidth={1.33} />
+              <Pencil className={THREAD_POPOVER_ICON_CLASS} strokeWidth={1.33} />
               {ASK_GLOBEE.renameLabel}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className={THREAD_MENU_ITEM}
+            </ThreadPopoverItem>
+            <ThreadPopoverItem
               onSelect={() => {
                 if (!chrome) return;
                 void pinAskGlobeeConversation(chrome.id, !pinned).then((result) => {
@@ -159,14 +156,14 @@ function MessagesThreadHeader({ title }: { title: string }) {
                 });
               }}
             >
-              <Pin className="size-4" strokeWidth={1.33} />
+              <Pin className={THREAD_POPOVER_ICON_CLASS} strokeWidth={1.33} />
               {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
-            </DropdownMenuItem>
-            <DropdownMenuItem className={THREAD_MENU_DELETE} onSelect={() => setDeleteOpen(true)}>
-              <Trash2 className="size-4" strokeWidth={1.33} />
+            </ThreadPopoverItem>
+            <ThreadPopoverItem danger onSelect={() => setDeleteOpen(true)}>
+              <Trash2 className={THREAD_POPOVER_DELETE_ICON_CLASS} strokeWidth={1.33} />
               {ASK_GLOBEE.deleteLabel}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+            </ThreadPopoverItem>
+          </ThreadPopoverContent>
         </DropdownMenu>
       </div>
 

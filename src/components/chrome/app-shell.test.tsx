@@ -73,9 +73,10 @@ describe("AppShell header", () => {
     const html = renderShell();
     expect(html).toContain('data-email="ada@example.com"');
     expect(shellSrc).toContain("<UserMenu email={email} />");
-    expect(shellSrc).toContain("Phone avatar opens 537:557");
+    expect(shellSrc).toContain("Phone avatar opens 544:561");
     expect(shellSrc).toContain("<MobileNav isGcStaff={isGcStaff} />");
     expect(shellSrc).not.toContain("AccountOverlay");
+    expect(shellSrc).not.toContain("AccountSheet");
   });
 
   it("is avatar-only on every Access route — no org switcher", () => {
