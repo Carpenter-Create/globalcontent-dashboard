@@ -97,7 +97,9 @@ export function settingsSection(pathname: string | null | undefined): SettingsSe
  * Void hash doors on /settings. #agreements still has a leftover
  * destination. Everything else, including #profile, opens Profile.
  */
-export function settingsHashDestination(hash: string | null | undefined): string {
+export function settingsHashDestination(
+  hash: string | null | undefined,
+): typeof SETTINGS.profileHref | typeof SETTINGS.agreementsHref {
   const value = (hash ?? "").replace(/^#/, "");
   return value === SETTINGS.agreementsHash ? SETTINGS.agreementsHref : SETTINGS.profileHref;
 }
