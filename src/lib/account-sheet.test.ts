@@ -65,12 +65,15 @@ describe("account sheet lock", () => {
     }
   });
 
-  it("locks the 544:561 / 537:557 surface: pad 24, 90vh, Identity + Close one row", () => {
+  it("locks the 544:561 / 537:557 surface: 32 clear under the bar, 32 bottom, sides 24", () => {
     expect(ACCOUNT_SHEET_HOST_CLASS).toContain("justify-end");
     expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:flex-row");
     expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:items-end");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("h-[90dvh]");
-    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("p-[var(--space-6)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("px-[var(--space-6)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pb-[var(--space-8)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pt-[calc(4px+var(--space-8))]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("app-sheet-rise");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("md:w-[390px]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("h-auto");

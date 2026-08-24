@@ -140,7 +140,10 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).toContain("h-[90dvh]");
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
-    expect(surfaceClass).toContain("p-[var(--space-6)]");
+    expect(surfaceClass).toContain("px-[var(--space-6)]");
+    expect(surfaceClass).toContain("pb-[var(--space-8)]");
+    expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
+    expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain("w-[277px]");
     expect(surfaceClass).not.toContain("h-auto");
@@ -162,7 +165,30 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(houseSrc).toContain('<X className="size-4" strokeWidth={1.33} />');
     expect(src).toContain("event.key === \"Escape\"");
     expect(tokens).toMatch(/--space-6:\s*1\.5rem/);
+    expect(tokens).toMatch(/--space-8:\s*2rem/);
     expect(tokens).toContain("--accent: #1769ff;");
+  });
+
+  it("gives 32 clear under the half-bar and 32 bottom pad — sides stay 24", () => {
+    const html = renderSheet();
+    const surfaceClass = attrClass(html, "data-account-sheet-surface");
+    const accent = attrClass(html, "data-menu-surface-accent");
+    const dropdownSurface = ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS;
+
+    expect(surfaceClass).toBe(ACCOUNT_SHEET_SURFACE_CLASS);
+    expect(surfaceClass).toContain("px-[var(--space-6)]");
+    expect(surfaceClass).toContain("pb-[var(--space-8)]");
+    expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
+    expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
+    expect(accent).toContain("top-0");
+    expect(accent).toContain("h-[4px]");
+    expect(accent).toContain("w-1/2");
+    expect(accent).toContain("left-0");
+    expect(accent).toContain("bg-accent");
+    expect(accent).not.toContain("#1769");
+    expect(dropdownSurface).toContain("p-[var(--space-6)]");
+    expect(dropdownSurface).not.toContain("pt-[calc(4px+var(--space-8))]");
+    expect(dropdownSurface).not.toContain("pb-[var(--space-8)]");
   });
 
   it("puts Identity and Close/44 on one top row, centers aligned", () => {
