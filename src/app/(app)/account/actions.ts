@@ -8,6 +8,8 @@ import {
   accountNameSchema,
   companySaveSchema,
 } from "@/lib/account-profile";
+import { AVATAR_MAX_BYTES, isAvatarContentType } from "@/lib/account-avatar";
+import { putAvatarObject } from "@/lib/s3-avatars";
 import { getOrgContext } from "@/lib/supabase/context";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,6 +34,31 @@ export async function saveAccountName(name: unknown): Promise<{ error?: string }
   // and the account-sheet Identity stay empty until this refresh.
   const { error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError) return { error: refreshError.message || ACCOUNT_PROFILE.saveFailed };
+
+  revalidatePath("/account");
+  revalidatePath("/");
+  return {};
+}
+
+// Photo bytes go to the dedicated avatars bucket, key derived from the
+// session user id. Email is not touched. No SQL.
+export async function uploadAccountPhoto(formData: FormData): Promise<{ error?: string }> {
+  const ctx = await getOrgContext();
+  if (!ctx) return { error: ACCOUNT_PROFILE.signedOut };
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: ACCOUNT_PROFILE.photoMissing };
+  }
+  if (!isAvatarContentType(file.type)) return { error: ACCOUNT_PROFILE.photoType };
+  if (file.size > AVATAR_MAX_BYTES) return { error: ACCOUNT_PROFILE.photoTooLarge };
+
+  try {
+    const body = new Uint8Array(await file.arrayBuffer());
+    await putAvatarObject(ctx.user.id, body, file.type);
+  } catch (e) {
+    return { error: e instanceof Error && e.message ? e.message : ACCOUNT_PROFILE.photoFailed };
+  }
 
   revalidatePath("/account");
   revalidatePath("/");

@@ -3,13 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/context", () => ({ getOrgContext: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/s3-avatars", () => ({ putAvatarObject: vi.fn() }));
 
 import { createClient } from "@/lib/supabase/server";
 import { getOrgContext } from "@/lib/supabase/context";
 import { revalidatePath } from "next/cache";
+import { putAvatarObject } from "@/lib/s3-avatars";
 
 import { ACCOUNT_NAME_MAX, ACCOUNT_PROFILE, COMPANY_PROFILE } from "@/lib/account-profile";
-import { saveAccountName, saveCompanyName } from "./actions";
+import { AVATAR_MAX_BYTES } from "@/lib/account-avatar";
+import { saveAccountName, saveCompanyName, uploadAccountPhoto } from "./actions";
 
 const USER = { id: "u1", email: "ada@example.com", name: "Ada" };
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -128,6 +131,57 @@ describe("saveAccountName", () => {
     expect(updateUser).toHaveBeenCalledOnce();
     expect(refreshSession).toHaveBeenCalledOnce();
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+function photoForm(file: File) {
+  const body = new FormData();
+  body.set("photo", file);
+  return body;
+}
+
+describe("uploadAccountPhoto", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
+    vi.mocked(putAvatarObject).mockResolvedValue(undefined);
+  });
+
+  it("PUTs the session user's bytes and does not touch email", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "face.jpg", { type: "image/jpeg" });
+    await expect(uploadAccountPhoto(photoForm(file))).resolves.toEqual({});
+    expect(putAvatarObject).toHaveBeenCalledTimes(1);
+    const [userId, body, type] = vi.mocked(putAvatarObject).mock.calls[0] ?? [];
+    expect(userId).toBe(USER.id);
+    expect(type).toBe("image/jpeg");
+    expect(body).toBeInstanceOf(Uint8Array);
+    expect(revalidatePath).toHaveBeenCalledWith("/account");
+  });
+
+  it("rejects a missing file, a gif, and an oversized file before S3", async () => {
+    await expect(uploadAccountPhoto(new FormData())).resolves.toEqual({
+      error: ACCOUNT_PROFILE.photoMissing,
+    });
+    const gif = new File([new Uint8Array([1])], "face.gif", { type: "image/gif" });
+    await expect(uploadAccountPhoto(photoForm(gif))).resolves.toEqual({
+      error: ACCOUNT_PROFILE.photoType,
+    });
+    const big = new File([new Uint8Array(AVATAR_MAX_BYTES + 1)], "face.jpg", {
+      type: "image/jpeg",
+    });
+    await expect(uploadAccountPhoto(photoForm(big))).resolves.toEqual({
+      error: ACCOUNT_PROFILE.photoTooLarge,
+    });
+    expect(putAvatarObject).not.toHaveBeenCalled();
+  });
+
+  it("does not write when there is no session", async () => {
+    vi.mocked(getOrgContext).mockResolvedValue(null as never);
+    const file = new File([new Uint8Array([1])], "face.jpg", { type: "image/jpeg" });
+    await expect(uploadAccountPhoto(photoForm(file))).resolves.toEqual({
+      error: ACCOUNT_PROFILE.signedOut,
+    });
+    expect(putAvatarObject).not.toHaveBeenCalled();
   });
 });
 

@@ -69,6 +69,14 @@ Auth mail is deliberately not routed through Resend: `supabase/config.toml` sets
 **When:** `pnpm build` fails at module load; preview deploy fails before serving; S3 head/check
 returns unexpected 404.
 
+Account photos use a **dedicated** private bucket (`S3_AVATARS_BUCKET`, intended
+`gc-avatars-prod` / `gc-avatars-dev`) via `src/lib/s3-avatars.ts`. That module
+refuses to run when the value equals `S3_BUCKET`. It does not throw at module
+load — `/account` stays empty until the founder applies
+[`docs/infra/avatar-storage-setup.md`](../infra/avatar-storage-setup.md) and
+sets the env. Do not apply that runbook from CI. Faces are never written to
+`S3_BUCKET` or served through title CloudFront.
+
 `src/lib/s3.ts` throws at **module load** if `S3_BUCKET`/`AWS_REGION` are unset — and `next build`
 evaluates route modules, so a missing var fails the **build**, not just serving. Over 20 modules
 import `@/lib/s3` (directly or transitively), including several route handlers.

@@ -20,6 +20,7 @@ export default defineConfig({
     env: {
       AWS_REGION: "us-east-1",
       S3_BUCKET: "test-bucket",
+      S3_AVATARS_BUCKET: "test-avatars-bucket",
     },
   },
 });
