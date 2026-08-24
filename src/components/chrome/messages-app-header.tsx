@@ -68,14 +68,16 @@ function MessagesThreadHeader({ title }: { title: string }) {
     });
   }
 
-  // Mobile 531:542: the title cluster may shrink; ··· is not in it. Without
-  // max-md:flex-1 this row sizes to the title and ··· sits with the title
-  // instead of docking 16 from the avatar (app-shell header gap-4).
+  // Desktop 247:295: title+chevron hug, then 16 to the download/··· cluster,
+  // avatar stays far right (header-leading mr-auto). flex-1 on the title
+  // cluster collapses that 16 on a shrink-to-fit row — keep flex-1 mobile
+  // only. Mobile 531:542: this row is flex-1 so ··· docks 16 from the avatar
+  // (app-shell header gap-4), not flush to the title.
   return (
     <div data-header-thread="" className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1">
       <div
         data-ask-globee-title-cluster=""
-        className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"
+        className="flex min-w-0 items-center gap-[var(--space-2)] max-md:flex-1"
       >
         <Link
           href={askGlobeeLandingHref()}
