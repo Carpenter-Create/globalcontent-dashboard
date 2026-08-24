@@ -38,13 +38,14 @@ export const ACCOUNT_SHEET_ABSENT = [
 // One source, both instances. Sheet chrome may differ; labels may not.
 export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 
-// 544:561 / 537:557 — pad 24, 90% viewport, Identity 48 + Close/44 one row.
-// Desktop 586:768 does not use this surface.
+// 544:561 / 537:557 — sides 24, bottom 32. 32 clear under the 4px half-bar
+// (padT 36 = 4+32) so the bar does not eat the top air. 90% viewport.
+// Identity 48 + Close/44 one row. Desktop 586:768 does not use this surface.
 export const ACCOUNT_SHEET_HOST_CLASS =
   "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
 
 export const ACCOUNT_SHEET_SURFACE_CLASS =
-  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface p-[var(--space-6)] app-sheet-rise";
+  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-8)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
 
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
