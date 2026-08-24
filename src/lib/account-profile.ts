@@ -14,13 +14,24 @@ export const ACCOUNT_NAME_MAX = 200;
 // under 16px. Lock only these account fields — do not restyle dashboard inputs.
 export const ACCOUNT_FIELD_CLASS = "!text-[16px]";
 
+// Figma 558:639 / 554:637 — empty 48 circle until a real photo exists.
+// Do not put an initial in this well (that invents a face).
+export const ACCOUNT_PHOTO_CIRCLE_CLASS =
+  "size-12 shrink-0 overflow-hidden rounded-full bg-surface-muted";
+
 export const ACCOUNT_PROFILE = {
   title: USER_MENU.userProfile,
   href: USER_MENU.userProfileHref,
-  subtitle: "Name and email on this account.",
   nameLabel: "Name",
   emailLabel: "Email",
   emailHint: "Sign-in email. It cannot be changed here.",
+  uploadPhoto: "Upload photo",
+  uploadingPhoto: "Uploading…",
+  photoAlt: "Account photo",
+  photoMissing: "Choose a photo to upload.",
+  photoTooLarge: "Photo must be 2 MB or smaller.",
+  photoType: "Use a JPEG, PNG, or WebP photo.",
+  photoFailed: "Could not upload photo.",
   save: "Save",
   saving: "Saving…",
   saved: "Saved.",

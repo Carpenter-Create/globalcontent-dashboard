@@ -1,5 +1,9 @@
 # Asset storage (S3) setup — run once per environment
 
+Title objects only. Avatars are a **dedicated** private bucket on this same AWS
+account — see [`avatar-storage-setup.md`](avatar-storage-setup.md). Do not write
+faces under `orgs/<org>/titles/...` or into this bucket.
+
 Prereqs: `aws` CLI authenticated to the GC AWS account; pick a region (e.g. us-east-1)
 and a globally-unique bucket name (e.g. `gc-content-assets-prod`).
 
