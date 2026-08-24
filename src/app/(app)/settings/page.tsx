@@ -1,7 +1,8 @@
-import { SettingsIndexRedirect } from "./settings-index-redirect";
+import { redirect } from "next/navigation";
 
-// Old door. /settings and /settings#profile go to /settings/profile.
-// /settings#agreements goes to /settings/agreements.
+import { SETTINGS } from "@/lib/settings";
+
+// Old door. Profile lives on /settings/profile.
 export default function SettingsPage() {
-  return <SettingsIndexRedirect />;
+  redirect(SETTINGS.profileHref);
 }

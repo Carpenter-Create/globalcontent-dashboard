@@ -1,9 +1,9 @@
 // /settings copy and doors. Copy lives here, not in JSX.
-// Paths only — hash IA is void. Profile persist is the existing
-// /account name + avatar path — do not add Storage, SQL, RLS, or auth.
-// Agreements and Refer are house empties. Do not invent a listing,
-// download, referral product, Phone, Job, or Company on these pages.
-// Appearance stays in-menu. Help stays /help.
+// Paths only. Profile persist is the existing /account name + avatar
+// path — do not add Storage, SQL, RLS, or auth. Agreements and Refer
+// are house empties. Do not invent a listing, download, referral
+// product, Phone, Job, or Company on these pages. Appearance stays
+// in-menu. Help stays /help.
 //
 // 600:881 shell — one 220 rail occupies the Access slot on every
 // /settings path. Pad 16. ← Dashboard is 16 chevron + 15 Regular.
@@ -15,10 +15,8 @@ import { USER_MENU } from "@/lib/user-menu";
 export const SETTINGS = {
   href: "/settings",
   profile: USER_MENU.profile,
-  profileHash: "profile",
   profileHref: USER_MENU.profileHref,
   agreements: USER_MENU.agreements,
-  agreementsHash: "agreements",
   agreementsHref: USER_MENU.agreementsHref,
   agreementsEmpty: "No agreements on this account.",
   refer: USER_MENU.refer,
@@ -75,33 +73,15 @@ export const SETTINGS_RAIL_ABSENT = [
   "Company",
 ] as const;
 
-export function settingsPath(href: string): string {
-  const hashAt = href.indexOf("#");
-  return hashAt === -1 ? href : href.slice(0, hashAt);
-}
-
 export function isSettingsPath(pathname: string): boolean {
-  const path = settingsPath(pathname);
-  return path === SETTINGS.href || path.startsWith(`${SETTINGS.href}/`);
+  return pathname === SETTINGS.href || pathname.startsWith(`${SETTINGS.href}/`);
 }
 
-/** Path doors. Unknown or leftover hashes are not a section. */
+/** Path doors. Unknown paths open Profile. */
 export function settingsSection(pathname: string | null | undefined): SettingsSection {
-  const path = settingsPath(pathname ?? "");
-  if (path === SETTINGS.agreementsHref) return "agreements";
-  if (path === SETTINGS.referHref) return "refer";
+  if (pathname === SETTINGS.agreementsHref) return "agreements";
+  if (pathname === SETTINGS.referHref) return "refer";
   return "profile";
-}
-
-/**
- * Void hash doors on /settings. #agreements still has a leftover
- * destination. Everything else, including #profile, opens Profile.
- */
-export function settingsHashDestination(
-  hash: string | null | undefined,
-): typeof SETTINGS.profileHref | typeof SETTINGS.agreementsHref {
-  const value = (hash ?? "").replace(/^#/, "");
-  return value === SETTINGS.agreementsHash ? SETTINGS.agreementsHref : SETTINGS.profileHref;
 }
 
 /** Dashboard is a back door — never the wash. Active follows the path. */

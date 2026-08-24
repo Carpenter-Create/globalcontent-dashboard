@@ -107,7 +107,5 @@ export function accountSheetIdentity(
 }
 
 export function destinationClickClosesSheet(pathname: string, href: string): boolean {
-  const hashAt = href.indexOf("#");
-  const dest = hashAt === -1 ? href : href.slice(0, hashAt);
-  return pathname === dest;
+  return pathname === href;
 }

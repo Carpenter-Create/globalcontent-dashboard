@@ -48,8 +48,6 @@ describe("SettingsRail", () => {
     expect(html).toContain(SETTINGS_RAIL_ACTIVE_CLASS);
     expect(src).toContain("settingsSection(usePathname())");
     expect(src).toContain("ChevronLeft");
-    expect(src).not.toContain("window.location.hash");
-    expect(src).not.toContain("hashchange");
     expect(src).not.toContain("t-body-sm");
     expect(src).not.toContain("SettingsLocalNav");
   });

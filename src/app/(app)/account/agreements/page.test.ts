@@ -22,6 +22,5 @@ describe("AccountAgreementsPage", () => {
     expect(pageSrc).toContain("redirect");
     expect(pageSrc).not.toContain("contract_assents");
     expect(pageSrc).not.toContain("No agreements accepted yet.");
-    expect(pageSrc).not.toContain("HashRedirect");
   });
 });

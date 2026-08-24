@@ -22,6 +22,5 @@ describe("AccountPage", () => {
     expect(pageSrc).toContain("redirect");
     expect(pageSrc).not.toContain("AccountProfileForm");
     expect(pageSrc).not.toContain("subtitle");
-    expect(pageSrc).not.toContain("HashRedirect");
   });
 });

@@ -81,8 +81,6 @@ describe("user menu lock", () => {
     expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs).not.toContain("/account/profile");
     expect(hrefs).not.toContain("/account/company");
-    expect(hrefs).not.toContain("/settings#profile");
-    expect(hrefs).not.toContain("/settings#agreements");
     expect(hrefs.join(" ")).not.toMatch(/notifications|privacy|phone|job/i);
   });
 

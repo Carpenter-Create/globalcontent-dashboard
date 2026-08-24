@@ -11,8 +11,6 @@ import {
   SETTINGS_RAIL_ITEM_CLASS,
   SETTINGS_RAIL_PAD_CLASS,
   isSettingsPath,
-  settingsHashDestination,
-  settingsPath,
   settingsRailActive,
   settingsSection,
 } from "./settings";
@@ -21,10 +19,8 @@ describe("settings lock", () => {
   it("keeps /settings/profile, /settings/agreements, and /settings/refer", () => {
     expect(SETTINGS.href).toBe("/settings");
     expect(SETTINGS.profile).toBe("Profile");
-    expect(SETTINGS.profileHash).toBe("profile");
     expect(SETTINGS.profileHref).toBe("/settings/profile");
     expect(SETTINGS.agreements).toBe("Agreements");
-    expect(SETTINGS.agreementsHash).toBe("agreements");
     expect(SETTINGS.agreementsHref).toBe("/settings/agreements");
     expect(SETTINGS.agreementsEmpty).toBe("No agreements on this account.");
     expect(SETTINGS.refer).toBe("Refer a friend");
@@ -34,28 +30,17 @@ describe("settings lock", () => {
     expect(SETTINGS.profileHref).toBe(USER_MENU.profileHref);
     expect(SETTINGS.agreementsHref).toBe(USER_MENU.agreementsHref);
     expect(SETTINGS.referHref).toBe(USER_MENU.referHref);
+    expect(SETTINGS).not.toHaveProperty("profileHash");
+    expect(SETTINGS).not.toHaveProperty("agreementsHash");
   });
 
-  it("opens a section from the path, not a hash", () => {
+  it("opens a section from the path", () => {
     expect(settingsSection("/settings/profile")).toBe("profile");
     expect(settingsSection("/settings")).toBe("profile");
-    expect(settingsSection("/settings#agreements")).toBe("profile");
     expect(settingsSection("/settings/agreements")).toBe("agreements");
     expect(settingsSection("/settings/refer")).toBe("refer");
-    expect(settingsSection("/settings#profile")).toBe("profile");
     expect(settingsSection("")).toBe("profile");
     expect(settingsSection(null)).toBe("profile");
-  });
-
-  it("sends leftover /settings hashes to their path doors", () => {
-    expect(settingsHashDestination("")).toBe("/settings/profile");
-    expect(settingsHashDestination("#")).toBe("/settings/profile");
-    expect(settingsHashDestination("#profile")).toBe("/settings/profile");
-    expect(settingsHashDestination("profile")).toBe("/settings/profile");
-    expect(settingsHashDestination("#agreements")).toBe("/settings/agreements");
-    expect(settingsHashDestination("agreements")).toBe("/settings/agreements");
-    expect(settingsHashDestination("#appearance")).toBe("/settings/profile");
-    expect(settingsHashDestination(null)).toBe("/settings/profile");
   });
 
   it("keeps local nav to Dashboard / Profile / Agreements / Refer a friend", () => {
@@ -89,12 +74,7 @@ describe("settings lock", () => {
   });
 
   it("treats every /settings path as the focused shell", () => {
-    expect(settingsPath("/settings#profile")).toBe("/settings");
-    expect(settingsPath("/settings#agreements")).toBe("/settings");
-    expect(settingsPath("/settings/profile")).toBe("/settings/profile");
-    expect(settingsPath("/help")).toBe("/help");
     expect(isSettingsPath("/settings")).toBe(true);
-    expect(isSettingsPath("/settings#agreements")).toBe(true);
     expect(isSettingsPath("/settings/profile")).toBe(true);
     expect(isSettingsPath("/settings/agreements")).toBe(true);
     expect(isSettingsPath("/settings/refer")).toBe(true);
