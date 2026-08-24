@@ -134,6 +134,60 @@ describe("MessagesAppHeader", () => {
     }
   });
 
+  it("locks delete confirm to one-line copy and thin danger text, not a filled accent", () => {
+    navigation.search = `thread=${THREAD}`;
+    const html = visible(
+      renderToStaticMarkup(
+        <AskGlobeeChromeProvider
+          initialChrome={{ id: THREAD, title: "What needs attention", pinned_at: null }}
+        >
+          <MessagesAppHeader surface="ask-globee-landing" />
+        </AskGlobeeChromeProvider>,
+      ),
+    );
+    const deleteDialog = src.slice(
+      src.indexOf("open={deleteOpen}"),
+      src.indexOf("function MessagesAppHeaderInner"),
+    );
+    const confirmHtml = html.slice(
+      html.indexOf("data-ask-globee-delete-confirm"),
+      html.indexOf("</button>", html.indexOf("data-ask-globee-delete-confirm")) + 9,
+    );
+    const cancelHtml = html.slice(
+      html.indexOf("data-ask-globee-delete-cancel"),
+      html.indexOf("</button>", html.indexOf("data-ask-globee-delete-cancel")) + 9,
+    );
+
+    expect(ASK_GLOBEE.deleteBody).toBe(
+      "This permanently deletes the conversation and cannot be undone.",
+    );
+    expect(html).toContain(ASK_GLOBEE.deleteTitle);
+    expect(html).toContain(ASK_GLOBEE.deleteBody);
+    expect(html).toContain(ASK_GLOBEE.deleteConfirm);
+    expect(html).toContain(ASK_GLOBEE.cancelLabel);
+    expect(html).toContain('aria-label="Close"');
+    expect(src).toContain('from "@/components/ui/dialog"');
+    expect(deleteDialog).toContain("</Dialog>");
+    expect(deleteDialog).toContain("title={ASK_GLOBEE.deleteTitle}");
+    expect(deleteDialog).toContain("ASK_GLOBEE.deleteConfirm");
+    expect(deleteDialog).toContain("ASK_GLOBEE.cancelLabel");
+    expect(deleteDialog).toContain("MENU_SURFACE_ITEM_CLASS");
+    expect(deleteDialog).toContain("MENU_SURFACE_ITEM_DANGER_CLASS");
+    expect(deleteDialog).toContain("data-ask-globee-delete-confirm");
+    expect(deleteDialog).not.toContain("<Button");
+    expect(deleteDialog).not.toContain("bg-accent");
+    expect(deleteDialog).not.toContain('variant="primary"');
+    expect(deleteDialog).not.toContain("variant=\"secondary\"");
+    expect(confirmHtml).toContain(ASK_GLOBEE.deleteConfirm);
+    expect(confirmHtml).toContain("text-[#c4564a]");
+    expect(confirmHtml).not.toContain("bg-accent");
+    expect(confirmHtml).not.toContain("bg-primary");
+    expect(cancelHtml).toContain(ASK_GLOBEE.cancelLabel);
+    expect(cancelHtml).not.toContain("bg-accent");
+    expect(cancelHtml).not.toContain("bg-primary");
+    expect(cancelHtml).not.toContain("text-[#c4564a]");
+  });
+
   it("keeps desktop title on t-heading 17 and mobile 531:542 on t-body 15", () => {
     const tokens = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
