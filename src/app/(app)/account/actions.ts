@@ -27,6 +27,10 @@ export async function saveAccountName(name: unknown): Promise<{ error?: string }
   });
   if (error) return { error: error.message || ACCOUNT_PROFILE.saveFailed };
 
+  // updateUser persists user_metadata but does not mint a new access token.
+  // Identity is read from JWT claims, so refresh the session cookie now.
+  await supabase.auth.refreshSession();
+
   revalidatePath("/account");
   revalidatePath("/");
   return {};
