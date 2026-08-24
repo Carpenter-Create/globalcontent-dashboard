@@ -11,7 +11,7 @@ export const ACCOUNT_SHEET = {
   close: "Close account",
   sheet: "Account",
   manage: "Manage account",
-  manageHref: "/account",
+  manageHref: USER_MENU.userProfileHref,
   group: "ACCOUNT",
   companyProfile: "Company Profile",
   companyHref: COMPANY_PROFILE.href,

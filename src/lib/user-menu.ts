@@ -1,17 +1,25 @@
 // Account-menu copy and lock. Lives in lib/, not JSX.
-// Real items only, Mercury order. Do not invent Profile, Notifications,
-// Privacy, or a name derived from the email local-part.
+// Real items only, Mercury order. User Profile is /account — the same
+// page Manage account opens. Do not invent /account/profile,
+// Notifications, Privacy, or a name derived from the email local-part.
 
 export const USER_MENU = {
+  userProfile: "User Profile",
+  userProfileHref: "/account",
   agreements: "Agreements",
   agreementsHref: "/account/agreements",
   appearance: "Appearance",
   logOut: "Log out",
 } as const;
 
-export const USER_MENU_ABSENT = ["Profile", "Notifications", "Privacy", "Sign out"] as const;
+export const USER_MENU_ABSENT = ["Notifications", "Privacy", "Sign out"] as const;
 
 export type UserMenuAction =
+  | {
+      kind: "userProfile";
+      label: typeof USER_MENU.userProfile;
+      href: typeof USER_MENU.userProfileHref;
+    }
   | {
       kind: "agreements";
       label: typeof USER_MENU.agreements;
@@ -21,6 +29,7 @@ export type UserMenuAction =
   | { kind: "logOut"; label: typeof USER_MENU.logOut };
 
 export const USER_MENU_ACTIONS: readonly UserMenuAction[] = [
+  { kind: "userProfile", label: USER_MENU.userProfile, href: USER_MENU.userProfileHref },
   { kind: "agreements", label: USER_MENU.agreements, href: USER_MENU.agreementsHref },
   { kind: "appearance", label: USER_MENU.appearance },
   { kind: "logOut", label: USER_MENU.logOut },

@@ -3,10 +3,11 @@
 // create). Email is auth.users — shown, not changed. Company name is
 // organizations.name.
 
-import { userMenuName } from "@/lib/user-menu";
+import { USER_MENU, userMenuName } from "@/lib/user-menu";
 
 export const ACCOUNT_PROFILE = {
-  title: "User Profile",
+  title: USER_MENU.userProfile,
+  href: USER_MENU.userProfileHref,
   subtitle: "Name and email on this account.",
   nameLabel: "Name",
   emailLabel: "Email",

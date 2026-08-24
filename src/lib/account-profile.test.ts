@@ -11,6 +11,8 @@ import { userMenuName } from "./user-menu";
 describe("account profile copy", () => {
   it("keeps User Profile and Company Profile titles, no banned voice", () => {
     expect(ACCOUNT_PROFILE.title).toBe("User Profile");
+    expect(ACCOUNT_PROFILE.href).toBe("/account");
+    expect(ACCOUNT_PROFILE.href).not.toBe("/account/profile");
     expect(COMPANY_PROFILE.title).toBe("Company Profile");
     expect(COMPANY_PROFILE.href).toBe("/account/company");
     const blob = `${ACCOUNT_PROFILE.subtitle} ${COMPANY_PROFILE.subtitle}`;

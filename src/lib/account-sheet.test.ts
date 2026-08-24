@@ -13,6 +13,8 @@ describe("account sheet lock", () => {
   it("keeps Manage account on /account and ACCOUNT items in Figma order", () => {
     expect(ACCOUNT_SHEET.manage).toBe("Manage account");
     expect(ACCOUNT_SHEET.manageHref).toBe("/account");
+    expect(ACCOUNT_SHEET.manageHref).toBe(USER_MENU.userProfileHref);
+    expect(ACCOUNT_SHEET.manageHref).not.toBe("/account/profile");
     expect(ACCOUNT_SHEET.group).toBe("ACCOUNT");
     expect(ACCOUNT_SHEET_ITEMS.map((item) => item.kind)).toEqual([
       "companyProfile",
