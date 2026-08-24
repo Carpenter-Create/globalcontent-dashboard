@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { ACCOUNT_NAME_MAX, COMPANY_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_FIELD_CLASS, ACCOUNT_NAME_MAX, COMPANY_PROFILE } from "@/lib/account-profile";
 import { saveCompanyName } from "./actions";
 
 // organizations.name. member_can(manage_settings) is the write gate
@@ -27,9 +27,10 @@ export function CompanyProfileForm({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canEdit) return;
+    const form = e.currentTarget;
     setSaving(true);
     setError("");
     setSaved(false);
@@ -41,6 +42,7 @@ export function CompanyProfileForm({
     }
     setSaving(false);
     setSaved(true);
+    form.querySelector<HTMLInputElement>("#company-name")?.blur();
     router.refresh();
   }
 
@@ -60,6 +62,7 @@ export function CompanyProfileForm({
           aria-readonly={!canEdit}
           maxLength={ACCOUNT_NAME_MAX}
           autoComplete="organization"
+          className={ACCOUNT_FIELD_CLASS}
         />
       </div>
       {canEdit ? (

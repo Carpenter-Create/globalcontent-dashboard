@@ -36,9 +36,15 @@ function ctx({
   };
 }
 
-function authClient(updateUser = vi.fn(async () => ({ data: { user: USER }, error: null }))) {
-  vi.mocked(createClient).mockResolvedValue({ auth: { updateUser } } as never);
-  return { updateUser };
+function authClient({
+  updateUser = vi.fn(async () => ({ data: { user: USER }, error: null })),
+  refreshSession = vi.fn(async () => ({ data: { session: {} }, error: null })),
+}: {
+  updateUser?: ReturnType<typeof vi.fn>;
+  refreshSession?: ReturnType<typeof vi.fn>;
+} = {}) {
+  vi.mocked(createClient).mockResolvedValue({ auth: { updateUser, refreshSession } } as never);
+  return { updateUser, refreshSession };
 }
 
 function orgClient({
@@ -73,20 +79,25 @@ describe("saveAccountName", () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx() as never);
   });
 
-  it("writes trimmed display_name and does not touch email", async () => {
-    const { updateUser } = authClient();
+  it("writes trimmed display_name, refreshes the JWT, and does not touch email", async () => {
+    const { updateUser, refreshSession } = authClient();
     await expect(saveAccountName("  Ada Lovelace  ")).resolves.toEqual({});
     expect(updateUser).toHaveBeenCalledWith({ data: { display_name: "Ada Lovelace" } });
     expect(updateUser).toHaveBeenCalledTimes(1);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      refreshSession.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
     expect(updateUser).not.toHaveBeenCalledWith(expect.objectContaining({ email: expect.anything() }));
     expect(revalidatePath).toHaveBeenCalledWith("/account");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
   it("allows an empty name so Identity stays blank", async () => {
-    const { updateUser } = authClient();
+    const { updateUser, refreshSession } = authClient();
     await expect(saveAccountName("   ")).resolves.toEqual({});
     expect(updateUser).toHaveBeenCalledWith({ data: { display_name: "" } });
+    expect(refreshSession).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a non-string or oversized name before Auth", async () => {
@@ -100,9 +111,23 @@ describe("saveAccountName", () => {
 
   it("does not write when there is no session", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(null as never);
-    const { updateUser } = authClient();
+    const { updateUser, refreshSession } = authClient();
     await expect(saveAccountName("Ada")).resolves.toEqual({ error: ACCOUNT_PROFILE.signedOut });
     expect(updateUser).not.toHaveBeenCalled();
+    expect(refreshSession).not.toHaveBeenCalled();
+  });
+
+  it("does not claim saved when the session cannot refresh after the write", async () => {
+    const { updateUser, refreshSession } = authClient({
+      refreshSession: vi.fn(async () => ({
+        data: { session: null },
+        error: { message: "refresh failed" },
+      })),
+    });
+    await expect(saveAccountName("Ada Lovelace")).resolves.toEqual({ error: "refresh failed" });
+    expect(updateUser).toHaveBeenCalledOnce();
+    expect(refreshSession).toHaveBeenCalledOnce();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
 

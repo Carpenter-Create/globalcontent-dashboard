@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import {
+  ACCOUNT_FIELD_CLASS,
   ACCOUNT_NAME_MAX,
   ACCOUNT_PROFILE,
   COMPANY_PROFILE,
@@ -9,7 +14,20 @@ import {
   companySaveSchema,
 } from "./account-profile";
 import { USER_MENU, userMenuName } from "./user-menu";
-import { ACCOUNT_SHEET } from "./account-sheet";
+import { ACCOUNT_SHEET, accountSheetIdentity } from "./account-sheet";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const actionSrc = readFileSync(join(here, "../app/(app)/account/actions.ts"), "utf8");
+const authSrc = readFileSync(join(here, "./supabase/auth.ts"), "utf8");
+const pageSrc = readFileSync(join(here, "../app/(app)/account/page.tsx"), "utf8");
+const layoutSrc = readFileSync(join(here, "../app/(app)/layout.tsx"), "utf8");
+const formSrc = readFileSync(join(here, "../app/(app)/account/account-profile-form.tsx"), "utf8");
+const companyFormSrc = readFileSync(
+  join(here, "../app/(app)/account/company-profile-form.tsx"),
+  "utf8",
+);
+const inputSrc = readFileSync(join(here, "../components/ui/input.tsx"), "utf8");
+const globalsSrc = readFileSync(join(here, "../app/globals.css"), "utf8");
 
 describe("account profile copy", () => {
   it("keeps User Profile and Company Profile titles, no banned voice", () => {
@@ -81,5 +99,49 @@ describe("authDisplayName", () => {
     );
     expect(authDisplayName({ email })).toBeNull();
     expect(authDisplayName({ display_name: "Should not read top-level" })).toBeNull();
+  });
+});
+
+describe("account name persist read-after-write", () => {
+  it("reads the same user_metadata.display_name the save writes, after a session refresh", () => {
+    const written = accountNameSchema.parse("  Ada Lovelace  ");
+    expect(written).toBe("Ada Lovelace");
+
+    expect(authDisplayName({ user_metadata: {} })).toBeNull();
+    expect(authDisplayName({ email: "ada@example.com" })).toBeNull();
+
+    const fresh = authDisplayName({ user_metadata: { display_name: written } });
+    expect(fresh).toBe("Ada Lovelace");
+    expect(accountSheetIdentity("ada@example.com", fresh).name).toBe("Ada Lovelace");
+    expect(userMenuName(fresh)).toBe("Ada Lovelace");
+
+    expect(actionSrc).toContain("updateUser");
+    expect(actionSrc).toContain("display_name");
+    expect(actionSrc).toContain("refreshSession");
+    expect(actionSrc.indexOf("updateUser")).toBeLessThan(actionSrc.indexOf("refreshSession"));
+    expect(authSrc).toContain("await supabase.auth.getClaims()");
+    expect(authSrc).toContain("authDisplayName");
+    expect(authSrc).not.toMatch(/supabase\.auth\.getUser\(/);
+    expect(pageSrc).toContain("ctx.user.name");
+    expect(layoutSrc).toContain("name={ctx.user.name}");
+  });
+
+  it("does not invent a name when the refreshed claims still have none", () => {
+    expect(authDisplayName({ user_metadata: { display_name: "" } })).toBeNull();
+    expect(accountSheetIdentity("jane.doe@studio.com", null).name).toBe("");
+    expect(accountSheetIdentity("jane.doe@studio.com", null).name).not.toBe("jane.doe");
+  });
+});
+
+describe("account field 16px lock", () => {
+  it("locks /account and /account/company inputs at 16px and leaves dashboard Input on t-body", () => {
+    expect(ACCOUNT_FIELD_CLASS).toContain("16px");
+    expect(globalsSrc).toMatch(/\.t-body\s*\{[\s\S]*?font-size:\s*var\(--text-base\)/);
+    expect(inputSrc).toContain("t-body");
+    expect(inputSrc).not.toContain("16px");
+    expect(formSrc).toContain("ACCOUNT_FIELD_CLASS");
+    expect(formSrc).toContain('#account-name")?.blur()');
+    expect(companyFormSrc).toContain("ACCOUNT_FIELD_CLASS");
+    expect(companyFormSrc).toContain('#company-name")?.blur()');
   });
 });

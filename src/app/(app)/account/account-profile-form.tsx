@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { ACCOUNT_NAME_MAX, ACCOUNT_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_FIELD_CLASS, ACCOUNT_NAME_MAX, ACCOUNT_PROFILE } from "@/lib/account-profile";
 import { saveAccountName } from "./actions";
 
 // Name writes user_metadata.display_name. Email is the session login email
@@ -25,8 +25,9 @@ export function AccountProfileForm({
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setSaving(true);
     setError("");
     setSaved(false);
@@ -38,6 +39,7 @@ export function AccountProfileForm({
     }
     setSaving(false);
     setSaved(true);
+    form.querySelector<HTMLInputElement>("#account-name")?.blur();
     router.refresh();
   }
 
@@ -55,6 +57,7 @@ export function AccountProfileForm({
           }}
           maxLength={ACCOUNT_NAME_MAX}
           autoComplete="name"
+          className={ACCOUNT_FIELD_CLASS}
         />
       </div>
       <div className="flex flex-col gap-[var(--space-2)]">
@@ -66,6 +69,7 @@ export function AccountProfileForm({
           value={email}
           readOnly
           aria-readonly="true"
+          className={ACCOUNT_FIELD_CLASS}
         />
         <p className="t-body-sm text-ink-3">{ACCOUNT_PROFILE.emailHint}</p>
       </div>

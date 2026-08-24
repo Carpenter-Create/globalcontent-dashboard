@@ -10,6 +10,10 @@ import { USER_MENU, userMenuName } from "@/lib/user-menu";
 /** Conservative bound — same ceiling as other person/company name writes. */
 export const ACCOUNT_NAME_MAX = 200;
 
+// House t-body is 15px. iOS Safari zooms the page when a focused input is
+// under 16px. Lock only these account fields — do not restyle dashboard inputs.
+export const ACCOUNT_FIELD_CLASS = "!text-[16px]";
+
 export const ACCOUNT_PROFILE = {
   title: USER_MENU.userProfile,
   href: USER_MENU.userProfileHref,

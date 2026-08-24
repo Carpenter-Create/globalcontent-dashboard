@@ -27,6 +27,12 @@ export async function saveAccountName(name: unknown): Promise<{ error?: string }
   });
   if (error) return { error: error.message || ACCOUNT_PROFILE.saveFailed };
 
+  // updateUser writes user_metadata but leaves the access-token JWT as a
+  // snapshot. getAuthUser reads display_name from getClaims(), so /account
+  // and the account-sheet Identity stay empty until this refresh.
+  const { error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError) return { error: refreshError.message || ACCOUNT_PROFILE.saveFailed };
+
   revalidatePath("/account");
   revalidatePath("/");
   return {};
