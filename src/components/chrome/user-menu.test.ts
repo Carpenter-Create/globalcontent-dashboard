@@ -130,7 +130,8 @@ describe("UserMenu item lock (source)", () => {
     expect(USER_MENU).not.toHaveProperty("appearanceHref");
     expect(USER_MENU).not.toHaveProperty("companyProfileHref");
     expect(USER_MENU.appearance).toBe("Appearance");
-    expect(APPEARANCE.back).toBe("Back to main menu");
+    expect(APPEARANCE.back).toBe("Back");
+    expect(APPEARANCE.back).not.toBe("Back to main menu");
   });
 
   it("desktop panel items are the same list as mobile", () => {
@@ -171,15 +172,18 @@ describe("UserMenu actions", () => {
   it("nests Light, Dark, Auto as the same rows — selected is a quiet check", () => {
     expect(sheetSrc).toContain('data-account-menu-face={face}');
     expect(sheetSrc).toContain("APPEARANCE.back");
+    expect(sheetSrc).toContain("ChevronLeft");
+    expect(sheetSrc).toContain("AccountBackChevron");
     expect(sheetSrc).toContain("APPEARANCE_OPTIONS.map");
     expect(sheetSrc).toContain("AppearanceCheck");
     expect(sheetSrc).toContain("applyDocumentThemePreference");
     expect(sheetSrc).toContain('setFace("appearance")');
+    expect(sheetSrc).not.toContain("Back to main menu");
     expect(sheetSrc).not.toContain('type="radio"');
     expect(sheetSrc).not.toContain("radiogroup");
     expect(sheetSrc).not.toContain("ThemeGlyph");
     expect(sheetSrc).not.toContain("/account/appearance");
-    expect(APPEARANCE.back).toBe("Back to main menu");
+    expect(APPEARANCE.back).toBe("Back");
     expect(APPEARANCE.light).toBe("Light");
     expect(APPEARANCE.dark).toBe("Dark");
     expect(APPEARANCE.auto).toBe("Auto");

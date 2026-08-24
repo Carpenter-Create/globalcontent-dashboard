@@ -120,12 +120,14 @@ export function SheetGroupItem({
   children,
   item,
   pressed,
+  label,
 }: {
   href?: string | null;
   onClick?: () => void;
   children: ReactNode;
   item?: string;
   pressed?: boolean;
+  label?: string;
 }) {
   if (href) {
     return (
@@ -134,6 +136,7 @@ export function SheetGroupItem({
         onClick={onClick}
         data-sheet-group-item={item}
         className={SHEET_GROUP_ITEM_CLASS}
+        aria-label={label}
       >
         {children}
       </Link>
@@ -145,6 +148,7 @@ export function SheetGroupItem({
         type="button"
         data-sheet-group-item={item}
         className={SHEET_GROUP_ITEM_CLASS}
+        aria-label={label}
         aria-pressed={pressed}
         onClick={onClick}
       >
