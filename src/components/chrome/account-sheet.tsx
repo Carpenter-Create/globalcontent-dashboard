@@ -10,7 +10,10 @@ import { useThemePreference } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import {
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
+  ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
+  ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_SHEET,
@@ -127,6 +130,7 @@ function AccountMenuBody({
   face,
   setFace,
   scrollClass,
+  variant,
 }: {
   email: string;
   name?: string | null;
@@ -135,23 +139,31 @@ function AccountMenuBody({
   face: AccountMenuFace;
   setFace: (face: AccountMenuFace) => void;
   scrollClass: string;
+  variant: "sheet" | "dropdown";
 }) {
   const identity = accountSheetIdentity(email, name);
+  const stacked = variant === "dropdown";
 
   return (
     <>
       {face === "main" ? <MenuSurfaceAccent /> : null}
-      <div data-account-sheet-head="" className={ACCOUNT_SHEET_HEAD_CLASS}>
+      <div
+        data-account-sheet-head=""
+        className={stacked ? ACCOUNT_MENU_DROPDOWN_HEAD_CLASS : ACCOUNT_SHEET_HEAD_CLASS}
+      >
         <IdentityBlock
           avatarInitial={identity.avatarInitial}
           name={identity.name}
           email={identity.email}
+          className={stacked ? ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS : undefined}
         />
-        <Close44
-          label={ACCOUNT_SHEET.close}
-          data-account-sheet-close=""
-          onClick={onClose}
-        />
+        {stacked ? null : (
+          <Close44
+            label={ACCOUNT_SHEET.close}
+            data-account-sheet-close=""
+            onClick={onClose}
+          />
+        )}
       </div>
       {face === "appearance" ? (
         <AccountSheetAppearance onBack={() => setFace("main")} />
@@ -159,7 +171,7 @@ function AccountMenuBody({
         <>
           <AppSheetHairline data-account-sheet-rule="" />
           <div data-account-sheet-scroll="" className={scrollClass}>
-            <SheetGroup>
+            <SheetGroup className={stacked ? ACCOUNT_MENU_DROPDOWN_GROUP_CLASS : undefined}>
               {ACCOUNT_SHEET_ITEMS.map((item) => {
                 if (item.kind === "appearance") {
                   return (
@@ -243,8 +255,8 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 586:768 / 586:814 — same items as mobile. Content-sized house
-// dropdown under the avatar. Hug height. Not a 90% sheet. Not a tall right takeover.
+// Desktop 586:768 / 586:814 — same items as mobile. 264 hug under the
+// avatar. Close killed. Stacked identity. Not a 90% sheet. Not a tall right takeover.
 export function DesktopAccountMenu({
   email,
   name,
@@ -263,7 +275,7 @@ export function DesktopAccountMenu({
       <AccountMenuTrigger
         email={email}
         open={open}
-        onOpen={openMenu}
+        onOpen={open ? closeMenu : openMenu}
         triggerAttr="data-user-menu-trigger"
         controlsId="account-menu-dropdown"
         className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 transition-colors hover:text-ink"
@@ -348,6 +360,7 @@ export function AccountSheet({
           face={face}
           setFace={setFace}
           scrollClass={ACCOUNT_SHEET_SCROLL_CLASS}
+          variant="sheet"
         />
       </div>
     </div>
@@ -396,6 +409,7 @@ export function AccountMenuDropdown({
           face={face}
           setFace={setFace}
           scrollClass={ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS}
+          variant="dropdown"
         />
       </div>
     </div>

@@ -63,16 +63,26 @@ export const ACCOUNT_SHEET_VERSION_CLASS = "t-body-sm font-normal leading-4 text
 
 export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 
-// 586:768 / 586:814 — content-sized house dropdown under the avatar.
-// Hug height. 277 wide. Not a 90% sheet. Not a tall right takeover.
+// 586:768 / 586:814 — 264 hug under the avatar. Not a 90% sheet.
+// Not a tall right takeover. Pad 16. padT 28 (4 bar + 24 air). Gap 16.
+// Close killed — dismiss on outside click / avatar. Stacked identity.
+// No ellipsis. Half-bar is 132×4 = 50% of 264.
 export const ACCOUNT_MENU_DROPDOWN_HOST_CLASS = "fixed inset-0 z-50";
 
 export const ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS = "absolute inset-0";
 
 export const ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS =
-  "absolute top-[calc(var(--header-height)+var(--space-2))] right-[var(--content-inset)] z-10 flex h-auto w-[277px] flex-col gap-[var(--space-6)] rounded-[12px] border border-hairline bg-surface p-[var(--space-6)]";
+  "absolute top-[calc(var(--header-height)+var(--space-2))] right-[var(--content-inset)] z-10 flex h-auto w-[264px] flex-col gap-[var(--space-4)] overflow-hidden rounded-[12px] border border-hairline bg-surface px-[var(--space-4)] pb-[var(--space-4)] pt-[calc(4px+var(--space-6))]";
 
-export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex flex-col";
+export const ACCOUNT_MENU_DROPDOWN_HEAD_CLASS = "flex w-full flex-col items-start";
+
+export const ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS =
+  "flex min-w-0 w-full flex-col items-start gap-[var(--space-2)] break-words";
+
+export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
+  "flex w-full flex-col items-start gap-[var(--space-4)]";
+
+export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex w-full flex-col";
 
 export type AccountSheetIdentity = {
   avatarInitial: string;

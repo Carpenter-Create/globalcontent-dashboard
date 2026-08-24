@@ -96,12 +96,14 @@ export function IdentityBlock({
 export function SheetGroup({
   label,
   children,
+  className,
 }: {
   label?: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div data-sheet-group="" className={SHEET_GROUP_CLASS}>
+    <div data-sheet-group="" className={cn(SHEET_GROUP_CLASS, className)}>
       {label ? (
         <p data-sheet-group-label="" className={SHEET_GROUP_LABEL_CLASS}>
           {label}
