@@ -178,3 +178,32 @@ body {
   }
   html { scroll-behavior: auto; }
 }
+
+/* App-sheet rise — housed for account + nav. Reduced-motion: no slide. */
+@keyframes app-sheet-rise {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes app-sheet-scrim-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.app-sheet-rise {
+  animation: app-sheet-rise var(--app-sheet-duration) var(--app-sheet-easing) both;
+}
+
+.app-sheet-scrim-fade {
+  animation: app-sheet-scrim-fade var(--app-sheet-duration) var(--app-sheet-easing) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sheet-rise,
+  .app-sheet-scrim-fade {
+    animation: none !important;
+  }
+  .app-sheet-rise {
+    transform: none;
+  }
+}

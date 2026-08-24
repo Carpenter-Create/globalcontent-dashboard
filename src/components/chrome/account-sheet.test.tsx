@@ -15,7 +15,9 @@ vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import { ACCOUNT_SHEET, ACCOUNT_SHEET_ABSENT, ACCOUNT_SHEET_ITEMS } from "@/lib/account-sheet";
 import {
+  APP_SHEET_RISE_CLASS,
   APP_SHEET_SCRIM_CLASS,
+  APP_SHEET_SCRIM_FADE_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
   SHEET_GROUP_ITEM_CLASS,
@@ -96,6 +98,8 @@ describe("AccountSheet 544:561", () => {
     expect(hostClass).toContain("justify-end");
     expect(hostClass).not.toContain("bg-canvas");
     expect(scrimClass).toBe(APP_SHEET_SCRIM_CLASS);
+    expect(scrimClass).toContain(APP_SHEET_SCRIM_FADE_CLASS);
+    expect(surfaceClass).toContain(APP_SHEET_RISE_CLASS);
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
     expect(surfaceClass).toContain("px-[var(--space-4)]");
@@ -117,6 +121,7 @@ describe("AccountSheet 544:561", () => {
     expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
     expect(src).toContain("<Close44");
     expect(src).toContain("<AppSheetSurface");
+    expect(src).not.toMatch(/duration-\d|ease-out|ease-in|@keyframes|bounce/i);
     expect(houseSrc).toContain('<X className="size-4" strokeWidth={1.33} />');
     expect(src).toContain("event.key === \"Escape\"");
     expect(tokens).toMatch(/--space-12:\s*3rem/);

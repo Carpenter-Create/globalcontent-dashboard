@@ -1,9 +1,16 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
   APP_SHEET_HAIRLINE_CLASS,
   APP_SHEET_HEAD_CLASS,
+  APP_SHEET_MOTION_DURATION_MS,
+  APP_SHEET_MOTION_EASING,
+  APP_SHEET_RISE_CLASS,
   APP_SHEET_SCRIM_CLASS,
+  APP_SHEET_SCRIM_FADE_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
   IDENTITY_AVATAR_CLASS,
@@ -16,6 +23,10 @@ import {
   TEXT_ACTION_CLASS,
   THREAD_POPOVER_ICON_CLASS,
 } from "./house-sheet";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const tokens = readFileSync(join(here, "../app/tokens.css"), "utf8");
+const globals = readFileSync(join(here, "../app/globals.css"), "utf8");
 
 describe("house sheet lock", () => {
   it("keeps Close/44 on the muted 44 circle", () => {
@@ -62,7 +73,38 @@ describe("house sheet lock", () => {
     expect(APP_SHEET_SURFACE_CLASS).not.toContain("rounded-t-[24px]");
     expect(APP_SHEET_HEAD_CLASS).toContain("h-[44px]");
     expect(APP_SHEET_HAIRLINE_CLASS).toContain("bg-hairline");
-    expect(APP_SHEET_SCRIM_CLASS).toBe("absolute inset-0 bg-ink/24");
+    expect(APP_SHEET_SCRIM_CLASS).toContain("absolute inset-0");
+    expect(APP_SHEET_SCRIM_CLASS).toContain("bg-ink/24");
+    expect(APP_SHEET_SCRIM_CLASS).toContain(APP_SHEET_SCRIM_FADE_CLASS);
+    expect(APP_SHEET_SURFACE_CLASS).toContain(APP_SHEET_RISE_CLASS);
+  });
+
+  it("houses one 300–360ms ease-out rise for nav and account — no bounce, no slide when reduced", () => {
+    expect(APP_SHEET_MOTION_DURATION_MS).toBeGreaterThanOrEqual(300);
+    expect(APP_SHEET_MOTION_DURATION_MS).toBeLessThanOrEqual(360);
+    expect(APP_SHEET_MOTION_EASING).toBe("ease-out");
+    expect(APP_SHEET_MOTION_EASING).not.toMatch(/bounce|spring|elastic|in-out/i);
+    expect(APP_SHEET_RISE_CLASS).toBe("app-sheet-rise");
+    expect(APP_SHEET_SCRIM_FADE_CLASS).toBe("app-sheet-scrim-fade");
+    expect(APP_SHEET_SURFACE_CLASS).toContain(APP_SHEET_RISE_CLASS);
+    expect(APP_SHEET_SCRIM_CLASS).toContain(APP_SHEET_SCRIM_FADE_CLASS);
+
+    expect(tokens).toContain(`--app-sheet-duration: ${APP_SHEET_MOTION_DURATION_MS}ms`);
+    expect(tokens).toContain(`--app-sheet-easing: ${APP_SHEET_MOTION_EASING}`);
+    expect(tokens).not.toMatch(/bounce|spring|elastic/i);
+
+    expect(globals).toContain("@keyframes app-sheet-rise");
+    expect(globals).toContain("translateY(100%)");
+    expect(globals).toContain("animation: app-sheet-rise var(--app-sheet-duration) var(--app-sheet-easing) both");
+    expect(globals).toContain("animation: app-sheet-scrim-fade var(--app-sheet-duration) var(--app-sheet-easing) both");
+    expect(globals).not.toMatch(/cubic-bezier\([^)]*1\.[2-9]/);
+    expect(globals).not.toMatch(/bounce|animate-bounce|spring/i);
+
+    const sheetReduced = globals.slice(globals.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+    expect(sheetReduced).toContain(".app-sheet-rise");
+    expect(sheetReduced).toContain("animation: none !important");
+    expect(sheetReduced).toContain("transform: none");
+    expect(sheetReduced).not.toContain("translateY");
   });
 
   it("keeps thread ··· glyphs only — surface chrome is MenuSurface", () => {
