@@ -96,6 +96,7 @@ describe("UserMenu identity source lock", () => {
       "utf8",
     );
     expect(layoutSrc).toContain("email={ctx.user.email}");
+    expect(layoutSrc).toContain("name={ctx.user.name}");
     expect(layoutSrc).not.toContain("display_name");
     expect(layoutSrc).not.toContain("user_metadata");
     expect(layoutSrc).not.toContain("full_name");
@@ -106,7 +107,11 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("contains only Agreements, Appearance, and Log out", () => {
+  it("contains User Profile, Company Profile, Agreements, Appearance, and Log out", () => {
+    expect(menuSrc).toContain("USER_MENU.userProfile");
+    expect(menuSrc).toContain("USER_MENU.userProfileHref");
+    expect(menuSrc).toContain("USER_MENU.companyProfile");
+    expect(menuSrc).toContain("USER_MENU.companyProfileHref");
     expect(menuSrc).toContain("USER_MENU.agreements");
     expect(menuSrc).toContain("USER_MENU.agreementsHref");
     expect(menuSrc).toContain("USER_MENU.appearance");
@@ -121,8 +126,15 @@ describe("UserMenu item lock (source)", () => {
     expect(menuSrc).not.toContain("lucide-react");
   });
 
-  it("keeps Agreements on the existing href", () => {
+  it("keeps User Profile on /account and Company Profile on /account/company", () => {
+    expect(USER_MENU.userProfileHref).toBe("/account");
+    expect(USER_MENU.userProfile).toBe("User Profile");
+    expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
+    expect(menuSrc).toContain("USER_MENU.userProfileHref");
+    expect(menuSrc).toContain('data-user-menu-item="userProfile"');
+    expect(menuSrc).toContain("USER_MENU.companyProfileHref");
+    expect(menuSrc).toContain('data-user-menu-item="companyProfile"');
     expect(menuSrc).toContain("USER_MENU.agreementsHref");
     expect(menuSrc).toContain('data-user-menu-item="agreements"');
   });
@@ -165,12 +177,16 @@ describe("UserMenu Mercury quiet craft", () => {
 
   it("keeps the identity hairline and adds a divider before Log out", () => {
     const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
+    const userProfile = menuSrc.indexOf('data-user-menu-item="userProfile"');
+    const companyProfile = menuSrc.indexOf('data-user-menu-item="companyProfile"');
     const agreements = menuSrc.indexOf('data-user-menu-item="agreements"');
     const appearance = menuSrc.indexOf('data-user-menu-item="appearance"');
     const logoutRule = menuSrc.indexOf('data-user-menu-logout-hairline=""');
     const logOut = menuSrc.indexOf('data-user-menu-item="logOut"');
     expect(hairline).toBeGreaterThan(-1);
-    expect(agreements).toBeGreaterThan(hairline);
+    expect(userProfile).toBeGreaterThan(hairline);
+    expect(companyProfile).toBeGreaterThan(userProfile);
+    expect(agreements).toBeGreaterThan(companyProfile);
     expect(appearance).toBeGreaterThan(agreements);
     expect(logoutRule).toBeGreaterThan(appearance);
     expect(logOut).toBeGreaterThan(logoutRule);

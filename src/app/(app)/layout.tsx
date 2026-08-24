@@ -45,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppShell
       email={ctx.user.email}
+      name={ctx.user.name}
       orgs={ctx.orgs}
       activeOrgId={ctx.activeOrg?.id ?? null}
       messagesUnread={ctx.unread}

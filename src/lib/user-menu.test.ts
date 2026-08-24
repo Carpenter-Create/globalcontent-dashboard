@@ -10,36 +10,54 @@ import {
 } from "./user-menu";
 
 describe("user menu lock", () => {
-  it("keeps Mercury order: Agreements, Appearance, Log out", () => {
+  it("keeps Mercury order: User Profile, Company Profile, Agreements, Appearance, Log out", () => {
     expect(USER_MENU_ACTIONS.map((item) => item.kind)).toEqual([
+      "userProfile",
+      "companyProfile",
       "agreements",
       "appearance",
       "logOut",
     ]);
     expect(USER_MENU_ACTIONS.map((item) => item.label)).toEqual([
+      "User Profile",
+      "Company Profile",
       "Agreements",
       "Appearance",
       "Log out",
     ]);
   });
 
-  it("points Agreements at the existing account page only", () => {
+  it("points User Profile at /account and Company Profile at /account/company", () => {
+    expect(USER_MENU.userProfileHref).toBe("/account");
+    expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
     expect(USER_MENU_ACTIONS[0]).toEqual({
+      kind: "userProfile",
+      label: "User Profile",
+      href: "/account",
+    });
+    expect(USER_MENU_ACTIONS[1]).toEqual({
+      kind: "companyProfile",
+      label: "Company Profile",
+      href: "/account/company",
+    });
+    expect(USER_MENU_ACTIONS[2]).toEqual({
       kind: "agreements",
       label: "Agreements",
       href: "/account/agreements",
     });
   });
 
-  it("does not include Profile, Notifications, Privacy, or Sign out", () => {
+  it("does not invent /account/profile, Notifications, Privacy, or Sign out", () => {
     const labels = USER_MENU_ACTIONS.map((item) => item.label);
     const hrefs = USER_MENU_ACTIONS.flatMap((item) => ("href" in item ? [item.href] : []));
     for (const absent of USER_MENU_ABSENT) {
       expect(labels).not.toContain(absent);
     }
-    expect(hrefs).toEqual(["/account/agreements"]);
-    expect(hrefs.join(" ")).not.toMatch(/profile|notifications|privacy/i);
+    expect(labels).not.toContain("Profile");
+    expect(hrefs).toEqual(["/account", "/account/company", "/account/agreements"]);
+    expect(hrefs).not.toContain("/account/profile");
+    expect(hrefs.join(" ")).not.toMatch(/notifications|privacy/i);
   });
 });
 

@@ -10,9 +10,10 @@ export const ACCOUNT_SHEET = {
   close: "Close account",
   sheet: "Account",
   manage: "Manage account",
-  manageHref: "/account",
+  manageHref: USER_MENU.userProfileHref,
   group: "ACCOUNT",
-  companyProfile: "Company Profile",
+  companyProfile: USER_MENU.companyProfile,
+  companyHref: USER_MENU.companyProfileHref,
   agreements: "Agreements",
   logOut: USER_MENU.logOut,
 } as const;
@@ -37,10 +38,10 @@ export type AccountSheetItem = {
 };
 
 // Manage account opens /account (the user-profile door). No User Profile
-// row. Company Profile has no route in this repo. Agreements is the
-// existing page. Log out is the existing desktop signOut action.
+// row. Company Profile is /account/company. Agreements is the existing
+// page. Log out is the existing desktop signOut action.
 export const ACCOUNT_SHEET_ITEMS: readonly AccountSheetItem[] = [
-  { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: null },
+  { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: ACCOUNT_SHEET.companyHref },
   { kind: "agreements", label: ACCOUNT_SHEET.agreements, href: USER_MENU.agreementsHref },
 ];
 
