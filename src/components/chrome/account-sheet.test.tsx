@@ -499,8 +499,16 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-6))]");
     expect(surfaceClass).toContain("gap-[var(--space-4)]");
     expect(surfaceClass).toContain("overflow-hidden");
-    expect(surfaceClass).toContain("top-[calc(var(--header-height)+var(--space-2))]");
-    expect(surfaceClass).toContain("right-[var(--content-inset)]");
+    expect(surfaceClass).not.toContain("top-[calc(var(--header-height)+var(--space-2))]");
+    expect(surfaceClass).not.toContain("right-[var(--content-inset)]");
+    expect(surfaceClass).not.toContain("--header-height");
+    expect(surfaceClass).not.toContain("--content-inset");
+    expect(html).toContain('data-account-menu-align="end"');
+    expect(src).toContain("accountMenuDropdownAlignEnd");
+    expect(src).toContain("useDesktopAccountMenuAlignEnd");
+    expect(src).toContain("alignEnd={alignEnd}");
+    expect(src).toContain("triggerRef={triggerRef}");
+    expect(tokens).toMatch(/--space-2:\s*0\.5rem/);
     expect(surfaceClass).not.toContain("w-[277px]");
     expect(surfaceClass).not.toContain("h-[90dvh]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
@@ -616,5 +624,23 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(desktop.slice(0, desktop.indexOf("export function AccountSheetAppearance"))).not.toContain(
       "<AccountSheet",
     );
+  });
+
+  it("applies align-end so the 264 right edge is flush to the avatar", () => {
+    const html = renderToStaticMarkup(
+      <AccountMenuDropdown
+        email="ada@example.com"
+        pathname="/"
+        onClose={() => undefined}
+        alignEnd={{ top: "calc(44px + var(--space-2))", right: "16px" }}
+      />,
+    );
+    const surface = tagWith(html, "data-user-menu-desktop-surface");
+
+    expect(html).toContain('data-account-menu-align="end"');
+    expect(surface).toContain("calc(44px + var(--space-2))");
+    expect(surface).toContain("16px");
+    expect(surface).not.toContain("--header-height");
+    expect(surface).not.toContain("--content-inset");
   });
 });

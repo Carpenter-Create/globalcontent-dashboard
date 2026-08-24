@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
@@ -9,6 +16,7 @@ import { AppearanceCheck } from "./appearance-check";
 import { useThemePreference } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import {
+  ACCOUNT_MENU_DROPDOWN_ALIGN,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
   ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
@@ -16,6 +24,8 @@ import {
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  accountMenuDropdownAlignEnd,
+  type AccountMenuDropdownAlign,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_FOOTER_CLASS,
   ACCOUNT_SHEET_HEAD_CLASS,
@@ -57,6 +67,7 @@ function AccountMenuTrigger({
   className,
   triggerAttr,
   controlsId,
+  triggerRef,
 }: {
   email: string;
   open: boolean;
@@ -64,6 +75,7 @@ function AccountMenuTrigger({
   className: string;
   triggerAttr: "data-account-sheet-trigger" | "data-user-menu-trigger";
   controlsId: string;
+  triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const initial = userMenuAvatarInitial(email);
   const attrs = { [triggerAttr]: "" } as Record<string, string>;
@@ -72,6 +84,7 @@ function AccountMenuTrigger({
     <button
       type="button"
       {...attrs}
+      ref={triggerRef}
       aria-label={ACCOUNT_SHEET.sheet}
       aria-expanded={open}
       aria-controls={controlsId}
@@ -108,6 +121,32 @@ function useAccountMenuDismiss(onClose: () => void, lockOverflow: boolean) {
       if (lockOverflow) document.body.style.overflow = previous;
     };
   }, [onClose, lockOverflow]);
+}
+
+function useDesktopAccountMenuAlignEnd(
+  open: boolean,
+  triggerRef: RefObject<HTMLButtonElement | null>,
+) {
+  const [alignEnd, setAlignEnd] = useState<AccountMenuDropdownAlign | undefined>();
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const sync = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      setAlignEnd(
+        accountMenuDropdownAlignEnd(
+          trigger.getBoundingClientRect(),
+          document.documentElement.clientWidth,
+        ),
+      );
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, [open, triggerRef]);
+
+  return alignEnd;
 }
 
 function AccountMenuFooter() {
@@ -259,8 +298,9 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 586:768 / 586:814 — same items as mobile. 264 hug under the
-// avatar. Close killed. Stacked identity. Not a 90% sheet. Not a tall right takeover.
+// Desktop 586:768 / 586:814 — same items as mobile. 264 hug. Align-end
+// to the avatar (right edge flush). 8px under the trigger. Close killed.
+// Stacked identity. Not a 90% sheet. Not a tall right takeover.
 export function DesktopAccountMenu({
   email,
   name,
@@ -269,9 +309,17 @@ export function DesktopAccountMenu({
   name?: string | null;
 }) {
   const { pathname, open, openMenu, closeMenu } = useAccountMenuOpen();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const alignEnd = useDesktopAccountMenuAlignEnd(open, triggerRef);
 
   const dropdown = open ? (
-    <AccountMenuDropdown email={email} name={name} pathname={pathname} onClose={closeMenu} />
+    <AccountMenuDropdown
+      email={email}
+      name={name}
+      pathname={pathname}
+      onClose={closeMenu}
+      alignEnd={alignEnd}
+    />
   ) : null;
 
   return (
@@ -280,6 +328,7 @@ export function DesktopAccountMenu({
         email={email}
         open={open}
         onOpen={open ? closeMenu : openMenu}
+        triggerRef={triggerRef}
         triggerAttr="data-user-menu-trigger"
         controlsId="account-menu-dropdown"
         className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 transition-colors hover:text-ink"
@@ -377,12 +426,14 @@ export function AccountMenuDropdown({
   pathname,
   onClose,
   face: initialFace = "main",
+  alignEnd,
 }: {
   email: string;
   name?: string | null;
   pathname: string;
   onClose: () => void;
   face?: AccountMenuFace;
+  alignEnd?: AccountMenuDropdownAlign;
 }) {
   const [face, setFace] = useState<AccountMenuFace>(initialFace);
   useAccountMenuDismiss(onClose, false);
@@ -404,7 +455,12 @@ export function AccountMenuDropdown({
         onClick={onClose}
         className={ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS}
       />
-      <div data-user-menu-desktop-surface="" className={ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS}>
+      <div
+        data-user-menu-desktop-surface=""
+        data-account-menu-align={ACCOUNT_MENU_DROPDOWN_ALIGN}
+        className={ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS}
+        style={alignEnd}
+      >
         <AccountMenuBody
           email={email}
           name={name}
