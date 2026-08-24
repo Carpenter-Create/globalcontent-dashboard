@@ -245,3 +245,55 @@ describe("AppShell client mobile chrome", () => {
     expect(gate).toContain("⌘K");
   });
 });
+
+describe("AppShell /settings rail", () => {
+  it("puts one 220 settings rail in the Access slot and kills the dashboard destinations", () => {
+    const tokens = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
+      "utf8",
+    );
+    expect(tokens).toMatch(/--sidebar-width:\s*220px;/);
+
+    navigation.pathname = "/settings";
+    const html = renderShell();
+    expect(html).toContain("data-app-rail");
+    expect(html).toContain('data-settings-rail=""');
+    expect(html).toContain("data-settings-rail-nav");
+    expect(html).toContain("data-user-menu-host");
+    expect(html).toContain("Dashboard");
+    expect(html).toContain("Profile");
+    expect(html).toContain("Agreements");
+    expect(html).not.toContain("data-side-nav");
+    expect(html).not.toContain("Titles");
+    expect(html).not.toContain("Deliveries");
+    expect(html).not.toContain("Catalog Health");
+    expect(html).not.toContain("Ask Globee");
+    expect(html).not.toContain("Queue");
+    expect(html).not.toContain("Expand sidebar");
+    expect(html).not.toContain("Collapse sidebar");
+    expect(html).not.toContain("data-mobile-nav-trigger");
+    expect(html).not.toContain("Search");
+    expect(html).not.toContain("data-header-search");
+    expect(html).not.toContain("data-titles-header-search");
+    expect(html.match(/data-app-rail=""/g) ?? []).toHaveLength(1);
+    expect(html.match(/data-settings-rail=""/g) ?? []).toHaveLength(1);
+    expect(shellSrc).toContain("isSettingsPath");
+    expect(shellSrc).toContain("SettingsRail");
+    expect(shellSrc).toContain("SETTINGS_RAIL_PAD_CLASS");
+    expect(shellSrc).toContain("collapsed && !settingsPage");
+    expect(shellSrc).not.toContain("SettingsLocalNav");
+    expect(shellSrc).not.toContain("md:w-[220px]");
+  });
+
+  it("keeps the Access rail on neighboring routes", () => {
+    for (const path of ["/", "/titles", "/deliveries", "/catalog-health", "/messages"]) {
+      navigation.pathname = path;
+      const html = renderShell();
+      expect(html).toContain("data-side-nav");
+      expect(html).not.toContain("data-settings-rail");
+      expect(html).not.toContain("data-settings-rail-nav");
+      expect(html).toContain("data-mobile-nav-trigger");
+      expect(html).toContain("Collapse sidebar");
+    }
+  });
+});

@@ -5,8 +5,15 @@ import {
   SETTINGS,
   SETTINGS_ABSENT,
   SETTINGS_LOCAL_NAV,
+  SETTINGS_RAIL_ABSENT,
+  SETTINGS_RAIL_ACTIVE_CLASS,
+  SETTINGS_RAIL_CHEVRON_CLASS,
+  SETTINGS_RAIL_ITEM_CLASS,
+  SETTINGS_RAIL_PAD_CLASS,
+  isSettingsPath,
   settingsHref,
   settingsPath,
+  settingsRailActive,
   settingsSection,
 } from "./settings";
 
@@ -70,5 +77,41 @@ describe("settings lock", () => {
     expect(settingsPath("/settings#profile")).toBe("/settings");
     expect(settingsPath("/settings#agreements")).toBe("/settings");
     expect(settingsPath("/help")).toBe("/help");
+    expect(isSettingsPath("/settings")).toBe(true);
+    expect(isSettingsPath("/settings#agreements")).toBe(true);
+    expect(isSettingsPath("/")).toBe(false);
+    expect(isSettingsPath("/titles")).toBe(false);
+  });
+
+  it("washes Profile / Agreements from the hash and never marks Dashboard current", () => {
+    expect(settingsRailActive("profile", "profile")).toBe(true);
+    expect(settingsRailActive("agreements", "agreements")).toBe(true);
+    expect(settingsRailActive("profile", "agreements")).toBe(false);
+    expect(settingsRailActive("dashboard", "profile")).toBe(false);
+    expect(settingsRailActive("dashboard", "agreements")).toBe(false);
+  });
+
+  it("locks the settings rail on 220 pad 16, 15 Regular, and 16 chevron", () => {
+    expect(SETTINGS_RAIL_PAD_CLASS).toBe("p-[var(--space-4)]");
+    expect(SETTINGS_RAIL_ITEM_CLASS).toContain("t-body");
+    expect(SETTINGS_RAIL_ITEM_CLASS).toContain("font-normal");
+    expect(SETTINGS_RAIL_ITEM_CLASS).not.toContain("t-body-sm");
+    expect(SETTINGS_RAIL_CHEVRON_CLASS).toBe("size-4 shrink-0");
+    expect(SETTINGS_RAIL_ACTIVE_CLASS).toContain("bg-surface-muted");
+    expect(SETTINGS_RAIL_ACTIVE_CLASS).not.toMatch(/accent|purple|blue/);
+    expect(SETTINGS_RAIL_ABSENT).toEqual([
+      "Titles",
+      "Deliveries",
+      "Catalog Health",
+      "Ask Globee",
+      "Queue",
+      "Vendors",
+      "Clients",
+      "Account",
+      "Users",
+      "API",
+      "Appearance",
+      "Company",
+    ]);
   });
 });
