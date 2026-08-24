@@ -48,6 +48,7 @@ describe("house sheet lock", () => {
 
   it("keeps Text action on 13 Sporty Blue", () => {
     expect(TEXT_ACTION_CLASS).toContain("t-body-sm");
+    expect(TEXT_ACTION_CLASS).toContain("font-normal");
     expect(TEXT_ACTION_CLASS).toContain("text-accent");
     expect(TEXT_ACTION_CLASS).not.toContain("bg-accent");
   });

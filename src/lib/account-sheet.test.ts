@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU, USER_MENU_ACTIONS } from "@/lib/user-menu";
 import {
+  ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
+  ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
+  ACCOUNT_SHEET_FOOTER_CLASS,
   ACCOUNT_SHEET_HEAD_CLASS,
+  ACCOUNT_SHEET_HOST_CLASS,
   ACCOUNT_SHEET_ITEMS,
+  ACCOUNT_SHEET_LEGAL_CLASS,
   ACCOUNT_SHEET_LOGOUT_CLASS,
   ACCOUNT_SHEET_SURFACE_CLASS,
+  ACCOUNT_SHEET_VERSION_CLASS,
   accountSheetIdentity,
   destinationClickClosesSheet,
 } from "./account-sheet";
@@ -56,16 +65,54 @@ describe("account sheet lock", () => {
     }
   });
 
-  it("locks the 544:561 / 569:639 surface: pad 24, 90vh, Identity + Close one row", () => {
+  it("locks the 544:561 / 537:557 surface: pad 24, 90vh, Identity + Close one row", () => {
+    expect(ACCOUNT_SHEET_HOST_CLASS).toContain("justify-end");
+    expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:flex-row");
+    expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:items-end");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("h-[90dvh]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("p-[var(--space-6)]");
-    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("md:w-[390px]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("app-sheet-rise");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("md:w-[390px]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("h-auto");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("w-[277px]");
     expect(ACCOUNT_SHEET_HEAD_CLASS).toContain("min-h-12");
     expect(ACCOUNT_SHEET_HEAD_CLASS).toContain("justify-between");
     expect(ACCOUNT_SHEET_HEAD_CLASS).toContain("items-center");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).toContain("text-accent");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).not.toContain("text-ink");
+  });
+
+  it("locks the 586:768 / 586:814 desktop dropdown to hug height under the avatar", () => {
+    expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).toBe("fixed inset-0 z-50");
+    expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("justify-end");
+    expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("h-dvh");
+    expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).toBe("absolute inset-0");
+    expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).not.toContain("bg-ink");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("h-auto");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("w-[277px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("rounded-[12px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("border-hairline");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("p-[var(--space-6)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("top-[calc(var(--header-height)+var(--space-2))]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("right-[var(--content-inset)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[90dvh]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("md:w-[390px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("app-sheet-rise");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toBe("flex flex-col");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("flex-1");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
+  });
+
+  it("locks the footer on both menus to 13 Regular / 16 — version tertiary, Legal Sporty Blue", () => {
+    expect(ACCOUNT_SHEET_FOOTER_CLASS).toContain("h-4");
+    expect(ACCOUNT_SHEET_VERSION_CLASS).toContain("t-body-sm");
+    expect(ACCOUNT_SHEET_VERSION_CLASS).toContain("font-normal");
+    expect(ACCOUNT_SHEET_VERSION_CLASS).toContain("leading-4");
+    expect(ACCOUNT_SHEET_VERSION_CLASS).toContain("text-ink-3");
+    expect(ACCOUNT_SHEET_LEGAL_CLASS).toContain(TEXT_ACTION_CLASS);
+    expect(ACCOUNT_SHEET_LEGAL_CLASS).toContain("leading-4");
+    expect(ACCOUNT_SHEET_LEGAL_CLASS).toContain("text-accent");
+    expect(ACCOUNT_SHEET_LEGAL_CLASS).not.toContain("text-ink-3");
   });
 });
 

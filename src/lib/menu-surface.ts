@@ -1,6 +1,6 @@
 // Shared menu surface chrome. Desktop profile/user-menu and the thread ···
 // both instance this register. Do not fork a THREAD_POPOVER_* lookalike.
-// Optional Identity half-bar (544:561 / 569:639) is OFF unless the instance
+// Optional Identity half-bar (544:561 / 586:768) is OFF unless the instance
 // opts in. Thread ··· and Appearance stay off. No dashboard-card bars.
 
 export const MENU_SURFACE_CONTENT_CLASS =

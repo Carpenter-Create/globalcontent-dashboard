@@ -14,12 +14,19 @@ vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import {
+  ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
+  ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
   ACCOUNT_SHEET_HEAD_CLASS,
+  ACCOUNT_SHEET_HOST_CLASS,
   ACCOUNT_SHEET_ITEMS,
+  ACCOUNT_SHEET_LEGAL_CLASS,
   ACCOUNT_SHEET_LOGOUT_CLASS,
   ACCOUNT_SHEET_SURFACE_CLASS,
+  ACCOUNT_SHEET_VERSION_CLASS,
 } from "@/lib/account-sheet";
 import {
   APP_SHEET_RISE_CLASS,
@@ -32,7 +39,13 @@ import {
 } from "@/lib/house-sheet";
 import { APPEARANCE } from "@/lib/appearance";
 import { USER_MENU, userMenuVersion } from "@/lib/user-menu";
-import { AccountSheet, AccountSheetAppearance, MobileAccountMenu } from "./account-sheet";
+import {
+  AccountMenuDropdown,
+  AccountSheet,
+  AccountSheetAppearance,
+  DesktopAccountMenu,
+  MobileAccountMenu,
+} from "./account-sheet";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "account-sheet.tsx"), "utf8");
@@ -74,6 +87,12 @@ function renderSheet(email = "ada@example.com", name?: string | null): string {
   );
 }
 
+function renderDropdown(email = "ada@example.com", name?: string | null): string {
+  return renderToStaticMarkup(
+    <AccountMenuDropdown email={email} name={name} pathname="/" onClose={() => undefined} />,
+  );
+}
+
 describe("MobileAccountMenu trigger", () => {
   it("is the existing 32 avatar, phone-only, and does not open the nav sheet", () => {
     navigation.pathname = "/";
@@ -96,7 +115,7 @@ describe("MobileAccountMenu trigger", () => {
   });
 });
 
-describe("AccountSheet 544:561 / 569:639", () => {
+describe("AccountSheet 544:561 / 537:557", () => {
   it("rises from the bottom over a quiet scrim so the page stays under", () => {
     const html = renderSheet();
     const closeClass = buttonClass(html, "data-account-sheet-close");
@@ -109,7 +128,10 @@ describe("AccountSheet 544:561 / 569:639", () => {
     expect(html).toContain("data-account-sheet-scrim");
     expect(html).not.toContain("md:hidden");
     expect(html).toContain('aria-label="Account"');
+    expect(hostClass).toBe(ACCOUNT_SHEET_HOST_CLASS);
     expect(hostClass).toContain("justify-end");
+    expect(hostClass).not.toContain("md:flex-row");
+    expect(hostClass).not.toContain("md:items-end");
     expect(hostClass).not.toContain("bg-canvas");
     expect(scrimClass).toBe(APP_SHEET_SCRIM_CLASS);
     expect(scrimClass).toContain(APP_SHEET_SCRIM_FADE_CLASS);
@@ -119,7 +141,9 @@ describe("AccountSheet 544:561 / 569:639", () => {
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
     expect(surfaceClass).toContain("p-[var(--space-6)]");
-    expect(surfaceClass).toContain("md:w-[390px]");
+    expect(surfaceClass).not.toContain("md:w-[390px]");
+    expect(surfaceClass).not.toContain("w-[277px]");
+    expect(surfaceClass).not.toContain("h-auto");
     expect(surfaceClass).not.toContain("top-[var(--header-height)]");
     expect(surfaceClass).not.toContain("rounded-t-[24px]");
     expect(headClass).toBe(ACCOUNT_SHEET_HEAD_CLASS);
@@ -324,7 +348,13 @@ describe("AccountSheet 544:561 / 569:639", () => {
     expect(src.match(/target="_blank"/g)?.length).toBe(1);
     expect(src).toContain("<TextAction href={USER_MENU.legalHref}");
     expect(src).toContain('rel="noopener"');
+    expect(src).toContain('className="leading-4"');
     expect(attrClass(html, "data-account-sheet-legal")).toContain(TEXT_ACTION_CLASS);
+    expect(attrClass(html, "data-account-sheet-legal")).toBe(ACCOUNT_SHEET_LEGAL_CLASS);
+    expect(attrClass(html, "data-account-sheet-legal")).toContain("leading-4");
+    expect(attrClass(html, "data-account-sheet-version")).toBe(ACCOUNT_SHEET_VERSION_CLASS);
+    expect(attrClass(html, "data-account-sheet-version")).toContain("leading-4");
+    expect(attrClass(html, "data-account-sheet-version")).toContain("text-ink-3");
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("v0.1.0");
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("Log out");
   });
@@ -395,5 +425,105 @@ describe("AccountSheet 544:561 / 569:639", () => {
     expect(menuSrc).toContain("DesktopAccountMenu");
     expect(src).not.toContain("531:542");
     expect(src).not.toContain("462:502");
+  });
+});
+
+describe("AccountMenuDropdown 586:768 / 586:814", () => {
+  it("hugs content under the avatar — not a 90% sheet and not a tall right takeover", () => {
+    const html = renderDropdown("ada@example.com", "Ada Lovelace");
+    const hostClass = attrClass(html, 'data-user-menu-desktop-panel=""');
+    const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
+    const dismissClass = attrClass(html, "data-user-menu-desktop-dismiss");
+    const scrollClass = attrClass(html, "data-account-sheet-scroll");
+
+    expect(html).toContain("data-user-menu-desktop-panel");
+    expect(html).toContain("data-user-menu-desktop-surface");
+    expect(html).not.toContain("data-account-sheet=\"\"");
+    expect(html).not.toContain("data-account-sheet-scrim");
+    expect(hostClass).toBe(ACCOUNT_MENU_DROPDOWN_HOST_CLASS);
+    expect(hostClass).not.toContain("justify-end");
+    expect(hostClass).not.toContain("h-dvh");
+    expect(hostClass).not.toContain("md:flex-row");
+    expect(hostClass).not.toContain("md:items-end");
+    expect(dismissClass).toBe(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS);
+    expect(dismissClass).not.toContain("bg-ink");
+    expect(dismissClass).not.toContain(APP_SHEET_SCRIM_FADE_CLASS);
+    expect(surfaceClass).toBe(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS);
+    expect(surfaceClass).toContain("h-auto");
+    expect(surfaceClass).toContain("w-[277px]");
+    expect(surfaceClass).toContain("rounded-[12px]");
+    expect(surfaceClass).toContain("top-[calc(var(--header-height)+var(--space-2))]");
+    expect(surfaceClass).toContain("right-[var(--content-inset)]");
+    expect(surfaceClass).not.toContain("h-[90dvh]");
+    expect(surfaceClass).not.toContain("md:w-[390px]");
+    expect(surfaceClass).not.toContain(APP_SHEET_RISE_CLASS);
+    expect(scrollClass).toBe(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS);
+    expect(src).toContain("useAccountMenuDismiss(onClose, false)");
+    expect(src).not.toContain("md:w-[390px]");
+  });
+
+  it("keeps the same SSOT items, Sporty Blue Log out, and pinned 13/16 footer", () => {
+    const html = renderDropdown();
+    const legalTag = tagWith(html, "data-account-sheet-legal");
+
+    expect(html).toContain("Profile");
+    expect(html).toContain("Agreements");
+    expect(html).toContain("Appearance");
+    expect(html).toContain("Help");
+    expect(html).toContain("Refer a friend");
+    expect(html).toContain("Log out");
+    expect(html).toContain(">v0.1.0<");
+    expect(html).toContain(USER_MENU.legal);
+    expect(html).toContain('data-user-menu-item="logOut"');
+    expect(attrClass(html, 'data-sheet-group-item="logOut"')).toContain("text-accent");
+    expect(attrClass(html, "data-account-sheet-version")).toBe(ACCOUNT_SHEET_VERSION_CLASS);
+    expect(attrClass(html, "data-account-sheet-version")).toContain("leading-4");
+    expect(attrClass(html, "data-account-sheet-legal")).toBe(ACCOUNT_SHEET_LEGAL_CLASS);
+    expect(attrClass(html, "data-account-sheet-legal")).toContain("leading-4");
+    expect(legalTag).toContain(`href="${USER_MENU.legalHref}"`);
+    expect(legalTag).toContain('target="_blank"');
+    expect(legalTag).toContain('rel="noopener"');
+    expect(html).not.toContain("Light");
+    expect(html).not.toContain("Dark");
+    expect(html).not.toContain("Auto");
+    expect(html).not.toContain("/account/appearance");
+  });
+
+  it("puts the Identity half-bar on the main face only", () => {
+    const main = renderDropdown();
+    const appearance = renderToStaticMarkup(
+      <AccountMenuDropdown
+        email="ada@example.com"
+        pathname="/"
+        onClose={() => undefined}
+        face="appearance"
+      />,
+    );
+    const accent = attrClass(main, "data-menu-surface-accent");
+
+    expect(main).toContain("data-menu-surface-accent");
+    expect(accent).toContain("h-[4px]");
+    expect(accent).toContain("w-1/2");
+    expect(accent).toContain("left-0");
+    expect(accent).toContain("bg-accent");
+    expect(accent).not.toContain("#1769");
+    expect(appearance).not.toContain("data-menu-surface-accent");
+  });
+
+  it("opens from the desktop avatar and does not reuse the 90% sheet", () => {
+    const html = renderToStaticMarkup(<DesktopAccountMenu email="nina@studio.com" />);
+    expect(html).toContain("data-user-menu-desktop");
+    expect(html).toContain("data-user-menu-trigger");
+    expect(html).toContain("hidden md:block");
+    expect(html).toContain(">N<");
+    expect(html).not.toContain("data-user-menu-desktop-panel");
+    expect(html).not.toContain("data-account-sheet=\"\"");
+    expect(src).toContain("<AccountMenuDropdown");
+    expect(src).toContain("DesktopAccountMenu");
+    const desktop = src.slice(src.indexOf("export function DesktopAccountMenu"));
+    expect(desktop).toContain("<AccountMenuDropdown");
+    expect(desktop.slice(0, desktop.indexOf("export function AccountSheetAppearance"))).not.toContain(
+      "<AccountSheet",
+    );
   });
 });

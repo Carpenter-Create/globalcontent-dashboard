@@ -71,7 +71,7 @@ describe("UserMenu trigger", () => {
 });
 
 describe("UserMenu close control", () => {
-  it("opens the mobile 544:561 sheet and the desktop 569:639 panel from the avatar", () => {
+  it("opens the mobile 544:561 / 537:557 sheet and the desktop 586:768 dropdown from the avatar", () => {
     expect(menuSrc).toContain("MobileAccountMenu");
     expect(menuSrc).toContain("DesktopAccountMenu");
     expect(menuSrc).toContain("<MobileAccountMenu email={email} name={name} />");
@@ -79,6 +79,10 @@ describe("UserMenu close control", () => {
     expect(sheetSrc).toContain('data-user-menu-desktop=""');
     expect(sheetSrc).toContain("hidden md:block");
     expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS");
+    expect(sheetSrc).toContain("<AccountMenuDropdown");
+    expect(sheetSrc).toContain("<AccountSheet");
+    expect(sheetSrc).toContain("586:768");
+    expect(sheetSrc).toContain("537:557");
     expect(menuSrc).not.toContain("data-account-sheet-close");
     expect(menuSrc).not.toContain("data-mobile-nav-sheet");
   });
@@ -142,6 +146,7 @@ describe("UserMenu item lock (source)", () => {
     expect(sheetSrc.indexOf("DesktopAccountMenu")).toBeGreaterThan(-1);
     expect(sheetSrc.indexOf("MobileAccountMenu")).toBeGreaterThan(-1);
     expect(sheetSrc).toContain("<AccountSheet");
+    expect(sheetSrc).toContain("<AccountMenuDropdown");
   });
 });
 
