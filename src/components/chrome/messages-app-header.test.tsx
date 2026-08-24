@@ -384,6 +384,9 @@ describe("MessagesAppHeader", () => {
     expect(userMenu).toContain("<MenuSurfaceContent");
     expect(userMenu).not.toContain("min-w-[17.5rem]");
     expect(userMenu).not.toContain("ThreadPopoverContent");
+    expect(src).not.toContain("MenuSurfaceAccent");
+    expect(src).not.toContain("data-menu-surface-accent");
+    expect(surfaceSrc).toContain("{...props} accent={false}");
   });
 
   it("renders nothing for the staff inbox", () => {

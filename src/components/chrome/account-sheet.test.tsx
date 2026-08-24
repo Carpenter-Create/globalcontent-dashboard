@@ -129,6 +129,33 @@ describe("AccountSheet 544:561", () => {
     expect(tokens).toContain("--accent: #1769ff;");
   });
 
+  it("puts the Identity half-bar flush on the main face and off Appearance", () => {
+    const main = renderSheet();
+    const appearance = renderToStaticMarkup(
+      <AccountSheet
+        email="ada@example.com"
+        pathname="/"
+        onClose={() => undefined}
+        face="appearance"
+      />,
+    );
+    const accent = attrClass(main, "data-menu-surface-accent");
+
+    expect(main).toContain("data-menu-surface-accent");
+    expect(accent).toContain("h-[4px]");
+    expect(accent).toContain("w-1/2");
+    expect(accent).toContain("left-0");
+    expect(accent).toContain("top-0");
+    expect(accent).toContain("bg-accent");
+    expect(accent).not.toContain("w-full");
+    expect(accent).not.toContain("bg-hairline");
+    expect(appearance).not.toContain("data-menu-surface-accent");
+    expect(src).toContain("<MenuSurfaceAccent");
+    expect(src).toContain('{face === "main" ? <MenuSurfaceAccent /> : null}');
+    expect(src).not.toContain("Adam Carpenter");
+    expect(src).not.toContain("admin@ccbfg.com");
+  });
+
   it("puts Mercury identity first: 48 circle, name 15 ink, email 13 tertiary, then hairline", () => {
     const html = renderSheet("ada@example.com");
     const identity = html.slice(
