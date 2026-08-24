@@ -2,7 +2,8 @@
 // One list for both instances: desktop dropdown and mobile sheet.
 // Chrome may differ (sheet vs dropdown). Labels may not.
 // User Profile is /account. Company Profile is /account/company.
-// Agreements is /account/agreements. Appearance is /account/appearance.
+// Agreements is /account/agreements. Appearance is a second face,
+// not a page — do not invent /account/appearance as a door.
 // Do not invent /account/profile, Notifications, Privacy, Manage account,
 // or a name derived from the email local-part.
 
@@ -14,7 +15,6 @@ export const USER_MENU = {
   agreements: "Agreements",
   agreementsHref: "/account/agreements",
   appearance: "Appearance",
-  appearanceHref: "/account/appearance",
   logOut: "Log out",
 } as const;
 
@@ -35,20 +35,18 @@ export type UserMenuLinkAction =
       kind: "agreements";
       label: typeof USER_MENU.agreements;
       href: typeof USER_MENU.agreementsHref;
-    }
-  | {
-      kind: "appearance";
-      label: typeof USER_MENU.appearance;
-      href: typeof USER_MENU.appearanceHref;
     };
 
-export type UserMenuAction = UserMenuLinkAction | { kind: "logOut"; label: typeof USER_MENU.logOut };
+export type UserMenuAction =
+  | UserMenuLinkAction
+  | { kind: "appearance"; label: typeof USER_MENU.appearance }
+  | { kind: "logOut"; label: typeof USER_MENU.logOut };
 
 export const USER_MENU_ACTIONS: readonly UserMenuAction[] = [
   { kind: "userProfile", label: USER_MENU.userProfile, href: USER_MENU.userProfileHref },
   { kind: "companyProfile", label: USER_MENU.companyProfile, href: USER_MENU.companyProfileHref },
   { kind: "agreements", label: USER_MENU.agreements, href: USER_MENU.agreementsHref },
-  { kind: "appearance", label: USER_MENU.appearance, href: USER_MENU.appearanceHref },
+  { kind: "appearance", label: USER_MENU.appearance },
   { kind: "logOut", label: USER_MENU.logOut },
 ];
 

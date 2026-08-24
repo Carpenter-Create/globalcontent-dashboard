@@ -22,8 +22,9 @@ import {
   CLOSE_44_CLASS,
   SHEET_GROUP_ITEM_CLASS,
 } from "@/lib/house-sheet";
+import { APPEARANCE } from "@/lib/appearance";
 import { USER_MENU } from "@/lib/user-menu";
-import { AccountSheet, MobileAccountMenu } from "./account-sheet";
+import { AccountSheet, AccountSheetAppearance, MobileAccountMenu } from "./account-sheet";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(join(here, "account-sheet.tsx"), "utf8");
@@ -202,7 +203,7 @@ describe("AccountSheet 544:561", () => {
     expect(html).toContain(`href="${USER_MENU.userProfileHref}"`);
     expect(html).toContain(`href="${USER_MENU.companyProfileHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
-    expect(html).toContain(`href="${USER_MENU.appearanceHref}"`);
+    expect(html).not.toContain("/account/appearance");
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
     expect(ACCOUNT_SHEET_ITEMS).toBeDefined();
@@ -248,6 +249,35 @@ describe("AccountSheet 544:561", () => {
     expect(src).not.toContain("ThemeGlyph");
     expect(src).not.toContain("onUserMenuAppearance");
     expect(src).not.toContain("onUserMenuLogOut");
+    expect(src).not.toContain("/account/appearance");
+    expect(src).not.toContain("type=\"radio\"");
+  });
+
+  it("opens Appearance as a second face with Back to main menu and quiet checks", () => {
+    const html = renderToStaticMarkup(<AccountSheetAppearance onBack={() => undefined} />);
+    const backClass = attrClass(html, 'data-sheet-group-item="back"');
+    const lightClass = attrClass(html, 'data-sheet-group-item="light"');
+    const darkClass = attrClass(html, 'data-sheet-group-item="dark"');
+    const autoClass = attrClass(html, 'data-sheet-group-item="auto"');
+
+    expect(html).toContain(APPEARANCE.back);
+    expect(html).toContain(APPEARANCE.light);
+    expect(html).toContain(APPEARANCE.dark);
+    expect(html).toContain(APPEARANCE.auto);
+    expect(html).toContain("data-appearance-check");
+    expect(html).not.toContain('type="radio"');
+    expect(html).not.toContain("role=\"radiogroup\"");
+    expect(html).not.toContain("/account/appearance");
+    expect(html).not.toContain("User Profile");
+    expect(html).not.toContain("ThemeGlyph");
+    expect(backClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(lightClass).toBe(darkClass);
+    expect(lightClass).toBe(autoClass);
+    expect(src).toContain("AccountSheetAppearance");
+    expect(src).toContain('setFace("appearance")');
+    expect(src).toContain("applyDocumentThemePreference");
+    expect(src).toContain("AppearanceCheck");
+    expect(src).toContain("APPEARANCE.back");
   });
 
   it("does not restyle Ask Globee landing or merge account into the hamburger sheet", () => {

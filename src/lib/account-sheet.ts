@@ -2,7 +2,8 @@
 // Identity is avatar + name + email from the same values /account would
 // show. Always render both fields. No dashes, no invented local-part name.
 // Items after the hairline are USER_MENU_ACTIONS — the same list as the
-// desktop menu. Destinations use existing routes only.
+// desktop menu. Appearance opens the second face. Destinations use
+// existing routes only — not /account/appearance.
 
 import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
