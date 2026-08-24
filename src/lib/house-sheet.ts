@@ -1,7 +1,8 @@
-// Locked house sheet primitives. Classes live here so account, nav, and the
-// thread popover consume one scale — do not restyle per page.
+// Locked house sheet primitives. Classes live here so account and nav
+// consume one scale — do not restyle per page.
 // Figma: Close/44 543:562, Text action 543:563, Identity 543:565, Group
-// 543:570, App sheet 543:576, Thread Popover 544:592.
+// 543:570, App sheet 543:576.
+// Thread ··· chrome lives on the shared menu surface, not here.
 
 export const CLOSE_44_CLASS =
   "flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-3";
@@ -34,17 +35,7 @@ export const APP_SHEET_HAIRLINE_CLASS = "h-px w-full bg-hairline";
 
 export const APP_SHEET_SCRIM_CLASS = "absolute inset-0 bg-ink/24";
 
-// 544:592 — hug content. Do not inherit the shared dropdown min width or a
-// shrink-wrap min width (both read dinky). Do not copy the avatar menu width.
-export const THREAD_POPOVER_CONTENT_CLASS =
-  "z-50 flex w-max flex-col gap-[var(--space-2)] rounded-[12px] border border-hairline bg-surface p-[var(--space-4)] shadow-none";
-
-export const THREAD_POPOVER_ITEM_CLASS =
-  "flex cursor-pointer items-center gap-[var(--space-2)] p-0 t-body text-[length:var(--text-base)] font-normal text-ink outline-none data-[highlighted]:bg-surface-muted data-[highlighted]:text-ink";
-
-export const THREAD_POPOVER_DELETE_CLASS =
-  "flex cursor-pointer items-center gap-[var(--space-2)] p-0 t-body text-[length:var(--text-base)] font-normal text-[#c4564a] outline-none data-[highlighted]:bg-surface-muted data-[highlighted]:text-[#c4564a]";
-
+// Thread ··· item glyphs only — surface chrome is MenuSurface.
 export const THREAD_POPOVER_ICON_CLASS = "size-4 shrink-0 text-ink-3";
 
 export const THREAD_POPOVER_DELETE_ICON_CLASS = "size-4 shrink-0 text-[#c4564a]";
