@@ -36,8 +36,8 @@ describe("account profile copy", () => {
     expect(ACCOUNT_PROFILE.href).not.toBe("/account/profile");
     expect(COMPANY_PROFILE.title).toBe("Company Profile");
     expect(COMPANY_PROFILE.href).toBe("/account/company");
-    expect(ACCOUNT_PROFILE.href).toBe(USER_MENU.userProfileHref);
-    expect(COMPANY_PROFILE.href).toBe(USER_MENU.companyProfileHref);
+    expect(ACCOUNT_PROFILE.href).toBe(USER_MENU.profileHref);
+    expect(COMPANY_PROFILE.href).toBe("/account/company");
     expect(ACCOUNT_PROFILE).not.toHaveProperty("subtitle");
     expect(ACCOUNT_PROFILE.uploadPhoto).toBe("Upload photo");
     expect(ACCOUNT_PROFILE.emailHint).toBe("Sign-in email. It cannot be changed here.");

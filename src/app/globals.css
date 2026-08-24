@@ -194,6 +194,18 @@ body {
   animation: app-sheet-rise var(--app-sheet-duration) var(--app-sheet-easing) both;
 }
 
+/* Desktop Identity panel enters from the right. Mobile keeps the bottom rise. */
+@keyframes account-sheet-enter {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@media (min-width: 768px) {
+  .account-sheet-surface.app-sheet-rise {
+    animation-name: account-sheet-enter;
+  }
+}
+
 .app-sheet-scrim-fade {
   animation: app-sheet-scrim-fade var(--app-sheet-duration) var(--app-sheet-easing) both;
 }

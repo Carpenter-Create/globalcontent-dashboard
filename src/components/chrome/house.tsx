@@ -10,6 +10,7 @@ import {
   APP_SHEET_HEAD_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
+  HOUSE_EMPTY_CLASS,
   IDENTITY_AVATAR_CLASS,
   IDENTITY_BLOCK_CLASS,
   IDENTITY_EMAIL_CLASS,
@@ -52,19 +53,30 @@ export function TextAction({
   );
 }
 
+// House empty — the same 15 Regular line as other empties. No icon, no card.
+export function HouseEmpty({ children }: { children: ReactNode }) {
+  return (
+    <p data-house-empty="" className={HOUSE_EMPTY_CLASS}>
+      {children}
+    </p>
+  );
+}
+
 // 543:565 Identity block — 48 circle, name 15 Regular ink, email 13 tertiary.
 // Always render name and email. Real values only — no dashes, no pill well.
 export function IdentityBlock({
   avatarInitial,
   name,
   email,
+  className,
 }: {
   avatarInitial: string;
   name: string;
   email: string;
+  className?: string;
 }) {
   return (
-    <div data-identity-block="" className={IDENTITY_BLOCK_CLASS}>
+    <div data-identity-block="" className={cn(IDENTITY_BLOCK_CLASS, className)}>
       <div data-identity-avatar="" className={IDENTITY_AVATAR_CLASS}>
         {avatarInitial}
       </div>

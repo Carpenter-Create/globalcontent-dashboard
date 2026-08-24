@@ -10,11 +10,13 @@ import {
   APP_SHEET_RISE_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
+  HOUSE_EMPTY_CLASS,
   TEXT_ACTION_CLASS,
 } from "@/lib/house-sheet";
 import {
   AppSheetSurface,
   Close44,
+  HouseEmpty,
   IdentityBlock,
   SheetGroup,
   SheetGroupItem,
@@ -43,9 +45,12 @@ describe("house primitives", () => {
         </SheetGroupItem>
       </SheetGroup>,
     );
+    const empty = renderToStaticMarkup(<HouseEmpty>Help is empty.</HouseEmpty>);
     const sheet = renderToStaticMarkup(<AppSheetSurface>body</AppSheetSurface>);
 
     expect(close).toContain(CLOSE_44_CLASS);
+    expect(empty).toContain(HOUSE_EMPTY_CLASS);
+    expect(empty).toContain("Help is empty.");
     expect(close).toContain("stroke-width=\"1.33\"");
     expect(action).toContain(TEXT_ACTION_CLASS);
     expect(action).toContain('href="/account"');
@@ -68,9 +73,8 @@ describe("house primitives", () => {
   it("is consumed by the account sheet and nav sheet — not restyled per page", () => {
     expect(accountSrc).toContain("from \"./house\"");
     expect(accountSrc).toContain("<Close44");
-    expect(accountSrc).toContain("<AppSheetSurface");
     expect(accountSrc).toContain("<IdentityBlock");
-    expect(accountSrc).not.toContain("TextAction");
+    expect(accountSrc).toContain("<TextAction");
     expect(accountSrc).toContain("<SheetGroup");
     expect(navSrc).toContain("from \"./house\"");
     expect(navSrc).toContain("<Close44");

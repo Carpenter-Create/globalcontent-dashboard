@@ -7,64 +7,83 @@ import {
   userMenuAvatarInitial,
   userMenuName,
   userMenuPanel,
+  userMenuVersion,
 } from "./user-menu";
 
 describe("user menu lock", () => {
-  it("keeps Mercury order: User Profile, Company Profile, Agreements, Appearance, Log out", () => {
+  it("keeps the same Identity rows on mobile and desktop: Profile, Agreements, Appearance, Help, Refer a friend", () => {
     expect(USER_MENU_ACTIONS.map((item) => item.kind)).toEqual([
-      "userProfile",
-      "companyProfile",
+      "profile",
       "agreements",
       "appearance",
-      "logOut",
+      "help",
+      "refer",
     ]);
     expect(USER_MENU_ACTIONS.map((item) => item.label)).toEqual([
-      "User Profile",
-      "Company Profile",
+      "Profile",
       "Agreements",
       "Appearance",
-      "Log out",
+      "Help",
+      "Refer a friend",
     ]);
   });
 
   it("points each door at its existing route — Appearance is not a page", () => {
-    expect(USER_MENU.userProfileHref).toBe("/account");
-    expect(USER_MENU.companyProfileHref).toBe("/account/company");
+    expect(USER_MENU.profileHref).toBe("/account");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
+    expect(USER_MENU.helpHref).toBe("/help");
+    expect(USER_MENU.referHref).toBe("/refer");
+    expect(USER_MENU.legalHref).toBe("https://globalcontent.co/legal");
     expect(USER_MENU).not.toHaveProperty("appearanceHref");
+    expect(USER_MENU).not.toHaveProperty("companyProfile");
+    expect(USER_MENU).not.toHaveProperty("companyProfileHref");
     expect(USER_MENU.appearance).toBe("Appearance");
     expect(USER_MENU_ACTIONS[0]).toEqual({
-      kind: "userProfile",
-      label: "User Profile",
+      kind: "profile",
+      label: "Profile",
       href: "/account",
     });
     expect(USER_MENU_ACTIONS[1]).toEqual({
-      kind: "companyProfile",
-      label: "Company Profile",
-      href: "/account/company",
-    });
-    expect(USER_MENU_ACTIONS[2]).toEqual({
       kind: "agreements",
       label: "Agreements",
       href: "/account/agreements",
     });
-    expect(USER_MENU_ACTIONS[3]).toEqual({
+    expect(USER_MENU_ACTIONS[2]).toEqual({
       kind: "appearance",
       label: "Appearance",
     });
+    expect(USER_MENU_ACTIONS[3]).toEqual({
+      kind: "help",
+      label: "Help",
+      href: "/help",
+    });
+    expect(USER_MENU_ACTIONS[4]).toEqual({
+      kind: "refer",
+      label: "Refer a friend",
+      href: "/refer",
+    });
   });
 
-  it("does not invent /account/appearance, /account/profile, Manage account, Notifications, Privacy, or Sign out", () => {
+  it("does not invent /account/appearance, /account/profile, Company, Phone, Job, or leftovers", () => {
     const labels = USER_MENU_ACTIONS.map((item) => item.label);
     const hrefs = USER_MENU_ACTIONS.flatMap((item) => ("href" in item ? [item.href] : []));
     for (const absent of USER_MENU_ABSENT) {
       expect(labels).not.toContain(absent);
     }
-    expect(labels).not.toContain("Profile");
-    expect(hrefs).toEqual(["/account", "/account/company", "/account/agreements"]);
+    expect(labels).toContain("Profile");
+    expect(labels).not.toContain("User Profile");
+    expect(hrefs).toEqual(["/account", "/account/agreements", "/help", "/refer"]);
     expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs).not.toContain("/account/profile");
-    expect(hrefs.join(" ")).not.toMatch(/notifications|privacy|settings/i);
+    expect(hrefs).not.toContain("/account/company");
+    expect(hrefs.join(" ")).not.toMatch(/notifications|privacy|settings|phone|job/i);
+  });
+
+  it("pins Legal to the public site and versions from package.json", () => {
+    expect(USER_MENU.legal).toBe("Legal");
+    expect(USER_MENU.legalHref).toBe("https://globalcontent.co/legal");
+    expect(userMenuVersion()).toBe("v0.1.0");
+    expect(USER_MENU.versionPrefix).toBe("v");
   });
 });
 
