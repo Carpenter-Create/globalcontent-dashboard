@@ -21,7 +21,6 @@ import {
   IdentityBlock,
   SheetGroup,
   SheetGroupItem,
-  TextAction,
 } from "./house";
 
 // Phone 544:561 — avatar opens this sheet. Hamburger stays the nav sheet.
@@ -119,15 +118,15 @@ export function AccountSheet({
         />
         <AppSheetHairline data-account-sheet-rule="" />
         <SheetGroup label={ACCOUNT_SHEET.group}>
-          <TextAction
+          <SheetGroupItem
+            item="manage"
             href={ACCOUNT_SHEET.manageHref}
             onClick={
               destinationClickClosesSheet(pathname, ACCOUNT_SHEET.manageHref) ? onClose : undefined
             }
-            data-account-sheet-manage=""
           >
             {ACCOUNT_SHEET.manage}
-          </TextAction>
+          </SheetGroupItem>
           {ACCOUNT_SHEET_ITEMS.map((item) => (
             <SheetGroupItem
               key={item.kind}
