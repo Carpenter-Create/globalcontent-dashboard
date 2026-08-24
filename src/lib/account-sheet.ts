@@ -1,7 +1,8 @@
 // Mobile 544:561 / 547:612 account sheet. Copy lives here, not in JSX.
-// Identity is name + email only when they exist — no dashes, no invented
-// local-part name. Manage account is the user-profile door. Destinations
-// use existing routes only.
+// Identity is avatar + name + email from the same values /account would
+// show. Always render both fields. No dashes, no invented local-part name.
+// Options after the hairline: Manage account, Company Profile, Agreements,
+// then Log out. Destinations use existing routes only.
 
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
@@ -13,6 +14,7 @@ export const ACCOUNT_SHEET = {
   group: "ACCOUNT",
   companyProfile: "Company Profile",
   agreements: "Agreements",
+  logOut: USER_MENU.logOut,
 } as const;
 
 export const ACCOUNT_SHEET_ABSENT = [
@@ -23,7 +25,6 @@ export const ACCOUNT_SHEET_ABSENT = [
   "Ask Globee",
   "Queue",
   "Appearance",
-  "Log out",
   "User Profile",
   "credits",
   "Buy",
@@ -35,8 +36,9 @@ export type AccountSheetItem = {
   href: string | null;
 };
 
-// Manage account opens /account. No User Profile row. Company Profile has
-// no route in this repo. Agreements is the existing page.
+// Manage account opens /account (the user-profile door). No User Profile
+// row. Company Profile has no route in this repo. Agreements is the
+// existing page. Log out is the existing desktop signOut action.
 export const ACCOUNT_SHEET_ITEMS: readonly AccountSheetItem[] = [
   { kind: "companyProfile", label: ACCOUNT_SHEET.companyProfile, href: null },
   { kind: "agreements", label: ACCOUNT_SHEET.agreements, href: USER_MENU.agreementsHref },
@@ -44,14 +46,13 @@ export const ACCOUNT_SHEET_ITEMS: readonly AccountSheetItem[] = [
 
 export type AccountSheetIdentity = {
   avatarInitial: string;
-  name: string | null;
-  email: string | null;
+  name: string;
+  email: string;
 };
 
-function presentField(value: string | null | undefined): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+function accountSheetEmail(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
 }
 
 export function accountSheetIdentity(
@@ -60,8 +61,8 @@ export function accountSheetIdentity(
 ): AccountSheetIdentity {
   return {
     avatarInitial: userMenuAvatarInitial(email),
-    name: userMenuName(name),
-    email: presentField(email),
+    name: userMenuName(name) ?? "",
+    email: accountSheetEmail(email),
   };
 }
 

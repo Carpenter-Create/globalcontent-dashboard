@@ -23,6 +23,8 @@ describe("account sheet lock", () => {
       "Agreements",
     ]);
     expect(ACCOUNT_SHEET_ITEMS.map((item) => item.kind)).not.toContain("userProfile");
+    expect(ACCOUNT_SHEET.logOut).toBe("Log out");
+    expect(ACCOUNT_SHEET.logOut).toBe(USER_MENU.logOut);
   });
 
   it("wires only existing or founder-named account routes", () => {
@@ -55,19 +57,19 @@ describe("account sheet lock", () => {
 });
 
 describe("account sheet identity", () => {
-  it("uses the existing email initial and omits name or email when empty", () => {
+  it("keeps name and email fields without dashes when empty", () => {
     const empty = accountSheetIdentity("");
     expect(empty.avatarInitial).toBe("?");
-    expect(empty.name).toBeNull();
-    expect(empty.email).toBeNull();
+    expect(empty.name).toBe("");
+    expect(empty.email).toBe("");
     expect(empty.name).not.toBe("—");
     expect(empty.email).not.toBe("—");
   });
 
-  it("shows the real email and no name — never a local-part invention or dash", () => {
+  it("shows the real email and an empty name — never a local-part invention or dash", () => {
     const email = "jane.doe@studio.com";
     const panel = accountSheetIdentity(email);
-    expect(panel.name).toBeNull();
+    expect(panel.name).toBe("");
     expect(panel.email).toBe(email);
     expect(panel.avatarInitial).toBe("J");
     expect(panel.name).not.toBe("Jane Doe");

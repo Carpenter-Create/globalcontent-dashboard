@@ -32,7 +32,7 @@ describe("house primitives", () => {
     );
     const action = renderToStaticMarkup(<TextAction href="/account">Manage account</TextAction>);
     const identity = renderToStaticMarkup(
-      <IdentityBlock avatarInitial="A" email="ada@example.com" />,
+      <IdentityBlock avatarInitial="A" name="" email="ada@example.com" />,
     );
     const group = renderToStaticMarkup(
       <SheetGroup label="ACCOUNT">
@@ -48,8 +48,8 @@ describe("house primitives", () => {
     expect(action).toContain(TEXT_ACTION_CLASS);
     expect(action).toContain('href="/account"');
     expect(identity).toContain("data-identity-avatar");
+    expect(identity).toContain("data-identity-name");
     expect(identity).toContain("ada@example.com");
-    expect(identity).not.toContain("data-identity-name");
     expect(identity).not.toContain("—");
     expect(group).toContain("ACCOUNT");
     expect(group).toContain("Agreements");

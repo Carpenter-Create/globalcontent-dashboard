@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 
+import { signOut } from "@/app/actions";
 import {
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ITEMS,
@@ -25,6 +26,8 @@ import {
 
 // Phone 544:561 — avatar opens this sheet. Hamburger stays the nav sheet.
 // Same app-sheet chrome as nav (543:576), account body. Quiet scrim; page stays under.
+// Identity (avatar, name, email) — hairline — Manage account, Company Profile,
+// Agreements — then Log out via the existing desktop signOut action.
 export function MobileAccountMenu({
   email,
   name,
@@ -113,20 +116,18 @@ export function AccountSheet({
           avatarInitial={identity.avatarInitial}
           name={identity.name}
           email={identity.email}
-          action={
-            <TextAction
-              href={ACCOUNT_SHEET.manageHref}
-              onClick={
-                destinationClickClosesSheet(pathname, ACCOUNT_SHEET.manageHref) ? onClose : undefined
-              }
-              data-account-sheet-manage=""
-            >
-              {ACCOUNT_SHEET.manage}
-            </TextAction>
-          }
         />
         <AppSheetHairline data-account-sheet-rule="" />
         <SheetGroup label={ACCOUNT_SHEET.group}>
+          <TextAction
+            href={ACCOUNT_SHEET.manageHref}
+            onClick={
+              destinationClickClosesSheet(pathname, ACCOUNT_SHEET.manageHref) ? onClose : undefined
+            }
+            data-account-sheet-manage=""
+          >
+            {ACCOUNT_SHEET.manage}
+          </TextAction>
           {ACCOUNT_SHEET_ITEMS.map((item) => (
             <SheetGroupItem
               key={item.kind}
@@ -139,6 +140,15 @@ export function AccountSheet({
               {item.label}
             </SheetGroupItem>
           ))}
+          <SheetGroupItem
+            item="logOut"
+            onClick={() => {
+              onClose();
+              void signOut();
+            }}
+          >
+            {ACCOUNT_SHEET.logOut}
+          </SheetGroupItem>
         </SheetGroup>
       </AppSheetSurface>
     </div>

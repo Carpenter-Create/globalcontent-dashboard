@@ -15,7 +15,7 @@ export const IDENTITY_AVATAR_CLASS =
 
 export const IDENTITY_NAME_CLASS = "t-body font-normal text-ink";
 
-export const IDENTITY_EMAIL_CLASS = "t-body font-normal text-ink-2";
+export const IDENTITY_EMAIL_CLASS = "t-body-sm font-normal text-ink-3";
 
 export const SHEET_GROUP_CLASS = "flex flex-col items-start gap-[var(--space-6)]";
 

@@ -8,6 +8,8 @@ import {
   CLOSE_44_CLASS,
   IDENTITY_AVATAR_CLASS,
   IDENTITY_BLOCK_CLASS,
+  IDENTITY_EMAIL_CLASS,
+  IDENTITY_NAME_CLASS,
   SHEET_GROUP_CLASS,
   SHEET_GROUP_ITEM_CLASS,
   SHEET_GROUP_LABEL_CLASS,
@@ -40,6 +42,10 @@ describe("house sheet lock", () => {
     expect(IDENTITY_AVATAR_CLASS).toContain("bg-surface-muted");
     expect(IDENTITY_BLOCK_CLASS).not.toContain("bg-surface-muted");
     expect(IDENTITY_BLOCK_CLASS).not.toContain("rounded-[");
+    expect(IDENTITY_NAME_CLASS).toContain("t-body");
+    expect(IDENTITY_NAME_CLASS).toContain("text-ink");
+    expect(IDENTITY_EMAIL_CLASS).toContain("t-body-sm");
+    expect(IDENTITY_EMAIL_CLASS).toContain("text-ink-3");
   });
 
   it("keeps Group on 12 tracked ACCOUNT rows and 15 Regular items", () => {

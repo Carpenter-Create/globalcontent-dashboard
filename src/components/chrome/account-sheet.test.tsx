@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
+vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import { ACCOUNT_SHEET, ACCOUNT_SHEET_ABSENT, ACCOUNT_SHEET_ITEMS } from "@/lib/account-sheet";
@@ -122,21 +123,29 @@ describe("AccountSheet 544:561", () => {
     expect(tokens).toContain("--accent: #1769ff;");
   });
 
-  it("puts identity first with the 48 circle and omits empty name or email", () => {
+  it("puts Mercury identity first: 48 circle, name 15 ink, email 13 tertiary, then hairline", () => {
     const html = renderSheet("ada@example.com");
     const identity = html.slice(
       html.indexOf("data-identity-block"),
-      html.indexOf("data-sheet-group"),
+      html.indexOf("data-account-sheet-rule"),
     );
     const manageClass = attrClass(html, "data-account-sheet-manage");
+    const nameClass = attrClass(html, "data-identity-name");
+    const emailClass = attrClass(html, "data-identity-email");
 
     expect(html).toContain("data-identity-avatar");
-    expect(html).not.toContain("data-identity-name");
+    expect(html).toContain("data-identity-name");
     expect(html).toContain("data-identity-email");
     expect(identity).toContain(">A<");
     expect(identity).not.toContain("—");
     expect(identity).toContain("ada@example.com");
     expect(identity).not.toContain("Ada Lovelace");
+    expect(identity).not.toContain(ACCOUNT_SHEET.manage);
+    expect(nameClass).toContain("t-body");
+    expect(nameClass).toContain("text-ink");
+    expect(nameClass).not.toContain("text-accent");
+    expect(emailClass).toContain("t-body-sm");
+    expect(emailClass).toContain("text-ink-3");
     expect(html).toContain(ACCOUNT_SHEET.manage);
     expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
     expect(manageClass).toContain("t-body-sm");
@@ -145,7 +154,8 @@ describe("AccountSheet 544:561", () => {
     expect(TEXT_ACTION_CLASS.split(" ").every((token) => manageClass.includes(token))).toBe(true);
     expect(src).toContain("<IdentityBlock");
     expect(src).toContain("<TextAction");
-    expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-sheet-group"));
+    expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-account-sheet-rule"));
+    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf("data-account-sheet-manage"));
     expect(html).toContain("data-account-sheet-rule");
     expect(attrClass(html, "data-account-sheet-rule")).toContain("bg-hairline");
   });
@@ -154,7 +164,7 @@ describe("AccountSheet 544:561", () => {
     const html = renderSheet("jane.doe@studio.com");
     expect(html).toContain("jane.doe@studio.com");
     expect(html).not.toContain("Jane Doe");
-    expect(html).not.toContain("data-identity-name");
+    expect(html).toContain("data-identity-name");
     expect(html).not.toContain("—");
     expect(html).not.toContain("jane.doe</");
   });
@@ -166,23 +176,36 @@ describe("AccountSheet 544:561", () => {
     expect(html).toContain("data-identity-name");
   });
 
-  it("lists ACCOUNT then Company Profile and Agreements — no User Profile row", () => {
+  it("lists Manage account, Company Profile, Agreements, then Log out — no User Profile row", () => {
     const html = renderSheet();
     const group = html.slice(html.indexOf("data-sheet-group"));
+    const logOutClass = attrClass(html, 'data-sheet-group-item="logOut"');
 
     expect(html).toContain(ACCOUNT_SHEET.group);
     expect(attrClass(html, "data-sheet-group-label")).toContain("tracking-[0.08em]");
     expect(attrClass(html, "data-sheet-group-label")).toContain("uppercase");
+    expect(group.indexOf("Manage account")).toBeLessThan(group.indexOf("Company Profile"));
     expect(group.indexOf("Company Profile")).toBeLessThan(group.indexOf("Agreements"));
+    expect(group.indexOf("Agreements")).toBeLessThan(group.indexOf("Log out"));
     expect(html).not.toContain("User Profile");
     expect(html).toContain('data-sheet-group-item="companyProfile"');
     expect(html).toContain('data-sheet-group-item="agreements"');
+    expect(html).toContain('data-sheet-group-item="logOut"');
     expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
     expect(html).not.toContain('href="/account/company"');
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
     expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBeNull();
+    expect(src).toContain('from "@/app/actions"');
+    expect(src).toContain("void signOut()");
+    expect(logOutClass).toContain("text-[length:var(--text-base)]");
+    expect(logOutClass).toContain("font-normal");
+    expect(logOutClass).toContain("text-ink");
+    expect(logOutClass).not.toContain("font-medium");
+    expect(logOutClass).not.toContain("font-bold");
+    expect(logOutClass).not.toContain("text-[#c4564a]");
+    expect(logOutClass).not.toContain("text-accent");
   });
 
   it("does not dump the rail, Ask Globee chrome, or Adobe leftovers", () => {

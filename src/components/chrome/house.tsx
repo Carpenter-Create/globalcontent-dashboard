@@ -59,38 +59,30 @@ export function TextAction({
   );
 }
 
-// 543:565 Identity block — 48 circle. Name/email only when present.
+// 543:565 Identity block — 48 circle, name 15 Regular ink, email 13 tertiary.
+// Always render name and email. Real values only — no dashes, no pill well.
 export function IdentityBlock({
   avatarInitial,
   name,
   email,
-  action,
 }: {
   avatarInitial: string;
-  name?: string | null;
-  email?: string | null;
-  action?: ReactNode;
+  name: string;
+  email: string;
 }) {
   return (
     <div data-identity-block="" className={IDENTITY_BLOCK_CLASS}>
       <div data-identity-avatar="" className={IDENTITY_AVATAR_CLASS}>
         {avatarInitial}
       </div>
-      {name || email ? (
-        <div data-identity-who="" className="flex flex-col items-start gap-[var(--space-2)]">
-          {name ? (
-            <p data-identity-name="" className={IDENTITY_NAME_CLASS}>
-              {name}
-            </p>
-          ) : null}
-          {email ? (
-            <p data-identity-email="" className={IDENTITY_EMAIL_CLASS}>
-              {email}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      {action}
+      <div data-identity-who="" className="flex flex-col items-start gap-[var(--space-2)]">
+        <p data-identity-name="" className={IDENTITY_NAME_CLASS}>
+          {name}
+        </p>
+        <p data-identity-email="" className={IDENTITY_EMAIL_CLASS}>
+          {email}
+        </p>
+      </div>
     </div>
   );
 }
@@ -134,6 +126,18 @@ export function SheetGroupItem({
       >
         {children}
       </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        data-sheet-group-item={item}
+        className={SHEET_GROUP_ITEM_CLASS}
+        onClick={onClick}
+      >
+        {children}
+      </button>
     );
   }
   return (
