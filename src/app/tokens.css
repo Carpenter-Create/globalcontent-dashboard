@@ -78,6 +78,10 @@
   --content-inset: 48px;
   --content-inset-tablet: 32px;
   --page-max-width: 67.5rem;   /* 1080px — the single centered page cap */
+
+  /* App-sheet motion — nav hamburger and account share this. */
+  --app-sheet-duration: 320ms;
+  --app-sheet-easing: ease-out;
 }
 
 /* Phone chrome: persistent rail is gone. Width tokens collapse so header +

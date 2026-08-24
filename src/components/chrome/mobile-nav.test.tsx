@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
 
+import { APP_SHEET_RISE_CLASS } from "@/lib/house-sheet";
 import { GC_NAV, MOBILE_NAV, NAV, type NavItem } from "@/lib/nav";
 import { destinationClickClosesSheet, MobileNav, MobileNavSheet } from "./mobile-nav";
 
@@ -88,10 +89,12 @@ describe("MobileNavSheet", () => {
     expect(src).not.toContain("t-display");
     expect(src).not.toContain("clientNavCurrent");
     expect(html).toContain("data-mobile-nav-surface");
+    expect(attrClass(html, "data-mobile-nav-surface")).toContain(APP_SHEET_RISE_CLASS);
     expect(attrClass(html, "data-mobile-nav-surface")).toContain("rounded-t-[16px]");
     expect(attrClass(html, "data-mobile-nav-surface")).toContain("bg-surface");
     expect(attrClass(html, "data-mobile-nav-surface")).toContain("px-[var(--space-4)]");
     expect(attrClass(html, "data-mobile-nav-sheet")).not.toContain("rounded-t-[16px]");
+    expect(src).not.toMatch(/duration-\d|ease-out|ease-in|@keyframes|bounce/i);
   });
 
   it("does not restack Dashboard or Vendors as a second large title", () => {

@@ -5,6 +5,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  APP_SHEET_MOTION_DURATION_MS,
+  APP_SHEET_MOTION_EASING,
+  APP_SHEET_RISE_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
   TEXT_ACTION_CLASS,
@@ -53,6 +56,7 @@ describe("house primitives", () => {
     expect(group).toContain("ACCOUNT");
     expect(group).toContain("Agreements");
     expect(sheet).toContain(APP_SHEET_SURFACE_CLASS);
+    expect(sheet).toContain(APP_SHEET_RISE_CLASS);
     expect(houseSrc).toContain("543:562");
     expect(houseSrc).toContain("543:563");
     expect(houseSrc).toContain("543:565");
@@ -81,5 +85,11 @@ describe("house primitives", () => {
     expect(houseSrc).not.toContain("ThreadPopoverContent");
     expect(houseSrc).not.toContain("THREAD_POPOVER_CONTENT_CLASS");
     expect(houseSrc).not.toContain("min-w-[17.5rem]");
+    expect(accountSrc).not.toMatch(/duration-\d|ease-out|ease-in|animate-|translateY|@keyframes|bounce/i);
+    expect(navSrc).not.toMatch(/duration-\d|ease-out|ease-in|animate-|translateY|@keyframes|bounce/i);
+    expect(accountSrc).not.toContain(`${APP_SHEET_MOTION_DURATION_MS}`);
+    expect(navSrc).not.toContain(`${APP_SHEET_MOTION_DURATION_MS}`);
+    expect(accountSrc).not.toContain(APP_SHEET_MOTION_EASING);
+    expect(navSrc).not.toContain(APP_SHEET_MOTION_EASING);
   });
 });
