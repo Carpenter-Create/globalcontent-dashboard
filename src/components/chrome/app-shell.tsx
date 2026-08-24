@@ -6,12 +6,14 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
+import { SettingsRail } from "./settings-rail";
 import { MobileNav } from "./mobile-nav";
 import { MessagesAppHeader } from "./messages-app-header";
 import { TitlesHeaderSearch } from "@/components/titles/titles-header-search";
 import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome";
 import { cn } from "@/lib/cn";
 import type { MessagesSurface } from "@/lib/ask-globee";
+import { isSettingsPath, SETTINGS_RAIL_PAD_CLASS } from "@/lib/settings";
 
 type Org = { id: string; name: string };
 
@@ -22,6 +24,10 @@ type Org = { id: string; name: string };
 // Phone: the rail is gone (hidden + width tokens collapse). A header hamburger opens a
 // bottom sheet — client destinations, or those plus staff destinations when
 // isGcStaff. Desktop 1:2 rail is unchanged.
+// /settings only: the Access destinations leave. One 220 rail (pad 16)
+// occupies that slot — ← Dashboard / Profile / Agreements. Not a second
+// column. Collapse and the phone hamburger stay off this route. Header
+// avatar stays.
 export function AppShell({
   email,
   name,
@@ -51,6 +57,7 @@ export function AppShell({
   const titlesBleed = pathname === "/titles";
   const homePage = pathname === "/";
   const messagesPage = pathname === "/messages";
+  const settingsPage = isSettingsPath(pathname);
 
   const toggle = () => {
     setCollapsed((c) => {
@@ -65,7 +72,7 @@ export function AppShell({
     <div
       className="min-h-dvh"
       style={
-        collapsed
+        collapsed && !settingsPage
           ? ({ "--sidebar-width": "var(--sidebar-width-collapsed)" } as React.CSSProperties)
           : undefined
       }
@@ -73,31 +80,43 @@ export function AppShell({
       <aside
         className="fixed left-0 top-0 z-30 hidden h-dvh flex-col border-r border-hairline bg-surface md:flex"
         data-app-rail=""
+        data-settings-rail={settingsPage ? "" : undefined}
         style={{ width: "var(--sidebar-width)" }}
       >
         <div
-          className={cn("flex items-center px-3", collapsed ? "justify-center" : "gap-2")}
+          className={cn(
+            "flex items-center",
+            settingsPage ? "px-[var(--space-4)]" : collapsed ? "justify-center px-3" : "gap-2 px-3",
+          )}
           style={{ height: "var(--header-height)" }}
         >
-          {!collapsed ? (
+          {settingsPage || !collapsed ? (
             <span className="flex-1 truncate t-body font-medium text-ink">Global Content</span>
           ) : null}
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-pressed={collapsed}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-ink-3 transition-colors hover:bg-surface-muted hover:text-ink-2"
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-4" strokeWidth={1.33} />
-            ) : (
-              <PanelLeftClose className="size-4" strokeWidth={1.33} />
-            )}
-          </button>
+          {settingsPage ? null : (
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-pressed={collapsed}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-ink-3 transition-colors hover:bg-surface-muted hover:text-ink-2"
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4" strokeWidth={1.33} />
+              ) : (
+                <PanelLeftClose className="size-4" strokeWidth={1.33} />
+              )}
+            </button>
+          )}
         </div>
-        <div className="flex-1 overflow-y-auto pt-1">
-          <SideNav messagesUnread={messagesUnread} isGcStaff={isGcStaff} collapsed={collapsed} />
+        <div
+          className={cn("flex-1 overflow-y-auto", settingsPage ? SETTINGS_RAIL_PAD_CLASS : "pt-1")}
+        >
+          {settingsPage ? (
+            <SettingsRail />
+          ) : (
+            <SideNav messagesUnread={messagesUnread} isGcStaff={isGcStaff} collapsed={collapsed} />
+          )}
         </div>
       </aside>
 
@@ -111,7 +130,7 @@ export function AppShell({
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
         <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2">
-          <MobileNav isGcStaff={isGcStaff} />
+          {settingsPage ? null : <MobileNav isGcStaff={isGcStaff} />}
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
           {titlesBleed ? <TitlesHeaderSearch /> : null}
         </div>

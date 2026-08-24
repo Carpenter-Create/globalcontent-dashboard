@@ -13,7 +13,7 @@ import {
 } from "@/lib/account-profile";
 import { HOUSE_EMPTY_CLASS } from "@/lib/house-sheet";
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
-import { SETTINGS, SETTINGS_ABSENT, SETTINGS_LOCAL_NAV } from "@/lib/settings";
+import { SETTINGS, SETTINGS_ABSENT } from "@/lib/settings";
 import SettingsPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -42,7 +42,6 @@ function ctx(name: string | null, email = "ada@example.com") {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pageSrc = readFileSync(join(here, "page.tsx"), "utf8");
-const navSrc = readFileSync(join(here, "settings-local-nav.tsx"), "utf8");
 const formSrc = readFileSync(join(here, "../account/account-profile-form.tsx"), "utf8");
 const actionSrc = readFileSync(join(here, "../account/actions.ts"), "utf8");
 
@@ -52,21 +51,24 @@ describe("SettingsPage", () => {
     vi.mocked(signedAvatarUrl).mockResolvedValue(null);
   });
 
-  it("renders #profile and #agreements with local nav Dashboard / Profile / Agreements", async () => {
+  it("renders #profile and #agreements without a second 220 column", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx(null) as never);
     const html = renderToStaticMarkup(await SettingsPage());
     expect(html).toContain('id="profile"');
     expect(html).toContain('id="agreements"');
     expect(html).toContain('data-settings-section="profile"');
     expect(html).toContain('data-settings-section="agreements"');
-    expect(html).toContain('data-settings-local-nav=""');
-    for (const item of SETTINGS_LOCAL_NAV) {
-      expect(html).toContain(`href="${item.href}"`);
-      expect(html).toContain(item.label);
-    }
+    expect(html).toContain('data-settings-page=""');
     expect(html).toContain(SETTINGS.profile);
     expect(html).toContain(SETTINGS.agreements);
     expect(html).not.toContain("User Profile");
+    expect(html).not.toContain("data-settings-local-nav");
+    expect(html).not.toContain("data-settings-rail");
+    expect(html).not.toContain("md:w-[220px]");
+    expect(pageSrc).not.toContain("SettingsLocalNav");
+    expect(pageSrc).not.toContain("SettingsRail");
+    expect(pageSrc).not.toContain("md:w-[220px]");
+    expect(pageSrc).not.toContain("md:flex-row");
   });
 
   it("keeps #profile on the existing name / gated email / empty 48 photo path", async () => {
@@ -137,10 +139,8 @@ describe("SettingsPage", () => {
     expect(actionSrc).toContain("putAvatarObject");
     expect(actionSrc).toContain('revalidatePath("/settings")');
     expect(actionSrc).not.toContain("S3_BUCKET");
-    expect(navSrc).toContain("SETTINGS_LOCAL_NAV");
-    expect(navSrc).toContain("ChevronLeft");
-    expect(`${pageSrc}${navSrc}`).not.toContain("Adam Carpenter");
-    expect(`${pageSrc}${navSrc}`).not.toContain("admin@ccbfg.com");
+    expect(pageSrc).not.toContain("Adam Carpenter");
+    expect(pageSrc).not.toContain("admin@ccbfg.com");
   });
 
   it("renders a signed photo URL when one exists — never an invented face", async () => {
