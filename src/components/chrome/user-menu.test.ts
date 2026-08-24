@@ -149,6 +149,20 @@ describe("UserMenu actions", () => {
     expect(menuSrc).toContain('from "@/app/actions"');
   });
 
+  it("puts the Identity half-bar on the main face only", () => {
+    expect(menuSrc).toContain(
+      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="main"',
+    );
+    expect(menuSrc).toContain(
+      '<MenuSurfaceContent data-user-menu="" data-account-menu-face="appearance"',
+    );
+    expect(menuSrc).not.toContain(
+      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="appearance"',
+    );
+    expect(sheetSrc).toContain("<MenuSurfaceAccent");
+    expect(sheetSrc).toContain('{face === "main" ? <MenuSurfaceAccent /> : null}');
+  });
+
   it("nests Light, Dark, Auto as the same rows — selected is a quiet check", () => {
     expect(menuSrc).toContain('data-account-menu-face="appearance"');
     expect(menuSrc).toContain("APPEARANCE.back");

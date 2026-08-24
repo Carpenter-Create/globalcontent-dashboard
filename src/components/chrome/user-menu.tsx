@@ -103,7 +103,7 @@ export function UserMenuDesktopContent({
   }
 
   return (
-    <MenuSurfaceContent data-user-menu="" data-account-menu-face="main" sideOffset={10}>
+    <MenuSurfaceContent accent data-user-menu="" data-account-menu-face="main" sideOffset={10}>
       <UserMenuIdentity email={email} name={name} />
       <MenuSurfaceSeparator data-user-menu-hairline="" />
       {USER_MENU_ACTIONS.map((item) => {

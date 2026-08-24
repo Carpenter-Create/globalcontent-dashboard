@@ -45,6 +45,24 @@ describe("shared menu surface instances", () => {
     expect(headerSrc).not.toContain("<MenuSurfaceContent");
   });
 
+  it("opts the Identity half-bar on and keeps thread ··· off", () => {
+    expect(surfaceSrc).toContain("accent = false");
+    expect(surfaceSrc).toContain("{accent ? <MenuSurfaceAccent /> : null}");
+    expect(surfaceSrc).toContain("<MenuSurfaceContent data-thread-popover=\"\" {...props} accent={false} />");
+    expect(userMenuSrc).toContain(
+      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="main"',
+    );
+    expect(userMenuSrc).toContain(
+      '<MenuSurfaceContent data-user-menu="" data-account-menu-face="appearance"',
+    );
+    expect(userMenuSrc).not.toContain(
+      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="appearance"',
+    );
+    expect(headerSrc).not.toContain("MenuSurfaceAccent");
+    expect(headerSrc).not.toContain("accent={true}");
+    expect(headerSrc).not.toContain("accent ");
+  });
+
   it("keeps profile contents on the surface and off the thread menu", () => {
     expect(userMenuSrc).toContain("UserMenuIdentity");
     expect(userMenuSrc).toContain("USER_MENU_ACTIONS");

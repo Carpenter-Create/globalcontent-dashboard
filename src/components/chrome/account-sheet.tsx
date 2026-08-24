@@ -12,6 +12,7 @@ import { APPEARANCE, APPEARANCE_OPTIONS, type AccountMenuFace } from "@/lib/appe
 import { APP_SHEET_SCRIM_CLASS } from "@/lib/house-sheet";
 import { applyDocumentThemePreference } from "@/lib/theme";
 import { userMenuAvatarInitial } from "@/lib/user-menu";
+import { MenuSurfaceAccent } from "./menu-surface";
 import {
   AppSheetHairline,
   AppSheetHead,
@@ -138,6 +139,7 @@ export function AccountSheet({
         className={APP_SHEET_SCRIM_CLASS}
       />
       <AppSheetSurface data-account-sheet-surface="" className="relative z-10">
+        {face === "main" ? <MenuSurfaceAccent /> : null}
         <AppSheetHead data-account-sheet-head="" className="justify-end">
           <Close44
             label={ACCOUNT_SHEET.close}
