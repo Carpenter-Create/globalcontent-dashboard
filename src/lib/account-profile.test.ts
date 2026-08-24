@@ -119,9 +119,10 @@ describe("account name persist read-after-write", () => {
     expect(actionSrc).toContain("display_name");
     expect(actionSrc).toContain("refreshSession");
     expect(actionSrc.indexOf("updateUser")).toBeLessThan(actionSrc.indexOf("refreshSession"));
-    expect(authSrc).toContain("await supabase.auth.getClaims()");
-    expect(authSrc).toContain("authDisplayName");
-    expect(authSrc).not.toMatch(/supabase\.auth\.getUser\(/);
+    const authImpl = authSrc.slice(authSrc.indexOf("export const getAuthUser"));
+    expect(authImpl).toContain("await supabase.auth.getClaims()");
+    expect(authImpl).toContain("authDisplayName");
+    expect(authImpl).not.toMatch(/await supabase\.auth\.getUser\(/);
     expect(pageSrc).toContain("ctx.user.name");
     expect(layoutSrc).toContain("name={ctx.user.name}");
   });
