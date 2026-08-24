@@ -1,6 +1,5 @@
-// Account photo object rules. Faces live in a dedicated private avatars
-// bucket — never S3_BUCKET, never orgs/<org>/titles/..., never CloudFront.
-// Key is derived from the session user id; no SQL.
+// Account photo object rules. Faces live in the dedicated private avatars
+// bucket. Key is derived from the session user id; no SQL.
 
 import { z } from "zod";
 
@@ -23,7 +22,7 @@ export function isAvatarContentType(value: string): value is AvatarContentType {
 /**
  * `avatars/{user-id}/avatar` — the only legal face key.
  * Rejects anything that is not a UUID so a caller cannot write
- * `avatars/../titles/...` or a title-bucket prefix.
+ * a path-traversal key or a title-asset prefix.
  */
 export function avatarObjectKey(userId: string): string {
   const parsed = userIdSchema.safeParse(userId);

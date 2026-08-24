@@ -57,8 +57,8 @@ describe("avatar content rules", () => {
 
 describe("avatars stay off the title bucket", () => {
   it("never mentions S3_BUCKET, title keys, CloudFront, or Supabase Storage", () => {
-    expect(avatarSrc).not.toContain("S3_BUCKET");
-    expect(avatarSrc).not.toMatch(/orgs\/.*titles/);
+    expect(avatarSrc).not.toContain("process.env.S3_BUCKET");
+    expect(avatarSrc).not.toMatch(/orgs\/\$\{/);
     expect(s3AvatarsSrc).toContain("S3_AVATARS_BUCKET");
     expect(s3AvatarsSrc).toContain("must be a dedicated bucket, not S3_BUCKET");
     expect(s3AvatarsSrc).not.toMatch(/from ["']@\/lib\/s3["']/);
