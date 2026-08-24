@@ -50,6 +50,12 @@ function attrClass(html: string, attr: string): string {
   return classThenAttr?.[1] ?? attrThenClass?.[1] ?? "";
 }
 
+function tagWith(html: string, attr: string): string {
+  const idx = html.indexOf(attr);
+  if (idx < 0) return "";
+  return html.slice(html.lastIndexOf("<", idx), html.indexOf(">", idx) + 1);
+}
+
 function buttonClass(html: string, attr: string): string {
   const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const classThenAttr = html.match(new RegExp(`<button class="([^"]*)"[^>]*${escaped}`));
@@ -309,6 +315,15 @@ describe("AccountSheet 544:561 / 569:639", () => {
     expect(html).toContain(">v0.1.0<");
     expect(html).toContain(USER_MENU.legal);
     expect(html).toContain(`href="${USER_MENU.legalHref}"`);
+    const legalTag = tagWith(html, "data-account-sheet-legal");
+    expect(legalTag).toContain(`href="${USER_MENU.legalHref}"`);
+    expect(legalTag).toContain('target="_blank"');
+    expect(legalTag).toContain('rel="noopener"');
+    expect(tagWith(html, `href="${USER_MENU.profileHref}"`)).not.toContain('target="_blank"');
+    expect(tagWith(html, `href="${USER_MENU.helpHref}"`)).not.toContain('target="_blank"');
+    expect(src.match(/target="_blank"/g)?.length).toBe(1);
+    expect(src).toContain("<TextAction href={USER_MENU.legalHref}");
+    expect(src).toContain('rel="noopener"');
     expect(attrClass(html, "data-account-sheet-legal")).toContain(TEXT_ACTION_CLASS);
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("v0.1.0");
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("Log out");
