@@ -37,8 +37,8 @@ export function Close44({
     <button
       type="button"
       aria-label={label}
-      className={cn(CLOSE_44_CLASS, className)}
       {...props}
+      className={cn(CLOSE_44_CLASS, className)}
     >
       <X className="size-4" strokeWidth={1.33} />
     </button>
