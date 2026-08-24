@@ -2,7 +2,6 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import Link from "next/link";
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -19,9 +18,6 @@ import {
   SHEET_GROUP_ITEM_CLASS,
   SHEET_GROUP_LABEL_CLASS,
   TEXT_ACTION_CLASS,
-  THREAD_POPOVER_CONTENT_CLASS,
-  THREAD_POPOVER_DELETE_CLASS,
-  THREAD_POPOVER_ITEM_CLASS,
 } from "@/lib/house-sheet";
 
 // 543:562 Close/44 — muted 44 circle, lucide X 16 / 1.33 tertiary.
@@ -164,40 +160,4 @@ export function AppSheetHairline({
   ...props
 }: ComponentProps<"div">) {
   return <div className={cn(APP_SHEET_HAIRLINE_CLASS, className)} {...props} />;
-}
-
-// 544:592 Thread Popover — own surface. Build from the Radix primitive so
-// the shared dropdown's p-1 / 13px / radius-sm chrome cannot leak through.
-// Do not copy the avatar/account menu.
-export function ThreadPopoverContent({
-  className,
-  align = "end",
-  sideOffset = 6,
-  ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Content>) {
-  return (
-    <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
-        align={align}
-        sideOffset={sideOffset}
-        data-thread-popover=""
-        className={cn(THREAD_POPOVER_CONTENT_CLASS, className)}
-        {...props}
-      />
-    </DropdownMenuPrimitive.Portal>
-  );
-}
-
-export function ThreadPopoverItem({
-  danger = false,
-  className,
-  ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Item> & { danger?: boolean }) {
-  return (
-    <DropdownMenuPrimitive.Item
-      data-thread-popover-item={danger ? "delete" : ""}
-      className={cn(danger ? THREAD_POPOVER_DELETE_CLASS : THREAD_POPOVER_ITEM_CLASS, className)}
-      {...props}
-    />
-  );
 }

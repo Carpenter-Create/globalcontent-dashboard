@@ -165,11 +165,11 @@ describe("UserMenu Mercury quiet craft", () => {
     expect(menuSrc).toContain("t-body-sm font-medium text-ink");
     expect(menuSrc).toContain("t-body-sm text-ink-3");
     expect(menuSrc).toContain("px-[var(--space-4)] py-[var(--space-4)]");
-    expect(menuSrc).toContain("p-[var(--space-2)]");
-    expect(menuSrc).toContain(
-      "px-[var(--space-3)] py-[var(--space-2)] t-body-sm text-ink-2",
-    );
-    expect(menuSrc).toContain("rounded-[var(--radius)]");
+    expect(menuSrc).toContain("<MenuSurfaceContent");
+    expect(menuSrc).toContain("<MenuSurfaceItem");
+    expect(menuSrc).toContain("<MenuSurfaceSeparator");
+    expect(menuSrc).not.toContain("min-w-[17.5rem]");
+    expect(menuSrc).not.toContain("USER_MENU_ITEM_CLASS");
     expect(menuSrc).not.toContain("px-2.5 py-1.5");
     expect(menuSrc).not.toContain("p-[var(--space-1)]");
     expect(menuSrc).not.toContain("t-body font-medium");

@@ -195,6 +195,7 @@ describe("MessagesAppHeader", () => {
     expect(src).toContain("ASK_GLOBEE.downloadPdfLabel");
     expect(src).toContain("<ThreadPopoverContent");
     expect(src).toContain("<ThreadPopoverItem");
+    expect(src).toContain("<ThreadPopoverSeparator");
     expect(src).toContain("THREAD_POPOVER_ICON_CLASS");
     expect(src).toContain("THREAD_POPOVER_DELETE_ICON_CLASS");
     expect(houseSheetSrc).toContain("text-[#c4564a]");
@@ -284,42 +285,51 @@ describe("MessagesAppHeader", () => {
     expect(userMenu).not.toContain("data-ask-globee-header-chrome");
   });
 
-  it("instances SSOT Thread Popover 544:592, not the avatar/account menu", () => {
+  it("instances the shared menu surface; items stay thread-only", () => {
     const houseSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "house.tsx"), "utf8");
+    const surfaceSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "menu-surface.tsx"),
+      "utf8",
+    );
     const userMenu = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"),
       "utf8",
     );
 
+    expect(src).toContain("from \"./menu-surface\"");
     expect(src).toContain("<ThreadPopoverContent");
     expect(src).toContain("<ThreadPopoverItem");
+    expect(src).toContain("<ThreadPopoverSeparator");
     expect(src).toContain("THREAD_POPOVER_ICON_CLASS");
     expect(src).toContain("THREAD_POPOVER_DELETE_ICON_CLASS");
-    expect(houseSrc).toContain("544:592");
-    expect(houseSrc).toContain("DropdownMenuPrimitive.Content");
-    expect(houseSrc).toContain('data-thread-popover=""');
-    expect(houseSrc).not.toContain("from \"@/components/ui/dropdown-menu\"");
-    expect(houseSheetSrc).toContain("rounded-[12px]");
-    expect(houseSheetSrc).toContain("p-[var(--space-4)]");
-    expect(houseSheetSrc).toContain("gap-[var(--space-2)]");
-    expect(houseSheetSrc).toContain("shadow-none");
-    expect(houseSheetSrc).toContain("text-[length:var(--text-base)]");
-    expect(houseSheetSrc).toContain("text-ink");
-    expect(houseSheetSrc).toContain("text-[#c4564a]");
-    expect(houseSheetSrc).not.toMatch(/THREAD_POPOVER_ITEM_CLASS[\s\S]*t-body-sm/);
+    expect(src).toContain("ASK_GLOBEE.downloadPdfLabel");
+    expect(src).toContain("ASK_GLOBEE.renameLabel");
+    expect(src).toContain("ASK_GLOBEE.pinLabel");
+    expect(src).toContain("ASK_GLOBEE.deleteLabel");
+    expect(surfaceSrc).toContain("<MenuSurfaceContent data-thread-popover=\"\"");
+    expect(surfaceSrc).toContain("<MenuSurfaceItem");
+    expect(surfaceSrc).toContain("MENU_SURFACE_ITEM_CLASS");
+    expect(surfaceSrc).toContain("danger && MENU_SURFACE_ITEM_DANGER_CLASS");
+    expect(houseSrc).not.toContain("ThreadPopoverContent");
+    expect(houseSrc).not.toContain("DropdownMenuPrimitive");
+    expect(houseSheetSrc).not.toContain("THREAD_POPOVER_CONTENT_CLASS");
+    expect(houseSheetSrc).not.toContain("THREAD_POPOVER_ITEM_CLASS");
+    expect(houseSheetSrc).not.toContain("THREAD_POPOVER_DELETE_CLASS");
     expect(houseSheetSrc).not.toContain("min-w-[17.5rem]");
-    expect(houseSheetSrc).not.toContain("min-w-[200px]");
+    expect(houseSheetSrc).toContain("text-[#c4564a]");
     expect(src).not.toContain("min-w-[17.5rem]");
     expect(src).not.toContain("data-user-menu");
     expect(src).not.toContain("UserMenuIdentity");
+    expect(src).not.toContain("USER_MENU.agreements");
+    expect(src).not.toContain("USER_MENU.appearance");
+    expect(src).not.toContain("USER_MENU.logOut");
+    expect(src).not.toContain("Agreements");
+    expect(src).not.toContain("Appearance");
+    expect(src).not.toContain("Log out");
     expect(src).not.toContain("sideOffset={10}");
-    expect(houseSheetSrc).toContain('p-[var(--space-4)] shadow-none');
-    expect(houseSheetSrc).not.toContain('p-[var(--space-2)] shadow');
-    expect(userMenu).toContain("min-w-[17.5rem]");
-    expect(userMenu).toContain("rounded-[var(--radius)]");
-    expect(userMenu).toContain("t-body-sm");
+    expect(userMenu).toContain("<MenuSurfaceContent");
+    expect(userMenu).not.toContain("min-w-[17.5rem]");
     expect(userMenu).not.toContain("ThreadPopoverContent");
-    expect(userMenu).not.toContain("544:592");
   });
 
   it("renders nothing for the staff inbox", () => {

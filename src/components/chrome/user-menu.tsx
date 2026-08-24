@@ -5,28 +5,23 @@ import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ThemeGlyph } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import { toggleDocumentTheme } from "@/lib/theme";
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 import { MobileAccountMenu } from "./account-sheet";
+import {
+  MenuSurfaceContent,
+  MenuSurfaceItem,
+  MenuSurfaceSeparator,
+} from "./menu-surface";
 
 export const onUserMenuAppearance = toggleDocumentTheme;
 
 export function onUserMenuLogOut(): void {
   void signOut();
 }
-
-// Mercury quiet: house tokens and .t-* only. More air than the default
-// shadcn item padding. Do not restyle the shared primitive.
-const USER_MENU_ITEM_CLASS =
-  "rounded-[var(--radius-sm)] px-[var(--space-3)] py-[var(--space-2)] t-body-sm text-ink-2";
-
-const USER_MENU_RULE_CLASS = "my-[var(--space-2)]";
 
 export function UserMenuIdentity({
   email,
@@ -83,30 +78,25 @@ export function UserMenu({
           >
             {initial}
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="min-w-[17.5rem] rounded-[var(--radius)] p-[var(--space-2)]"
-            data-user-menu=""
-            sideOffset={10}
-          >
+          <MenuSurfaceContent data-user-menu="" sideOffset={10}>
             <UserMenuIdentity email={email} name={name} />
-            <DropdownMenuSeparator data-user-menu-hairline="" className={USER_MENU_RULE_CLASS} />
-            <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
+            <MenuSurfaceSeparator data-user-menu-hairline="" />
+            <MenuSurfaceItem asChild>
               <Link href={USER_MENU.userProfileHref} data-user-menu-item="userProfile">
                 {USER_MENU.userProfile}
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
+            </MenuSurfaceItem>
+            <MenuSurfaceItem asChild>
               <Link href={USER_MENU.companyProfileHref} data-user-menu-item="companyProfile">
                 {USER_MENU.companyProfile}
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
+            </MenuSurfaceItem>
+            <MenuSurfaceItem asChild>
               <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
                 {USER_MENU.agreements}
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className={USER_MENU_ITEM_CLASS}
+            </MenuSurfaceItem>
+            <MenuSurfaceItem
               data-user-menu-item="appearance"
               onSelect={(event) => {
                 event.preventDefault();
@@ -115,16 +105,15 @@ export function UserMenu({
             >
               <span className="flex-1">{USER_MENU.appearance}</span>
               <ThemeGlyph className="text-ink-3" />
-            </DropdownMenuItem>
-            <DropdownMenuSeparator data-user-menu-logout-hairline="" className={USER_MENU_RULE_CLASS} />
-            <DropdownMenuItem
-              className={USER_MENU_ITEM_CLASS}
+            </MenuSurfaceItem>
+            <MenuSurfaceSeparator data-user-menu-logout-hairline="" />
+            <MenuSurfaceItem
               data-user-menu-item="logOut"
               onSelect={() => onUserMenuLogOut()}
             >
               {USER_MENU.logOut}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+            </MenuSurfaceItem>
+          </MenuSurfaceContent>
         </DropdownMenu>
       </div>
     </>

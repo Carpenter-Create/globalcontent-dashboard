@@ -8,7 +8,6 @@ import {
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
   TEXT_ACTION_CLASS,
-  THREAD_POPOVER_CONTENT_CLASS,
 } from "@/lib/house-sheet";
 import {
   AppSheetSurface,
@@ -59,10 +58,10 @@ describe("house primitives", () => {
     expect(houseSrc).toContain("543:565");
     expect(houseSrc).toContain("543:570");
     expect(houseSrc).toContain("543:576");
-    expect(houseSrc).toContain("544:592");
+    expect(houseSrc).not.toContain("544:592");
   });
 
-  it("is consumed by the account sheet, nav sheet, and thread popover — not restyled per page", () => {
+  it("is consumed by the account sheet and nav sheet — not restyled per page", () => {
     expect(accountSrc).toContain("from \"./house\"");
     expect(accountSrc).toContain("<Close44");
     expect(accountSrc).toContain("<AppSheetSurface");
@@ -73,20 +72,14 @@ describe("house primitives", () => {
     expect(navSrc).toContain("<Close44");
     expect(navSrc).toContain("<AppSheetSurface");
     expect(navSrc).not.toContain("rounded-t-[24px]");
-    expect(headerSrc).toContain("from \"./house\"");
+    expect(headerSrc).not.toContain("from \"./house\"");
+    expect(headerSrc).toContain("from \"./menu-surface\"");
     expect(headerSrc).toContain("<ThreadPopoverContent");
     expect(headerSrc).toContain("<ThreadPopoverItem");
     expect(headerSrc).toContain("THREAD_POPOVER_ICON_CLASS");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("rounded-[12px]");
-    expect(houseSrc).toContain("DropdownMenuPrimitive.Content");
-    expect(houseSrc).toContain("DropdownMenuPrimitive.Item");
-    expect(houseSrc).toContain('data-thread-popover=""');
-    expect(houseSrc).not.toContain("DropdownMenuContent");
-    expect(houseSrc).not.toContain("DropdownMenuItem");
+    expect(houseSrc).not.toContain("DropdownMenuPrimitive");
+    expect(houseSrc).not.toContain("ThreadPopoverContent");
+    expect(houseSrc).not.toContain("THREAD_POPOVER_CONTENT_CLASS");
     expect(houseSrc).not.toContain("min-w-[17.5rem]");
-    const popoverStart = houseSrc.indexOf("544:592 Thread Popover");
-    expect(popoverStart).toBeGreaterThan(-1);
-    expect(houseSrc.slice(popoverStart)).not.toContain("t-body-sm");
-    expect(houseSrc.slice(popoverStart)).not.toContain("DropdownMenuContent");
   });
 });

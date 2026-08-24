@@ -14,10 +14,7 @@ import {
   SHEET_GROUP_ITEM_CLASS,
   SHEET_GROUP_LABEL_CLASS,
   TEXT_ACTION_CLASS,
-  THREAD_POPOVER_CONTENT_CLASS,
-  THREAD_POPOVER_DELETE_CLASS,
   THREAD_POPOVER_ICON_CLASS,
-  THREAD_POPOVER_ITEM_CLASS,
 } from "./house-sheet";
 
 describe("house sheet lock", () => {
@@ -68,28 +65,10 @@ describe("house sheet lock", () => {
     expect(APP_SHEET_SCRIM_CLASS).toBe("absolute inset-0 bg-ink/24");
   });
 
-  it("locks Thread Popover to 15 Regular ink, pad 16, gap 8, r12, quiet hairline", () => {
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("rounded-[12px]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("p-[var(--space-4)]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("gap-[var(--space-2)]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("border-hairline");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("shadow-none");
-    expect(THREAD_POPOVER_CONTENT_CLASS).toContain("w-max");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("min-w-0");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("min-w-[200px]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("min-w-[17.5rem]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("p-1");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("rounded-[var(--radius-sm)]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("rounded-[var(--radius)]");
-    expect(THREAD_POPOVER_CONTENT_CLASS).not.toContain("shadow-[var(--elevation)]");
-    expect(THREAD_POPOVER_ITEM_CLASS).toContain("t-body");
-    expect(THREAD_POPOVER_ITEM_CLASS).toContain("text-[length:var(--text-base)]");
-    expect(THREAD_POPOVER_ITEM_CLASS).toContain("text-ink");
-    expect(THREAD_POPOVER_ITEM_CLASS).not.toContain("t-body-sm");
-    expect(THREAD_POPOVER_DELETE_CLASS).toContain("text-[#c4564a]");
-    expect(THREAD_POPOVER_DELETE_CLASS).toContain("text-[length:var(--text-base)]");
-    expect(THREAD_POPOVER_DELETE_CLASS).not.toContain("t-body-sm");
+  it("keeps thread ··· glyphs only — surface chrome is MenuSurface", () => {
     expect(THREAD_POPOVER_ICON_CLASS).toContain("size-4");
     expect(THREAD_POPOVER_ICON_CLASS).toContain("text-ink-3");
+    expect(THREAD_POPOVER_ICON_CLASS).not.toContain("t-body");
+    expect(THREAD_POPOVER_ICON_CLASS).not.toContain("min-w-");
   });
 });

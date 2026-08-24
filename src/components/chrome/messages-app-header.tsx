@@ -24,7 +24,8 @@ import {
 import {
   ThreadPopoverContent,
   ThreadPopoverItem,
-} from "./house";
+  ThreadPopoverSeparator,
+} from "./menu-surface";
 import {
   THREAD_POPOVER_DELETE_ICON_CLASS,
   THREAD_POPOVER_ICON_CLASS,
@@ -162,6 +163,7 @@ function MessagesThreadHeader({ title }: { title: string }) {
               <Pin className={THREAD_POPOVER_ICON_CLASS} strokeWidth={1.33} />
               {pinned ? ASK_GLOBEE.unpinLabel : ASK_GLOBEE.pinLabel}
             </ThreadPopoverItem>
+            <ThreadPopoverSeparator />
             <ThreadPopoverItem danger onSelect={() => setDeleteOpen(true)}>
               <Trash2 className={THREAD_POPOVER_DELETE_ICON_CLASS} strokeWidth={1.33} />
               {ASK_GLOBEE.deleteLabel}
