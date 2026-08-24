@@ -1,23 +1,20 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 
 import {
   DropdownMenu,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ThemeGlyph } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
-import { toggleDocumentTheme } from "@/lib/theme";
-import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
+import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 import { MobileAccountMenu } from "./account-sheet";
 import {
   MenuSurfaceContent,
   MenuSurfaceItem,
   MenuSurfaceSeparator,
 } from "./menu-surface";
-
-export const onUserMenuAppearance = toggleDocumentTheme;
 
 export function onUserMenuLogOut(): void {
   void signOut();
@@ -81,38 +78,28 @@ export function UserMenu({
           <MenuSurfaceContent data-user-menu="" sideOffset={10}>
             <UserMenuIdentity email={email} name={name} />
             <MenuSurfaceSeparator data-user-menu-hairline="" />
-            <MenuSurfaceItem asChild>
-              <Link href={USER_MENU.userProfileHref} data-user-menu-item="userProfile">
-                {USER_MENU.userProfile}
-              </Link>
-            </MenuSurfaceItem>
-            <MenuSurfaceItem asChild>
-              <Link href={USER_MENU.companyProfileHref} data-user-menu-item="companyProfile">
-                {USER_MENU.companyProfile}
-              </Link>
-            </MenuSurfaceItem>
-            <MenuSurfaceItem asChild>
-              <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
-                {USER_MENU.agreements}
-              </Link>
-            </MenuSurfaceItem>
-            <MenuSurfaceItem
-              data-user-menu-item="appearance"
-              onSelect={(event) => {
-                event.preventDefault();
-                onUserMenuAppearance();
-              }}
-            >
-              <span className="flex-1">{USER_MENU.appearance}</span>
-              <ThemeGlyph className="text-ink-3" />
-            </MenuSurfaceItem>
-            <MenuSurfaceSeparator data-user-menu-logout-hairline="" />
-            <MenuSurfaceItem
-              data-user-menu-item="logOut"
-              onSelect={() => onUserMenuLogOut()}
-            >
-              {USER_MENU.logOut}
-            </MenuSurfaceItem>
+            {USER_MENU_ACTIONS.map((item) => {
+              if (item.kind === "logOut") {
+                return (
+                  <Fragment key={item.kind}>
+                    <MenuSurfaceSeparator data-user-menu-logout-hairline="" />
+                    <MenuSurfaceItem
+                      data-user-menu-item={item.kind}
+                      onSelect={() => onUserMenuLogOut()}
+                    >
+                      {item.label}
+                    </MenuSurfaceItem>
+                  </Fragment>
+                );
+              }
+              return (
+                <MenuSurfaceItem asChild key={item.kind}>
+                  <Link href={item.href} data-user-menu-item={item.kind}>
+                    {item.label}
+                  </Link>
+                </MenuSurfaceItem>
+              );
+            })}
           </MenuSurfaceContent>
         </DropdownMenu>
       </div>

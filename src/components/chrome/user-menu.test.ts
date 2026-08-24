@@ -6,7 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { USER_MENU, USER_MENU_ABSENT } from "@/lib/user-menu";
-import { toggleDocumentTheme } from "@/lib/theme";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -15,9 +14,11 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { signOut } from "@/app/actions";
-import { onUserMenuAppearance, onUserMenuLogOut, UserMenu, UserMenuIdentity } from "./user-menu";
+import { onUserMenuLogOut, UserMenu, UserMenuIdentity } from "./user-menu";
 
-const menuSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"), "utf8");
+const here = dirname(fileURLToPath(import.meta.url));
+const menuSrc = readFileSync(join(here, "user-menu.tsx"), "utf8");
+const sheetSrc = readFileSync(join(here, "account-sheet.tsx"), "utf8");
 
 function visibleText(html: string): string {
   return html.replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
@@ -82,8 +83,7 @@ describe("UserMenu close control", () => {
     expect(menuSrc).toContain("<MobileAccountMenu email={email} name={name} />");
     expect(menuSrc).toContain('data-user-menu-desktop=""');
     expect(menuSrc).toContain("hidden md:block");
-    expect(menuSrc).toContain("USER_MENU.appearance");
-    expect(menuSrc).toContain("USER_MENU.logOut");
+    expect(menuSrc).toContain("USER_MENU_ACTIONS");
     expect(menuSrc).not.toContain("data-account-sheet-close");
     expect(menuSrc).not.toContain("data-mobile-nav-sheet");
   });
@@ -91,10 +91,7 @@ describe("UserMenu close control", () => {
 
 describe("UserMenu identity source lock", () => {
   it("does not manufacture a name in the shell or layout", () => {
-    const layoutSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../../app/(app)/layout.tsx"),
-      "utf8",
-    );
+    const layoutSrc = readFileSync(join(here, "../../app/(app)/layout.tsx"), "utf8");
     expect(layoutSrc).toContain("email={ctx.user.email}");
     expect(layoutSrc).toContain("name={ctx.user.name}");
     expect(layoutSrc).not.toContain("display_name");
@@ -107,17 +104,15 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("contains User Profile, Company Profile, Agreements, Appearance, and Log out", () => {
-    expect(menuSrc).toContain("USER_MENU.userProfile");
-    expect(menuSrc).toContain("USER_MENU.userProfileHref");
-    expect(menuSrc).toContain("USER_MENU.companyProfile");
-    expect(menuSrc).toContain("USER_MENU.companyProfileHref");
-    expect(menuSrc).toContain("USER_MENU.agreements");
-    expect(menuSrc).toContain("USER_MENU.agreementsHref");
-    expect(menuSrc).toContain("USER_MENU.appearance");
-    expect(menuSrc).toContain("USER_MENU.logOut");
-    expect(menuSrc).toContain("onUserMenuAppearance");
+  it("renders the shared USER_MENU_ACTIONS list — Appearance is a door", () => {
+    expect(menuSrc).toContain("USER_MENU_ACTIONS.map");
+    expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS.map");
+    expect(menuSrc).toContain("data-user-menu-item={item.kind}");
+    expect(menuSrc).toContain("item.href");
     expect(menuSrc).toContain("onUserMenuLogOut");
+    expect(menuSrc).not.toContain("onUserMenuAppearance");
+    expect(menuSrc).not.toContain("toggleDocumentTheme");
+    expect(menuSrc).not.toContain("ThemeGlyph");
     for (const absent of USER_MENU_ABSENT) {
       expect(menuSrc).not.toContain(absent);
     }
@@ -126,17 +121,13 @@ describe("UserMenu item lock (source)", () => {
     expect(menuSrc).not.toContain("lucide-react");
   });
 
-  it("keeps User Profile on /account and Company Profile on /account/company", () => {
+  it("keeps User Profile on /account and Appearance on /account/appearance", () => {
     expect(USER_MENU.userProfileHref).toBe("/account");
     expect(USER_MENU.userProfile).toBe("User Profile");
     expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
-    expect(menuSrc).toContain("USER_MENU.userProfileHref");
-    expect(menuSrc).toContain('data-user-menu-item="userProfile"');
-    expect(menuSrc).toContain("USER_MENU.companyProfileHref");
-    expect(menuSrc).toContain('data-user-menu-item="companyProfile"');
-    expect(menuSrc).toContain("USER_MENU.agreementsHref");
-    expect(menuSrc).toContain('data-user-menu-item="agreements"');
+    expect(USER_MENU.appearanceHref).toBe("/account/appearance");
+    expect(USER_MENU.appearance).toBe("Appearance");
   });
 });
 
@@ -152,11 +143,10 @@ describe("UserMenu actions", () => {
     expect(menuSrc).toContain('from "@/app/actions"');
   });
 
-  it("Appearance reuses the existing theme toggle", () => {
-    expect(onUserMenuAppearance).toBe(toggleDocumentTheme);
-    expect(menuSrc).toContain("onUserMenuAppearance()");
-    expect(menuSrc).toContain("event.preventDefault()");
-    expect(menuSrc).toContain("ThemeGlyph");
+  it("does not toggle theme from the menu row", () => {
+    expect(menuSrc).not.toContain("onUserMenuAppearance");
+    expect(menuSrc).not.toContain("applyDocumentThemePreference");
+    expect(menuSrc).not.toContain("ThemeGlyph");
   });
 });
 
@@ -177,30 +167,21 @@ describe("UserMenu Mercury quiet craft", () => {
 
   it("keeps the identity hairline and adds a divider before Log out", () => {
     const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
-    const userProfile = menuSrc.indexOf('data-user-menu-item="userProfile"');
-    const companyProfile = menuSrc.indexOf('data-user-menu-item="companyProfile"');
-    const agreements = menuSrc.indexOf('data-user-menu-item="agreements"');
-    const appearance = menuSrc.indexOf('data-user-menu-item="appearance"');
+    const actions = menuSrc.indexOf("USER_MENU_ACTIONS.map");
     const logoutRule = menuSrc.indexOf('data-user-menu-logout-hairline=""');
-    const logOut = menuSrc.indexOf('data-user-menu-item="logOut"');
+    const logOut = menuSrc.indexOf("onSelect={() => onUserMenuLogOut()}");
     expect(hairline).toBeGreaterThan(-1);
-    expect(userProfile).toBeGreaterThan(hairline);
-    expect(companyProfile).toBeGreaterThan(userProfile);
-    expect(agreements).toBeGreaterThan(companyProfile);
-    expect(appearance).toBeGreaterThan(agreements);
-    expect(logoutRule).toBeGreaterThan(appearance);
+    expect(actions).toBeGreaterThan(hairline);
+    expect(logoutRule).toBeGreaterThan(actions);
     expect(logOut).toBeGreaterThan(logoutRule);
   });
 
   it("does not restore a standalone header sun", () => {
-    const shellSrc = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "app-shell.tsx"),
-      "utf8",
-    );
+    const shellSrc = readFileSync(join(here, "app-shell.tsx"), "utf8");
     expect(shellSrc).not.toContain("ThemeToggle");
     expect(shellSrc).not.toContain("theme-toggle");
     expect(shellSrc).not.toContain("ThemeGlyph");
     expect(menuSrc).not.toContain("ThemeToggle");
-    expect(menuSrc).toContain("ThemeGlyph");
+    expect(menuSrc).not.toContain("ThemeGlyph");
   });
 });
