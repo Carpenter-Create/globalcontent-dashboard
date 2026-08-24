@@ -85,7 +85,8 @@ export const ASK_GLOBEE = {
   renameTitle: "Rename conversation",
   renameSave: "Save",
   deleteTitle: "Delete conversation",
-  deleteBody: "This permanently deletes the conversation. It cannot be undone.",
+  // One line. Confirm stays; chrome is thin danger text, not a filled accent.
+  deleteBody: "This permanently deletes the conversation and cannot be undone.",
   deleteConfirm: "Delete",
   cancelLabel: "Cancel",
   capability: "I can answer catalog attention, blockers, and what to submit next.",

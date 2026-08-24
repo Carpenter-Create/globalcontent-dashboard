@@ -88,8 +88,9 @@ describe("Ask Globee copy lock", () => {
     expect(ASK_GLOBEE.deleteLabel).toBe("Delete");
     expect(ASK_GLOBEE.deleteTitle).toBe("Delete conversation");
     expect(ASK_GLOBEE.deleteBody).toBe(
-      "This permanently deletes the conversation. It cannot be undone.",
+      "This permanently deletes the conversation and cannot be undone.",
     );
+    expect(ASK_GLOBEE.deleteBody).not.toContain(". It cannot");
     expect(ASK_GLOBEE.deleteConfirm).toBe("Delete");
     expect(ASK_GLOBEE.cancelLabel).toBe("Cancel");
     expect(JSON.stringify(ASK_GLOBEE)).not.toMatch(/Archive/i);
