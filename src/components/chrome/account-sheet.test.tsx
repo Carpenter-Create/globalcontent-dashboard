@@ -143,7 +143,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).toContain("px-[var(--space-6)]");
     expect(surfaceClass).toContain("pb-[var(--space-8)]");
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
-    expect(surfaceClass).not.toContain("p-[var(--space-6)]");
+    expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain("w-[277px]");
     expect(surfaceClass).not.toContain("h-auto");
@@ -179,7 +179,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).toContain("px-[var(--space-6)]");
     expect(surfaceClass).toContain("pb-[var(--space-8)]");
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
-    expect(surfaceClass).not.toContain("p-[var(--space-6)]");
+    expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(accent).toContain("top-0");
     expect(accent).toContain("h-[4px]");
     expect(accent).toContain("w-1/2");

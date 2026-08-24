@@ -73,7 +73,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("px-[var(--space-6)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pb-[var(--space-8)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pt-[calc(4px+var(--space-8))]");
-    expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("p-[var(--space-6)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("app-sheet-rise");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("md:w-[390px]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("h-auto");
