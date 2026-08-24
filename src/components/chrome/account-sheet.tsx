@@ -9,9 +9,14 @@ import { AppearanceCheck } from "./appearance-check";
 import { useThemePreference } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import {
+  ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
+  ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
+  ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_FOOTER_CLASS,
   ACCOUNT_SHEET_HEAD_CLASS,
+  ACCOUNT_SHEET_HOST_CLASS,
   ACCOUNT_SHEET_ITEMS,
   ACCOUNT_SHEET_LOGOUT_CLASS,
   ACCOUNT_SHEET_SCROLL_CLASS,
@@ -44,12 +49,14 @@ function AccountMenuTrigger({
   onOpen,
   className,
   triggerAttr,
+  controlsId,
 }: {
   email: string;
   open: boolean;
   onOpen: () => void;
   className: string;
   triggerAttr: "data-account-sheet-trigger" | "data-user-menu-trigger";
+  controlsId: string;
 }) {
   const initial = userMenuAvatarInitial(email);
   const attrs = { [triggerAttr]: "" } as Record<string, string>;
@@ -60,7 +67,7 @@ function AccountMenuTrigger({
       {...attrs}
       aria-label={ACCOUNT_SHEET.sheet}
       aria-expanded={open}
-      aria-controls="account-sheet"
+      aria-controls={controlsId}
       onClick={onOpen}
       className={className}
     >
@@ -81,8 +88,131 @@ function useAccountMenuOpen() {
   };
 }
 
-// Mobile 544:561 — avatar opens this sheet. Hamburger stays the nav sheet.
-// Same Identity body as desktop 569:639. Quiet scrim; page stays under.
+function useAccountMenuDismiss(onClose: () => void, lockOverflow: boolean) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    if (lockOverflow) document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (lockOverflow) document.body.style.overflow = previous;
+    };
+  }, [onClose, lockOverflow]);
+}
+
+function AccountMenuFooter() {
+  return (
+    <>
+      <AppSheetHairline data-account-sheet-footer-rule="" />
+      <div data-account-sheet-footer="" className={ACCOUNT_SHEET_FOOTER_CLASS}>
+        <p data-account-sheet-version="" className={ACCOUNT_SHEET_VERSION_CLASS}>
+          {userMenuVersion()}
+        </p>
+        <TextAction href={USER_MENU.legalHref} target="_blank" rel="noopener" data-account-sheet-legal="" className="leading-4">
+          {USER_MENU.legal}
+        </TextAction>
+      </div>
+    </>
+  );
+}
+
+function AccountMenuBody({
+  email,
+  name,
+  pathname,
+  onClose,
+  face,
+  setFace,
+  scrollClass,
+}: {
+  email: string;
+  name?: string | null;
+  pathname: string;
+  onClose: () => void;
+  face: AccountMenuFace;
+  setFace: (face: AccountMenuFace) => void;
+  scrollClass: string;
+}) {
+  const identity = accountSheetIdentity(email, name);
+
+  return (
+    <>
+      {face === "main" ? <MenuSurfaceAccent /> : null}
+      <div data-account-sheet-head="" className={ACCOUNT_SHEET_HEAD_CLASS}>
+        <IdentityBlock
+          avatarInitial={identity.avatarInitial}
+          name={identity.name}
+          email={identity.email}
+        />
+        <Close44
+          label={ACCOUNT_SHEET.close}
+          data-account-sheet-close=""
+          onClick={onClose}
+        />
+      </div>
+      {face === "appearance" ? (
+        <AccountSheetAppearance onBack={() => setFace("main")} />
+      ) : (
+        <>
+          <AppSheetHairline data-account-sheet-rule="" />
+          <div data-account-sheet-scroll="" className={scrollClass}>
+            <SheetGroup>
+              {ACCOUNT_SHEET_ITEMS.map((item) => {
+                if (item.kind === "appearance") {
+                  return (
+                    <SheetGroupItem
+                      key={item.kind}
+                      item={item.kind}
+                      onClick={() => setFace("appearance")}
+                    >
+                      {item.label}
+                      <AccountRowChevron />
+                    </SheetGroupItem>
+                  );
+                }
+                return (
+                  <SheetGroupItem
+                    key={item.kind}
+                    item={item.kind}
+                    href={item.href}
+                    onClick={
+                      destinationClickClosesSheet(pathname, item.href) ? onClose : undefined
+                    }
+                  >
+                    {item.label}
+                    <AccountRowChevron />
+                  </SheetGroupItem>
+                );
+              })}
+            </SheetGroup>
+          </div>
+          <AppSheetHairline data-account-sheet-logout-rule="" />
+          <button
+            type="button"
+            data-sheet-group-item="logOut"
+            data-user-menu-item="logOut"
+            className={ACCOUNT_SHEET_LOGOUT_CLASS}
+            onClick={() => {
+              onClose();
+              void signOut();
+            }}
+          >
+            <LogOut className="size-4 shrink-0" strokeWidth={1.33} />
+            {USER_MENU.logOut}
+          </button>
+          <AccountMenuFooter />
+        </>
+      )}
+    </>
+  );
+}
+
+// Mobile 544:561 / 537:557 — avatar opens this sheet. Hamburger stays the nav sheet.
+// Quiet scrim; page stays under. 90% viewport, slides up. Do not restyle to the
+// desktop hug dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
 // Appearance opens the second face. Log out, Legal, and version are pinned.
 export function MobileAccountMenu({
@@ -105,6 +235,7 @@ export function MobileAccountMenu({
         open={open}
         onOpen={openMenu}
         triggerAttr="data-account-sheet-trigger"
+        controlsId="account-sheet"
         className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 md:hidden"
       />
       {sheet && typeof document !== "undefined" ? createPortal(sheet, document.body) : sheet}
@@ -112,7 +243,8 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 569:639 — same items as mobile. Fuller panel, not the old short list.
+// Desktop 586:768 / 586:814 — same items as mobile. Content-sized house
+// dropdown under the avatar. Hug height. Not a 90% sheet. Not a tall right takeover.
 export function DesktopAccountMenu({
   email,
   name,
@@ -122,8 +254,8 @@ export function DesktopAccountMenu({
 }) {
   const { pathname, open, openMenu, closeMenu } = useAccountMenuOpen();
 
-  const sheet = open ? (
-    <AccountSheet email={email} name={name} pathname={pathname} onClose={closeMenu} />
+  const dropdown = open ? (
+    <AccountMenuDropdown email={email} name={name} pathname={pathname} onClose={closeMenu} />
   ) : null;
 
   return (
@@ -133,9 +265,12 @@ export function DesktopAccountMenu({
         open={open}
         onOpen={openMenu}
         triggerAttr="data-user-menu-trigger"
+        controlsId="account-menu-dropdown"
         className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-muted t-body-sm font-medium text-ink-2 transition-colors hover:text-ink"
       />
-      {sheet && typeof document !== "undefined" ? createPortal(sheet, document.body) : sheet}
+      {dropdown && typeof document !== "undefined"
+        ? createPortal(dropdown, document.body)
+        : dropdown}
     </div>
   );
 }
@@ -184,21 +319,8 @@ export function AccountSheet({
   onClose: () => void;
   face?: AccountMenuFace;
 }) {
-  const identity = accountSheetIdentity(email, name);
   const [face, setFace] = useState<AccountMenuFace>(initialFace);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
-    };
-  }, [onClose]);
+  useAccountMenuDismiss(onClose, true);
 
   return (
     <div
@@ -208,7 +330,7 @@ export function AccountSheet({
       aria-label={ACCOUNT_SHEET.sheet}
       data-account-sheet=""
       data-account-menu-face={face}
-      className="fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end md:flex-row md:justify-end md:items-end"
+      className={ACCOUNT_SHEET_HOST_CLASS}
     >
       <button
         type="button"
@@ -218,80 +340,63 @@ export function AccountSheet({
         className={APP_SHEET_SCRIM_CLASS}
       />
       <div data-account-sheet-surface="" className={ACCOUNT_SHEET_SURFACE_CLASS}>
-        {face === "main" ? <MenuSurfaceAccent /> : null}
-        <div data-account-sheet-head="" className={ACCOUNT_SHEET_HEAD_CLASS}>
-          <IdentityBlock
-            avatarInitial={identity.avatarInitial}
-            name={identity.name}
-            email={identity.email}
-          />
-          <Close44
-            label={ACCOUNT_SHEET.close}
-            data-account-sheet-close=""
-            onClick={onClose}
-          />
-        </div>
-        {face === "appearance" ? (
-          <AccountSheetAppearance onBack={() => setFace("main")} />
-        ) : (
-          <>
-            <AppSheetHairline data-account-sheet-rule="" />
-            <div data-account-sheet-scroll="" className={ACCOUNT_SHEET_SCROLL_CLASS}>
-              <SheetGroup>
-                {ACCOUNT_SHEET_ITEMS.map((item) => {
-                  if (item.kind === "appearance") {
-                    return (
-                      <SheetGroupItem
-                        key={item.kind}
-                        item={item.kind}
-                        onClick={() => setFace("appearance")}
-                      >
-                        {item.label}
-                        <AccountRowChevron />
-                      </SheetGroupItem>
-                    );
-                  }
-                  return (
-                    <SheetGroupItem
-                      key={item.kind}
-                      item={item.kind}
-                      href={item.href}
-                      onClick={
-                        destinationClickClosesSheet(pathname, item.href) ? onClose : undefined
-                      }
-                    >
-                      {item.label}
-                      <AccountRowChevron />
-                    </SheetGroupItem>
-                  );
-                })}
-              </SheetGroup>
-            </div>
-            <AppSheetHairline data-account-sheet-logout-rule="" />
-            <button
-              type="button"
-              data-sheet-group-item="logOut"
-              data-user-menu-item="logOut"
-              className={ACCOUNT_SHEET_LOGOUT_CLASS}
-              onClick={() => {
-                onClose();
-                void signOut();
-              }}
-            >
-              <LogOut className="size-4 shrink-0" strokeWidth={1.33} />
-              {USER_MENU.logOut}
-            </button>
-            <AppSheetHairline data-account-sheet-footer-rule="" />
-            <div data-account-sheet-footer="" className={ACCOUNT_SHEET_FOOTER_CLASS}>
-              <p data-account-sheet-version="" className={ACCOUNT_SHEET_VERSION_CLASS}>
-                {userMenuVersion()}
-              </p>
-              <TextAction href={USER_MENU.legalHref} target="_blank" rel="noopener" data-account-sheet-legal="">
-                {USER_MENU.legal}
-              </TextAction>
-            </div>
-          </>
-        )}
+        <AccountMenuBody
+          email={email}
+          name={name}
+          pathname={pathname}
+          onClose={onClose}
+          face={face}
+          setFace={setFace}
+          scrollClass={ACCOUNT_SHEET_SCROLL_CLASS}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function AccountMenuDropdown({
+  email,
+  name,
+  pathname,
+  onClose,
+  face: initialFace = "main",
+}: {
+  email: string;
+  name?: string | null;
+  pathname: string;
+  onClose: () => void;
+  face?: AccountMenuFace;
+}) {
+  const [face, setFace] = useState<AccountMenuFace>(initialFace);
+  useAccountMenuDismiss(onClose, false);
+
+  return (
+    <div
+      id="account-menu-dropdown"
+      role="dialog"
+      aria-modal="true"
+      aria-label={ACCOUNT_SHEET.sheet}
+      data-user-menu-desktop-panel=""
+      data-account-menu-face={face}
+      className={ACCOUNT_MENU_DROPDOWN_HOST_CLASS}
+    >
+      <button
+        type="button"
+        data-user-menu-desktop-dismiss=""
+        aria-label={ACCOUNT_SHEET.close}
+        onClick={onClose}
+        className={ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS}
+      />
+      <div data-user-menu-desktop-surface="" className={ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS}>
+        <AccountMenuBody
+          email={email}
+          name={name}
+          pathname={pathname}
+          onClose={onClose}
+          face={face}
+          setFace={setFace}
+          scrollClass={ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS}
+        />
       </div>
     </div>
   );

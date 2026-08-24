@@ -1,4 +1,4 @@
-// Mobile 544:561 / 547:612 and desktop 569:639 Identity panel.
+// Mobile 544:561 / 537:557 and desktop 586:768 / 586:814 Identity menu.
 // Copy lives here, not in JSX.
 // Identity is avatar + name + email from the same values /account would
 // show. Always render both fields. No dashes, no invented local-part name.
@@ -7,7 +7,10 @@
 // use existing routes only — not /account/appearance. Company stays off
 // this menu. Log out, Legal, and the version footer are pinned, not in
 // the scroll.
+// Mobile chrome is the 90% sheet. Desktop chrome is the hug-height
+// dropdown under the avatar. Labels stay one source.
 
+import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
 export const ACCOUNT_SHEET = {
@@ -35,9 +38,13 @@ export const ACCOUNT_SHEET_ABSENT = [
 // One source, both instances. Sheet chrome may differ; labels may not.
 export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 
-// 544:561 / 569:639 — pad 24, 90% viewport, Identity 48 + Close/44 one row.
+// 544:561 / 537:557 — pad 24, 90% viewport, Identity 48 + Close/44 one row.
+// Desktop 586:768 does not use this surface.
+export const ACCOUNT_SHEET_HOST_CLASS =
+  "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
+
 export const ACCOUNT_SHEET_SURFACE_CLASS =
-  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface p-[var(--space-6)] app-sheet-rise md:w-[390px]";
+  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface p-[var(--space-6)] app-sheet-rise";
 
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
@@ -47,10 +54,24 @@ export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col overflow
 export const ACCOUNT_SHEET_LOGOUT_CLASS =
   "flex items-center gap-[var(--space-2)] text-[length:var(--text-base)] font-normal leading-5 text-accent";
 
+// Footer on both menus — 13 Regular / 16. Version tertiary. Legal Sporty Blue.
 export const ACCOUNT_SHEET_FOOTER_CLASS =
   "flex h-4 w-full shrink-0 items-center justify-between";
 
-export const ACCOUNT_SHEET_VERSION_CLASS = "t-body-sm font-normal text-ink-3";
+export const ACCOUNT_SHEET_VERSION_CLASS = "t-body-sm font-normal leading-4 text-ink-3";
+
+export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
+
+// 586:768 / 586:814 — content-sized house dropdown under the avatar.
+// Hug height. 277 wide. Not a 90% sheet. Not a tall right takeover.
+export const ACCOUNT_MENU_DROPDOWN_HOST_CLASS = "fixed inset-0 z-50";
+
+export const ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS = "absolute inset-0";
+
+export const ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS =
+  "absolute top-[calc(var(--header-height)+var(--space-2))] right-[var(--content-inset)] z-10 flex h-auto w-[277px] flex-col gap-[var(--space-6)] rounded-[12px] border border-hairline bg-surface p-[var(--space-6)]";
+
+export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex flex-col";
 
 export type AccountSheetIdentity = {
   avatarInitial: string;
