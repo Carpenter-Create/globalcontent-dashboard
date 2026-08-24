@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { COMPANY_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_NAME_MAX, COMPANY_PROFILE } from "@/lib/account-profile";
 import { saveCompanyName } from "./actions";
 
-// organizations.name. RLS manage_settings is the write gate; the form
-// hides Save when the caller cannot edit.
+// organizations.name. member_can(manage_settings) is the write gate
+// (same function as RLS). Bind save to the org this form rendered.
 export function CompanyProfileForm({
+  orgId,
   name,
   canEdit,
 }: {
+  orgId: string;
   name: string;
   canEdit: boolean;
 }) {
@@ -31,7 +33,7 @@ export function CompanyProfileForm({
     setSaving(true);
     setError("");
     setSaved(false);
-    const res = await saveCompanyName(value);
+    const res = await saveCompanyName({ orgId, name: value });
     if (res.error) {
       setError(res.error);
       setSaving(false);
@@ -56,6 +58,7 @@ export function CompanyProfileForm({
           }}
           readOnly={!canEdit}
           aria-readonly={!canEdit}
+          maxLength={ACCOUNT_NAME_MAX}
           autoComplete="organization"
         />
       </div>

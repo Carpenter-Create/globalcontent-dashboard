@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineNotice } from "@/components/ui/inline-notice";
-import { ACCOUNT_PROFILE } from "@/lib/account-profile";
+import { ACCOUNT_NAME_MAX, ACCOUNT_PROFILE } from "@/lib/account-profile";
 import { saveAccountName } from "./actions";
 
 // Name writes user_metadata.display_name. Email is the session login email
@@ -53,6 +53,7 @@ export function AccountProfileForm({
             setValue(e.target.value);
             setSaved(false);
           }}
+          maxLength={ACCOUNT_NAME_MAX}
           autoComplete="name"
         />
       </div>

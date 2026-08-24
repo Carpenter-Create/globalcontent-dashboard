@@ -3,7 +3,12 @@
 // create). Email is auth.users — shown, not changed. Company name is
 // organizations.name.
 
+import { z } from "zod";
+
 import { USER_MENU, userMenuName } from "@/lib/user-menu";
+
+/** Conservative bound — same ceiling as other person/company name writes. */
+export const ACCOUNT_NAME_MAX = 200;
 
 export const ACCOUNT_PROFILE = {
   title: USER_MENU.userProfile,
@@ -17,6 +22,7 @@ export const ACCOUNT_PROFILE = {
   saved: "Saved.",
   signedOut: "Not authenticated.",
   saveFailed: "Could not save.",
+  invalidName: "Name must be 200 characters or fewer.",
 } as const;
 
 export const COMPANY_PROFILE = {
@@ -31,14 +37,23 @@ export const COMPANY_PROFILE = {
   signedOut: "Not authenticated.",
   forbidden: "Only the account owner can change the company name.",
   saveFailed: "Could not save.",
+  invalidName: "Company name must be 200 characters or fewer.",
 } as const;
 
-export function canEditCompanyProfile(
-  role: string | null | undefined,
-  isGcStaff: boolean,
-): boolean {
-  return isGcStaff || role === "account_owner";
-}
+export const accountNameSchema = z
+  .string()
+  .max(ACCOUNT_NAME_MAX)
+  .transform((value) => value.trim())
+  .pipe(z.string().max(ACCOUNT_NAME_MAX));
+
+export const companySaveSchema = z.object({
+  orgId: z.string().uuid(),
+  name: z
+    .string()
+    .max(ACCOUNT_NAME_MAX)
+    .transform((value) => value.trim())
+    .pipe(z.string().min(1).max(ACCOUNT_NAME_MAX)),
+});
 
 /**
  * Display name already stored on the session JWT. Empty stays empty.

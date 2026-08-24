@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACCOUNT_NAME_MAX,
   ACCOUNT_PROFILE,
   COMPANY_PROFILE,
+  accountNameSchema,
   authDisplayName,
-  canEditCompanyProfile,
+  companySaveSchema,
 } from "./account-profile";
 import { USER_MENU, userMenuName } from "./user-menu";
 import { ACCOUNT_SHEET } from "./account-sheet";
@@ -22,6 +24,34 @@ describe("account profile copy", () => {
     expect(COMPANY_PROFILE.href).toBe(ACCOUNT_SHEET.companyHref);
     const blob = `${ACCOUNT_PROFILE.subtitle} ${COMPANY_PROFILE.subtitle}`;
     expect(blob).not.toMatch(/seamless|frictionless|elevate|amplify|unleash|supercharge/i);
+  });
+});
+
+describe("account name schemas", () => {
+  it("trims display names, allows empty, and rejects oversized or non-string values", () => {
+    expect(accountNameSchema.parse("  Ada  ")).toBe("Ada");
+    expect(accountNameSchema.parse("   ")).toBe("");
+    expect(accountNameSchema.safeParse("x".repeat(ACCOUNT_NAME_MAX + 1)).success).toBe(false);
+    expect(accountNameSchema.safeParse(12).success).toBe(false);
+  });
+
+  it("requires a company name and the rendered org id", () => {
+    expect(
+      companySaveSchema.parse({
+        orgId: "11111111-1111-4111-8111-111111111111",
+        name: "  Acme  ",
+      }),
+    ).toEqual({
+      orgId: "11111111-1111-4111-8111-111111111111",
+      name: "Acme",
+    });
+    expect(
+      companySaveSchema.safeParse({
+        orgId: "11111111-1111-4111-8111-111111111111",
+        name: "   ",
+      }).success,
+    ).toBe(false);
+    expect(companySaveSchema.safeParse({ orgId: "not-a-uuid", name: "Acme" }).success).toBe(false);
   });
 });
 
@@ -51,15 +81,5 @@ describe("authDisplayName", () => {
     );
     expect(authDisplayName({ email })).toBeNull();
     expect(authDisplayName({ display_name: "Should not read top-level" })).toBeNull();
-  });
-});
-
-describe("canEditCompanyProfile", () => {
-  it("is account_owner or GC staff only — not delivery_ops", () => {
-    expect(canEditCompanyProfile("account_owner", false)).toBe(true);
-    expect(canEditCompanyProfile("viewer", true)).toBe(true);
-    expect(canEditCompanyProfile("delivery_ops", false)).toBe(false);
-    expect(canEditCompanyProfile("viewer", false)).toBe(false);
-    expect(canEditCompanyProfile(null, false)).toBe(false);
   });
 });
