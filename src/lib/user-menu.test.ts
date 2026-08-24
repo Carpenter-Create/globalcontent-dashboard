@@ -10,23 +10,26 @@ import {
 } from "./user-menu";
 
 describe("user menu lock", () => {
-  it("keeps Mercury order: User Profile, Agreements, Appearance, Log out", () => {
+  it("keeps Mercury order: User Profile, Company Profile, Agreements, Appearance, Log out", () => {
     expect(USER_MENU_ACTIONS.map((item) => item.kind)).toEqual([
       "userProfile",
+      "companyProfile",
       "agreements",
       "appearance",
       "logOut",
     ]);
     expect(USER_MENU_ACTIONS.map((item) => item.label)).toEqual([
       "User Profile",
+      "Company Profile",
       "Agreements",
       "Appearance",
       "Log out",
     ]);
   });
 
-  it("points User Profile at /account and Agreements at the existing page", () => {
+  it("points User Profile at /account and Company Profile at /account/company", () => {
     expect(USER_MENU.userProfileHref).toBe("/account");
+    expect(USER_MENU.companyProfileHref).toBe("/account/company");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
     expect(USER_MENU_ACTIONS[0]).toEqual({
       kind: "userProfile",
@@ -34,6 +37,11 @@ describe("user menu lock", () => {
       href: "/account",
     });
     expect(USER_MENU_ACTIONS[1]).toEqual({
+      kind: "companyProfile",
+      label: "Company Profile",
+      href: "/account/company",
+    });
+    expect(USER_MENU_ACTIONS[2]).toEqual({
       kind: "agreements",
       label: "Agreements",
       href: "/account/agreements",
@@ -47,7 +55,7 @@ describe("user menu lock", () => {
       expect(labels).not.toContain(absent);
     }
     expect(labels).not.toContain("Profile");
-    expect(hrefs).toEqual(["/account", "/account/agreements"]);
+    expect(hrefs).toEqual(["/account", "/account/company", "/account/agreements"]);
     expect(hrefs).not.toContain("/account/profile");
     expect(hrefs.join(" ")).not.toMatch(/notifications|privacy/i);
   });

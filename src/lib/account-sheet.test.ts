@@ -14,6 +14,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET.manage).toBe("Manage account");
     expect(ACCOUNT_SHEET.manageHref).toBe("/account");
     expect(ACCOUNT_SHEET.manageHref).toBe(USER_MENU.userProfileHref);
+    expect(ACCOUNT_SHEET.companyHref).toBe(USER_MENU.companyProfileHref);
     expect(ACCOUNT_SHEET.manageHref).not.toBe("/account/profile");
     expect(ACCOUNT_SHEET.group).toBe("ACCOUNT");
     expect(ACCOUNT_SHEET_ITEMS.map((item) => item.kind)).toEqual([

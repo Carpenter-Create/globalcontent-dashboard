@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -67,5 +70,19 @@ describe("CompanyProfilePage", () => {
   it("sends a user with no active org home", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(ctx({ hasOrg: false, isGcStaff: true }) as never);
     await expect(CompanyProfilePage()).rejects.toThrow("REDIRECT:/");
+  });
+
+  it("is the same /account/company page on desktop and mobile — not a sheet-only destination", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pageSrc = readFileSync(join(here, "page.tsx"), "utf8");
+    const formSrc = readFileSync(join(here, "../company-profile-form.tsx"), "utf8");
+    const actionSrc = readFileSync(join(here, "../actions.ts"), "utf8");
+    expect(existsSync(join(here, "../profile/page.tsx"))).toBe(false);
+    expect(pageSrc).toContain("CompanyProfileForm");
+    expect(formSrc).toContain("saveCompanyName");
+    expect(actionSrc).toContain('from("organizations")');
+    expect(actionSrc).toContain("update({ name: trimmed })");
+    expect(`${pageSrc}${formSrc}`).not.toMatch(/md:hidden|hidden md:|max-md:/);
+    expect(COMPANY_PROFILE.href).toBe("/account/company");
   });
 });

@@ -20,7 +20,8 @@ export const ACCOUNT_PROFILE = {
 } as const;
 
 export const COMPANY_PROFILE = {
-  title: "Company Profile",
+  title: USER_MENU.companyProfile,
+  href: USER_MENU.companyProfileHref,
   subtitle: "Name of the organization on this account.",
   nameLabel: "Company name",
   nameRequired: "Company name is required.",
@@ -30,7 +31,6 @@ export const COMPANY_PROFILE = {
   signedOut: "Not authenticated.",
   forbidden: "Only the account owner can change the company name.",
   saveFailed: "Could not save.",
-  href: "/account/company",
 } as const;
 
 export function canEditCompanyProfile(

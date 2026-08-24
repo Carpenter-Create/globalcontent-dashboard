@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,5 +66,19 @@ describe("AccountPage", () => {
   it("sends an unauthenticated visitor to login", async () => {
     vi.mocked(getOrgContext).mockResolvedValue(null as never);
     await expect(AccountPage()).rejects.toThrow("REDIRECT:/login");
+  });
+
+  it("is the same /account page on desktop and mobile — not a sheet-only destination", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const pageSrc = readFileSync(join(here, "page.tsx"), "utf8");
+    const formSrc = readFileSync(join(here, "account-profile-form.tsx"), "utf8");
+    const actionSrc = readFileSync(join(here, "actions.ts"), "utf8");
+    expect(pageSrc).toContain("AccountProfileForm");
+    expect(formSrc).toContain("saveAccountName");
+    expect(actionSrc).toContain("updateUser");
+    expect(actionSrc).toContain("display_name");
+    expect(`${pageSrc}${formSrc}`).not.toMatch(/md:hidden|hidden md:|max-md:/);
+    expect(pageSrc).not.toContain("/account/profile");
+    expect(ACCOUNT_PROFILE.href).toBe("/account");
   });
 });

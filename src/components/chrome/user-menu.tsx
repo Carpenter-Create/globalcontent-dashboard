@@ -96,6 +96,11 @@ export function UserMenu({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
+              <Link href={USER_MENU.companyProfileHref} data-user-menu-item="companyProfile">
+                {USER_MENU.companyProfile}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className={USER_MENU_ITEM_CLASS}>
               <Link href={USER_MENU.agreementsHref} data-user-menu-item="agreements">
                 {USER_MENU.agreements}
               </Link>

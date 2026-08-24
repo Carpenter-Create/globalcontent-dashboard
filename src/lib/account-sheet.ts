@@ -4,7 +4,6 @@
 // Options after the hairline: Manage account, Company Profile, Agreements,
 // then Log out. Destinations use existing routes only.
 
-import { COMPANY_PROFILE } from "@/lib/account-profile";
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
 
 export const ACCOUNT_SHEET = {
@@ -13,8 +12,8 @@ export const ACCOUNT_SHEET = {
   manage: "Manage account",
   manageHref: USER_MENU.userProfileHref,
   group: "ACCOUNT",
-  companyProfile: "Company Profile",
-  companyHref: COMPANY_PROFILE.href,
+  companyProfile: USER_MENU.companyProfile,
+  companyHref: USER_MENU.companyProfileHref,
   agreements: "Agreements",
   logOut: USER_MENU.logOut,
 } as const;
