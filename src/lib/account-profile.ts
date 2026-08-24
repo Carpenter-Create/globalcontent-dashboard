@@ -7,6 +7,9 @@ import { z } from "zod";
 
 import { USER_MENU, userMenuName } from "@/lib/user-menu";
 
+// /account page title stays User Profile. The Identity menu label is Profile.
+// Do not merge Company onto /account.
+
 /** Conservative bound — same ceiling as other person/company name writes. */
 export const ACCOUNT_NAME_MAX = 200;
 
@@ -20,8 +23,8 @@ export const ACCOUNT_PHOTO_CIRCLE_CLASS =
   "size-12 shrink-0 overflow-hidden rounded-full bg-surface-muted";
 
 export const ACCOUNT_PROFILE = {
-  title: USER_MENU.userProfile,
-  href: USER_MENU.userProfileHref,
+  title: "User Profile",
+  href: USER_MENU.profileHref,
   nameLabel: "Name",
   emailLabel: "Email",
   emailHint: "Sign-in email. It cannot be changed here.",
@@ -41,8 +44,8 @@ export const ACCOUNT_PROFILE = {
 } as const;
 
 export const COMPANY_PROFILE = {
-  title: USER_MENU.companyProfile,
-  href: USER_MENU.companyProfileHref,
+  title: "Company Profile",
+  href: "/account/company",
   subtitle: "Name of the organization on this account.",
   nameLabel: "Company name",
   nameRequired: "Company name is required.",

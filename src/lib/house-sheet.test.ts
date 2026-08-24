@@ -16,7 +16,9 @@ import {
   IDENTITY_AVATAR_CLASS,
   IDENTITY_BLOCK_CLASS,
   IDENTITY_EMAIL_CLASS,
+  HOUSE_EMPTY_CLASS,
   IDENTITY_NAME_CLASS,
+  SHEET_GROUP_CHEVRON_CLASS,
   SHEET_GROUP_CLASS,
   SHEET_GROUP_ITEM_CLASS,
   SHEET_GROUP_LABEL_CLASS,
@@ -36,6 +38,12 @@ describe("house sheet lock", () => {
     expect(CLOSE_44_CLASS).toContain("rounded-full");
     expect(CLOSE_44_CLASS).toContain("bg-surface-muted");
     expect(CLOSE_44_CLASS).toContain("text-ink-3");
+  });
+
+  it("keeps the house empty line on 15 Regular, no card", () => {
+    expect(HOUSE_EMPTY_CLASS).toBe("t-body text-ink-2");
+    expect(HOUSE_EMPTY_CLASS).not.toContain("border");
+    expect(HOUSE_EMPTY_CLASS).not.toContain("rounded");
   });
 
   it("keeps Text action on 13 Sporty Blue", () => {
@@ -62,6 +70,9 @@ describe("house sheet lock", () => {
     expect(SHEET_GROUP_LABEL_CLASS).toContain("tracking-[0.08em]");
     expect(SHEET_GROUP_ITEM_CLASS).toContain("text-[length:var(--text-base)]");
     expect(SHEET_GROUP_ITEM_CLASS).toContain("text-ink");
+    expect(SHEET_GROUP_ITEM_CLASS).toContain("justify-between");
+    expect(SHEET_GROUP_CHEVRON_CLASS).toContain("size-4");
+    expect(SHEET_GROUP_CHEVRON_CLASS).toContain("text-ink-3");
   });
 
   it("locks app-sheet chrome to 543:576 — r16, pad 16/24/48, quiet scrim", () => {

@@ -1,54 +1,79 @@
 // Account-menu copy and lock. Lives in lib/, not JSX.
-// One list for both instances: desktop dropdown and mobile sheet.
-// Chrome may differ (sheet vs dropdown). Labels may not.
-// User Profile is /account. Company Profile is /account/company.
-// Agreements is /account/agreements. Appearance is a second face,
-// not a page — do not invent /account/appearance as a door.
-// Do not invent /account/profile, Notifications, Privacy, Manage account,
-// or a name derived from the email local-part.
+// One list for both instances: desktop panel and mobile sheet.
+// Chrome may differ (sheet vs fuller panel). Labels may not.
+// Profile is /account only. Company stays off this menu — do not merge
+// Company onto /account. Agreements is /account/agreements. Appearance
+// is a second face, not a page — do not invent /account/appearance.
+// Help and Refer are house empty pages. Legal is the public site.
+// Do not invent /account/profile, Phone, Job, Notifications, Privacy,
+// Manage account, or a name derived from the email local-part.
+
+import { version as APP_VERSION } from "../../package.json";
 
 export const USER_MENU = {
-  userProfile: "User Profile",
-  userProfileHref: "/account",
-  companyProfile: "Company Profile",
-  companyProfileHref: "/account/company",
+  profile: "Profile",
+  profileHref: "/account",
   agreements: "Agreements",
   agreementsHref: "/account/agreements",
   appearance: "Appearance",
+  help: "Help",
+  helpHref: "/help",
+  refer: "Refer a friend",
+  referHref: "/refer",
   logOut: "Log out",
+  legal: "Legal",
+  legalHref: "https://globalcontent.co/legal",
+  versionPrefix: "v",
 } as const;
 
-export const USER_MENU_ABSENT = ["Manage account", "Notifications", "Privacy", "Sign out"] as const;
+export const USER_MENU_ABSENT = [
+  "Manage account",
+  "Notifications",
+  "Privacy",
+  "Sign out",
+  "User Profile",
+  "Company Profile",
+  "Phone",
+  "Job",
+] as const;
 
 export type UserMenuLinkAction =
   | {
-      kind: "userProfile";
-      label: typeof USER_MENU.userProfile;
-      href: typeof USER_MENU.userProfileHref;
-    }
-  | {
-      kind: "companyProfile";
-      label: typeof USER_MENU.companyProfile;
-      href: typeof USER_MENU.companyProfileHref;
+      kind: "profile";
+      label: typeof USER_MENU.profile;
+      href: typeof USER_MENU.profileHref;
     }
   | {
       kind: "agreements";
       label: typeof USER_MENU.agreements;
       href: typeof USER_MENU.agreementsHref;
+    }
+  | {
+      kind: "help";
+      label: typeof USER_MENU.help;
+      href: typeof USER_MENU.helpHref;
+    }
+  | {
+      kind: "refer";
+      label: typeof USER_MENU.refer;
+      href: typeof USER_MENU.referHref;
     };
 
 export type UserMenuAction =
   | UserMenuLinkAction
-  | { kind: "appearance"; label: typeof USER_MENU.appearance }
-  | { kind: "logOut"; label: typeof USER_MENU.logOut };
+  | { kind: "appearance"; label: typeof USER_MENU.appearance };
 
 export const USER_MENU_ACTIONS: readonly UserMenuAction[] = [
-  { kind: "userProfile", label: USER_MENU.userProfile, href: USER_MENU.userProfileHref },
-  { kind: "companyProfile", label: USER_MENU.companyProfile, href: USER_MENU.companyProfileHref },
+  { kind: "profile", label: USER_MENU.profile, href: USER_MENU.profileHref },
   { kind: "agreements", label: USER_MENU.agreements, href: USER_MENU.agreementsHref },
   { kind: "appearance", label: USER_MENU.appearance },
-  { kind: "logOut", label: USER_MENU.logOut },
+  { kind: "help", label: USER_MENU.help, href: USER_MENU.helpHref },
+  { kind: "refer", label: USER_MENU.refer, href: USER_MENU.referHref },
 ];
+
+export function userMenuVersion(): string {
+  return `${USER_MENU.versionPrefix}${APP_VERSION}`;
+}
 
 /** Avatar letter from the email. Not a name. */
 export function userMenuAvatarInitial(email: string): string {

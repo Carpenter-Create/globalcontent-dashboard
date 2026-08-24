@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { USER_MENU, USER_MENU_ABSENT } from "@/lib/user-menu";
+import { USER_MENU, USER_MENU_ABSENT, USER_MENU_ACTIONS } from "@/lib/user-menu";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
@@ -34,10 +34,10 @@ describe("UserMenuIdentity", () => {
     expect(html).toContain('data-user-menu-email=""');
     expect(html).toContain("ada@example.com");
     expect(html).toContain(">A<");
-    expect(html).toContain("px-[var(--space-4)] py-[var(--space-4)]");
+    expect(html).toContain("size-12");
     expect(html).toContain("t-body-sm text-ink-3");
     expect(html).not.toContain("data-user-menu-name");
-    expect(visibleText(html)).not.toMatch(/Profile|Notifications|Privacy/);
+    expect(visibleText(html)).not.toMatch(/Notifications|Privacy|Phone|Job/);
   });
 
   it("renders a name row only when a real display name is passed", () => {
@@ -46,9 +46,8 @@ describe("UserMenuIdentity", () => {
     );
     expect(html).toContain('data-user-menu-name=""');
     expect(html).toContain("Ada Lovelace");
-    expect(html).toContain("t-body-sm font-medium text-ink");
+    expect(html).toContain("t-body font-normal text-ink");
     expect(html).toContain("t-body-sm text-ink-3");
-    expect(html).not.toContain("t-body font-medium");
   });
 
   it("does not invent a name from the email local-part", () => {
@@ -72,19 +71,14 @@ describe("UserMenu trigger", () => {
 });
 
 describe("UserMenu close control", () => {
-  it("has no sheet-style close X sharing the 16px tap target", () => {
-    expect(menuSrc).not.toContain("data-user-menu-close");
-    expect(menuSrc).not.toContain("<X ");
-    expect(menuSrc).not.toContain("lucide-react");
-    expect(menuSrc).not.toContain("data-mobile-nav-close");
-  });
-
-  it("opens the mobile 544:561 sheet from the avatar and keeps the desktop leftover", () => {
+  it("opens the mobile 544:561 sheet and the desktop 569:639 panel from the avatar", () => {
     expect(menuSrc).toContain("MobileAccountMenu");
+    expect(menuSrc).toContain("DesktopAccountMenu");
     expect(menuSrc).toContain("<MobileAccountMenu email={email} name={name} />");
-    expect(menuSrc).toContain('data-user-menu-desktop=""');
-    expect(menuSrc).toContain("hidden md:block");
-    expect(menuSrc).toContain("USER_MENU_ACTIONS");
+    expect(menuSrc).toContain("<DesktopAccountMenu email={email} name={name} />");
+    expect(sheetSrc).toContain('data-user-menu-desktop=""');
+    expect(sheetSrc).toContain("hidden md:block");
+    expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS");
     expect(menuSrc).not.toContain("data-account-sheet-close");
     expect(menuSrc).not.toContain("data-mobile-nav-sheet");
   });
@@ -105,35 +99,49 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("renders the shared USER_MENU_ACTIONS list — Appearance opens the nested face", () => {
-    expect(menuSrc).toContain("USER_MENU_ACTIONS.map");
+  it("renders the shared USER_MENU_ACTIONS list on both instances — Appearance opens the nested face", () => {
     expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS.map");
-    expect(menuSrc).toContain("data-user-menu-item={item.kind}");
-    expect(menuSrc).toContain("item.href");
-    expect(menuSrc).toContain("onUserMenuLogOut");
-    expect(menuSrc).toContain('onFace("appearance")');
-    expect(menuSrc).toContain("UserMenuDesktopContent");
-    expect(menuSrc).not.toContain("onUserMenuAppearance");
-    expect(menuSrc).not.toContain("toggleDocumentTheme");
-    expect(menuSrc).not.toContain("ThemeGlyph");
-    expect(menuSrc).not.toContain("/account/appearance");
-    expect(menuSrc).not.toContain("type=\"radio\"");
-    expect(menuSrc).not.toContain("lucide-react");
+    expect(sheetSrc).toContain("DesktopAccountMenu");
+    expect(sheetSrc).toContain("MobileAccountMenu");
+    expect(sheetSrc).toContain('data-user-menu-item="logOut"');
+    expect(sheetSrc).toContain('setFace("appearance")');
+    expect(sheetSrc).not.toContain("onUserMenuAppearance");
+    expect(sheetSrc).not.toContain("toggleDocumentTheme");
+    expect(sheetSrc).not.toContain("ThemeGlyph");
+    expect(sheetSrc).not.toContain("/account/appearance");
+    expect(sheetSrc).not.toContain("type=\"radio\"");
     for (const absent of USER_MENU_ABSENT) {
-      expect(menuSrc).not.toContain(absent);
+      expect(sheetSrc).not.toContain(absent);
     }
-    expect(menuSrc).not.toContain("/account/profile");
-    expect(menuSrc).not.toContain("/settings");
+    expect(sheetSrc).not.toContain("/account/profile");
+    expect(sheetSrc).not.toContain("/account/company");
+    expect(sheetSrc).not.toContain("/settings");
   });
 
-  it("keeps User Profile on /account and Appearance off any page door", () => {
-    expect(USER_MENU.userProfileHref).toBe("/account");
-    expect(USER_MENU.userProfile).toBe("User Profile");
-    expect(USER_MENU.companyProfileHref).toBe("/account/company");
+  it("keeps Profile on /account and Appearance off any page door", () => {
+    expect(USER_MENU.profileHref).toBe("/account");
+    expect(USER_MENU.profile).toBe("Profile");
     expect(USER_MENU.agreementsHref).toBe("/account/agreements");
+    expect(USER_MENU.helpHref).toBe("/help");
+    expect(USER_MENU.referHref).toBe("/refer");
     expect(USER_MENU).not.toHaveProperty("appearanceHref");
+    expect(USER_MENU).not.toHaveProperty("companyProfileHref");
     expect(USER_MENU.appearance).toBe("Appearance");
     expect(APPEARANCE.back).toBe("Back to main menu");
+  });
+
+  it("desktop panel items are the same list as mobile", () => {
+    expect(USER_MENU_ACTIONS.map((item) => item.label)).toEqual([
+      "Profile",
+      "Agreements",
+      "Appearance",
+      "Help",
+      "Refer a friend",
+    ]);
+    expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS.map");
+    expect(sheetSrc.indexOf("DesktopAccountMenu")).toBeGreaterThan(-1);
+    expect(sheetSrc.indexOf("MobileAccountMenu")).toBeGreaterThan(-1);
+    expect(sheetSrc).toContain("<AccountSheet");
   });
 });
 
@@ -145,38 +153,28 @@ describe("UserMenu actions", () => {
   it("Log out calls the existing signOut action", () => {
     onUserMenuLogOut();
     expect(signOut).toHaveBeenCalledTimes(1);
-    expect(menuSrc).toContain("onSelect={() => onUserMenuLogOut()}");
-    expect(menuSrc).toContain('from "@/app/actions"');
+    expect(sheetSrc).toContain("void signOut()");
+    expect(sheetSrc).toContain('from "@/app/actions"');
   });
 
   it("puts the Identity half-bar on the main face only", () => {
-    expect(menuSrc).toContain(
-      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="main"',
-    );
-    expect(menuSrc).toContain(
-      '<MenuSurfaceContent data-user-menu="" data-account-menu-face="appearance"',
-    );
-    expect(menuSrc).not.toContain(
-      '<MenuSurfaceContent accent data-user-menu="" data-account-menu-face="appearance"',
-    );
     expect(sheetSrc).toContain("<MenuSurfaceAccent");
     expect(sheetSrc).toContain('{face === "main" ? <MenuSurfaceAccent /> : null}');
+    expect(sheetSrc).not.toContain("Adam Carpenter");
+    expect(sheetSrc).not.toContain("admin@ccbfg.com");
   });
 
   it("nests Light, Dark, Auto as the same rows — selected is a quiet check", () => {
-    expect(menuSrc).toContain('data-account-menu-face="appearance"');
-    expect(menuSrc).toContain("APPEARANCE.back");
-    expect(menuSrc).toContain("APPEARANCE_OPTIONS.map");
-    expect(menuSrc).toContain('data-user-menu-item="back"');
-    expect(menuSrc).toContain("AppearanceCheck");
-    expect(menuSrc).toContain("applyDocumentThemePreference");
-    expect(menuSrc).toContain("event.preventDefault()");
-    expect(menuSrc).toContain('if (!open) setFace("main")');
-    expect(menuSrc).toContain('onFace("appearance")');
-    expect(menuSrc).not.toContain('type="radio"');
-    expect(menuSrc).not.toContain("radiogroup");
-    expect(menuSrc).not.toContain("ThemeGlyph");
-    expect(menuSrc).not.toContain("/account/appearance");
+    expect(sheetSrc).toContain('data-account-menu-face={face}');
+    expect(sheetSrc).toContain("APPEARANCE.back");
+    expect(sheetSrc).toContain("APPEARANCE_OPTIONS.map");
+    expect(sheetSrc).toContain("AppearanceCheck");
+    expect(sheetSrc).toContain("applyDocumentThemePreference");
+    expect(sheetSrc).toContain('setFace("appearance")');
+    expect(sheetSrc).not.toContain('type="radio"');
+    expect(sheetSrc).not.toContain("radiogroup");
+    expect(sheetSrc).not.toContain("ThemeGlyph");
+    expect(sheetSrc).not.toContain("/account/appearance");
     expect(APPEARANCE.back).toBe("Back to main menu");
     expect(APPEARANCE.light).toBe("Light");
     expect(APPEARANCE.dark).toBe("Dark");
@@ -185,31 +183,6 @@ describe("UserMenu actions", () => {
 });
 
 describe("UserMenu Mercury quiet craft", () => {
-  it("uses house type and air, not the default shadcn item padding", () => {
-    expect(menuSrc).toContain("t-body-sm font-medium text-ink");
-    expect(menuSrc).toContain("t-body-sm text-ink-3");
-    expect(menuSrc).toContain("px-[var(--space-4)] py-[var(--space-4)]");
-    expect(menuSrc).toContain("<MenuSurfaceContent");
-    expect(menuSrc).toContain("<MenuSurfaceItem");
-    expect(menuSrc).toContain("<MenuSurfaceSeparator");
-    expect(menuSrc).not.toContain("min-w-[17.5rem]");
-    expect(menuSrc).not.toContain("USER_MENU_ITEM_CLASS");
-    expect(menuSrc).not.toContain("px-2.5 py-1.5");
-    expect(menuSrc).not.toContain("p-[var(--space-1)]");
-    expect(menuSrc).not.toContain("t-body font-medium");
-  });
-
-  it("keeps the identity hairline and adds a divider before Log out", () => {
-    const hairline = menuSrc.indexOf('data-user-menu-hairline=""');
-    const actions = menuSrc.indexOf("USER_MENU_ACTIONS.map");
-    const logoutRule = menuSrc.indexOf('data-user-menu-logout-hairline=""');
-    const logOut = menuSrc.indexOf("onSelect={() => onUserMenuLogOut()}");
-    expect(hairline).toBeGreaterThan(-1);
-    expect(actions).toBeGreaterThan(hairline);
-    expect(logoutRule).toBeGreaterThan(actions);
-    expect(logOut).toBeGreaterThan(logoutRule);
-  });
-
   it("does not restore a standalone header sun", () => {
     const shellSrc = readFileSync(join(here, "app-shell.tsx"), "utf8");
     expect(shellSrc).not.toContain("ThemeToggle");

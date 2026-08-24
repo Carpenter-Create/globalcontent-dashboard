@@ -13,17 +13,25 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
-import { ACCOUNT_SHEET, ACCOUNT_SHEET_ABSENT, ACCOUNT_SHEET_ITEMS } from "@/lib/account-sheet";
+import {
+  ACCOUNT_SHEET,
+  ACCOUNT_SHEET_ABSENT,
+  ACCOUNT_SHEET_HEAD_CLASS,
+  ACCOUNT_SHEET_ITEMS,
+  ACCOUNT_SHEET_LOGOUT_CLASS,
+  ACCOUNT_SHEET_SURFACE_CLASS,
+} from "@/lib/account-sheet";
 import {
   APP_SHEET_RISE_CLASS,
   APP_SHEET_SCRIM_CLASS,
   APP_SHEET_SCRIM_FADE_CLASS,
-  APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
+  SHEET_GROUP_CHEVRON_CLASS,
   SHEET_GROUP_ITEM_CLASS,
+  TEXT_ACTION_CLASS,
 } from "@/lib/house-sheet";
 import { APPEARANCE } from "@/lib/appearance";
-import { USER_MENU } from "@/lib/user-menu";
+import { USER_MENU, userMenuVersion } from "@/lib/user-menu";
 import { AccountSheet, AccountSheetAppearance, MobileAccountMenu } from "./account-sheet";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -76,14 +84,13 @@ describe("MobileAccountMenu trigger", () => {
     expect(html).not.toContain("data-account-sheet=\"\"");
     expect(html).not.toContain("data-mobile-nav-sheet");
     expect(html).not.toContain("data-mobile-nav-trigger");
-    expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
     expect(src).toContain("createPortal");
     expect(src).toContain("document.body");
     expect(src).not.toContain("data-mobile-nav");
   });
 });
 
-describe("AccountSheet 544:561", () => {
+describe("AccountSheet 544:561 / 569:639", () => {
   it("rises from the bottom over a quiet scrim so the page stays under", () => {
     const html = renderSheet();
     const closeClass = buttonClass(html, "data-account-sheet-close");
@@ -94,25 +101,25 @@ describe("AccountSheet 544:561", () => {
 
     expect(html).toContain("data-account-sheet=\"\"");
     expect(html).toContain("data-account-sheet-scrim");
-    expect(html).toContain("md:hidden");
+    expect(html).not.toContain("md:hidden");
     expect(html).toContain('aria-label="Account"');
     expect(hostClass).toContain("justify-end");
     expect(hostClass).not.toContain("bg-canvas");
     expect(scrimClass).toBe(APP_SHEET_SCRIM_CLASS);
     expect(scrimClass).toContain(APP_SHEET_SCRIM_FADE_CLASS);
+    expect(surfaceClass).toBe(ACCOUNT_SHEET_SURFACE_CLASS);
     expect(surfaceClass).toContain(APP_SHEET_RISE_CLASS);
+    expect(surfaceClass).toContain("h-[90dvh]");
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
-    expect(surfaceClass).toContain("px-[var(--space-4)]");
-    expect(surfaceClass).toContain("pt-[var(--space-6)]");
-    expect(surfaceClass).toContain("pb-[var(--space-12)]");
+    expect(surfaceClass).toContain("p-[var(--space-6)]");
+    expect(surfaceClass).toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain("top-[var(--header-height)]");
     expect(surfaceClass).not.toContain("rounded-t-[24px]");
-    expect(APP_SHEET_SURFACE_CLASS.split(" ").every((token) => surfaceClass.includes(token))).toBe(
-      true,
-    );
-    expect(headClass).toContain("justify-end");
-    expect(headClass).toContain("h-[44px]");
+    expect(headClass).toBe(ACCOUNT_SHEET_HEAD_CLASS);
+    expect(headClass).toContain("min-h-12");
+    expect(headClass).toContain("justify-between");
+    expect(headClass).toContain("items-center");
     expect(closeClass).toContain("rounded-full");
     expect(closeClass).toContain("bg-surface-muted");
     expect(closeClass).toContain("text-ink-3");
@@ -121,12 +128,27 @@ describe("AccountSheet 544:561", () => {
     expect(minBoxPx(closeClass, "min-h")).toBeGreaterThanOrEqual(44);
     expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
     expect(src).toContain("<Close44");
-    expect(src).toContain("<AppSheetSurface");
     expect(src).not.toMatch(/duration-\d|ease-out|ease-in|@keyframes|bounce/i);
     expect(houseSrc).toContain('<X className="size-4" strokeWidth={1.33} />');
     expect(src).toContain("event.key === \"Escape\"");
-    expect(tokens).toMatch(/--space-12:\s*3rem/);
+    expect(tokens).toMatch(/--space-6:\s*1\.5rem/);
     expect(tokens).toContain("--accent: #1769ff;");
+  });
+
+  it("puts Identity and Close/44 on one top row, centers aligned", () => {
+    const html = renderSheet("ada@example.com", "Ada Lovelace");
+    const head = html.slice(
+      html.indexOf("data-account-sheet-head"),
+      html.indexOf("data-account-sheet-rule"),
+    );
+    expect(head).toContain("data-identity-block");
+    expect(head).toContain("data-account-sheet-close");
+    expect(head.indexOf("data-identity-block")).toBeLessThan(head.indexOf("data-account-sheet-close"));
+    expect(head).toContain("Ada Lovelace");
+    expect(head).toContain("ada@example.com");
+    expect(attrClass(html, "data-account-sheet-head")).toContain("min-h-12");
+    expect(attrClass(html, "data-account-sheet-head")).toContain("items-center");
+    expect(attrClass(html, "data-account-sheet-head")).toContain("justify-between");
   });
 
   it("puts the Identity half-bar flush on the main face and off Appearance", () => {
@@ -156,13 +178,13 @@ describe("AccountSheet 544:561", () => {
     expect(src).not.toContain("admin@ccbfg.com");
   });
 
-  it("puts Mercury identity first: 48 circle, name 15 ink, email 13 tertiary, then hairline", () => {
+  it("puts live Identity first: 48 circle, name 15 ink, email 13 tertiary, then hairline", () => {
     const html = renderSheet("ada@example.com");
     const identity = html.slice(
       html.indexOf("data-identity-block"),
       html.indexOf("data-account-sheet-rule"),
     );
-    const userProfileClass = attrClass(html, 'data-sheet-group-item="userProfile"');
+    const profileClass = attrClass(html, 'data-sheet-group-item="profile"');
     const nameClass = attrClass(html, "data-identity-name");
     const emailClass = attrClass(html, "data-identity-email");
 
@@ -179,13 +201,12 @@ describe("AccountSheet 544:561", () => {
     expect(nameClass).not.toContain("text-accent");
     expect(emailClass).toContain("t-body-sm");
     expect(emailClass).toContain("text-ink-3");
-    expect(html).toContain(USER_MENU.userProfile);
-    expect(html).toContain(`href="${USER_MENU.userProfileHref}"`);
-    expect(userProfileClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(html).toContain(USER_MENU.profile);
+    expect(html).toContain(`href="${USER_MENU.profileHref}"`);
+    expect(profileClass).toBe(SHEET_GROUP_ITEM_CLASS);
     expect(src).toContain("<IdentityBlock");
-    expect(src).not.toContain("TextAction");
     expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-account-sheet-rule"));
-    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf('data-sheet-group-item="userProfile"'));
+    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf('data-sheet-group-item="profile"'));
     expect(html).toContain("data-account-sheet-rule");
     expect(attrClass(html, "data-account-sheet-rule")).toContain("bg-hairline");
   });
@@ -206,56 +227,91 @@ describe("AccountSheet 544:561", () => {
     expect(html).toContain("data-identity-name");
   });
 
-  it("lists User Profile, Company Profile, Agreements, Appearance, then Log out", () => {
+  it("lists Profile, Agreements, Appearance, Help, Refer a friend — then pinned Log out", () => {
     const html = renderSheet();
     const group = html.slice(html.indexOf("data-sheet-group"));
-    const userProfileClass = attrClass(html, 'data-sheet-group-item="userProfile"');
-    const companyClass = attrClass(html, 'data-sheet-group-item="companyProfile"');
+    const profileClass = attrClass(html, 'data-sheet-group-item="profile"');
     const agreementsClass = attrClass(html, 'data-sheet-group-item="agreements"');
     const appearanceClass = attrClass(html, 'data-sheet-group-item="appearance"');
+    const helpClass = attrClass(html, 'data-sheet-group-item="help"');
+    const referClass = attrClass(html, 'data-sheet-group-item="refer"');
     const logOutClass = attrClass(html, 'data-sheet-group-item="logOut"');
 
     expect(html).not.toContain("Manage account");
+    expect(html).not.toContain("User Profile");
+    expect(html).not.toContain("Company Profile");
+    expect(html).not.toContain("Phone");
+    expect(html).not.toContain("Job");
     expect(html).not.toContain("data-sheet-group-label");
     expect(html).not.toContain(">ACCOUNT<");
-    expect(group.indexOf("User Profile")).toBeLessThan(group.indexOf("Company Profile"));
-    expect(group.indexOf("Company Profile")).toBeLessThan(group.indexOf("Agreements"));
+    expect(group.indexOf("Profile")).toBeLessThan(group.indexOf("Agreements"));
     expect(group.indexOf("Agreements")).toBeLessThan(group.indexOf("Appearance"));
-    expect(group.indexOf("Appearance")).toBeLessThan(group.indexOf("Log out"));
-    expect(html).toContain('data-sheet-group-item="userProfile"');
-    expect(html).toContain('data-sheet-group-item="companyProfile"');
+    expect(group.indexOf("Appearance")).toBeLessThan(group.indexOf("Help"));
+    expect(group.indexOf("Help")).toBeLessThan(group.indexOf("Refer a friend"));
+    expect(html.indexOf("Refer a friend")).toBeLessThan(html.indexOf("Log out"));
+    expect(html).toContain('data-sheet-group-item="profile"');
     expect(html).toContain('data-sheet-group-item="agreements"');
     expect(html).toContain('data-sheet-group-item="appearance"');
+    expect(html).toContain('data-sheet-group-item="help"');
+    expect(html).toContain('data-sheet-group-item="refer"');
     expect(html).toContain('data-sheet-group-item="logOut"');
-    expect(html).toContain(`href="${USER_MENU.userProfileHref}"`);
-    expect(html).toContain(`href="${USER_MENU.companyProfileHref}"`);
+    expect(html).toContain(`href="${USER_MENU.profileHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
+    expect(html).toContain(`href="${USER_MENU.helpHref}"`);
+    expect(html).toContain(`href="${USER_MENU.referHref}"`);
     expect(html).not.toContain("/account/appearance");
+    expect(html).not.toContain("/account/company");
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
     expect(ACCOUNT_SHEET_ITEMS).toBeDefined();
     expect(src).toContain('from "@/app/actions"');
     expect(src).toContain("void signOut()");
     expect(src).toContain("<SheetGroupItem");
-    expect(src).not.toContain("TextAction");
-    expect(src).not.toContain("data-account-sheet-manage");
-    expect(userProfileClass).toBe(companyClass);
-    expect(userProfileClass).toBe(agreementsClass);
-    expect(userProfileClass).toBe(appearanceClass);
-    expect(userProfileClass).toBe(logOutClass);
-    expect(userProfileClass).toBe(SHEET_GROUP_ITEM_CLASS);
-    expect(userProfileClass).toContain("text-[length:var(--text-base)]");
-    expect(userProfileClass).toContain("font-normal");
-    expect(userProfileClass).toContain("text-ink");
-    expect(userProfileClass).not.toContain("t-body-sm");
-    expect(userProfileClass).not.toContain("text-accent");
-    expect(logOutClass).toContain("text-[length:var(--text-base)]");
-    expect(logOutClass).toContain("font-normal");
-    expect(logOutClass).toContain("text-ink");
-    expect(logOutClass).not.toContain("font-medium");
-    expect(logOutClass).not.toContain("font-bold");
-    expect(logOutClass).not.toContain("text-[#c4564a]");
-    expect(logOutClass).not.toContain("text-accent");
+    expect(src).toContain("<TextAction");
+    expect(profileClass).toBe(agreementsClass);
+    expect(profileClass).toBe(appearanceClass);
+    expect(profileClass).toBe(helpClass);
+    expect(profileClass).toBe(referClass);
+    expect(profileClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(profileClass).toContain("text-[length:var(--text-base)]");
+    expect(profileClass).toContain("font-normal");
+    expect(profileClass).toContain("text-ink");
+    expect(profileClass).not.toContain("t-body-sm");
+    expect(profileClass).not.toContain("text-accent");
+    expect(logOutClass).toBe(ACCOUNT_SHEET_LOGOUT_CLASS);
+    expect(logOutClass).toContain("text-accent");
+    expect(logOutClass).not.toContain("text-ink ");
+    expect(html).toContain(SHEET_GROUP_CHEVRON_CLASS);
+    expect(html).toContain("stroke-width=\"1.33\"");
+    expect(html).not.toContain("ThemeGlyph");
+    expect(html).not.toContain("Light");
+    expect(html).not.toContain("Dark");
+    expect(html).not.toContain("Auto");
+  });
+
+  it("pins Log out, then hairline, then version + Legal — not in the scroll", () => {
+    const html = renderSheet();
+    const scrollEnd = html.indexOf("data-account-sheet-scroll");
+    const logoutRule = html.indexOf("data-account-sheet-logout-rule");
+    const logout = html.indexOf('data-sheet-group-item="logOut"');
+    const footerRule = html.indexOf("data-account-sheet-footer-rule");
+    const footer = html.indexOf('data-account-sheet-footer=""');
+    const version = html.indexOf("data-account-sheet-version");
+    const legal = html.indexOf("data-account-sheet-legal");
+
+    expect(logoutRule).toBeGreaterThan(scrollEnd);
+    expect(logout).toBeGreaterThan(logoutRule);
+    expect(footerRule).toBeGreaterThan(logout);
+    expect(footer).toBeGreaterThan(footerRule);
+    expect(version).toBeGreaterThan(footer);
+    expect(legal).toBeGreaterThan(version);
+    expect(html).toContain(userMenuVersion());
+    expect(html).toContain(">v0.1.0<");
+    expect(html).toContain(USER_MENU.legal);
+    expect(html).toContain(`href="${USER_MENU.legalHref}"`);
+    expect(attrClass(html, "data-account-sheet-legal")).toContain(TEXT_ACTION_CLASS);
+    expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("v0.1.0");
+    expect(html.slice(html.indexOf("data-account-sheet-scroll"), html.indexOf("data-account-sheet-logout-rule"))).not.toContain("Log out");
   });
 
   it("does not dump the rail, Ask Globee chrome, or Adobe leftovers", () => {
@@ -275,7 +331,6 @@ describe("AccountSheet 544:561", () => {
     expect(html).not.toContain("credits");
     expect(src).not.toContain("ThemeGlyph");
     expect(src).not.toContain("onUserMenuAppearance");
-    expect(src).not.toContain("onUserMenuLogOut");
     expect(src).not.toContain("/account/appearance");
     expect(src).not.toContain("type=\"radio\"");
   });
@@ -322,7 +377,7 @@ describe("AccountSheet 544:561", () => {
     expect(navSrc).not.toContain("User Profile");
     expect(navSrc).not.toContain("Company Profile");
     expect(menuSrc).toContain("MobileAccountMenu");
-    expect(menuSrc).toContain("hidden md:block");
+    expect(menuSrc).toContain("DesktopAccountMenu");
     expect(src).not.toContain("531:542");
     expect(src).not.toContain("462:502");
   });

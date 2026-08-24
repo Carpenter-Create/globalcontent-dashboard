@@ -9,7 +9,14 @@ export const CLOSE_44_CLASS =
 
 export const TEXT_ACTION_CLASS = "t-body-sm font-normal text-accent";
 
-export const IDENTITY_BLOCK_CLASS = "flex flex-col items-start gap-[var(--space-4)]";
+// House empty line — same 15 Regular as catalog / titles empties.
+// Do not invent product copy in the primitive.
+export const HOUSE_EMPTY_CLASS = "t-body text-ink-2";
+
+// 544:561 row chevron — 16 / 1.33, tertiary. Same stroke as Close/44.
+export const SHEET_GROUP_CHEVRON_CLASS = "size-4 shrink-0 text-ink-3";
+
+export const IDENTITY_BLOCK_CLASS = "flex min-w-0 items-center gap-[var(--space-4)]";
 
 export const IDENTITY_AVATAR_CLASS =
   "flex size-12 shrink-0 items-center justify-center rounded-full bg-surface-muted t-body font-normal text-ink-2";
@@ -24,7 +31,7 @@ export const SHEET_GROUP_LABEL_CLASS =
   "text-[length:var(--text-xs)] font-normal uppercase tracking-[0.08em] text-ink-2";
 
 export const SHEET_GROUP_ITEM_CLASS =
-  "flex items-center text-[length:var(--text-base)] font-normal leading-5 text-ink";
+  "flex w-full items-center justify-between text-[length:var(--text-base)] font-normal leading-5 text-ink";
 
 // App-sheet motion — one duration/easing for the nav hamburger and the
 // account instance. Rise from the bottom, ease-out, no bounce. Reduced

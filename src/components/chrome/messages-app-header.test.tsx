@@ -381,7 +381,8 @@ describe("MessagesAppHeader", () => {
     expect(src).not.toContain("Appearance");
     expect(src).not.toContain("Log out");
     expect(src).not.toContain("sideOffset={10}");
-    expect(userMenu).toContain("<MenuSurfaceContent");
+    expect(userMenu).toContain("DesktopAccountMenu");
+    expect(userMenu).not.toContain("<MenuSurfaceContent");
     expect(userMenu).not.toContain("min-w-[17.5rem]");
     expect(userMenu).not.toContain("ThreadPopoverContent");
     expect(src).not.toContain("MenuSurfaceAccent");
