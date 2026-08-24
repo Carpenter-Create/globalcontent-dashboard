@@ -18,7 +18,7 @@ import {
   APP_SHEET_SCRIM_CLASS,
   APP_SHEET_SURFACE_CLASS,
   CLOSE_44_CLASS,
-  TEXT_ACTION_CLASS,
+  SHEET_GROUP_ITEM_CLASS,
 } from "@/lib/house-sheet";
 import { USER_MENU } from "@/lib/user-menu";
 import { AccountSheet, MobileAccountMenu } from "./account-sheet";
@@ -129,7 +129,7 @@ describe("AccountSheet 544:561", () => {
       html.indexOf("data-identity-block"),
       html.indexOf("data-account-sheet-rule"),
     );
-    const manageClass = attrClass(html, "data-account-sheet-manage");
+    const manageClass = attrClass(html, 'data-sheet-group-item="manage"');
     const nameClass = attrClass(html, "data-identity-name");
     const emailClass = attrClass(html, "data-identity-email");
 
@@ -148,14 +148,11 @@ describe("AccountSheet 544:561", () => {
     expect(emailClass).toContain("text-ink-3");
     expect(html).toContain(ACCOUNT_SHEET.manage);
     expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
-    expect(manageClass).toContain("t-body-sm");
-    expect(manageClass).toContain("text-accent");
-    expect(manageClass).not.toContain("bg-accent");
-    expect(TEXT_ACTION_CLASS.split(" ").every((token) => manageClass.includes(token))).toBe(true);
+    expect(manageClass).toBe(SHEET_GROUP_ITEM_CLASS);
     expect(src).toContain("<IdentityBlock");
-    expect(src).toContain("<TextAction");
+    expect(src).not.toContain("TextAction");
     expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-account-sheet-rule"));
-    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf("data-account-sheet-manage"));
+    expect(html.indexOf("data-account-sheet-rule")).toBeLessThan(html.indexOf('data-sheet-group-item="manage"'));
     expect(html).toContain("data-account-sheet-rule");
     expect(attrClass(html, "data-account-sheet-rule")).toContain("bg-hairline");
   });
@@ -179,6 +176,9 @@ describe("AccountSheet 544:561", () => {
   it("lists Manage account, Company Profile, Agreements, then Log out — no User Profile row", () => {
     const html = renderSheet();
     const group = html.slice(html.indexOf("data-sheet-group"));
+    const manageClass = attrClass(html, 'data-sheet-group-item="manage"');
+    const companyClass = attrClass(html, 'data-sheet-group-item="companyProfile"');
+    const agreementsClass = attrClass(html, 'data-sheet-group-item="agreements"');
     const logOutClass = attrClass(html, 'data-sheet-group-item="logOut"');
 
     expect(html).toContain(ACCOUNT_SHEET.group);
@@ -188,6 +188,7 @@ describe("AccountSheet 544:561", () => {
     expect(group.indexOf("Company Profile")).toBeLessThan(group.indexOf("Agreements"));
     expect(group.indexOf("Agreements")).toBeLessThan(group.indexOf("Log out"));
     expect(html).not.toContain("User Profile");
+    expect(html).toContain('data-sheet-group-item="manage"');
     expect(html).toContain('data-sheet-group-item="companyProfile"');
     expect(html).toContain('data-sheet-group-item="agreements"');
     expect(html).toContain('data-sheet-group-item="logOut"');
@@ -199,6 +200,19 @@ describe("AccountSheet 544:561", () => {
     expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBe(ACCOUNT_SHEET.companyHref);
     expect(src).toContain('from "@/app/actions"');
     expect(src).toContain("void signOut()");
+    expect(src).toContain('item="manage"');
+    expect(src).toContain("<SheetGroupItem");
+    expect(src).not.toContain("TextAction");
+    expect(src).not.toContain("data-account-sheet-manage");
+    expect(manageClass).toBe(companyClass);
+    expect(manageClass).toBe(agreementsClass);
+    expect(manageClass).toBe(logOutClass);
+    expect(manageClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(manageClass).toContain("text-[length:var(--text-base)]");
+    expect(manageClass).toContain("font-normal");
+    expect(manageClass).toContain("text-ink");
+    expect(manageClass).not.toContain("t-body-sm");
+    expect(manageClass).not.toContain("text-accent");
     expect(logOutClass).toContain("text-[length:var(--text-base)]");
     expect(logOutClass).toContain("font-normal");
     expect(logOutClass).toContain("text-ink");
