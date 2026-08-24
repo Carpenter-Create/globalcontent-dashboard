@@ -1,7 +1,8 @@
-import { SETTINGS } from "@/lib/settings";
-import { HashRedirect } from "@/components/chrome/hash-redirect";
+import { redirect } from "next/navigation";
 
-// Old door. Profile now lives on /settings#profile.
+import { SETTINGS } from "@/lib/settings";
+
+// Old door. Profile now lives on /settings/profile.
 export default function AccountPage() {
-  return <HashRedirect href={SETTINGS.profileHref} />;
+  redirect(SETTINGS.profileHref);
 }

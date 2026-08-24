@@ -24,10 +24,10 @@ type Org = { id: string; name: string };
 // Phone: the rail is gone (hidden + width tokens collapse). A header hamburger opens a
 // bottom sheet — client destinations, or those plus staff destinations when
 // isGcStaff. Desktop 1:2 rail is unchanged.
-// /settings only: the Access destinations leave. One 220 rail (pad 16)
-// occupies that slot — ← Dashboard / Profile / Agreements. Not a second
-// column. Collapse and the phone hamburger stay off this route. Header
-// avatar stays.
+// /settings paths: the Access destinations leave. One 220 rail (pad 16)
+// occupies that slot — ← Dashboard / Profile / Agreements / Refer a
+// friend. Not a second column. Collapse and the phone hamburger stay
+// off these routes. Header avatar stays.
 export function AppShell({
   email,
   name,

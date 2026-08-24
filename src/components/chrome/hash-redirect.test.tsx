@@ -10,16 +10,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("HashRedirect", () => {
-  it("keeps the hash on the old /account doors", () => {
+  it("renders the leftover door as a no-JS link", () => {
     const profile = renderToStaticMarkup(
       createElement(HashRedirect, { href: SETTINGS.profileHref }),
     );
     const agreements = renderToStaticMarkup(
       createElement(HashRedirect, { href: SETTINGS.agreementsHref }),
     );
-    expect(profile).toContain('href="/settings#profile"');
+    expect(profile).toContain('href="/settings/profile"');
     expect(profile).toContain('data-hash-redirect=""');
-    expect(agreements).toContain('href="/settings#agreements"');
+    expect(agreements).toContain('href="/settings/agreements"');
     expect(agreements).toContain('data-hash-redirect=""');
   });
 });

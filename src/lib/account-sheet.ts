@@ -1,6 +1,6 @@
 // Mobile 544:561 / 537:557 and desktop 586:768 / 586:814 Identity menu.
 // Copy lives here, not in JSX.
-// Identity is avatar + name + email from the same values /settings#profile
+// Identity is avatar + name + email from the same values /settings/profile
 // would show. Always render both fields. No dashes, no invented
 // local-part name. Items after the Identity hairline are
 // USER_MENU_ACTIONS — the same list on mobile and desktop. Appearance

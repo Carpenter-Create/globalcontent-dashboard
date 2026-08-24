@@ -29,10 +29,10 @@ describe("user menu lock", () => {
   });
 
   it("points each door at its existing route — Appearance is not a page", () => {
-    expect(USER_MENU.profileHref).toBe("/settings#profile");
-    expect(USER_MENU.agreementsHref).toBe("/settings#agreements");
+    expect(USER_MENU.profileHref).toBe("/settings/profile");
+    expect(USER_MENU.agreementsHref).toBe("/settings/agreements");
     expect(USER_MENU.helpHref).toBe("/help");
-    expect(USER_MENU.referHref).toBe("/refer");
+    expect(USER_MENU.referHref).toBe("/settings/refer");
     expect(USER_MENU.legalHref).toBe("https://globalcontent.co/legal");
     expect(USER_MENU).not.toHaveProperty("appearanceHref");
     expect(USER_MENU).not.toHaveProperty("companyProfile");
@@ -41,12 +41,12 @@ describe("user menu lock", () => {
     expect(USER_MENU_ACTIONS[0]).toEqual({
       kind: "profile",
       label: "Profile",
-      href: "/settings#profile",
+      href: "/settings/profile",
     });
     expect(USER_MENU_ACTIONS[1]).toEqual({
       kind: "agreements",
       label: "Agreements",
-      href: "/settings#agreements",
+      href: "/settings/agreements",
     });
     expect(USER_MENU_ACTIONS[2]).toEqual({
       kind: "appearance",
@@ -60,7 +60,7 @@ describe("user menu lock", () => {
     expect(USER_MENU_ACTIONS[4]).toEqual({
       kind: "refer",
       label: "Refer a friend",
-      href: "/refer",
+      href: "/settings/refer",
     });
   });
 
@@ -72,10 +72,17 @@ describe("user menu lock", () => {
     }
     expect(labels).toContain("Profile");
     expect(labels).not.toContain("User Profile");
-    expect(hrefs).toEqual(["/settings#profile", "/settings#agreements", "/help", "/refer"]);
+    expect(hrefs).toEqual([
+      "/settings/profile",
+      "/settings/agreements",
+      "/help",
+      "/settings/refer",
+    ]);
     expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs).not.toContain("/account/profile");
     expect(hrefs).not.toContain("/account/company");
+    expect(hrefs).not.toContain("/settings#profile");
+    expect(hrefs).not.toContain("/settings#agreements");
     expect(hrefs.join(" ")).not.toMatch(/notifications|privacy|phone|job/i);
   });
 

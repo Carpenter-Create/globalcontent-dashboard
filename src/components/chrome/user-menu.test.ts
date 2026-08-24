@@ -121,12 +121,12 @@ describe("UserMenu item lock (source)", () => {
     expect(sheetSrc).not.toContain("/account/company");
   });
 
-  it("keeps Profile on /settings#profile and Appearance off any page door", () => {
-    expect(USER_MENU.profileHref).toBe("/settings#profile");
+  it("keeps Profile on /settings/profile and Appearance off any page door", () => {
+    expect(USER_MENU.profileHref).toBe("/settings/profile");
     expect(USER_MENU.profile).toBe("Profile");
-    expect(USER_MENU.agreementsHref).toBe("/settings#agreements");
+    expect(USER_MENU.agreementsHref).toBe("/settings/agreements");
     expect(USER_MENU.helpHref).toBe("/help");
-    expect(USER_MENU.referHref).toBe("/refer");
+    expect(USER_MENU.referHref).toBe("/settings/refer");
     expect(USER_MENU).not.toHaveProperty("appearanceHref");
     expect(USER_MENU).not.toHaveProperty("companyProfileHref");
     expect(USER_MENU.appearance).toBe("Appearance");

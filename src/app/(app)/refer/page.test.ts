@@ -1,21 +1,27 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it, vi } from "vitest";
 
-import { HOUSE_EMPTY_CLASS } from "@/lib/house-sheet";
 import { REFER } from "@/lib/refer";
 import ReferPage from "./page";
 
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error(`REDIRECT:${to}`);
+  }),
+}));
+
+const here = dirname(fileURLToPath(import.meta.url));
+
 describe("ReferPage", () => {
-  it("renders the house empty primitive and does not invent a referral product", () => {
-    const html = renderToStaticMarkup(createElement(ReferPage));
-    expect(html).toContain(REFER.title);
-    expect(html).toContain(REFER.empty);
-    expect(html).toContain(HOUSE_EMPTY_CLASS);
-    expect(html).toContain("data-house-empty");
-    expect(html).not.toContain("reward");
-    expect(html).not.toContain("Share a link");
-    expect(html).not.toContain("Phone");
-    expect(html).not.toContain("Job");
+  it("redirects /refer to /settings/refer and does not invent a referral product", () => {
+    const pageSrc = readFileSync(join(here, "page.tsx"), "utf8");
+    expect(() => ReferPage()).toThrow(`REDIRECT:${REFER.href}`);
+    expect(pageSrc).toContain("REFER.href");
+    expect(pageSrc).toContain("redirect");
+    expect(pageSrc).not.toContain("HouseEmpty");
+    expect(pageSrc).not.toContain("reward");
+    expect(pageSrc).not.toContain("Share a link");
   });
 });

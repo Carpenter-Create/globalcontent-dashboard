@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -15,21 +15,13 @@ import {
   SETTINGS_RAIL_NAV_CLASS,
   settingsRailActive,
   settingsSection,
-  type SettingsSection,
 } from "@/lib/settings";
 
 // 600:881 settings rail — occupies the 220 Access slot. Dashboard is
 // 16 chevron + 15 Regular. Active is a muted wash that follows the
-// hash. Do not add Titles, Appearance, Account, Users, or API.
+// path. Do not add Titles, Appearance, Account, Users, or API.
 export function SettingsRail() {
-  const [section, setSection] = useState<SettingsSection>("profile");
-
-  useEffect(() => {
-    const sync = () => setSection(settingsSection(window.location.hash));
-    sync();
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
+  const section = settingsSection(usePathname());
 
   return (
     <nav data-settings-rail-nav="" className={SETTINGS_RAIL_NAV_CLASS}>

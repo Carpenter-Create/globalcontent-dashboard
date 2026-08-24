@@ -2,9 +2,9 @@
 
 import { useLayoutEffect } from "react";
 
-// Old /account doors keep their hash. next/navigation redirect() drops
-// the fragment, so this replace runs in the browser. The link is the
-// no-JS path and the test hook.
+// Leftover hash doors. next/navigation redirect() drops the fragment,
+// so this replace runs in the browser. The link is the no-JS path and
+// the test hook.
 export function HashRedirect({ href }: { href: string }) {
   useLayoutEffect(() => {
     window.location.replace(href);

@@ -1,12 +1,14 @@
 // /settings copy and doors. Copy lives here, not in JSX.
-// One page, two hashes. Profile persist is the existing /account
-// name + avatar path — do not add Storage, SQL, RLS, or auth.
-// Agreements is a house empty. Do not invent a listing, download,
-// Phone, Job, or Company on this page. Appearance stays in-menu.
+// Paths only — hash IA is void. Profile persist is the existing
+// /account name + avatar path — do not add Storage, SQL, RLS, or auth.
+// Agreements and Refer are house empties. Do not invent a listing,
+// download, referral product, Phone, Job, or Company on these pages.
+// Appearance stays in-menu. Help stays /help.
 //
-// 600:881 shell — one 220 rail occupies the Access slot on /settings.
-// Pad 16. ← Dashboard is 16 chevron + 15 Regular. Active wash follows
-// the hash. Not a second column. Header avatar stays. Company off.
+// 600:881 shell — one 220 rail occupies the Access slot on every
+// /settings path. Pad 16. ← Dashboard is 16 chevron + 15 Regular.
+// Active wash follows the path. Not a second column. Header avatar
+// stays. Company off.
 
 import { USER_MENU } from "@/lib/user-menu";
 
@@ -19,6 +21,8 @@ export const SETTINGS = {
   agreementsHash: "agreements",
   agreementsHref: USER_MENU.agreementsHref,
   agreementsEmpty: "No agreements on this account.",
+  refer: USER_MENU.refer,
+  referHref: USER_MENU.referHref,
   dashboard: "Dashboard",
   dashboardHref: "/",
 } as const;
@@ -33,7 +37,7 @@ export const SETTINGS_ABSENT = [
   "Name and email on this account.",
 ] as const;
 
-export type SettingsSection = "profile" | "agreements";
+export type SettingsSection = "profile" | "agreements" | "refer";
 
 export type SettingsRailKind = "dashboard" | SettingsSection;
 
@@ -41,6 +45,7 @@ export const SETTINGS_LOCAL_NAV = [
   { kind: "dashboard" as const, label: SETTINGS.dashboard, href: SETTINGS.dashboardHref },
   { kind: "profile" as const, label: SETTINGS.profile, href: SETTINGS.profileHref },
   { kind: "agreements" as const, label: SETTINGS.agreements, href: SETTINGS.agreementsHref },
+  { kind: "refer" as const, label: SETTINGS.refer, href: SETTINGS.referHref },
 ] as const;
 
 // Rail chrome — 220 slot, pad 16, 8 between rows. Dashboard is 15
@@ -70,26 +75,34 @@ export const SETTINGS_RAIL_ABSENT = [
   "Company",
 ] as const;
 
-export function settingsHref(hash: string): `/settings#${string}` {
-  return `/settings#${hash}`;
-}
-
-/** Empty or unknown hash opens Profile. Only #agreements is the other door. */
-export function settingsSection(hash: string | null | undefined): SettingsSection {
-  const value = (hash ?? "").replace(/^#/, "");
-  return value === SETTINGS.agreementsHash ? "agreements" : "profile";
-}
-
 export function settingsPath(href: string): string {
   const hashAt = href.indexOf("#");
   return hashAt === -1 ? href : href.slice(0, hashAt);
 }
 
 export function isSettingsPath(pathname: string): boolean {
-  return settingsPath(pathname) === SETTINGS.href;
+  const path = settingsPath(pathname);
+  return path === SETTINGS.href || path.startsWith(`${SETTINGS.href}/`);
 }
 
-/** Dashboard is a back door — never the wash. Profile / Agreements follow the hash. */
+/** Path doors. Unknown or leftover hashes are not a section. */
+export function settingsSection(pathname: string | null | undefined): SettingsSection {
+  const path = settingsPath(pathname ?? "");
+  if (path === SETTINGS.agreementsHref) return "agreements";
+  if (path === SETTINGS.referHref) return "refer";
+  return "profile";
+}
+
+/**
+ * Void hash doors on /settings. #agreements still has a leftover
+ * destination. Everything else, including #profile, opens Profile.
+ */
+export function settingsHashDestination(hash: string | null | undefined): string {
+  const value = (hash ?? "").replace(/^#/, "");
+  return value === SETTINGS.agreementsHash ? SETTINGS.agreementsHref : SETTINGS.profileHref;
+}
+
+/** Dashboard is a back door — never the wash. Active follows the path. */
 export function settingsRailActive(kind: SettingsRailKind, section: SettingsSection): boolean {
   return kind !== "dashboard" && kind === section;
 }

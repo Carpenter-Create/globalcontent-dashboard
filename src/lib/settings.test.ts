@@ -11,61 +11,76 @@ import {
   SETTINGS_RAIL_ITEM_CLASS,
   SETTINGS_RAIL_PAD_CLASS,
   isSettingsPath,
-  settingsHref,
+  settingsHashDestination,
   settingsPath,
   settingsRailActive,
   settingsSection,
 } from "./settings";
 
 describe("settings lock", () => {
-  it("keeps /settings with #profile and #agreements only", () => {
+  it("keeps /settings/profile, /settings/agreements, and /settings/refer", () => {
     expect(SETTINGS.href).toBe("/settings");
     expect(SETTINGS.profile).toBe("Profile");
     expect(SETTINGS.profileHash).toBe("profile");
-    expect(SETTINGS.profileHref).toBe("/settings#profile");
+    expect(SETTINGS.profileHref).toBe("/settings/profile");
     expect(SETTINGS.agreements).toBe("Agreements");
     expect(SETTINGS.agreementsHash).toBe("agreements");
-    expect(SETTINGS.agreementsHref).toBe("/settings#agreements");
+    expect(SETTINGS.agreementsHref).toBe("/settings/agreements");
     expect(SETTINGS.agreementsEmpty).toBe("No agreements on this account.");
+    expect(SETTINGS.refer).toBe("Refer a friend");
+    expect(SETTINGS.referHref).toBe("/settings/refer");
     expect(SETTINGS.dashboard).toBe("Dashboard");
     expect(SETTINGS.dashboardHref).toBe("/");
     expect(SETTINGS.profileHref).toBe(USER_MENU.profileHref);
     expect(SETTINGS.agreementsHref).toBe(USER_MENU.agreementsHref);
-    expect(settingsHref(SETTINGS.profileHash)).toBe("/settings#profile");
-    expect(settingsHref(SETTINGS.agreementsHash)).toBe("/settings#agreements");
+    expect(SETTINGS.referHref).toBe(USER_MENU.referHref);
   });
 
-  it("opens Profile unless the hash is #agreements", () => {
+  it("opens a section from the path, not a hash", () => {
+    expect(settingsSection("/settings/profile")).toBe("profile");
+    expect(settingsSection("/settings")).toBe("profile");
+    expect(settingsSection("/settings#agreements")).toBe("profile");
+    expect(settingsSection("/settings/agreements")).toBe("agreements");
+    expect(settingsSection("/settings/refer")).toBe("refer");
+    expect(settingsSection("/settings#profile")).toBe("profile");
     expect(settingsSection("")).toBe("profile");
-    expect(settingsSection("#")).toBe("profile");
-    expect(settingsSection("#profile")).toBe("profile");
-    expect(settingsSection("profile")).toBe("profile");
-    expect(settingsSection("#agreements")).toBe("agreements");
-    expect(settingsSection("agreements")).toBe("agreements");
-    expect(settingsSection("#appearance")).toBe("profile");
     expect(settingsSection(null)).toBe("profile");
   });
 
-  it("keeps local nav to Dashboard / Profile / Agreements", () => {
+  it("sends leftover /settings hashes to their path doors", () => {
+    expect(settingsHashDestination("")).toBe("/settings/profile");
+    expect(settingsHashDestination("#")).toBe("/settings/profile");
+    expect(settingsHashDestination("#profile")).toBe("/settings/profile");
+    expect(settingsHashDestination("profile")).toBe("/settings/profile");
+    expect(settingsHashDestination("#agreements")).toBe("/settings/agreements");
+    expect(settingsHashDestination("agreements")).toBe("/settings/agreements");
+    expect(settingsHashDestination("#appearance")).toBe("/settings/profile");
+    expect(settingsHashDestination(null)).toBe("/settings/profile");
+  });
+
+  it("keeps local nav to Dashboard / Profile / Agreements / Refer a friend", () => {
     expect(SETTINGS_LOCAL_NAV.map((item) => item.label)).toEqual([
       "Dashboard",
       "Profile",
       "Agreements",
+      "Refer a friend",
     ]);
     expect(SETTINGS_LOCAL_NAV.map((item) => item.href)).toEqual([
       "/",
-      "/settings#profile",
-      "/settings#agreements",
+      "/settings/profile",
+      "/settings/agreements",
+      "/settings/refer",
     ]);
     expect(SETTINGS_LOCAL_NAV.map((item) => item.kind)).toEqual([
       "dashboard",
       "profile",
       "agreements",
+      "refer",
     ]);
   });
 
   it("does not invent Phone, Job, Company, or the old email helper", () => {
-    const blob = `${SETTINGS.profile} ${SETTINGS.agreements} ${SETTINGS.agreementsEmpty}`;
+    const blob = `${SETTINGS.profile} ${SETTINGS.agreements} ${SETTINGS.agreementsEmpty} ${SETTINGS.refer}`;
     for (const absent of SETTINGS_ABSENT) {
       expect(blob).not.toContain(absent);
     }
@@ -73,22 +88,31 @@ describe("settings lock", () => {
     expect(USER_MENU_ACTIONS.map((item) => item.kind)).not.toContain("settings");
   });
 
-  it("strips the hash when comparing a settings door to a pathname", () => {
+  it("treats every /settings path as the focused shell", () => {
     expect(settingsPath("/settings#profile")).toBe("/settings");
     expect(settingsPath("/settings#agreements")).toBe("/settings");
+    expect(settingsPath("/settings/profile")).toBe("/settings/profile");
     expect(settingsPath("/help")).toBe("/help");
     expect(isSettingsPath("/settings")).toBe(true);
     expect(isSettingsPath("/settings#agreements")).toBe(true);
+    expect(isSettingsPath("/settings/profile")).toBe(true);
+    expect(isSettingsPath("/settings/agreements")).toBe(true);
+    expect(isSettingsPath("/settings/refer")).toBe(true);
     expect(isSettingsPath("/")).toBe(false);
     expect(isSettingsPath("/titles")).toBe(false);
+    expect(isSettingsPath("/help")).toBe(false);
+    expect(isSettingsPath("/refer")).toBe(false);
   });
 
-  it("washes Profile / Agreements from the hash and never marks Dashboard current", () => {
+  it("washes the current path and never marks Dashboard current", () => {
     expect(settingsRailActive("profile", "profile")).toBe(true);
     expect(settingsRailActive("agreements", "agreements")).toBe(true);
+    expect(settingsRailActive("refer", "refer")).toBe(true);
     expect(settingsRailActive("profile", "agreements")).toBe(false);
+    expect(settingsRailActive("agreements", "refer")).toBe(false);
     expect(settingsRailActive("dashboard", "profile")).toBe(false);
     expect(settingsRailActive("dashboard", "agreements")).toBe(false);
+    expect(settingsRailActive("dashboard", "refer")).toBe(false);
   });
 
   it("locks the settings rail on 220 pad 16, 15 Regular, and 16 chevron", () => {

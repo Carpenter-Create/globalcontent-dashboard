@@ -55,8 +55,9 @@ describe("account sheet lock", () => {
     expect(hrefs).not.toContain("/account/appearance");
     expect(hrefs).not.toContain("/account/company");
     expect(hrefs.join(" ")).not.toMatch(/notifications|phone|job/i);
-    expect(hrefs).toContain("/settings#profile");
-    expect(hrefs).toContain("/settings#agreements");
+    expect(hrefs).toContain("/settings/profile");
+    expect(hrefs).toContain("/settings/agreements");
+    expect(hrefs).toContain("/settings/refer");
     expect(hrefs).not.toContain("/account/profile");
   });
 
@@ -172,11 +173,14 @@ describe("account sheet identity", () => {
 
 describe("account sheet destination close", () => {
   it("closes immediately only on the same href", () => {
-    expect(destinationClickClosesSheet("/settings", "/settings#profile")).toBe(true);
-    expect(destinationClickClosesSheet("/settings", "/settings#agreements")).toBe(true);
-    expect(destinationClickClosesSheet("/", "/settings#profile")).toBe(false);
+    expect(destinationClickClosesSheet("/settings/profile", "/settings/profile")).toBe(true);
+    expect(destinationClickClosesSheet("/settings/agreements", "/settings/agreements")).toBe(
+      true,
+    );
+    expect(destinationClickClosesSheet("/settings/refer", "/settings/refer")).toBe(true);
+    expect(destinationClickClosesSheet("/settings/profile", "/settings/agreements")).toBe(false);
+    expect(destinationClickClosesSheet("/", "/settings/profile")).toBe(false);
     expect(destinationClickClosesSheet("/help", "/help")).toBe(true);
-    expect(destinationClickClosesSheet("/settings", "/help")).toBe(false);
-    expect(destinationClickClosesSheet("/refer", "/refer")).toBe(true);
+    expect(destinationClickClosesSheet("/settings/profile", "/help")).toBe(false);
   });
 });

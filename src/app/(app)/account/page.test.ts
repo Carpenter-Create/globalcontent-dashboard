@@ -1,29 +1,27 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { SETTINGS } from "@/lib/settings";
 import AccountPage from "./page";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), prefetch: vi.fn(), replace: vi.fn() }),
+  redirect: vi.fn((to: string) => {
+    throw new Error(`REDIRECT:${to}`);
+  }),
 }));
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("AccountPage", () => {
-  it("redirects /account to /settings#profile", () => {
-    const html = renderToStaticMarkup(createElement(AccountPage));
+  it("redirects /account to /settings/profile", () => {
     const pageSrc = readFileSync(join(here, "page.tsx"), "utf8");
-    expect(html).toContain(`href="${SETTINGS.profileHref}"`);
-    expect(html).toContain('data-hash-redirect=""');
-    expect(html).toContain("/settings#profile");
+    expect(() => AccountPage()).toThrow(`REDIRECT:${SETTINGS.profileHref}`);
     expect(pageSrc).toContain("SETTINGS.profileHref");
-    expect(pageSrc).toContain("HashRedirect");
+    expect(pageSrc).toContain("redirect");
     expect(pageSrc).not.toContain("AccountProfileForm");
     expect(pageSrc).not.toContain("subtitle");
+    expect(pageSrc).not.toContain("HashRedirect");
   });
 });
