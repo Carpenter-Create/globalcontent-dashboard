@@ -78,5 +78,15 @@ describe("house primitives", () => {
     expect(headerSrc).toContain("<ThreadPopoverItem");
     expect(headerSrc).toContain("THREAD_POPOVER_ICON_CLASS");
     expect(THREAD_POPOVER_CONTENT_CLASS).toContain("rounded-[12px]");
+    expect(houseSrc).toContain("DropdownMenuPrimitive.Content");
+    expect(houseSrc).toContain("DropdownMenuPrimitive.Item");
+    expect(houseSrc).toContain('data-thread-popover=""');
+    expect(houseSrc).not.toContain("DropdownMenuContent");
+    expect(houseSrc).not.toContain("DropdownMenuItem");
+    expect(houseSrc).not.toContain("min-w-[17.5rem]");
+    const popoverStart = houseSrc.indexOf("544:592 Thread Popover");
+    expect(popoverStart).toBeGreaterThan(-1);
+    expect(houseSrc.slice(popoverStart)).not.toContain("t-body-sm");
+    expect(houseSrc.slice(popoverStart)).not.toContain("DropdownMenuContent");
   });
 });

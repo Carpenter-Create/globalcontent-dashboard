@@ -214,6 +214,88 @@ describe("MessagesAppHeader", () => {
     expect(titles).not.toContain("data-ask-globee-title-cluster");
   });
 
+  it("keeps 16 between the title+chevron cluster and the download/··· cluster", () => {
+    navigation.search = `thread=${THREAD}`;
+    const html = visible(
+      renderToStaticMarkup(
+        <AskGlobeeChromeProvider
+          initialChrome={{ id: THREAD, title: "What needs attention", pinned_at: null }}
+        >
+          <MessagesAppHeader surface="ask-globee-landing" />
+        </AskGlobeeChromeProvider>,
+      ),
+    );
+    const userMenu = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"),
+      "utf8",
+    );
+
+    expect(src).toContain(
+      'className="flex min-w-0 items-center gap-[var(--space-4)] max-md:flex-1"',
+    );
+    expect(src).toContain(
+      'className="flex min-w-0 items-center gap-[var(--space-2)] max-md:flex-1"',
+    );
+    expect(src).not.toContain(
+      'className="flex min-w-0 flex-1 items-center gap-[var(--space-2)]"',
+    );
+    expect(src).toContain("flex shrink-0 items-center gap-[var(--space-4)]");
+    expect(html).toContain("data-ask-globee-title-cluster");
+    expect(html).toContain("data-ask-globee-header-chrome");
+    expect(html).toContain("data-ask-globee-download");
+    expect(html).toContain(ASK_GLOBEE.moreLabel);
+    const titleClusterStart = html.indexOf("data-ask-globee-title-cluster");
+    const chromeStart = html.indexOf("data-ask-globee-header-chrome");
+    expect(titleClusterStart).toBeGreaterThan(-1);
+    expect(chromeStart).toBeGreaterThan(titleClusterStart);
+    expect(html.slice(titleClusterStart, chromeStart)).toContain("data-ask-globee-history-title");
+    expect(html.slice(titleClusterStart, chromeStart)).not.toContain(ASK_GLOBEE.downloadLabel);
+    expect(html.slice(titleClusterStart, chromeStart)).not.toContain(ASK_GLOBEE.moreLabel);
+    expect(html.slice(chromeStart)).toContain(ASK_GLOBEE.downloadLabel);
+    expect(html.slice(chromeStart)).toContain(ASK_GLOBEE.moreLabel);
+    expect(src).toContain('className="hidden size-4 shrink-0 items-center justify-center text-ink-3 md:flex"');
+    expect(userMenu).not.toContain("data-ask-globee-title-cluster");
+    expect(userMenu).not.toContain("data-header-thread");
+  });
+
+  it("instances SSOT Thread Popover 544:592, not the avatar/account menu", () => {
+    const houseSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "house.tsx"), "utf8");
+    const userMenu = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "user-menu.tsx"),
+      "utf8",
+    );
+
+    expect(src).toContain("<ThreadPopoverContent");
+    expect(src).toContain("<ThreadPopoverItem");
+    expect(src).toContain("THREAD_POPOVER_ICON_CLASS");
+    expect(src).toContain("THREAD_POPOVER_DELETE_ICON_CLASS");
+    expect(houseSrc).toContain("544:592");
+    expect(houseSrc).toContain("DropdownMenuPrimitive.Content");
+    expect(houseSrc).toContain('data-thread-popover=""');
+    expect(houseSrc).not.toContain("from \"@/components/ui/dropdown-menu\"");
+    expect(houseSheetSrc).toContain("rounded-[12px]");
+    expect(houseSheetSrc).toContain("p-[var(--space-4)]");
+    expect(houseSheetSrc).toContain("gap-[var(--space-2)]");
+    expect(houseSheetSrc).toContain("shadow-none");
+    expect(houseSheetSrc).toContain("text-[length:var(--text-base)]");
+    expect(houseSheetSrc).toContain("text-ink");
+    expect(houseSheetSrc).toContain("text-[#c4564a]");
+    expect(houseSheetSrc).not.toMatch(/THREAD_POPOVER_ITEM_CLASS[\s\S]*t-body-sm/);
+    expect(houseSheetSrc).not.toContain("min-w-[17.5rem]");
+    expect(houseSheetSrc).not.toContain("min-w-[200px]");
+    expect(src).not.toContain("min-w-[17.5rem]");
+    expect(src).not.toContain("data-user-menu");
+    expect(src).not.toContain("UserMenuIdentity");
+    expect(src).not.toContain("sideOffset={10}");
+    expect(houseSheetSrc).toContain('p-[var(--space-4)] shadow-none');
+    expect(houseSheetSrc).not.toContain('p-[var(--space-2)] shadow');
+    expect(userMenu).toContain("min-w-[17.5rem]");
+    expect(userMenu).toContain("rounded-[var(--radius)]");
+    expect(userMenu).toContain("t-body-sm");
+    expect(userMenu).not.toContain("ThreadPopoverContent");
+    expect(userMenu).not.toContain("544:592");
+  });
+
   it("renders nothing for the staff inbox", () => {
     navigation.search = `thread=${THREAD}`;
     const html = renderToStaticMarkup(<MessagesAppHeader surface="staff-inbox" />);
