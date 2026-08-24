@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU, USER_MENU_ACTIONS } from "@/lib/user-menu";
 import {
+  ACCOUNT_MENU_DROPDOWN_ALIGN,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
+  ACCOUNT_MENU_DROPDOWN_GAP,
   ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  accountMenuDropdownAlignEnd,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
   ACCOUNT_SHEET_FOOTER_CLASS,
@@ -107,8 +110,10 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("pt-[calc(4px+var(--space-6))]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("gap-[var(--space-4)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("overflow-hidden");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("top-[calc(var(--header-height)+var(--space-2))]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("right-[var(--content-inset)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("top-[calc(var(--header-height)+var(--space-2))]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("right-[var(--content-inset)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("--header-height");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("--content-inset");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("w-[277px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[90dvh]");
@@ -124,6 +129,21 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toBe("flex w-full flex-col");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("flex-1");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
+  });
+
+  it("docks the desktop menu align-end to the avatar with 8px under the trigger", () => {
+    const trigger = { bottom: 44, right: 800 };
+    const align = accountMenuDropdownAlignEnd(trigger, 1000);
+    const menuRight = 1000 - Number.parseFloat(align.right);
+
+    expect(ACCOUNT_MENU_DROPDOWN_ALIGN).toBe("end");
+    expect(ACCOUNT_MENU_DROPDOWN_GAP).toBe("var(--space-2)");
+    expect(align.top).toBe("calc(44px + var(--space-2))");
+    expect(align.right).toBe("200px");
+    expect(menuRight).toBe(trigger.right);
+    expect(align.right).not.toBe("48px");
+    expect(align.top).not.toContain("--header-height");
+    expect(align.right).not.toContain("--content-inset");
   });
 
   it("locks the footer on both menus to 13 Regular / 16 — version tertiary, Legal Sporty Blue", () => {
