@@ -146,7 +146,7 @@ describe("MessagesAppHeader", () => {
       ),
     );
     const deleteDialog = src.slice(
-      src.indexOf("title={ASK_GLOBEE.deleteTitle}"),
+      src.indexOf("open={deleteOpen}"),
       src.indexOf("function MessagesAppHeaderInner"),
     );
     const confirmHtml = html.slice(
@@ -166,7 +166,9 @@ describe("MessagesAppHeader", () => {
     expect(html).toContain(ASK_GLOBEE.deleteConfirm);
     expect(html).toContain(ASK_GLOBEE.cancelLabel);
     expect(html).toContain('aria-label="Close"');
-    expect(deleteDialog).toContain("<Dialog");
+    expect(src).toContain('from "@/components/ui/dialog"');
+    expect(deleteDialog).toContain("</Dialog>");
+    expect(deleteDialog).toContain("title={ASK_GLOBEE.deleteTitle}");
     expect(deleteDialog).toContain("ASK_GLOBEE.deleteConfirm");
     expect(deleteDialog).toContain("ASK_GLOBEE.cancelLabel");
     expect(deleteDialog).toContain("MENU_SURFACE_ITEM_CLASS");
