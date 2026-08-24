@@ -27,6 +27,10 @@ import { AskGlobeeChromeProvider } from "@/components/messages/ask-globee-chrome
 import { MessagesAppHeader } from "./messages-app-header";
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "messages-app-header.tsx"), "utf8");
+const houseSheetSrc = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../../lib/house-sheet.ts"),
+  "utf8",
+);
 
 const THREAD = "2f1c8b6a-4d3e-4a11-9c22-7b8e1d0a5f44";
 
@@ -186,10 +190,11 @@ describe("MessagesAppHeader", () => {
     expect(src).toContain('<ChevronDown className="size-4 shrink-0 text-ink-3" strokeWidth={1.33} />');
     expect(src).toContain('<MoreHorizontal className="size-4" strokeWidth={1.33} />');
     expect(src).toContain("ASK_GLOBEE.downloadPdfLabel");
-    expect(src).toContain("<Pencil className=\"size-4\" strokeWidth={1.33} />");
-    expect(src).toContain("<Pin className=\"size-4\" strokeWidth={1.33} />");
-    expect(src).toContain("<Trash2 className=\"size-4\" strokeWidth={1.33} />");
-    expect(src).toContain("text-[#c4564a]");
+    expect(src).toContain("<ThreadPopoverContent");
+    expect(src).toContain("<ThreadPopoverItem");
+    expect(src).toContain("THREAD_POPOVER_ICON_CLASS");
+    expect(src).toContain("THREAD_POPOVER_DELETE_ICON_CLASS");
+    expect(houseSheetSrc).toContain("text-[#c4564a]");
     expect(src).toContain("ASK_GLOBEE.deleteBody");
     expect(src).not.toContain("MessagesThreadOverflow");
     expect(src).not.toContain("data-ask-globee-mobile-overflow");

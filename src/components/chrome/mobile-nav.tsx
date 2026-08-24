@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 
 import { GC_NAV, MOBILE_NAV, NAV, isClientNavActive, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/cn";
+import { AppSheetHead, AppSheetSurface, Close44 } from "./house";
 
 // Phone menu: lucide Menu 16 / 1.33 / tertiary opens an opaque full-bleed
-// portal. The sheet surface rises from the bottom with r24 corners — app
-// sheet, not a website panel. Header is one row: large "Menu" on the list
-// edge, close X in a muted 44 circle at top-right. Rows use the same Lucide
+// portal. The sheet surface is 543:576 app-sheet chrome — same object as
+// the account sheet, different body. Header is one row: large "Menu" on the
+// list edge, Close/44 at top-right. Rows use the same Lucide
 // marks as the rail (item.icon, 16 / 1.33, stroke only). Client destinations
 // only unless isGcStaff — staff get NAV, then a hairline + 24 gap, then
 // GC_NAV. Hidden at md, where the desktop rail stays.
@@ -111,27 +112,23 @@ export function MobileNavSheet({
       className="fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end overflow-hidden touch-none bg-canvas md:hidden"
       style={{ backgroundColor: "var(--bg)" }}
     >
-      <div
+      <AppSheetSurface
         data-mobile-nav-surface=""
-        className="flex min-h-0 flex-1 flex-col gap-[var(--space-6)] rounded-t-[24px] bg-surface px-[var(--space-6)] py-[var(--space-12)]"
+        className="min-h-0 flex-1"
       >
-        <div
+        <AppSheetHead
           data-mobile-nav-header=""
-          className="flex shrink-0 items-center justify-between"
+          className="justify-between"
         >
           <p data-mobile-nav-title="" className="t-title text-ink">
             {MOBILE_NAV.sheet}
           </p>
-          <button
-            type="button"
+          <Close44
+            label={MOBILE_NAV.close}
             data-mobile-nav-close=""
-            aria-label={MOBILE_NAV.close}
             onClick={onClose}
-            className="flex size-[44px] min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-3"
-          >
-            <X className="size-4" strokeWidth={1.33} />
-          </button>
-        </div>
+          />
+        </AppSheetHead>
         <nav
           className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain touch-pan-y"
           data-mobile-nav-destinations=""
@@ -148,7 +145,7 @@ export function MobileNavSheet({
             </>
           ) : null}
         </nav>
-      </div>
+      </AppSheetSurface>
     </div>
   );
 }

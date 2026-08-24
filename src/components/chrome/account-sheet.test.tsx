@@ -12,15 +12,23 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
-import { ACCOUNT_OVERLAY, ACCOUNT_OVERLAY_ABSENT, ACCOUNT_OVERLAY_ITEMS } from "@/lib/account-overlay";
+import { ACCOUNT_SHEET, ACCOUNT_SHEET_ABSENT, ACCOUNT_SHEET_ITEMS } from "@/lib/account-sheet";
+import {
+  APP_SHEET_SCRIM_CLASS,
+  APP_SHEET_SURFACE_CLASS,
+  CLOSE_44_CLASS,
+  TEXT_ACTION_CLASS,
+} from "@/lib/house-sheet";
 import { USER_MENU } from "@/lib/user-menu";
-import { AccountOverlay, MobileAccountMenu } from "./account-overlay";
+import { AccountSheet, MobileAccountMenu } from "./account-sheet";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(join(here, "account-overlay.tsx"), "utf8");
+const src = readFileSync(join(here, "account-sheet.tsx"), "utf8");
+const houseSrc = readFileSync(join(here, "house.tsx"), "utf8");
 const menuSrc = readFileSync(join(here, "user-menu.tsx"), "utf8");
 const navSrc = readFileSync(join(here, "mobile-nav.tsx"), "utf8");
 const headerSrc = readFileSync(join(here, "messages-app-header.tsx"), "utf8");
+const landingSrc = readFileSync(join(here, "../messages/ask-globee-landing.tsx"), "utf8");
 const tokens = readFileSync(join(here, "../../app/tokens.css"), "utf8");
 
 function attrClass(html: string, attr: string): string {
@@ -42,9 +50,9 @@ function minBoxPx(className: string, prop: "min-h" | "min-w"): number {
   return match ? Number(match[1]) : 0;
 }
 
-function renderOverlay(email = "ada@example.com", name?: string | null): string {
+function renderSheet(email = "ada@example.com", name?: string | null): string {
   return renderToStaticMarkup(
-    <AccountOverlay email={email} name={name} pathname="/" onClose={() => undefined} />,
+    <AccountSheet email={email} name={name} pathname="/" onClose={() => undefined} />,
   );
 }
 
@@ -53,15 +61,15 @@ describe("MobileAccountMenu trigger", () => {
     navigation.pathname = "/";
     const html = renderToStaticMarkup(<MobileAccountMenu email="nina@studio.com" />);
 
-    expect(html).toContain("data-account-overlay-trigger");
-    expect(html).toContain(ACCOUNT_OVERLAY.sheet);
-    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("data-account-sheet-trigger");
+    expect(html).toContain(ACCOUNT_SHEET.sheet);
+    expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("md:hidden");
     expect(html).toContain("h-8 w-8");
     expect(html).toContain("rounded-full");
     expect(html).toContain("bg-surface-muted");
     expect(html).toContain(">N<");
-    expect(html).not.toContain("data-account-overlay=\"\"");
+    expect(html).not.toContain("data-account-sheet=\"\"");
     expect(html).not.toContain("data-mobile-nav-sheet");
     expect(html).not.toContain("data-mobile-nav-trigger");
     expect(src).toContain("onClick={() => setOpenedOn(pathname)}");
@@ -71,114 +79,119 @@ describe("MobileAccountMenu trigger", () => {
   });
 });
 
-describe("AccountOverlay 537:557", () => {
-  it("is a white panel under the header with a tap-out scrim and 44 muted X", () => {
-    const html = renderOverlay();
-    const closeClass = buttonClass(html, "data-account-overlay-close");
-    const headClass = attrClass(html, "data-account-overlay-head");
-    const surfaceClass = attrClass(html, "data-account-overlay-surface");
-    const scrimClass = attrClass(html, "data-account-overlay-scrim");
+describe("AccountSheet 544:561", () => {
+  it("rises from the bottom over a quiet scrim so the page stays under", () => {
+    const html = renderSheet();
+    const closeClass = buttonClass(html, "data-account-sheet-close");
+    const headClass = attrClass(html, "data-account-sheet-head");
+    const surfaceClass = attrClass(html, "data-account-sheet-surface");
+    const scrimClass = attrClass(html, "data-account-sheet-scrim");
+    const hostClass = attrClass(html, "data-account-sheet=\"\"");
 
-    expect(html).toContain("data-account-overlay=\"\"");
-    expect(html).toContain("data-account-overlay-scrim");
+    expect(html).toContain("data-account-sheet=\"\"");
+    expect(html).toContain("data-account-sheet-scrim");
     expect(html).toContain("md:hidden");
     expect(html).toContain('aria-label="Account"');
-    expect(scrimClass).toContain("bg-ink/24");
+    expect(hostClass).toContain("justify-end");
+    expect(hostClass).not.toContain("bg-canvas");
+    expect(scrimClass).toBe(APP_SHEET_SCRIM_CLASS);
+    expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
-    expect(surfaceClass).toContain("top-[var(--header-height)]");
-    expect(surfaceClass).toContain("gap-[var(--space-12)]");
     expect(surfaceClass).toContain("px-[var(--space-4)]");
     expect(surfaceClass).toContain("pt-[var(--space-6)]");
     expect(surfaceClass).toContain("pb-[var(--space-12)]");
+    expect(surfaceClass).not.toContain("top-[var(--header-height)]");
     expect(surfaceClass).not.toContain("rounded-t-[24px]");
+    expect(APP_SHEET_SURFACE_CLASS.split(" ").every((token) => surfaceClass.includes(token))).toBe(
+      true,
+    );
     expect(headClass).toContain("justify-end");
     expect(headClass).toContain("h-[44px]");
     expect(closeClass).toContain("rounded-full");
     expect(closeClass).toContain("bg-surface-muted");
     expect(closeClass).toContain("text-ink-3");
     expect(closeClass).toContain("size-[44px]");
+    expect(CLOSE_44_CLASS.split(" ").every((token) => closeClass.includes(token))).toBe(true);
     expect(minBoxPx(closeClass, "min-h")).toBeGreaterThanOrEqual(44);
     expect(minBoxPx(closeClass, "min-w")).toBeGreaterThanOrEqual(44);
-    expect(src).toContain('<X className="size-4" strokeWidth={1.33} />');
+    expect(src).toContain("<Close44");
+    expect(src).toContain("<AppSheetSurface");
+    expect(houseSrc).toContain('<X className="size-4" strokeWidth={1.33} />');
     expect(src).toContain("event.key === \"Escape\"");
-    expect(tokens).toMatch(/--header-height:\s*56px;/);
     expect(tokens).toMatch(/--space-12:\s*3rem/);
     expect(tokens).toContain("--accent: #1769ff;");
   });
 
-  it("puts identity first with the existing avatar and dashes when name is empty", () => {
-    const html = renderOverlay("ada@example.com");
+  it("puts identity first with the 48 circle and omits empty name or email", () => {
+    const html = renderSheet("ada@example.com");
     const identity = html.slice(
-      html.indexOf("data-account-overlay-identity"),
-      html.indexOf("data-account-overlay-group"),
+      html.indexOf("data-identity-block"),
+      html.indexOf("data-sheet-group"),
     );
-    const manageClass = attrClass(html, "data-account-overlay-manage");
+    const manageClass = attrClass(html, "data-account-sheet-manage");
 
-    expect(html).toContain("data-account-overlay-avatar");
-    expect(html).toContain("data-account-overlay-name");
-    expect(html).toContain("data-account-overlay-email");
+    expect(html).toContain("data-identity-avatar");
+    expect(html).not.toContain("data-identity-name");
+    expect(html).toContain("data-identity-email");
     expect(identity).toContain(">A<");
-    expect(identity).toContain("—");
+    expect(identity).not.toContain("—");
     expect(identity).toContain("ada@example.com");
     expect(identity).not.toContain("Ada Lovelace");
-    expect(html).toContain(ACCOUNT_OVERLAY.manage);
-    expect(html).toContain(`href="${ACCOUNT_OVERLAY.manageHref}"`);
+    expect(html).toContain(ACCOUNT_SHEET.manage);
+    expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
     expect(manageClass).toContain("t-body-sm");
     expect(manageClass).toContain("text-accent");
     expect(manageClass).not.toContain("bg-accent");
-    expect(src).toContain("t-body-sm font-normal text-accent");
-    expect(src).toContain("accountOverlayIdentity");
-    expect(html.indexOf("data-account-overlay-identity")).toBeLessThan(
-      html.indexOf("data-account-overlay-group"),
-    );
+    expect(TEXT_ACTION_CLASS.split(" ").every((token) => manageClass.includes(token))).toBe(true);
+    expect(src).toContain("<IdentityBlock");
+    expect(src).toContain("<TextAction");
+    expect(html.indexOf("data-identity-block")).toBeLessThan(html.indexOf("data-sheet-group"));
+    expect(html).toContain("data-account-sheet-rule");
+    expect(attrClass(html, "data-account-sheet-rule")).toContain("bg-hairline");
   });
 
-  it("does not invent a name from the email local-part", () => {
-    const html = renderOverlay("jane.doe@studio.com");
+  it("does not invent a name from the email local-part or render a dash", () => {
+    const html = renderSheet("jane.doe@studio.com");
     expect(html).toContain("jane.doe@studio.com");
     expect(html).not.toContain("Jane Doe");
-    expect(html).toContain("data-account-overlay-name");
-    const nameHtml = html.slice(
-      html.indexOf("data-account-overlay-name"),
-      html.indexOf("data-account-overlay-email"),
-    );
-    expect(nameHtml).toContain("—");
-    expect(nameHtml).not.toContain("jane.doe");
+    expect(html).not.toContain("data-identity-name");
+    expect(html).not.toContain("—");
+    expect(html).not.toContain("jane.doe</");
   });
 
   it("shows a real name only when one is already passed", () => {
-    const html = renderOverlay("ada@example.com", "Ada Lovelace");
+    const html = renderSheet("ada@example.com", "Ada Lovelace");
     expect(html).toContain("Ada Lovelace");
     expect(html).toContain("ada@example.com");
+    expect(html).toContain("data-identity-name");
   });
 
-  it("lists ACCOUNT then User Profile, Company Profile, Agreements — existing routes only", () => {
-    const html = renderOverlay();
-    const group = html.slice(html.indexOf("data-account-overlay-group"));
+  it("lists ACCOUNT then Company Profile and Agreements — no User Profile row", () => {
+    const html = renderSheet();
+    const group = html.slice(html.indexOf("data-sheet-group"));
 
-    expect(html).toContain(ACCOUNT_OVERLAY.group);
-    expect(attrClass(html, "data-account-overlay-group-label")).toContain("tracking-[0.08em]");
-    expect(attrClass(html, "data-account-overlay-group-label")).toContain("uppercase");
-    expect(group.indexOf("User Profile")).toBeLessThan(group.indexOf("Company Profile"));
+    expect(html).toContain(ACCOUNT_SHEET.group);
+    expect(attrClass(html, "data-sheet-group-label")).toContain("tracking-[0.08em]");
+    expect(attrClass(html, "data-sheet-group-label")).toContain("uppercase");
     expect(group.indexOf("Company Profile")).toBeLessThan(group.indexOf("Agreements"));
-    expect(html).toContain('data-account-overlay-item="userProfile"');
-    expect(html).toContain('data-account-overlay-item="companyProfile"');
-    expect(html).toContain('data-account-overlay-item="agreements"');
-    expect(html).toContain(`href="${ACCOUNT_OVERLAY.manageHref}"`);
+    expect(html).not.toContain("User Profile");
+    expect(html).toContain('data-sheet-group-item="companyProfile"');
+    expect(html).toContain('data-sheet-group-item="agreements"');
+    expect(html).toContain(`href="${ACCOUNT_SHEET.manageHref}"`);
     expect(html).toContain(`href="${USER_MENU.agreementsHref}"`);
     expect(html).not.toContain('href="/account/company"');
     expect(html).not.toContain('href="/account/profile"');
     expect(html).not.toContain("/settings");
-    expect(ACCOUNT_OVERLAY_ITEMS[1]?.href).toBeNull();
+    expect(ACCOUNT_SHEET_ITEMS[0]?.href).toBeNull();
   });
 
   it("does not dump the rail, Ask Globee chrome, or Adobe leftovers", () => {
-    const html = renderOverlay();
+    const html = renderSheet();
     for (const item of [...NAV, ...GC_NAV]) {
       expect(html).not.toContain(item.label);
       if (item.href !== "/") expect(html).not.toContain(`href="${item.href}"`);
     }
-    for (const absent of ACCOUNT_OVERLAY_ABSENT) {
+    for (const absent of ACCOUNT_SHEET_ABSENT) {
       expect(html).not.toContain(absent);
     }
     expect(html).not.toContain(MOBILE_NAV.sheet);
@@ -192,11 +205,16 @@ describe("AccountOverlay 537:557", () => {
     expect(src).not.toContain("onUserMenuLogOut");
   });
 
-  it("does not restyle Ask Globee 531:542 or the hamburger sheet", () => {
+  it("does not restyle Ask Globee landing or merge account into the hamburger sheet", () => {
     expect(headerSrc).toContain("531:542");
-    expect(headerSrc).not.toContain("537:557");
-    expect(headerSrc).not.toContain("account-overlay");
+    expect(headerSrc).not.toContain("544:561");
+    expect(headerSrc).not.toContain("account-sheet");
+    expect(landingSrc).not.toContain("account-sheet");
+    expect(landingSrc).not.toContain("AccountSheet");
+    expect(landingSrc).not.toContain("544:561");
     expect(navSrc).toContain("data-mobile-nav-sheet");
+    expect(navSrc).toContain("AppSheetSurface");
+    expect(navSrc).toContain("Close44");
     expect(navSrc).not.toContain("ACCOUNT");
     expect(navSrc).not.toContain("Manage account");
     expect(navSrc).not.toContain("User Profile");
@@ -204,5 +222,6 @@ describe("AccountOverlay 537:557", () => {
     expect(menuSrc).toContain("MobileAccountMenu");
     expect(menuSrc).toContain("hidden md:block");
     expect(src).not.toContain("531:542");
+    expect(src).not.toContain("462:502");
   });
 });

@@ -77,14 +77,14 @@ describe("UserMenu close control", () => {
     expect(menuSrc).not.toContain("data-mobile-nav-close");
   });
 
-  it("opens the mobile 537:557 overlay from the avatar and keeps the desktop leftover", () => {
+  it("opens the mobile 544:561 sheet from the avatar and keeps the desktop leftover", () => {
     expect(menuSrc).toContain("MobileAccountMenu");
     expect(menuSrc).toContain("<MobileAccountMenu email={email} name={name} />");
     expect(menuSrc).toContain('data-user-menu-desktop=""');
     expect(menuSrc).toContain("hidden md:block");
     expect(menuSrc).toContain("USER_MENU.appearance");
     expect(menuSrc).toContain("USER_MENU.logOut");
-    expect(menuSrc).not.toContain("data-account-overlay-close");
+    expect(menuSrc).not.toContain("data-account-sheet-close");
     expect(menuSrc).not.toContain("data-mobile-nav-sheet");
   });
 });

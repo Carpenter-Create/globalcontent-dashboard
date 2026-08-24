@@ -13,7 +13,7 @@ import { ThemeGlyph } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import { toggleDocumentTheme } from "@/lib/theme";
 import { USER_MENU, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
-import { MobileAccountMenu } from "./account-overlay";
+import { MobileAccountMenu } from "./account-sheet";
 
 export const onUserMenuAppearance = toggleDocumentTheme;
 

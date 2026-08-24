@@ -15,6 +15,7 @@ import { GC_NAV, MOBILE_NAV, NAV, type NavItem } from "@/lib/nav";
 import { destinationClickClosesSheet, MobileNav, MobileNavSheet } from "./mobile-nav";
 
 const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "mobile-nav.tsx"), "utf8");
+const houseSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "house.tsx"), "utf8");
 
 describe("MobileNav trigger", () => {
   it("renders a 16px lucide Menu at stroke 1.33 in tertiary ink, phone-only", () => {
@@ -29,8 +30,9 @@ describe("MobileNav trigger", () => {
     expect(html).toContain("size-4");
     expect(html).toContain("stroke-width=\"1.33\"");
     expect(html).not.toContain("data-mobile-nav-sheet");
-    expect(src).toContain("import { Menu, X } from \"lucide-react\"");
+    expect(src).toContain("import { Menu } from \"lucide-react\"");
     expect(src).toContain("<Menu className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("Close44");
     expect(src).not.toContain("strokeWidth={1.5}");
     expect(src).not.toContain("size-5");
     expect(src).not.toContain("size-6");
@@ -86,9 +88,10 @@ describe("MobileNavSheet", () => {
     expect(src).not.toContain("t-display");
     expect(src).not.toContain("clientNavCurrent");
     expect(html).toContain("data-mobile-nav-surface");
-    expect(attrClass(html, "data-mobile-nav-surface")).toContain("rounded-t-[24px]");
+    expect(attrClass(html, "data-mobile-nav-surface")).toContain("rounded-t-[16px]");
     expect(attrClass(html, "data-mobile-nav-surface")).toContain("bg-surface");
-    expect(attrClass(html, "data-mobile-nav-sheet")).not.toContain("rounded-t-[24px]");
+    expect(attrClass(html, "data-mobile-nav-surface")).toContain("px-[var(--space-4)]");
+    expect(attrClass(html, "data-mobile-nav-sheet")).not.toContain("rounded-t-[16px]");
   });
 
   it("does not restack Dashboard or Vendors as a second large title", () => {
@@ -104,7 +107,7 @@ describe("MobileNavSheet", () => {
     expect(dash).toContain(`aria-label="${MOBILE_NAV.sheet}"`);
   });
 
-  it("locks the app-sheet header: Menu left, muted 44 X circle right, r24 surface", () => {
+  it("locks the app-sheet header: Menu left, muted 44 X circle right, r16 surface", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
     const tokens = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../app/tokens.css"),
@@ -191,16 +194,18 @@ describe("MobileNavSheet", () => {
     expect(html).not.toContain(`t-title text-ink">${NAV[0].label}`);
     expect(html).toContain(MOBILE_NAV.close);
     expect(html).toContain("data-mobile-nav-close");
-    expect(src).toContain("<X className=\"size-4\" strokeWidth={1.33} />");
+    expect(src).toContain("<Close44");
+    expect(src).toContain("from \"./house\"");
   });
 
   it("keeps the close glyph at 16 and expands the tap box to at least 44", () => {
     const html = renderToStaticMarkup(<MobileNavSheet pathname="/" onClose={() => undefined} />);
     const closeClass = buttonClass(html, "data-mobile-nav-close");
 
-    expect(src).toContain('<X className="size-4" strokeWidth={1.33} />');
+    expect(src).toContain("<Close44");
     expect(src).not.toContain("<X className=\"size-5\"");
     expect(src).not.toContain("<X className=\"size-6\"");
+    expect(houseSrc).toContain('<X className="size-4" strokeWidth={1.33} />');
     expect(html).toContain("stroke-width=\"1.33\"");
     expect(closeClass).toContain("text-ink-3");
     expect(closeClass).toContain("rounded-full");
