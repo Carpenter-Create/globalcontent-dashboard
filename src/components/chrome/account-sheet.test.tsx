@@ -199,7 +199,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(accent).not.toContain("#1769");
     expect(dropdownSurface).toContain("px-[var(--space-6)]");
     expect(dropdownSurface).toContain("pb-[var(--space-6)]");
-    expect(dropdownSurface).toContain("h-[672px]");
+    expect(dropdownSurface).toContain("h-[570px]");
+    expect(dropdownSurface).not.toContain("h-[672px]");
     expect(dropdownSurface).toContain("pt-[calc(4px+var(--space-6))]");
     expect(dropdownSurface).not.toContain("min-h-[426px]");
     expect(dropdownSurface).not.toContain("px-[var(--space-4)]");
@@ -579,8 +580,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
   });
 });
 
-describe("AccountMenuDropdown 586:768 / 586:814", () => {
-  it("pins leftover grow under the avatar — not a 90% sheet and not a tall right takeover", () => {
+describe("AccountMenuDropdown 629:795", () => {
+  it("pins leftover 48 under the last item — not a 90% sheet and not a tall right takeover", () => {
     const html = renderDropdown("ada@example.com", "Ada Lovelace");
     const hostClass = attrClass(html, 'data-user-menu-desktop-panel=""');
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
@@ -600,8 +601,9 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(dismissClass).not.toContain("bg-ink");
     expect(dismissClass).not.toContain(APP_SHEET_SCRIM_FADE_CLASS);
     expect(surfaceClass).toBe(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS);
-    expect(surfaceClass).toContain("h-[672px]");
+    expect(surfaceClass).toContain("h-[570px]");
     expect(surfaceClass).toContain("w-[264px]");
+    expect(surfaceClass).not.toContain("h-[672px]");
     expect(surfaceClass).not.toContain("h-auto");
     expect(surfaceClass).not.toContain("min-h-[426px]");
     expect(surfaceClass).not.toContain("min-h-[384px]");
@@ -633,6 +635,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(scrollClass).toContain("shrink-0");
     expect(scrollClass).not.toContain("flex-1");
     expect(attrClass(html, "data-account-menu-leftover")).toBe(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS);
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("h-[48px]");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("flex-1");
     expect(src).toContain("useAccountMenuDismiss(onClose, false)");
     expect(src).not.toContain("md:w-[390px]");
     expect(tokens).toMatch(/--space-4:\s*1rem/);
@@ -679,7 +683,7 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(src).toContain('variant="sheet"');
   });
 
-  it("keeps 24 between items — leftover grow above Log out, hairline only under Log out", () => {
+  it("keeps 24 between items — leftover 48 above Log out, hairline only under Log out", () => {
     const html = renderDropdown();
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
     const scrollClass = attrClass(html, "data-account-sheet-scroll");
@@ -693,7 +697,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
 
     expect(html).toContain("data-account-sheet-pin");
     expect(html).not.toContain("data-account-sheet-logout-rule");
-    expect(surfaceClass).toContain("h-[672px]");
+    expect(surfaceClass).toContain("h-[570px]");
+    expect(surfaceClass).not.toContain("h-[672px]");
     expect(surfaceClass).not.toContain("h-auto");
     expect(surfaceClass).not.toContain("min-h-[426px]");
     expect(surfaceClass).not.toContain("min-h-[384px]");
@@ -711,7 +716,10 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(scrollClass).toContain("shrink-0");
     expect(scrollClass).not.toContain("flex-1");
     expect(scrollClass).not.toContain("overflow-y-auto");
-    expect(attrClass(html, "data-account-menu-leftover")).toContain("min-h-[134px]");
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("h-[48px]");
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("shrink-0");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("min-h-[134px]");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("flex-1");
     expect(groupClass).toContain("gap-[var(--space-6)]");
     expect(groupClass).not.toContain("gap-[var(--space-4)]");
     expect(pinClass).toBe(ACCOUNT_MENU_DROPDOWN_PIN_CLASS);
@@ -720,6 +728,7 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(pinClass).not.toContain("gap-[var(--space-12)]");
     expect(refer).toBeGreaterThan(-1);
     expect(logout).toBeGreaterThan(refer);
+    expect(betweenReferAndLogout).toContain("data-account-menu-leftover");
     expect(footerRule).toBeGreaterThan(logout);
     expect(footer).toBeGreaterThan(footerRule);
     expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
