@@ -454,7 +454,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
   });
 
   it("opens 613:888 as a second surface — System default + helper / Dark / Light, check 16", () => {
-    const html = renderToStaticMarkup(<AccountSheetAppearance onBack={() => undefined} />);
+    const html = renderToStaticMarkup(<AccountSheetAppearance />);
     const sheet = renderToStaticMarkup(
       <AccountSheet
         email="ada@example.com"
@@ -473,7 +473,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).not.toContain("data-sheet-group-item=\"back\"");
     expect(html).not.toContain("lucide-chevron-left");
     expect(html).toContain(APPEARANCE.systemDefault);
-    expect(html).toContain(APPEARANCE.systemDefaultHelper);
+    expect(html.replaceAll("&#x27;", "'")).toContain(APPEARANCE.systemDefaultHelper);
     expect(html).toContain(APPEARANCE.light);
     expect(html).toContain(APPEARANCE.dark);
     expect(html).not.toContain(">Auto<");
@@ -734,7 +734,7 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(appearance).not.toContain("data-account-sheet-close");
     expect(appearance).toContain("data-account-menu-appearance-flyout");
     expect(appearance).toContain("System default");
-    expect(appearance).toContain(APPEARANCE.systemDefaultHelper);
+    expect(appearance.replaceAll("&#x27;", "'")).toContain(APPEARANCE.systemDefaultHelper);
     expect(appearance).toContain("Dark");
     expect(appearance).not.toContain(">Auto<");
     expect(appearance).not.toContain("purple");

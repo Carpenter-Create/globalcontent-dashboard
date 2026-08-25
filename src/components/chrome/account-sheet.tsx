@@ -268,11 +268,7 @@ export function AccountAppearanceFlyout({
 }
 
 /** 613:888 flyout rows. Back / Auto in-place face is void. */
-export function AccountSheetAppearance({
-  onBack: _onBack,
-}: {
-  onBack?: () => void;
-} = {}) {
+export function AccountSheetAppearance() {
   return <AccountAppearanceFlyout />;
 }
 
