@@ -103,12 +103,14 @@ describe("UserMenu identity source lock", () => {
 });
 
 describe("UserMenu item lock (source)", () => {
-  it("renders the shared USER_MENU_ACTIONS list on both instances — Appearance opens 613:888", () => {
+  it("renders the shared USER_MENU_ACTIONS list on both instances", () => {
     expect(sheetSrc).toContain("ACCOUNT_SHEET_ITEMS.map");
     expect(sheetSrc).toContain("DesktopAccountMenu");
     expect(sheetSrc).toContain("MobileAccountMenu");
     expect(sheetSrc).toContain('data-user-menu-item="logOut"');
     expect(sheetSrc).toContain('setFace(face === "appearance" ? "main" : "appearance")');
+    expect(sheetSrc).toContain('setFace("appearance")');
+    expect(sheetSrc).toContain('onBack={() => setFace("main")}');
     expect(sheetSrc).not.toContain("onUserMenuAppearance");
     expect(sheetSrc).not.toContain("toggleDocumentTheme");
     expect(sheetSrc).not.toContain("ThemeGlyph");
@@ -176,9 +178,9 @@ describe("UserMenu actions", () => {
     expect(sheetSrc).toContain("AppearanceCheck");
     expect(sheetSrc).toContain("applyDocumentThemePreference");
     expect(sheetSrc).toContain("accountMenuAppearanceFlyoutAlign");
-    expect(sheetSrc).not.toContain("ChevronLeft");
-    expect(sheetSrc).not.toContain("AccountBackChevron");
-    expect(sheetSrc).not.toContain("APPEARANCE.back");
+    expect(sheetSrc).toContain("ChevronLeft");
+    expect(sheetSrc).toContain("AccountBackChevron");
+    expect(sheetSrc).toContain("APPEARANCE.back");
     expect(sheetSrc).not.toContain("APPEARANCE_OPTIONS.map");
     expect(sheetSrc).not.toContain("Back to main menu");
     expect(sheetSrc).not.toContain('type="radio"');
