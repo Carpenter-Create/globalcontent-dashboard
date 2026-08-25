@@ -2,8 +2,9 @@
 // One list for both instances: desktop panel and mobile sheet.
 // Chrome may differ (sheet vs fuller panel). Labels may not.
 // Profile is /settings/profile. Agreements is /settings/agreements.
-// Refer a friend is /settings/refer. Company stays off this menu —
-// do not merge Company onto /settings. Desktop Appearance is 613:888
+// Refer a friend is /settings/refer. Company stays off this menu
+// and the settings rail — the block lives on /settings/profile.
+// Desktop Appearance is 613:888
 // beside. Mobile Appearance is a same-sheet drill-in. Not a page —
 // do not invent /account/appearance or /settings/appearance.
 // Help stays /help. Legal is the public site. Do not invent

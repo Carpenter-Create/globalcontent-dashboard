@@ -30,11 +30,11 @@ const inputSrc = readFileSync(join(here, "../components/ui/input.tsx"), "utf8");
 const globalsSrc = readFileSync(join(here, "../app/globals.css"), "utf8");
 
 describe("account profile copy", () => {
-  it("keeps Profile and Company Profile titles, no banned voice", () => {
+  it("keeps Profile and Company titles, no banned voice", () => {
     expect(ACCOUNT_PROFILE.title).toBe("Profile");
     expect(ACCOUNT_PROFILE.href).toBe("/settings/profile");
     expect(ACCOUNT_PROFILE.href).not.toBe("/account/profile");
-    expect(COMPANY_PROFILE.title).toBe("Company Profile");
+    expect(COMPANY_PROFILE.title).toBe("Company");
     expect(COMPANY_PROFILE.href).toBe("/account/company");
     expect(ACCOUNT_PROFILE.href).toBe(USER_MENU.profileHref);
     expect(COMPANY_PROFILE.href).toBe("/account/company");
@@ -136,7 +136,7 @@ describe("account name persist read-after-write", () => {
 });
 
 describe("account field 16px lock", () => {
-  it("locks /settings/profile and /account/company inputs at 16px and leaves dashboard Input on t-body", () => {
+  it("locks /settings/profile inputs at 16px and leaves dashboard Input on t-body", () => {
     expect(ACCOUNT_FIELD_CLASS).toContain("16px");
     expect(globalsSrc).toMatch(/\.t-body\s*\{[\s\S]*?font-size:\s*var\(--text-base\)/);
     expect(inputSrc).toContain("t-body");

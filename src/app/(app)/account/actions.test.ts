@@ -203,7 +203,8 @@ describe("saveCompanyName", () => {
     });
     expect(update).toHaveBeenCalledWith({ name: "Northlight" });
     expect(eq).toHaveBeenCalledWith("id", ORG_ID);
-    expect(revalidatePath).toHaveBeenCalledWith("/account/company");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/profile");
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 

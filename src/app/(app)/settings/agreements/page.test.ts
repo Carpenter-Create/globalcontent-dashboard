@@ -22,7 +22,9 @@ describe("SettingsAgreementsPage", () => {
     expect(html).toContain(HOUSE_EMPTY_CLASS);
     expect(html).toContain("data-house-empty");
     expect(html).not.toContain('data-settings-section="profile"');
+    expect(html).not.toContain('data-settings-section="company"');
     expect(html).not.toContain("AccountProfileForm");
+    expect(html).not.toContain("data-company-profile-form");
     expect(html).not.toContain("No agreements accepted yet.");
     expect(html).not.toContain("Download");
     expect(html).not.toContain("View agreement text");

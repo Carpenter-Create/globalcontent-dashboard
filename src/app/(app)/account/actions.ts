@@ -101,7 +101,8 @@ export async function saveCompanyName(input: unknown): Promise<{ error?: string 
   if (error) return { error: error.message || COMPANY_PROFILE.saveFailed };
   if (!data) return { error: COMPANY_PROFILE.forbidden };
 
-  revalidatePath("/account/company");
+  revalidatePath("/settings");
+  revalidatePath("/settings/profile");
   revalidatePath("/");
   return {};
 }
