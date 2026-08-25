@@ -29,6 +29,8 @@ describe("settings lock", () => {
     expect(SETTINGS.referHref).toBe("/settings/refer");
     expect(SETTINGS.dashboard).toBe("Dashboard");
     expect(SETTINGS.dashboardHref).toBe("/");
+    expect(SETTINGS.company).toBe("Company");
+    expect(SETTINGS).not.toHaveProperty("companyHref");
     expect(SETTINGS.profileHref).toBe(USER_MENU.profileHref);
     expect(SETTINGS.agreementsHref).toBe(USER_MENU.agreementsHref);
     expect(SETTINGS.referHref).toBe(USER_MENU.referHref);
@@ -66,11 +68,13 @@ describe("settings lock", () => {
     ]);
   });
 
-  it("does not invent Phone, Job, Company, or the old email helper", () => {
+  it("does not invent Phone, Job, or the old email helper", () => {
     const blob = `${SETTINGS.profile} ${SETTINGS.agreements} ${SETTINGS.agreementsEmpty} ${SETTINGS.refer}`;
     for (const absent of SETTINGS_ABSENT) {
       expect(blob).not.toContain(absent);
     }
+    expect(SETTINGS_LOCAL_NAV.map((item) => item.label)).not.toContain("Company");
+    expect(SETTINGS_LOCAL_NAV.map((item) => item.kind)).not.toContain("company");
     expect(SETTINGS.agreementsEmpty).not.toMatch(/accepted yet|download|view agreement/i);
     expect(USER_MENU_ACTIONS.map((item) => item.kind)).not.toContain("settings");
   });

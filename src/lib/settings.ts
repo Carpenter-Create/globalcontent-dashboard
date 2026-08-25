@@ -1,14 +1,15 @@
 // /settings copy and doors. Copy lives here, not in JSX.
 // Paths only. Profile persist is the existing /account name + avatar
-// path — do not add Storage, SQL, RLS, or auth. Agreements and Refer
+// path — do not add Storage, SQL, RLS, or auth. Company persist is
+// the existing organizations.name write. 627:818 stacks that block
+// under the user card on /settings/profile. Agreements and Refer
 // are house empties. Do not invent a listing, download, referral
-// product, Phone, Job, or Company on these pages. Appearance stays
-// in-menu. Help stays /help.
+// product, Phone, or Job. Appearance stays in-menu. Help stays /help.
 //
 // 600:881 shell — one 220 rail occupies the Access slot on every
 // /settings path. Pad 16. ← Dashboard is 16 chevron + 15 Regular.
 // Active wash follows the path. Not a second column. Header avatar
-// stays. Company off.
+// stays. Company is not a rail row.
 //
 // 623:785 phone header — same ← Dashboard back in the left slot.
 // 16 chevron + 15 Regular, gap 8, pad 24, href /. No hamburger.
@@ -20,6 +21,7 @@ export const SETTINGS = {
   href: "/settings",
   profile: USER_MENU.profile,
   profileHref: USER_MENU.profileHref,
+  company: "Company",
   agreements: USER_MENU.agreements,
   agreementsHref: USER_MENU.agreementsHref,
   agreementsEmpty: "No agreements on this account.",
@@ -34,7 +36,6 @@ export const SETTINGS_ABSENT = [
   "Company Profile",
   "Phone",
   "Job",
-  "Company",
   "Used to sign in.",
   "Name and email on this account.",
 ] as const;
