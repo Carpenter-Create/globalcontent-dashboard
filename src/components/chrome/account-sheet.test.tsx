@@ -16,6 +16,7 @@ import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import {
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_SHEET,
@@ -138,9 +139,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(scrimClass).toContain(APP_SHEET_SCRIM_FADE_CLASS);
     expect(surfaceClass).toBe(ACCOUNT_SHEET_SURFACE_CLASS);
     expect(surfaceClass).toContain(APP_SHEET_RISE_CLASS);
-    expect(surfaceClass).toContain("h-auto");
-    expect(surfaceClass).toContain("max-h-[90dvh]");
-    expect(surfaceClass.split(" ")).not.toContain("h-[90dvh]");
+    expect(surfaceClass).toContain("h-[90dvh]");
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
     expect(surfaceClass).toContain("px-[var(--space-6)]");
@@ -150,6 +149,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).not.toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain("w-[264px]");
     expect(surfaceClass).not.toContain("w-[277px]");
+    expect(surfaceClass).not.toContain("h-auto");
+    expect(surfaceClass).not.toContain("max-h-[90dvh]");
     expect(surfaceClass).not.toContain("top-[var(--header-height)]");
     expect(surfaceClass).not.toContain("rounded-t-[24px]");
     expect(headClass).toBe(ACCOUNT_SHEET_HEAD_CLASS);
@@ -360,7 +361,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).not.toContain("Auto");
   });
 
-  it("hugs content, caps 90%, and keeps 24 above Log out — no leftover field", () => {
+  it("keeps Log out with the footer — leftover is the 90% grow, hairline only under Log out", () => {
     const html = renderSheet();
     const scrollEnd = html.indexOf("data-account-sheet-scroll");
     const logout = html.indexOf('data-sheet-group-item="logOut"');
@@ -382,10 +383,10 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(groupEnd).toBeLessThan(logout);
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), logout)).not.toContain("Log out");
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), logout)).not.toContain("v0.1.0");
-    expect(scrollClass).not.toContain("flex-1");
-    expect(attrClass(html, "data-account-sheet-surface")).toContain("h-auto");
-    expect(attrClass(html, "data-account-sheet-surface")).toContain("max-h-[90dvh]");
-    expect(attrClass(html, "data-account-sheet-surface").split(" ")).not.toContain("h-[90dvh]");
+    expect(scrollClass).toContain("flex-1");
+    expect(attrClass(html, "data-account-sheet-surface")).toContain("h-[90dvh]");
+    expect(attrClass(html, "data-account-sheet-surface")).not.toContain("h-auto");
+    expect(attrClass(html, "data-account-sheet-surface")).not.toContain("max-h-[90dvh]");
     expect(attrClass(html, "data-account-sheet-surface")).toContain("gap-[var(--space-6)]");
     expect(pinClass).toBe(ACCOUNT_SHEET_PIN_CLASS);
     expect(pinClass).toContain("gap-[var(--space-12)]");
@@ -586,18 +587,19 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(src).toContain('variant="sheet"');
   });
 
-  it("uses 24 between every row including Refer → Log out — hug, no leftover hole", () => {
+  it("keeps 24 between items — Log out + footer are the bottom group with 48 above Log out", () => {
     const html = renderDropdown();
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
     const scrollClass = attrClass(html, "data-account-sheet-scroll");
     const groupClass = attrClass(html, "data-sheet-group");
+    const pinClass = attrClass(html, "data-account-sheet-pin");
     const refer = html.indexOf('data-sheet-group-item="refer"');
     const logout = html.indexOf('data-sheet-group-item="logOut"');
     const footerRule = html.indexOf("data-account-sheet-footer-rule");
     const footer = html.indexOf('data-account-sheet-footer=""');
     const betweenReferAndLogout = html.slice(refer, logout);
 
-    expect(html).not.toContain("data-account-sheet-pin");
+    expect(html).toContain("data-account-sheet-pin");
     expect(html).not.toContain("data-account-sheet-logout-rule");
     expect(surfaceClass).toContain("h-auto");
     expect(surfaceClass).toContain("w-[264px]");
@@ -615,6 +617,10 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(scrollClass).not.toContain("overflow-y-auto");
     expect(groupClass).toContain("gap-[var(--space-6)]");
     expect(groupClass).not.toContain("gap-[var(--space-4)]");
+    expect(pinClass).toBe(ACCOUNT_MENU_DROPDOWN_PIN_CLASS);
+    expect(pinClass).toContain("mt-[var(--space-6)]");
+    expect(pinClass).toContain("gap-[var(--space-6)]");
+    expect(pinClass).not.toContain("gap-[var(--space-12)]");
     expect(refer).toBeGreaterThan(-1);
     expect(logout).toBeGreaterThan(refer);
     expect(footerRule).toBeGreaterThan(logout);
@@ -622,6 +628,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
     expect(betweenReferAndLogout).not.toContain("bg-hairline");
     expect(html.slice(logout, footer)).toContain("data-account-sheet-footer-rule");
+    expect(src).toContain("ACCOUNT_MENU_DROPDOWN_PIN_CLASS");
+    expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
   });
 
   it("keeps the same SSOT items, Sporty Blue Log out, and pinned 13/16 footer", () => {
