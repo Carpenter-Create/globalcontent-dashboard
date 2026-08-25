@@ -7,6 +7,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { UserMenu } from "./user-menu";
 import { SideNav } from "./side-nav";
 import { SettingsRail } from "./settings-rail";
+import { SettingsHeaderBack } from "./settings-header-back";
 import { MobileNav } from "./mobile-nav";
 import { MessagesAppHeader } from "./messages-app-header";
 import { TitlesHeaderSearch } from "@/components/titles/titles-header-search";
@@ -26,8 +27,8 @@ type Org = { id: string; name: string };
 // isGcStaff. Desktop 1:2 rail is unchanged.
 // /settings paths: the Access destinations leave. One 220 rail (pad 16)
 // occupies that slot — ← Dashboard / Profile / Agreements / Refer a
-// friend. Not a second column. Collapse and the phone hamburger stay
-// off these routes. Header avatar stays.
+// friend. Not a second column. Collapse stays off. Phone left slot is
+// the same ← Dashboard (623:785). Hamburger stays off. Avatar 32 stays.
 export function AppShell({
   email,
   name,
@@ -130,7 +131,7 @@ export function AppShell({
         style={{ height: "var(--header-height)", marginLeft: "var(--sidebar-width)" }}
       >
         <div data-app-header-leading="" className="mr-auto flex min-w-0 flex-1 items-center gap-2">
-          {settingsPage ? null : <MobileNav isGcStaff={isGcStaff} />}
+          {settingsPage ? <SettingsHeaderBack /> : <MobileNav isGcStaff={isGcStaff} />}
           {messagesPage ? <MessagesAppHeader surface={messagesSurface} /> : null}
           {titlesBleed ? <TitlesHeaderSearch /> : null}
         </div>

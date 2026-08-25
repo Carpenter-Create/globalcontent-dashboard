@@ -9,6 +9,10 @@
 // /settings path. Pad 16. ← Dashboard is 16 chevron + 15 Regular.
 // Active wash follows the path. Not a second column. Header avatar
 // stays. Company off.
+//
+// 623:785 phone header — same ← Dashboard back in the left slot.
+// 16 chevron + 15 Regular, gap 8, pad 24, href /. No hamburger.
+// Avatar 32 stays. Not a new IA. Appearance stays in-menu.
 
 import { USER_MENU } from "@/lib/user-menu";
 
@@ -57,6 +61,13 @@ export const SETTINGS_RAIL_ACTIVE_CLASS = "bg-surface-muted text-ink";
 export const SETTINGS_RAIL_IDLE_CLASS =
   "text-ink-2 hover:bg-surface-muted hover:text-ink";
 export const SETTINGS_RAIL_CHEVRON_CLASS = "size-4 shrink-0";
+
+// 623:785 — phone header left slot. Same 16 + 15 Regular + gap 8
+// as the 600:881 rail Dashboard row. Pad 24 is the existing header
+// inset. Hidden at md, where the rail stays.
+export const SETTINGS_HEADER_PAD_CLASS = "px-[var(--space-6)]";
+export const SETTINGS_HEADER_BACK_CLASS =
+  "flex items-center gap-[var(--space-2)] t-body font-normal md:hidden";
 
 export const SETTINGS_RAIL_ABSENT = [
   "Titles",

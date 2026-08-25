@@ -5,6 +5,8 @@ import {
   SETTINGS,
   SETTINGS_ABSENT,
   SETTINGS_LOCAL_NAV,
+  SETTINGS_HEADER_BACK_CLASS,
+  SETTINGS_HEADER_PAD_CLASS,
   SETTINGS_RAIL_ABSENT,
   SETTINGS_RAIL_ACTIVE_CLASS,
   SETTINGS_RAIL_CHEVRON_CLASS,
@@ -93,6 +95,17 @@ describe("settings lock", () => {
     expect(settingsRailActive("dashboard", "profile")).toBe(false);
     expect(settingsRailActive("dashboard", "agreements")).toBe(false);
     expect(settingsRailActive("dashboard", "refer")).toBe(false);
+  });
+
+  it("locks the phone /settings header back to 16 chevron + 15 Regular, gap 8, pad 24", () => {
+    expect(SETTINGS_HEADER_BACK_CLASS).toBe(
+      "flex items-center gap-[var(--space-2)] t-body font-normal md:hidden",
+    );
+    expect(SETTINGS_HEADER_PAD_CLASS).toBe("px-[var(--space-6)]");
+    expect(SETTINGS_HEADER_BACK_CLASS).not.toContain("t-body-sm");
+    expect(SETTINGS_HEADER_BACK_CLASS).not.toContain("t-title");
+    expect(SETTINGS.dashboardHref).toBe("/");
+    expect(SETTINGS.dashboard).toBe("Dashboard");
   });
 
   it("locks the settings rail on 220 pad 16, 15 Regular, and 16 chevron", () => {
