@@ -32,6 +32,8 @@ import {
   ACCOUNT_SHEET_HOST_CLASS,
   ACCOUNT_SHEET_ITEMS,
   ACCOUNT_SHEET_LOGOUT_CLASS,
+  ACCOUNT_SHEET_LOGOUT_STACK_CLASS,
+  ACCOUNT_SHEET_PIN_CLASS,
   ACCOUNT_SHEET_SCROLL_CLASS,
   ACCOUNT_SHEET_SURFACE_CLASS,
   ACCOUNT_SHEET_VERSION_CLASS,
@@ -151,17 +153,35 @@ function useDesktopAccountMenuAlignEnd(
 
 function AccountMenuFooter() {
   return (
-    <>
+    <div data-account-sheet-footer="" className={ACCOUNT_SHEET_FOOTER_CLASS}>
+      <p data-account-sheet-version="" className={ACCOUNT_SHEET_VERSION_CLASS}>
+        {userMenuVersion()}
+      </p>
+      <TextAction href={USER_MENU.legalHref} target="_blank" rel="noopener" data-account-sheet-legal="" className="leading-4">
+        {USER_MENU.legal}
+      </TextAction>
+    </div>
+  );
+}
+
+function AccountMenuLogOut({ onClose }: { onClose: () => void }) {
+  return (
+    <div data-account-sheet-logout-stack="" className={ACCOUNT_SHEET_LOGOUT_STACK_CLASS}>
+      <button
+        type="button"
+        data-sheet-group-item="logOut"
+        data-user-menu-item="logOut"
+        className={ACCOUNT_SHEET_LOGOUT_CLASS}
+        onClick={() => {
+          onClose();
+          void signOut();
+        }}
+      >
+        <LogOut className="size-4 shrink-0" strokeWidth={1.33} />
+        {USER_MENU.logOut}
+      </button>
       <AppSheetHairline data-account-sheet-footer-rule="" />
-      <div data-account-sheet-footer="" className={ACCOUNT_SHEET_FOOTER_CLASS}>
-        <p data-account-sheet-version="" className={ACCOUNT_SHEET_VERSION_CLASS}>
-          {userMenuVersion()}
-        </p>
-        <TextAction href={USER_MENU.legalHref} target="_blank" rel="noopener" data-account-sheet-legal="" className="leading-4">
-          {USER_MENU.legal}
-        </TextAction>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -244,21 +264,17 @@ function AccountMenuBody({
               })}
             </SheetGroup>
           </div>
-          <AppSheetHairline data-account-sheet-logout-rule="" />
-          <button
-            type="button"
-            data-sheet-group-item="logOut"
-            data-user-menu-item="logOut"
-            className={ACCOUNT_SHEET_LOGOUT_CLASS}
-            onClick={() => {
-              onClose();
-              void signOut();
-            }}
-          >
-            <LogOut className="size-4 shrink-0" strokeWidth={1.33} />
-            {USER_MENU.logOut}
-          </button>
-          <AccountMenuFooter />
+          {stacked ? (
+            <>
+              <AccountMenuLogOut onClose={onClose} />
+              <AccountMenuFooter />
+            </>
+          ) : (
+            <div data-account-sheet-pin="" className={ACCOUNT_SHEET_PIN_CLASS}>
+              <AccountMenuLogOut onClose={onClose} />
+              <AccountMenuFooter />
+            </div>
+          )}
         </>
       )}
     </>
@@ -269,7 +285,9 @@ function AccountMenuBody({
 // Quiet scrim; page stays under. 90% viewport, slides up. Do not restyle to the
 // desktop hug dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
-// Appearance opens the second face. Log out, Legal, and version are pinned.
+// Appearance opens the second face. Leftover under the last item is the
+// 90% grow. Log out stays with the footer. Hairline only under Log out.
+// Log out → footer 48. Footer → bottom 48.
 export function MobileAccountMenu({
   email,
   name,

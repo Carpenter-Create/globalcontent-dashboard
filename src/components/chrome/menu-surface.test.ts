@@ -76,7 +76,7 @@ describe("shared menu surface instances", () => {
     expect(surfaceSrc).not.toContain(ASK_GLOBEE.downloadPdfLabel);
   });
 
-  it("puts the delete hairline after Pin, same grouping rule as logout", () => {
+  it("puts the delete hairline after Pin; Identity hairline sits under Log out", () => {
     const pin = headerSrc.indexOf("ASK_GLOBEE.pinLabel");
     const hairline = headerSrc.indexOf("<ThreadPopoverSeparator");
     const del = headerSrc.indexOf('danger onSelect={() => setDeleteOpen(true)}');
@@ -85,9 +85,13 @@ describe("shared menu surface instances", () => {
     expect(del).toBeGreaterThan(hairline);
 
     const actions = sheetSrc.indexOf("ACCOUNT_SHEET_ITEMS.map");
-    const logoutRule = sheetSrc.indexOf("data-account-sheet-logout-rule");
-    const logOut = sheetSrc.indexOf('data-user-menu-item="logOut"');
-    expect(logoutRule).toBeGreaterThan(actions);
-    expect(logOut).toBeGreaterThan(logoutRule);
+    const groupClose = sheetSrc.indexOf("</SheetGroup>", actions);
+    const logOutAfterItems = sheetSrc.indexOf("<AccountMenuLogOut", groupClose);
+    const logOutLabel = sheetSrc.indexOf("{USER_MENU.logOut}");
+    const footerRule = sheetSrc.indexOf("data-account-sheet-footer-rule");
+    expect(logOutAfterItems).toBeGreaterThan(groupClose);
+    expect(footerRule).toBeGreaterThan(logOutLabel);
+    expect(sheetSrc.slice(actions, groupClose)).not.toContain("AccountMenuLogOut");
+    expect(sheetSrc).not.toContain("data-account-sheet-logout-rule");
   });
 });

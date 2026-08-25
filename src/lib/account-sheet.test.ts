@@ -21,6 +21,8 @@ import {
   ACCOUNT_SHEET_ITEMS,
   ACCOUNT_SHEET_LEGAL_CLASS,
   ACCOUNT_SHEET_LOGOUT_CLASS,
+  ACCOUNT_SHEET_LOGOUT_STACK_CLASS,
+  ACCOUNT_SHEET_PIN_CLASS,
   ACCOUNT_SHEET_SURFACE_CLASS,
   ACCOUNT_SHEET_VERSION_CLASS,
   accountSheetIdentity,
@@ -74,13 +76,14 @@ describe("account sheet lock", () => {
     }
   });
 
-  it("locks the 544:561 / 537:557 surface: 32 clear under the bar, 32 bottom, sides 24", () => {
+  it("locks the 544:561 / 537:557 surface: 32 clear under the bar, 48 bottom, sides 24", () => {
     expect(ACCOUNT_SHEET_HOST_CLASS).toContain("justify-end");
     expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:flex-row");
     expect(ACCOUNT_SHEET_HOST_CLASS).not.toContain("md:items-end");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("h-[90dvh]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("px-[var(--space-6)]");
-    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pb-[var(--space-8)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pb-[var(--space-12)]");
+    expect(ACCOUNT_SHEET_SURFACE_CLASS).not.toContain("pb-[var(--space-8)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("pt-[calc(4px+var(--space-8))]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(ACCOUNT_SHEET_SURFACE_CLASS).toContain("app-sheet-rise");
@@ -93,6 +96,10 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_HEAD_CLASS).toContain("items-center");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).toContain("text-accent");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).not.toContain("text-ink");
+    expect(ACCOUNT_SHEET_PIN_CLASS).toContain("gap-[var(--space-12)]");
+    expect(ACCOUNT_SHEET_PIN_CLASS).toContain("shrink-0");
+    expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).toBe("flex w-full shrink-0 flex-col");
+    expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("gap-");
   });
 
   it("locks the 586:768 / 586:814 desktop dropdown to a 264 hug under the avatar", () => {
