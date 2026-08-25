@@ -1,4 +1,4 @@
-// Mobile 544:561 / 537:557 and desktop 586:768 / 586:814 Identity menu.
+// Mobile 544:561 / 537:557 and desktop 629:795 Identity menu.
 // Copy lives here, not in JSX.
 // Identity is avatar + name + email from the same values /settings/profile
 // would show. Always render both fields. No dashes, no invented
@@ -16,10 +16,11 @@
 // bottom. Log out → hairline 24. Hairline → footer 24. Footer →
 // bottom 32 (sheet pad B). Not 48/48/48. No hairline above Log
 // out. 571:911 stays off. Closed sheet is 544:561 / 537:557.
-// Desktop is 264 × 672 leftover grow 134, align-end.
-// 24 pad. 24 between Profile / Agreements / Appearance / Help /
-// Refer. Log out → hairline 24. Hairline → footer 24. 613:888 top
-// is the Appearance row, offset 0. Labels stay one source.
+// Desktop 629:795 is 264 × 570 leftover 48, align-end. No 672
+// floor. No leftover grow. 24 pad. 24 between Profile /
+// Agreements / Appearance / Help / Refer. Log out → hairline 24.
+// Hairline → footer 24. Footer → bottom 24. 613:888 top is the
+// Appearance row, offset 0. Labels stay one source.
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
@@ -53,7 +54,7 @@ export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 // under the 4px half-bar (padT 36 = 4+32) so the bar does not eat
 // the top air. 90% viewport.
 // Not h-auto. Not max-h hug. Leftover above Log out is the 90% grow
-// (open white). Identity 48 + Close/44 one row. Desktop 586:768
+// (open white). Identity 48 + Close/44 one row. Desktop 629:795
 // does not use this surface.
 export const ACCOUNT_SHEET_HOST_CLASS =
   "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
@@ -90,11 +91,11 @@ export const ACCOUNT_SHEET_VERSION_CLASS = "t-body-sm font-normal leading-4 text
 
 export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 
-// 586:768 / 586:814 — 264 × 672 leftover grow 134. NOT 384. NOT
-// min-h 426. Align-end to the avatar (right edge flush). 8px
+// 629:795 — 264 × 570 leftover 48. NOT 672. NOT 384. NOT min-h
+// 426. Align-end to the avatar (right edge flush). 8px
 // (--space-2) under the trigger. Not a 90% sheet. 24 pad. 24
 // between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 134. Pin Log
+// Leftover last-item → Log out is 48. No leftover grow. Pin Log
 // out, hairline, footer as siblings. Hairline only under Log out.
 // Log out → hairline 24. Hairline → footer 24. Do not hug the
 // rule. Pin gap is not (Log out+rule) → footer. Footer → bottom
@@ -105,8 +106,8 @@ export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 // trigger — not --header-height / --content-inset, which sat the 264
 // a full avatar-width left (menu right = avatar left).
 export const ACCOUNT_MENU_DROPDOWN_WIDTH = 264;
-export const ACCOUNT_MENU_DROPDOWN_HEIGHT = 672;
-export const ACCOUNT_MENU_DROPDOWN_LEFTOVER_MIN = 134;
+export const ACCOUNT_MENU_DROPDOWN_HEIGHT = 570;
+export const ACCOUNT_MENU_DROPDOWN_LEFTOVER = 48;
 
 export const ACCOUNT_MENU_DROPDOWN_HOST_CLASS = "fixed inset-0 z-50";
 
@@ -117,7 +118,7 @@ export const ACCOUNT_MENU_DROPDOWN_ALIGN = "end" as const;
 export const ACCOUNT_MENU_DROPDOWN_GAP = "var(--space-2)" as const;
 
 export const ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS =
-  "absolute z-10 flex h-[672px] w-[264px] flex-col overflow-hidden rounded-[12px] border border-hairline bg-surface px-[var(--space-6)] pb-[var(--space-6)] pt-[calc(4px+var(--space-6))]";
+  "absolute z-10 flex h-[570px] w-[264px] flex-col overflow-hidden rounded-[12px] border border-hairline bg-surface px-[var(--space-6)] pb-[var(--space-6)] pt-[calc(4px+var(--space-6))]";
 
 export type AccountMenuDropdownAlign = {
   top: string;
@@ -146,14 +147,15 @@ export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
   "flex w-full flex-col items-start gap-[var(--space-6)]";
 
 // Desktop pin — Log out → hairline 24. Hairline → footer 24.
-// Leftover above Log out is flex-1 grow with min-h 134, not a
-// packed 24 list row. Pin gap is not (Log out+rule) → footer.
+// Leftover last-item → Log out is 48, not leftover grow, not a
+// packed 24 list row. Pin is not the item group. Pin gap is not
+// (Log out+rule) → footer.
 export const ACCOUNT_MENU_DROPDOWN_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-6)]";
 
 export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex w-full shrink-0 flex-col";
 
-export const ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS = "min-h-[134px] w-full flex-1";
+export const ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS = "h-[48px] w-full shrink-0";
 
 // 586:768 Appearance row — pad T/B 16, L/R 0, r0. Wash full-bleed
 // on the 216 content row. Label x=0 with Profile / Help. Chevron

@@ -514,11 +514,11 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 586:768 / 586:814 — same items as mobile. 264 × 672 leftover
-// grow 134. NOT 384. Align-end to the avatar (right edge flush).
+// Desktop 629:795 — same items as mobile. 264 × 570 leftover 48.
+// NOT 672. NOT 384. Align-end to the avatar (right edge flush).
 // 8px under the trigger. Close killed. Stacked identity. 24 pad.
 // 24 between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 134. Pin Log out,
+// Leftover last-item → Log out is 48. No leftover grow. Pin Log out,
 // hairline, footer as siblings. Hairline only under Log out. Log out
 // → hairline 24. Hairline → footer 24. Do not hug the rule. Footer
 // → bottom 24. Not a 90% sheet. Not a tall right takeover.
