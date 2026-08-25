@@ -717,7 +717,8 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(scrollClass).not.toContain("flex-1");
     expect(scrollClass).not.toContain("overflow-y-auto");
     expect(attrClass(html, "data-account-menu-leftover")).toContain("h-[48px]");
-    expect(attrClass(html, "data-account-menu-leftover")).toContain("shrink-0");
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("min-h-0");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("shrink-0");
     expect(attrClass(html, "data-account-menu-leftover")).not.toContain("min-h-[134px]");
     expect(attrClass(html, "data-account-menu-leftover")).not.toContain("flex-1");
     expect(groupClass).toContain("gap-[var(--space-6)]");

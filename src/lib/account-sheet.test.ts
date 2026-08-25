@@ -182,7 +182,8 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
     expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("h-[48px]");
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("shrink-0");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("min-h-0");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("shrink-0");
     expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("min-h-[134px]");
     expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("flex-1");
   });

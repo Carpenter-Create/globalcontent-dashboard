@@ -148,14 +148,16 @@ export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
 
 // Desktop pin — Log out → hairline 24. Hairline → footer 24.
 // Leftover last-item → Log out is 48, not leftover grow, not a
-// packed 24 list row. Pin is not the item group. Pin gap is not
-// (Log out+rule) → footer.
+// packed 24 list row. Not shrink-0 — the 570 overflow-hidden
+// surface plus stacked identity / Appearance pad would otherwise
+// clip the version/Legal pin. Pin is not the item group. Pin gap
+// is not (Log out+rule) → footer.
 export const ACCOUNT_MENU_DROPDOWN_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-6)]";
 
 export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex w-full shrink-0 flex-col";
 
-export const ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS = "h-[48px] w-full shrink-0";
+export const ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS = "h-[48px] min-h-0 w-full";
 
 // 586:768 Appearance row — pad T/B 16, L/R 0, r0. Wash full-bleed
 // on the 216 content row. Label x=0 with Profile / Help. Chevron
