@@ -389,6 +389,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(scrollClass).toContain("flex-1");
     expect(scrollClass).toContain("min-h-0");
     expect(scrollClass).not.toContain("min-h-[var(--space-12)]");
+    expect(scrollClass).not.toContain("pb-[var(--space-12)]");
     expect(attrClass(html, "data-account-sheet-surface")).toContain("h-[90dvh]");
     expect(attrClass(html, "data-account-sheet-surface")).not.toContain("h-auto");
     expect(attrClass(html, "data-account-sheet-surface")).not.toContain("max-h-[90dvh]");
@@ -551,7 +552,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(surfaceClass).not.toContain(APP_SHEET_RISE_CLASS);
     expect(scrollClass).toBe(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS);
     expect(scrollClass).toContain("flex-1");
-    expect(scrollClass).toContain("min-h-[var(--space-12)]");
+    expect(scrollClass).toContain("pb-[var(--space-12)]");
+    expect(scrollClass).not.toContain("min-h-[var(--space-12)]");
     expect(scrollClass).not.toContain("min-h-0");
     expect(src).toContain("useAccountMenuDismiss(onClose, false)");
     expect(src).not.toContain("md:w-[390px]");
@@ -628,7 +630,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(surfaceClass).not.toContain("pb-[var(--space-12)]");
     expect(scrollClass).toBe(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS);
     expect(scrollClass).toContain("flex-1");
-    expect(scrollClass).toContain("min-h-[var(--space-12)]");
+    expect(scrollClass).toContain("pb-[var(--space-12)]");
+    expect(scrollClass).not.toContain("min-h-[var(--space-12)]");
     expect(scrollClass).not.toContain("min-h-0");
     expect(scrollClass).not.toContain("overflow-y-auto");
     expect(groupClass).toContain("gap-[var(--space-6)]");

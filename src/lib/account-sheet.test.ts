@@ -101,6 +101,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_SCROLL_CLASS).toContain("flex-1");
     expect(ACCOUNT_SHEET_SCROLL_CLASS).toContain("min-h-0");
     expect(ACCOUNT_SHEET_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
+    expect(ACCOUNT_SHEET_SCROLL_CLASS).not.toContain("pb-[var(--space-12)]");
     expect(ACCOUNT_SHEET_SCROLL_CLASS).toContain("overflow-y-auto");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).toContain("text-accent");
     expect(ACCOUNT_SHEET_LOGOUT_CLASS).not.toContain("text-ink");
@@ -153,7 +154,8 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).toContain("gap-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("gap-[var(--space-12)]");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("flex-1");
-    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("min-h-[var(--space-12)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("pb-[var(--space-12)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-0");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
   });

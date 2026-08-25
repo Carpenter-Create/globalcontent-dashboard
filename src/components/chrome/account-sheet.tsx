@@ -317,8 +317,8 @@ export function MobileAccountMenu({
 // leftover grow. NOT 384. Align-end to the avatar (right edge flush).
 // 8px under the trigger. Close killed. Stacked identity. 24 pad.
 // 24 between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 48. Air cannot
-// collapse below 48. Pin Log out + footer to the bottom. Hairline
+// Leftover above Log out is flex-1 grow with pb 48 under the items.
+// Air cannot collapse below 48. Pin Log out + footer to the bottom. Hairline
 // only under Log out. Log out → footer 24.
 // Footer → bottom 16. Not a 90% sheet. Not a tall right takeover.
 export function DesktopAccountMenu({

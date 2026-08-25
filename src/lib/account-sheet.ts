@@ -11,9 +11,9 @@
 // #209 #210 #211 hug / hairline-sandwich are void. 384 is void.
 // Mobile is a 90% sheet — leftover above Log out is flex-1 grow
 // (open white). Desktop is 264 × min-h 426 leftover grow, align-end.
-// Desktop leftover flex-1 has min-h 48. Do not hug. Air cannot
-// collapse below 48. 24 pad. 24 between Profile / Agreements /
-// Appearance / Help / Refer.
+// Desktop leftover flex-1 has pb 48 under the items. Do not hug.
+// Air cannot collapse below 48. 24 pad. 24 between Profile /
+// Agreements / Appearance / Help / Refer.
 // Labels stay one source.
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
@@ -85,8 +85,8 @@ export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 // NOT 384. Align-end to the avatar (right edge flush). 8px
 // (--space-2) under the trigger. Not a 90% sheet. 24 pad. 24
 // between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 48
-// (`min-h-[var(--space-12)]`). Air cannot collapse below 48 — min-h
+// Leftover above Log out is flex-1 grow with pb 48
+// (`pb-[var(--space-12)]`). Air cannot collapse below 48 — min-h
 // 426 is shorter than the 24-rhythm list. Pin Log out + footer to
 // the bottom of that surface. Hairline only under Log out. Log out
 // → footer 24. Footer → bottom 16 (Mercury Log out→bottom 16; we
@@ -131,12 +131,12 @@ export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
   "flex w-full flex-col items-start gap-[var(--space-6)]";
 
 // Desktop pin — Log out → footer 24. Leftover above Log out is
-// flex-1 grow with min-h 48, not a packed 24 list row.
+// flex-1 grow with pb 48 under the items, not a packed 24 list row.
 export const ACCOUNT_MENU_DROPDOWN_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-6)]";
 
 export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS =
-  "flex min-h-[var(--space-12)] w-full flex-1 flex-col";
+  "flex w-full flex-1 flex-col pb-[var(--space-12)]";
 
 export type AccountSheetIdentity = {
   avatarInitial: string;
