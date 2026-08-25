@@ -16,6 +16,7 @@ import { AppearanceCheck } from "./appearance-check";
 import { useThemePreference } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import {
+  ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
   ACCOUNT_MENU_APPEARANCE_COPY_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS,
@@ -74,6 +75,14 @@ import {
 
 function AccountRowChevron() {
   return <ChevronRight className={SHEET_GROUP_CHEVRON_CLASS} strokeWidth={1.33} />;
+}
+
+function AccountAppearanceChevron() {
+  return (
+    <span className={ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS}>
+      <AccountRowChevron />
+    </span>
+  );
 }
 
 function AccountMenuTrigger({
@@ -226,7 +235,7 @@ function AccountAppearanceRow({
           {appearancePreferenceLabel(preference)}
         </span>
       </span>
-      <AccountRowChevron />
+      <AccountAppearanceChevron />
     </button>
   );
 }

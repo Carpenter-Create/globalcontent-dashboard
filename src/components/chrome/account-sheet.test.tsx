@@ -14,6 +14,8 @@ vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import {
+  ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
+  ACCOUNT_MENU_APPEARANCE_COPY_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
   ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
@@ -400,6 +402,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(scrollClass).toContain("flex-1");
     expect(scrollClass).toContain("min-h-0");
     expect(scrollClass).not.toContain("min-h-[var(--space-12)]");
+    expect(scrollClass).not.toContain("overflow-y-auto");
+    expect(attrClass(html, "data-account-sheet-surface")).toContain("overflow-y-auto");
     expect(attrClass(html, "data-account-sheet-surface")).toContain("h-[90dvh]");
     expect(attrClass(html, "data-account-sheet-surface")).not.toContain("h-auto");
     expect(attrClass(html, "data-account-sheet-surface")).not.toContain("max-h-[90dvh]");
@@ -496,7 +500,12 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(flyoutClass).toContain("max-w-[264px]");
     expect(washClass).toContain("bg-surface-muted");
     expect(washClass).toContain("-left-[var(--space-6)]");
+    expect(washClass).toContain("z-0");
     expect(washClass).not.toContain("rounded");
+    expect(src).toContain("AccountAppearanceChevron");
+    expect(src).toContain("ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS");
+    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS);
+    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_COPY_CLASS);
     expect(src).toContain("AccountAppearanceFlyout");
     expect(src).toContain("applyDocumentThemePreference");
     expect(src).toContain("AppearanceCheck");
@@ -744,7 +753,10 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(flyoutClass).toContain("rounded-[12px]");
     expect(flyoutHost).toContain("calc(16px + 264px + var(--space-2))");
     expect(washClass).toContain("-left-[var(--space-6)]");
+    expect(washClass).toContain("z-0");
     expect(washClass).not.toContain("rounded");
+    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS);
+    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_COPY_CLASS);
   });
 
   it("opens from the desktop avatar and does not reuse the 90% sheet", () => {

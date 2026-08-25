@@ -53,12 +53,14 @@ export const ACCOUNT_SHEET_HOST_CLASS =
   "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
 
 export const ACCOUNT_SHEET_SURFACE_CLASS =
-  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-12)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
+  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] overflow-y-auto rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-12)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
 
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
 
-export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col overflow-y-auto";
+// Leftover grow. Overflow lives on the 90% surface so the Appearance
+// wash can full-bleed to L/R 0 — overflow-y-auto on this row clipped it.
+export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col";
 
 export const ACCOUNT_SHEET_LOGOUT_CLASS =
   "flex items-center gap-[var(--space-2)] text-[length:var(--text-base)] font-normal leading-5 text-accent";
@@ -150,10 +152,12 @@ export const ACCOUNT_MENU_APPEARANCE_ROW_CLASS =
   "relative flex w-full items-center justify-between py-[var(--space-4)] text-left text-[length:var(--text-base)] font-normal leading-5 text-ink";
 
 export const ACCOUNT_MENU_APPEARANCE_WASH_CLASS =
-  "pointer-events-none absolute inset-y-0 -left-[var(--space-6)] -right-[var(--space-6)] bg-surface-muted";
+  "pointer-events-none absolute inset-y-0 -left-[var(--space-6)] -right-[var(--space-6)] z-0 bg-surface-muted";
 
 export const ACCOUNT_MENU_APPEARANCE_COPY_CLASS =
-  "relative flex min-w-0 flex-col items-start gap-[var(--space-2)]";
+  "relative z-10 flex min-w-0 flex-col items-start gap-[var(--space-2)]";
+
+export const ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS = "relative z-10 shrink-0";
 
 export const ACCOUNT_MENU_APPEARANCE_MODE_CLASS =
   "t-body-sm font-normal leading-4 text-ink-2";
