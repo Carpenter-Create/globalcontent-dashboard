@@ -12,9 +12,11 @@
 // void. 384 is void.
 // Mobile is a 90% sheet — leftover above Log out is flex-1 grow
 // (open white). Do not hug. Log out + footer stay at the bottom.
-// 48 / 48 holds. Desktop is 264 × 672 leftover grow 134, align-end.
-// 24 pad. 24 between Profile / Agreements / Appearance / Help / Refer.
-// Labels stay one source.
+// 48 / 48 holds. Closed sheet is 544:561 / 537:557. Open Appearance
+// is 618:785 — flyout ON the sheet at x=24 w=342, gap 8 under
+// Appearance. Not leftover. Not beside. Desktop is 264 × 672
+// leftover grow 134, align-end. 24 pad. 24 between Profile /
+// Agreements / Appearance / Help / Refer. Labels stay one source.
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
@@ -177,9 +179,18 @@ export const ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS =
 
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS = "size-4 shrink-0";
 
-// Mobile 613:888 — same rows and type. Sit on the 90% leftover, not
-// left of the sheet. max-w 264 so a 264 card cannot clip off-sheet.
-export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS = `${ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS} mt-auto w-full max-w-[264px] shrink-0`;
+// 618:785 — second surface ON the 90% sheet. x=24 (content inset)
+// w=342. Gap 8 under Appearance. Not leftover. Not beside. Not 264.
+// Closed 544:561 / 537:557 stays untouched.
+export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_WIDTH = 342;
+
+export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS =
+  "absolute left-0 top-full z-20 mt-[var(--space-2)]";
+
+export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS =
+  "flex w-[342px] flex-col gap-[var(--space-2)] overflow-hidden rounded-[12px] border border-hairline bg-surface py-[var(--space-2)]";
+
+export const ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS = "text-ink";
 
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS =
   "absolute z-10 w-[264px]";

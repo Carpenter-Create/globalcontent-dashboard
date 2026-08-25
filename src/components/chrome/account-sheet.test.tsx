@@ -23,7 +23,9 @@ import {
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS,
   ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
   ACCOUNT_SHEET_HEAD_CLASS,
@@ -371,6 +373,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).toContain("data-account-menu-appearance-mode");
     expect(html).toContain("Light");
     expect(html).not.toContain("data-account-menu-appearance-flyout");
+    expect(html).not.toContain("data-account-sheet-appearance-stack");
+    expect(html).not.toContain("data-account-sheet-appearance-flyout-host");
     expect(html).not.toContain("System default");
     expect(html).not.toContain("Dark");
     expect(html).not.toContain("Auto");
@@ -495,8 +499,21 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(sheet).toContain("data-account-menu-appearance-flyout");
     expect(sheet).toContain("data-account-sheet-pin");
     expect(flyoutClass).toBe(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS);
-    expect(flyoutClass).toContain("mt-auto");
-    expect(flyoutClass).toContain("max-w-[264px]");
+    expect(flyoutClass).toContain("w-[342px]");
+    expect(flyoutClass).not.toContain("mt-auto");
+    expect(flyoutClass).not.toContain("max-w-[264px]");
+    expect(flyoutClass).not.toContain("w-[264px]");
+    expect(sheet).toContain("data-account-sheet-appearance-stack");
+    expect(sheet).toContain("data-account-sheet-appearance-flyout-host");
+    expect(attrClass(sheet, "data-account-sheet-appearance-flyout-host")).toBe(
+      ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
+    );
+    expect(attrClass(sheet, "data-account-sheet-appearance-flyout-host")).toContain(
+      "mt-[var(--space-2)]",
+    );
+    expect(attrClass(sheet, "data-appearance-check")).toBe(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS);
+    expect(attrClass(sheet, "data-appearance-check")).toBe("text-ink");
+    expect(attrClass(sheet, "data-appearance-check")).not.toContain("text-ink-3");
     expect(washClass).toContain("bg-surface-muted");
     expect(washClass).toContain("-left-[var(--space-6)]");
     expect(washClass).toContain("z-0");
@@ -711,6 +728,8 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(html).toContain("data-account-menu-appearance-mode");
     expect(html).toContain("Light");
     expect(html).not.toContain("data-account-menu-appearance-flyout");
+    expect(html).not.toContain("data-account-sheet-appearance-stack");
+    expect(html).not.toContain("data-account-sheet-appearance-flyout-host");
     expect(html).not.toContain("System default");
     expect(html).not.toContain("Dark");
     expect(html).not.toContain("Auto");
@@ -752,7 +771,10 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(appearance).not.toContain("violet");
     expect(flyoutClass).toBe(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS);
     expect(flyoutClass).toContain("w-[264px]");
+    expect(flyoutClass).not.toContain("w-[342px]");
     expect(flyoutClass).toContain("rounded-[12px]");
+    expect(appearance).not.toContain("data-account-sheet-appearance-stack");
+    expect(appearance).not.toContain("data-account-sheet-appearance-flyout-host");
     expect(flyoutHost).toContain("calc(16px + 264px + var(--space-2))");
     expect(washClass).toContain("-left-[var(--space-6)]");
     expect(washClass).toContain("z-0");

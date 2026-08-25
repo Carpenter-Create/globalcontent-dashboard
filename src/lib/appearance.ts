@@ -2,9 +2,10 @@
 // 613:888 — System default + helper / Dark / Light. Selected is a
 // quiet 16 check. Not a page. Not radios. Existing gc-theme kinds
 // stay light / dark / auto — auto is System default on the surface.
-// Desktop: second 264 surface, gap 8 left of 586:768. Mobile: same
-// rows and type, second surface on the 90% sheet — do not clip a
-// left flyout off the sheet, do not replace the Identity list.
+// Desktop: second 264 surface, gap 8 left of 586:768. Mobile 618:785:
+// same rows and type, second surface ON the 90% sheet at x=24 w=342,
+// gap 8 under Appearance. Not leftover. Not beside. Not an in-place
+// replace.
 
 import { USER_MENU } from "@/lib/user-menu";
 import type { ThemePreference } from "@/lib/theme";

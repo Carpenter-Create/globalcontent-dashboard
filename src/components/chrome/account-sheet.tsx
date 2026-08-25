@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
   type Ref,
   type RefObject,
 } from "react";
@@ -37,7 +38,9 @@ import {
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_STAGE_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS,
   ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
   accountMenuAppearanceFlyoutAlign,
   accountMenuDropdownAlignEnd,
   type AccountMenuDropdownAlign,
@@ -245,8 +248,10 @@ function AccountAppearanceRow({
 
 export function AccountAppearanceFlyout({
   className = ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
+  checkClassName,
 }: {
   className?: string;
+  checkClassName?: string;
 }) {
   const preference = useThemePreference();
 
@@ -265,7 +270,10 @@ export function AccountAppearanceFlyout({
           }}
         >
           <span className={ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS}>
-            <AppearanceCheck selected={preference === option.kind} />
+            <AppearanceCheck
+              selected={preference === option.kind}
+              className={checkClassName}
+            />
           </span>
           <span className={ACCOUNT_MENU_APPEARANCE_COPY_CLASS}>
             <span>{option.label}</span>
@@ -289,22 +297,42 @@ function AccountMenuItems({
   onClose,
   face,
   setFace,
+  appearanceFlyout,
 }: {
   pathname: string;
   onClose: () => void;
   face: AccountMenuFace;
   setFace: (face: AccountMenuFace) => void;
+  appearanceFlyout?: ReactNode;
 }) {
   return (
     <>
       {ACCOUNT_SHEET_ITEMS.map((item) => {
         if (item.kind === "appearance") {
-          return (
+          const row = (
             <AccountAppearanceRow
-              key={item.kind}
               open={face === "appearance"}
               onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
             />
+          );
+          if (!appearanceFlyout) {
+            return (
+              <AccountAppearanceRow
+                key={item.kind}
+                open={face === "appearance"}
+                onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
+              />
+            );
+          }
+          return (
+            <div
+              key={item.kind}
+              data-account-sheet-appearance-stack=""
+              className="relative w-full"
+            >
+              {row}
+              {appearanceFlyout}
+            </div>
           );
         }
         return (
@@ -343,7 +371,25 @@ function AccountMenuBody({
   const identity = accountSheetIdentity(email, name);
   const stacked = variant === "dropdown";
   const items = (
-    <AccountMenuItems pathname={pathname} onClose={onClose} face={face} setFace={setFace} />
+    <AccountMenuItems
+      pathname={pathname}
+      onClose={onClose}
+      face={face}
+      setFace={setFace}
+      appearanceFlyout={
+        !stacked && face === "appearance" ? (
+          <div
+            data-account-sheet-appearance-flyout-host=""
+            className={ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS}
+          >
+            <AccountAppearanceFlyout
+              className={ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS}
+              checkClassName={ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS}
+            />
+          </div>
+        ) : undefined
+      }
+    />
   );
 
   if (stacked) {
@@ -391,9 +437,6 @@ function AccountMenuBody({
       <AppSheetHairline data-account-sheet-rule="" />
       <div data-account-sheet-scroll="" className={ACCOUNT_SHEET_SCROLL_CLASS}>
         <SheetGroup>{items}</SheetGroup>
-        {face === "appearance" ? (
-          <AccountAppearanceFlyout className={ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS} />
-        ) : null}
       </div>
       <div data-account-sheet-pin="" className={ACCOUNT_SHEET_PIN_CLASS}>
         <AccountMenuLogOut onClose={onClose} />
@@ -407,8 +450,9 @@ function AccountMenuBody({
 // Quiet scrim; page stays under. 90% viewport, slides up. Hug is void.
 // Do not restyle to the desktop leftover dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
-// Appearance is a second 613:888 surface on the leftover — not an
-// in-place replace, not a left flyout that clips off the sheet.
+// Open Appearance is 618:785 — flyout ON the sheet at x=24 w=342,
+// gap 8 under Appearance. Not leftover. Not beside. Not an in-place
+// replace. Closed sheet stays 544:561 / 537:557.
 // Leftover under the last item is the 90% grow (open white). Log out
 // + footer are the bottom group. Hairline only under Log out.
 // Log out → footer 48. Footer → bottom 48.

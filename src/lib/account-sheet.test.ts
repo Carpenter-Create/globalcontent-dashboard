@@ -25,7 +25,10 @@ import {
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
   ACCOUNT_MENU_DROPDOWN_WIDTH,
+  ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS,
   ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_WIDTH,
   accountMenuAppearanceFlyoutAlign,
   accountMenuDropdownAlignEnd,
   ACCOUNT_SHEET,
@@ -202,8 +205,17 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS).toContain("gap-[var(--space-2)]");
     expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS).toContain("absolute");
     expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS).toContain("w-[264px]");
-    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).toContain("mt-auto");
-    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).toContain("max-w-[264px]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_WIDTH).toBe(342);
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).toContain("w-[342px]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).not.toContain("mt-auto");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).not.toContain("max-w-[264px]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).not.toContain("w-[264px]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS).toContain("left-0");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS).toContain("top-full");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS).toContain("mt-[var(--space-2)]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS).not.toContain("mt-auto");
+    expect(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS).toBe("text-ink");
+    expect(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS).not.toContain("purple");
     expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP).toBe("var(--space-2)");
   });
 
