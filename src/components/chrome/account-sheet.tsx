@@ -33,6 +33,7 @@ import {
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_STAGE_CLASS,
@@ -437,6 +438,7 @@ function AccountMenuBody({
             <SheetGroup className={ACCOUNT_MENU_DROPDOWN_GROUP_CLASS}>{items}</SheetGroup>
           </div>
         </div>
+        <div data-account-menu-leftover="" className={ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS} />
         <AccountMenuPin onClose={onClose} className={ACCOUNT_MENU_DROPDOWN_PIN_CLASS} />
       </>
     );
@@ -513,12 +515,13 @@ export function MobileAccountMenu({
 }
 
 // Desktop 629:795 — same items as mobile. 264. Height is
-// relative to the stack (h-auto hug). No leftover. Last item →
-// Log out is 0. No 48. No 134. No h-[Npx]. No min-h. No 522 /
-// 570 / 672 floor. Align-end to the avatar (right edge flush).
-// 8px under the trigger. Close killed. Stacked identity. 24 pad.
-// 24 between Profile / Agreements / Appearance / Help / Refer.
-// No leftover grow. Pin Log out, hairline, footer as siblings.
+// relative to the stack (h-auto hug). Leftover last-item →
+// Log out is 48 (house --space-12). The 48 adds to the stack.
+// Not 0. Not 134. No h-[Npx]. No min-h. No 522 / 570 / 672
+// floor. Align-end to the avatar (right edge flush). 8px under
+// the trigger. Close killed. Stacked identity. 24 pad. 24
+// between Profile / Agreements / Appearance / Help / Refer. No
+// leftover grow. Pin Log out, hairline, footer as siblings.
 // Hairline only under Log out. Log out → hairline 24. Hairline →
 // footer 24. Do not hug the rule. Footer → bottom 24. Not a 90%
 // sheet. Not a tall right takeover.
