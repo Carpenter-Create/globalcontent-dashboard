@@ -282,12 +282,12 @@ function AccountMenuBody({
 }
 
 // Mobile 544:561 / 537:557 — avatar opens this sheet. Hamburger stays the nav sheet.
-// Quiet scrim; page stays under. 90% viewport, slides up. Do not restyle to the
-// desktop hug dropdown.
+// Quiet scrim; page stays under. Hug height, cap 90%. Slides up. Do
+// not restyle to the desktop hug dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
-// Appearance opens the second face. Leftover under the last item is the
-// 90% grow. Log out stays with the footer. Hairline only under Log out.
-// Log out → footer 48. Footer → bottom 48.
+// Appearance opens the second face. No leftover field above Log out.
+// 24 above Log out. Log out stays with the footer. Hairline only under
+// Log out. Log out → footer 48. Footer → bottom 48.
 export function MobileAccountMenu({
   email,
   name,
@@ -318,7 +318,8 @@ export function MobileAccountMenu({
 
 // Desktop 586:768 / 586:814 — same items as mobile. 264 hug. Align-end
 // to the avatar (right edge flush). 8px under the trigger. Close killed.
-// Stacked identity. Not a 90% sheet. Not a tall right takeover.
+// Stacked identity. 24 everywhere. Not a 90% sheet. Not a tall right
+// takeover.
 export function DesktopAccountMenu({
   email,
   name,
