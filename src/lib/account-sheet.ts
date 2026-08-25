@@ -12,9 +12,11 @@
 // void. 384 is void.
 // Mobile is a 90% sheet — leftover above Log out is flex-1 grow
 // (open white). Do not hug. Log out, hairline, footer stay at the
-// bottom. Log out → hairline 48. Hairline → footer 48. Closed
-// sheet is 544:561 / 537:557. Open Appearance is 618:785 — flyout
-// ON the sheet at x=24 w=342, gap 8 under Appearance. Not leftover.
+// bottom. Log out → hairline 24. Hairline → footer 24. Footer →
+// bottom 32 (sheet pad B). Not 48/48/48. No hairline above Log
+// out. 571:911 stays off. Closed sheet is 544:561 / 537:557.
+// Open Appearance is 618:785 — flyout ON the sheet at x=24 w=342,
+// gap 8 under Appearance. Not leftover.
 // Not beside. Desktop is 264 × 672 leftover grow 134, align-end.
 // 24 pad. 24 between Profile / Agreements / Appearance / Help /
 // Refer. Log out → hairline 24. Hairline → footer 24. 613:888 top
@@ -48,8 +50,9 @@ export const ACCOUNT_SHEET_ABSENT = [
 // One source, both instances. Sheet chrome may differ; labels may not.
 export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 
-// 544:561 / 537:557 — sides 24, bottom 48. 32 clear under the 4px half-bar
-// (padT 36 = 4+32) so the bar does not eat the top air. 90% viewport.
+// 544:561 / 537:557 — sides 24, bottom 32 (sheet pad B). 32 clear
+// under the 4px half-bar (padT 36 = 4+32) so the bar does not eat
+// the top air. 90% viewport.
 // Not h-auto. Not max-h hug. Leftover above Log out is the 90% grow
 // (open white). Identity 48 + Close/44 one row. Desktop 586:768
 // does not use this surface.
@@ -57,7 +60,7 @@ export const ACCOUNT_SHEET_HOST_CLASS =
   "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
 
 export const ACCOUNT_SHEET_SURFACE_CLASS =
-  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] overflow-y-auto rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-12)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
+  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] overflow-y-auto rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-8)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
 
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
@@ -70,11 +73,13 @@ export const ACCOUNT_SHEET_LOGOUT_CLASS =
   "flex items-center gap-[var(--space-2)] text-[length:var(--text-base)] font-normal leading-5 text-accent";
 
 // Mobile pin — Log out, hairline, footer are siblings. Log out →
-// hairline 48. Hairline → footer 48. Footer → bottom 48. 48 is
-// mobile only. Leftover above Log out is the 90% grow. Do not put
-// Log out in the item group. Pin gap is not (Log out+rule) → footer.
+// hairline 24. Hairline → footer 24. Footer → bottom 32 (sheet
+// pad B). Not 48/48/48. Leftover above Log out is the 90% grow.
+// Do not put Log out in the item group. Pin gap is not
+// (Log out+rule) → footer. Hairline only under Log out. 571:911
+// stays off.
 export const ACCOUNT_SHEET_PIN_CLASS =
-  "flex w-full shrink-0 flex-col gap-[var(--space-12)]";
+  "flex w-full shrink-0 flex-col gap-[var(--space-6)]";
 
 // Log out only. Hairline is the next pin sibling — do not hug the rule.
 export const ACCOUNT_SHEET_LOGOUT_STACK_CLASS = "flex w-full shrink-0 flex-col";

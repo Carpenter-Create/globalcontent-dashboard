@@ -152,7 +152,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
     expect(surfaceClass).toContain("px-[var(--space-6)]");
-    expect(surfaceClass).toContain("pb-[var(--space-12)]");
+    expect(surfaceClass).toContain("pb-[var(--space-8)]");
+    expect(surfaceClass).not.toContain("pb-[var(--space-12)]");
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
     expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(surfaceClass).not.toContain("md:w-[390px]");
@@ -180,7 +181,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(tokens).toContain("--accent: #1769ff;");
   });
 
-  it("gives 32 clear under the half-bar and 48 bottom pad — sides stay 24", () => {
+  it("gives 32 clear under the half-bar and 32 bottom pad — sides stay 24", () => {
     const html = renderSheet();
     const surfaceClass = attrClass(html, "data-account-sheet-surface");
     const accent = attrClass(html, "data-menu-surface-accent");
@@ -188,8 +189,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
 
     expect(surfaceClass).toBe(ACCOUNT_SHEET_SURFACE_CLASS);
     expect(surfaceClass).toContain("px-[var(--space-6)]");
-    expect(surfaceClass).toContain("pb-[var(--space-12)]");
-    expect(surfaceClass).not.toContain("pb-[var(--space-8)]");
+    expect(surfaceClass).toContain("pb-[var(--space-8)]");
+    expect(surfaceClass).not.toContain("pb-[var(--space-12)]");
     expect(surfaceClass).toContain("pt-[calc(4px+var(--space-8))]");
     expect(surfaceClass.split(" ")).not.toContain("p-[var(--space-6)]");
     expect(accent).toContain("top-0");
@@ -212,7 +213,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(dropdownSurface).not.toContain("min-h-[384px]");
     expect(dropdownSurface).not.toContain("h-auto");
     expect(dropdownSurface.split(" ")).not.toContain("p-[var(--space-6)]");
-    expect(tokens).toMatch(/--space-12:\s*3rem/);
+    expect(tokens).toMatch(/--space-8:\s*2rem/);
   });
 
   it("puts Identity and Close/44 on one top row, centers aligned", () => {
@@ -412,7 +413,15 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(attrClass(html, "data-account-sheet-surface")).not.toContain("max-h-[90dvh]");
     expect(attrClass(html, "data-account-sheet-surface")).toContain("gap-[var(--space-6)]");
     expect(pinClass).toBe(ACCOUNT_SHEET_PIN_CLASS);
-    expect(pinClass).toContain("gap-[var(--space-12)]");
+    expect(pinClass).toContain("gap-[var(--space-6)]");
+    expect(pinClass).not.toContain("gap-[var(--space-12)]");
+    expect(attrClass(html, "data-account-sheet-surface")).toContain("pb-[var(--space-8)]");
+    expect(attrClass(html, "data-account-sheet-surface")).not.toContain("pb-[var(--space-12)]");
+    const refer = html.indexOf('data-sheet-group-item="refer"');
+    const betweenReferAndLogout = html.slice(refer, logout);
+    expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
+    expect(betweenReferAndLogout).not.toContain("bg-hairline");
+    expect(html.slice(logout, footer)).toContain("data-account-sheet-footer-rule");
     const logoutStack = html.slice(
       html.indexOf("data-account-sheet-logout-stack"),
       html.indexOf("</div>", html.indexOf("data-account-sheet-logout-stack")),
@@ -433,6 +442,13 @@ describe("AccountSheet 544:561 / 537:557", () => {
     )).toContain("AppSheetHairline");
     expect(src).not.toContain("data-account-sheet-logout-rule");
     expect(src).toContain("data-account-sheet-footer-rule");
+    expect(src).toContain("571:911 stays off");
+    expect(src).toContain("618:785");
+    expect(src).toContain("Log out → hairline 24");
+    expect(src).toContain("Hairline → footer 24");
+    expect(src).toContain("Footer → bottom 32");
+    expect(src).not.toContain("Log out → hairline 48");
+    expect(src).not.toContain("Footer → bottom 48");
     expect(html).toContain(userMenuVersion());
     expect(html).toContain(">v0.1.0<");
     expect(html).toContain(USER_MENU.legal);
