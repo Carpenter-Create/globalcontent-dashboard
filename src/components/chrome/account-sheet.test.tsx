@@ -15,7 +15,6 @@ vi.mock("@/app/actions", () => ({ signOut: vi.fn() }));
 import { NAV, GC_NAV, MOBILE_NAV } from "@/lib/nav";
 import {
   ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
-  ACCOUNT_MENU_APPEARANCE_COPY_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
   ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
@@ -502,10 +501,13 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(washClass).toContain("-left-[var(--space-6)]");
     expect(washClass).toContain("z-0");
     expect(washClass).not.toContain("rounded");
+    expect(attrClass(sheet, "data-account-menu-appearance-chevron")).toBe(
+      ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
+    );
+    expect(attrClass(sheet, "data-account-menu-appearance-chevron")).toContain("z-10");
     expect(src).toContain("AccountAppearanceChevron");
     expect(src).toContain("ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS");
-    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS);
-    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_COPY_CLASS);
+    expect(src).toContain("ACCOUNT_MENU_APPEARANCE_COPY_CLASS");
     expect(src).toContain("AccountAppearanceFlyout");
     expect(src).toContain("applyDocumentThemePreference");
     expect(src).toContain("AppearanceCheck");
@@ -755,8 +757,10 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(washClass).toContain("-left-[var(--space-6)]");
     expect(washClass).toContain("z-0");
     expect(washClass).not.toContain("rounded");
-    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS);
-    expect(src).toContain(ACCOUNT_MENU_APPEARANCE_COPY_CLASS);
+    expect(attrClass(appearance, "data-account-menu-appearance-chevron")).toBe(
+      ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
+    );
+    expect(attrClass(appearance, "data-account-menu-appearance-chevron")).toContain("z-10");
   });
 
   it("opens from the desktop avatar and does not reuse the 90% sheet", () => {

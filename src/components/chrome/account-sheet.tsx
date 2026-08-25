@@ -79,7 +79,10 @@ function AccountRowChevron() {
 
 function AccountAppearanceChevron() {
   return (
-    <span className={ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS}>
+    <span
+      data-account-menu-appearance-chevron=""
+      className={ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS}
+    >
       <AccountRowChevron />
     </span>
   );
