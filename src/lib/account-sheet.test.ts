@@ -8,6 +8,8 @@ import {
   ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_OFFSET,
+  accountMenuAppearanceFlyoutRight,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS,
   ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
   ACCOUNT_MENU_APPEARANCE_WASH_CLASS,
@@ -126,6 +128,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_PIN_CLASS).toContain("shrink-0");
     expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).toBe("flex w-full shrink-0 flex-col");
     expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("gap-");
+    expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("hairline");
   });
 
   it("locks the 586:768 / 586:814 desktop dropdown to 264 × 672 leftover grow 134", () => {
@@ -174,6 +177,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("mt-");
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).toContain("gap-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("gap-[var(--space-12)]");
+    expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("hairline");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("shrink-0");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("flex-1");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
@@ -217,14 +221,19 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS).toBe("text-ink");
     expect(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS).not.toContain("purple");
     expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP).toBe("var(--space-2)");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_OFFSET).toBe(0);
   });
 
-  it("sits the desktop 613:888 flyout 8px left of the 264 parent", () => {
+  it("sits the desktop 613:888 flyout on the Appearance row — offset 0, gap 8 left, 264", () => {
     const parent = { top: "calc(44px + var(--space-2))", right: "16px" };
-    const flyout = accountMenuAppearanceFlyoutAlign(parent);
+    const row = { top: 313 };
+    const flyout = accountMenuAppearanceFlyoutAlign(parent, row);
 
-    expect(flyout.top).toBe(parent.top);
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_OFFSET).toBe(0);
+    expect(flyout.top).toBe("313px");
+    expect(flyout.top).not.toBe(parent.top);
     expect(flyout.right).toBe("calc(16px + 264px + var(--space-2))");
+    expect(flyout.right).toBe(accountMenuAppearanceFlyoutRight(parent));
     expect(flyout.right).not.toBe(parent.right);
   });
 

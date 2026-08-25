@@ -413,8 +413,24 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(attrClass(html, "data-account-sheet-surface")).toContain("gap-[var(--space-6)]");
     expect(pinClass).toBe(ACCOUNT_SHEET_PIN_CLASS);
     expect(pinClass).toContain("gap-[var(--space-12)]");
+    const logoutStack = html.slice(
+      html.indexOf("data-account-sheet-logout-stack"),
+      html.indexOf("</div>", html.indexOf("data-account-sheet-logout-stack")),
+    );
+    expect(logoutStack).toContain("logOut");
+    expect(logoutStack).not.toContain("data-account-sheet-footer-rule");
+    expect(logoutStack).not.toContain("bg-hairline");
     expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
     expect(src).toContain('data-account-sheet-pin=""');
+    expect(src).toContain("<AccountMenuPin");
+    expect(src.slice(
+      src.indexOf("function AccountMenuLogOut"),
+      src.indexOf("function AccountMenuPin"),
+    )).not.toContain("AppSheetHairline");
+    expect(src.slice(
+      src.indexOf("function AccountMenuPin"),
+      src.indexOf("function AccountAppearanceRow"),
+    )).toContain("AppSheetHairline");
     expect(src).not.toContain("data-account-sheet-logout-rule");
     expect(src).toContain("data-account-sheet-footer-rule");
     expect(html).toContain(userMenuVersion());
@@ -700,8 +716,16 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
     expect(betweenReferAndLogout).not.toContain("bg-hairline");
     expect(html.slice(logout, footer)).toContain("data-account-sheet-footer-rule");
+    const logoutStack = html.slice(
+      html.indexOf("data-account-sheet-logout-stack"),
+      html.indexOf("</div>", html.indexOf("data-account-sheet-logout-stack")),
+    );
+    expect(logoutStack).toContain("logOut");
+    expect(logoutStack).not.toContain("data-account-sheet-footer-rule");
+    expect(logoutStack).not.toContain("bg-hairline");
     expect(src).toContain("ACCOUNT_MENU_DROPDOWN_PIN_CLASS");
     expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
+    expect(src).toContain("<AccountMenuPin");
   });
 
   it("keeps the same SSOT items, Sporty Blue Log out, and pinned 13/16 footer", () => {
@@ -776,6 +800,12 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(appearance).not.toContain("data-account-sheet-appearance-stack");
     expect(appearance).not.toContain("data-account-sheet-appearance-flyout-host");
     expect(flyoutHost).toContain("calc(16px + 264px + var(--space-2))");
+    expect(flyoutHost).not.toContain("calc(44px + var(--space-2))");
+    expect(src).toContain("accountMenuAppearanceFlyoutAlign(alignEnd, row.getBoundingClientRect())");
+    expect(src).toContain("appearanceRowRef");
+    expect(src).toContain("host.style.top = align.top");
+    expect(src).not.toContain("top: parent.top");
+    expect(src).not.toContain("top: alignEnd.top");
     expect(washClass).toContain("-left-[var(--space-6)]");
     expect(washClass).toContain("z-0");
     expect(washClass).not.toContain("rounded");

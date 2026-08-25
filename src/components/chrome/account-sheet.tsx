@@ -23,6 +23,7 @@ import {
   ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS,
+  accountMenuAppearanceFlyoutRight,
   ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS,
   ACCOUNT_MENU_APPEARANCE_MODE_CLASS,
   ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
@@ -209,7 +210,22 @@ function AccountMenuLogOut({ onClose }: { onClose: () => void }) {
         <LogOut className="size-4 shrink-0" strokeWidth={1.33} />
         {USER_MENU.logOut}
       </button>
+    </div>
+  );
+}
+
+function AccountMenuPin({
+  onClose,
+  className,
+}: {
+  onClose: () => void;
+  className: string;
+}) {
+  return (
+    <div data-account-sheet-pin="" className={className}>
+      <AccountMenuLogOut onClose={onClose} />
       <AppSheetHairline data-account-sheet-footer-rule="" />
+      <AccountMenuFooter />
     </div>
   );
 }
@@ -217,15 +233,18 @@ function AccountMenuLogOut({ onClose }: { onClose: () => void }) {
 function AccountAppearanceRow({
   open,
   onClick,
+  rowRef,
 }: {
   open: boolean;
   onClick: () => void;
+  rowRef?: Ref<HTMLButtonElement>;
 }) {
   const preference = useThemePreference();
 
   return (
     <button
       type="button"
+      ref={rowRef}
       data-sheet-group-item="appearance"
       data-user-menu-item="appearance"
       aria-expanded={open}
@@ -298,12 +317,14 @@ function AccountMenuItems({
   face,
   setFace,
   appearanceFlyout,
+  appearanceRowRef,
 }: {
   pathname: string;
   onClose: () => void;
   face: AccountMenuFace;
   setFace: (face: AccountMenuFace) => void;
   appearanceFlyout?: ReactNode;
+  appearanceRowRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <>
@@ -313,6 +334,7 @@ function AccountMenuItems({
             <AccountAppearanceRow
               open={face === "appearance"}
               onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
+              rowRef={appearanceRowRef}
             />
           );
           if (!appearanceFlyout) {
@@ -321,6 +343,7 @@ function AccountMenuItems({
                 key={item.kind}
                 open={face === "appearance"}
                 onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
+                rowRef={appearanceRowRef}
               />
             );
           }
@@ -359,6 +382,7 @@ function AccountMenuBody({
   face,
   setFace,
   variant,
+  appearanceRowRef,
 }: {
   email: string;
   name?: string | null;
@@ -367,6 +391,7 @@ function AccountMenuBody({
   face: AccountMenuFace;
   setFace: (face: AccountMenuFace) => void;
   variant: "sheet" | "dropdown";
+  appearanceRowRef?: Ref<HTMLButtonElement>;
 }) {
   const identity = accountSheetIdentity(email, name);
   const stacked = variant === "dropdown";
@@ -376,6 +401,7 @@ function AccountMenuBody({
       onClose={onClose}
       face={face}
       setFace={setFace}
+      appearanceRowRef={stacked ? appearanceRowRef : undefined}
       appearanceFlyout={
         !stacked && face === "appearance" ? (
           <div
@@ -411,10 +437,7 @@ function AccountMenuBody({
           </div>
         </div>
         <div data-account-menu-leftover="" className={ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS} />
-        <div data-account-sheet-pin="" className={ACCOUNT_MENU_DROPDOWN_PIN_CLASS}>
-          <AccountMenuLogOut onClose={onClose} />
-          <AccountMenuFooter />
-        </div>
+        <AccountMenuPin onClose={onClose} className={ACCOUNT_MENU_DROPDOWN_PIN_CLASS} />
       </>
     );
   }
@@ -438,10 +461,7 @@ function AccountMenuBody({
       <div data-account-sheet-scroll="" className={ACCOUNT_SHEET_SCROLL_CLASS}>
         <SheetGroup>{items}</SheetGroup>
       </div>
-      <div data-account-sheet-pin="" className={ACCOUNT_SHEET_PIN_CLASS}>
-        <AccountMenuLogOut onClose={onClose} />
-        <AccountMenuFooter />
-      </div>
+      <AccountMenuPin onClose={onClose} className={ACCOUNT_SHEET_PIN_CLASS} />
     </>
   );
 }
@@ -453,9 +473,9 @@ function AccountMenuBody({
 // Open Appearance is 618:785 — flyout ON the sheet at x=24 w=342,
 // gap 8 under Appearance. Not leftover. Not beside. Not an in-place
 // replace. Closed sheet stays 544:561 / 537:557.
-// Leftover under the last item is the 90% grow (open white). Log out
-// + footer are the bottom group. Hairline only under Log out.
-// Log out → footer 48. Footer → bottom 48.
+// Leftover under the last item is the 90% grow (open white). Log out,
+// hairline, footer are pin siblings. Hairline only under Log out.
+// Log out → hairline 48. Hairline → footer 48. Footer → bottom 48.
 export function MobileAccountMenu({
   email,
   name,
@@ -488,11 +508,12 @@ export function MobileAccountMenu({
 // grow 134. NOT 384. Align-end to the avatar (right edge flush).
 // 8px under the trigger. Close killed. Stacked identity. 24 pad.
 // 24 between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 134. Pin Log out
-// + footer to the bottom. Hairline only under Log out. Log out →
-// footer 24. Footer → bottom 24. Not a 90% sheet. Not a tall right
-// takeover. Appearance 613:888 sits as a second 264 surface, gap 8
-// left of this parent.
+// Leftover above Log out is flex-1 grow with min-h 134. Pin Log out,
+// hairline, footer as siblings. Hairline only under Log out. Log out
+// → hairline 24. Hairline → footer 24. Do not hug the rule. Footer
+// → bottom 24. Not a 90% sheet. Not a tall right takeover.
+// Appearance 613:888 sits as a second 264 surface, gap 8 left of
+// this parent. Flyout top = Appearance row top, offset 0.
 export function DesktopAccountMenu({
   email,
   name,
@@ -597,7 +618,26 @@ export function AccountMenuDropdown({
 }) {
   const [face, setFace] = useState<AccountMenuFace>(initialFace);
   useAccountMenuDismiss(onClose, false);
-  const flyoutAlign = alignEnd ? accountMenuAppearanceFlyoutAlign(alignEnd) : undefined;
+  const appearanceRowRef = useRef<HTMLButtonElement>(null);
+  const flyoutHostRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (face !== "appearance" || !alignEnd) return undefined;
+    const sync = () => {
+      const row = appearanceRowRef.current;
+      const host = flyoutHostRef.current;
+      if (!row || !host) return;
+      const align = accountMenuAppearanceFlyoutAlign(alignEnd, row.getBoundingClientRect());
+      host.style.top = align.top;
+    };
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, [face, alignEnd]);
+
+  const flyoutRight = alignEnd
+    ? { right: accountMenuAppearanceFlyoutRight(alignEnd) }
+    : undefined;
 
   return (
     <div
@@ -630,13 +670,15 @@ export function AccountMenuDropdown({
           face={face}
           setFace={setFace}
           variant="dropdown"
+          appearanceRowRef={appearanceRowRef}
         />
       </div>
       {face === "appearance" ? (
         <div
+          ref={flyoutHostRef}
           data-user-menu-appearance-flyout-host=""
           className={ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS}
-          style={flyoutAlign}
+          style={flyoutRight}
         >
           <AccountAppearanceFlyout />
         </div>

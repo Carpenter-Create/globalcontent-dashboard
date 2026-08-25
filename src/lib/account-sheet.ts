@@ -11,12 +11,14 @@
 // hairline above Log out. #209 #210 #211 hug / hairline-sandwich are
 // void. 384 is void.
 // Mobile is a 90% sheet — leftover above Log out is flex-1 grow
-// (open white). Do not hug. Log out + footer stay at the bottom.
-// 48 / 48 holds. Closed sheet is 544:561 / 537:557. Open Appearance
-// is 618:785 — flyout ON the sheet at x=24 w=342, gap 8 under
-// Appearance. Not leftover. Not beside. Desktop is 264 × 672
-// leftover grow 134, align-end. 24 pad. 24 between Profile /
-// Agreements / Appearance / Help / Refer. Labels stay one source.
+// (open white). Do not hug. Log out, hairline, footer stay at the
+// bottom. Log out → hairline 48. Hairline → footer 48. Closed
+// sheet is 544:561 / 537:557. Open Appearance is 618:785 — flyout
+// ON the sheet at x=24 w=342, gap 8 under Appearance. Not leftover.
+// Not beside. Desktop is 264 × 672 leftover grow 134, align-end.
+// 24 pad. 24 between Profile / Agreements / Appearance / Help /
+// Refer. Log out → hairline 24. Hairline → footer 24. 613:888 top
+// is the Appearance row, offset 0. Labels stay one source.
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU_ACTIONS, userMenuAvatarInitial, userMenuName } from "@/lib/user-menu";
@@ -67,13 +69,14 @@ export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col";
 export const ACCOUNT_SHEET_LOGOUT_CLASS =
   "flex items-center gap-[var(--space-2)] text-[length:var(--text-base)] font-normal leading-5 text-accent";
 
-// Mobile pin — Log out + footer are the bottom group. Log out →
-// footer 48. Footer → bottom 48. 48 is mobile only. Leftover above
-// Log out is the 90% grow. Do not put Log out in the item group.
+// Mobile pin — Log out, hairline, footer are siblings. Log out →
+// hairline 48. Hairline → footer 48. Footer → bottom 48. 48 is
+// mobile only. Leftover above Log out is the 90% grow. Do not put
+// Log out in the item group. Pin gap is not (Log out+rule) → footer.
 export const ACCOUNT_SHEET_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-12)]";
 
-// Hairline sits flush under Log out. Not a second rule above it.
+// Log out only. Hairline is the next pin sibling — do not hug the rule.
 export const ACCOUNT_SHEET_LOGOUT_STACK_CLASS = "flex w-full shrink-0 flex-col";
 
 // Footer on both menus — 13 Regular / 16. Version tertiary. Legal Sporty Blue.
@@ -89,8 +92,10 @@ export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 // (--space-2) under the trigger. Not a 90% sheet. 24 pad. 24
 // between Profile / Agreements / Appearance / Help / Refer.
 // Leftover above Log out is flex-1 grow with min-h 134. Pin Log
-// out + footer to the bottom. Hairline only under Log out. Log out
-// → footer 24. Footer → bottom 24. padT 28 (4 bar + 24 air).
+// out, hairline, footer as siblings. Hairline only under Log out.
+// Log out → hairline 24. Hairline → footer 24. Do not hug the
+// rule. Pin gap is not (Log out+rule) → footer. Footer → bottom
+// 24. padT 28 (4 bar + 24 air).
 // Not a tall right takeover. Close killed — dismiss on outside click
 // / avatar. Stacked identity. No ellipsis. Half-bar is 132×4 = 50% of 264.
 // The surface is portaled to body, so top/right are measured from the
@@ -137,8 +142,9 @@ export const ACCOUNT_MENU_DROPDOWN_STAGE_CLASS =
 export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
   "flex w-full flex-col items-start gap-[var(--space-6)]";
 
-// Desktop pin — Log out → footer 24. Leftover above Log out is
-// flex-1 grow with min-h 134, not a packed 24 list row.
+// Desktop pin — Log out → hairline 24. Hairline → footer 24.
+// Leftover above Log out is flex-1 grow with min-h 134, not a
+// packed 24 list row. Pin gap is not (Log out+rule) → footer.
 export const ACCOUNT_MENU_DROPDOWN_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-6)]";
 
@@ -165,8 +171,11 @@ export const ACCOUNT_MENU_APPEARANCE_MODE_CLASS =
   "t-body-sm font-normal leading-4 text-ink-2";
 
 // 613:888 — second 264 surface. Desktop: gap 8 left of the parent.
+// Top = Appearance row top, offset 0. Not parent menu top.
 // Row pad 16 / gap 8. r12 hairline. Not in-place. No purple.
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP = "var(--space-2)" as const;
+
+export const ACCOUNT_MENU_APPEARANCE_FLYOUT_OFFSET = 0;
 
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS =
   "flex w-[264px] max-w-full flex-col gap-[var(--space-2)] overflow-hidden rounded-[12px] border border-hairline bg-surface py-[var(--space-2)]";
@@ -196,12 +205,19 @@ export const ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS =
   "absolute z-10 w-[264px]";
 
 export function accountMenuAppearanceFlyoutAlign(
-  parent: AccountMenuDropdownAlign,
+  parent: Pick<AccountMenuDropdownAlign, "right">,
+  appearanceRow: Pick<DOMRect, "top">,
 ): AccountMenuDropdownAlign {
   return {
-    top: parent.top,
+    top: `${appearanceRow.top + ACCOUNT_MENU_APPEARANCE_FLYOUT_OFFSET}px`,
     right: `calc(${parent.right} + ${ACCOUNT_MENU_DROPDOWN_WIDTH}px + ${ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP})`,
   };
+}
+
+export function accountMenuAppearanceFlyoutRight(
+  parent: Pick<AccountMenuDropdownAlign, "right">,
+): string {
+  return `calc(${parent.right} + ${ACCOUNT_MENU_DROPDOWN_WIDTH}px + ${ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP})`;
 }
 
 export type AccountSheetIdentity = {
