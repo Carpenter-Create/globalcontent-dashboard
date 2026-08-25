@@ -168,7 +168,6 @@ function AccountMenuFooter() {
 function AccountMenuLogOut({ onClose }: { onClose: () => void }) {
   return (
     <div data-account-sheet-logout-stack="" className={ACCOUNT_SHEET_LOGOUT_STACK_CLASS}>
-      <AppSheetHairline data-account-sheet-logout-rule="" />
       <button
         type="button"
         data-sheet-group-item="logOut"
@@ -280,12 +279,12 @@ function AccountMenuBody({
 }
 
 // Mobile 544:561 / 537:557 — avatar opens this sheet. Hamburger stays the nav sheet.
-// Quiet scrim; page stays under. Hug height, cap 90%. Slides up. Do
-// not restyle to the desktop hug dropdown.
+// Quiet scrim; page stays under. 90% viewport, slides up. Hug is void.
+// Do not restyle to the desktop leftover dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
-// Appearance opens the second face. No leftover field above Log out.
-// Log out + footer are the bottom group. Hairline above Log out.
-// Hairline under Log out. Log out → footer 48. Footer → bottom 48.
+// Appearance opens the second face. Leftover under the last item is
+// the 90% grow (open white). Log out + footer are the bottom group.
+// Hairline only under Log out. Log out → footer 48. Footer → bottom 48.
 export function MobileAccountMenu({
   email,
   name,
@@ -314,13 +313,13 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 586:768 / 586:814 — same items as mobile. 264 hug. Align-end
-// to the avatar (right edge flush). 8px under the trigger. Close killed.
-// Stacked identity. 24 pad. 24 between Profile / Agreements /
-// Appearance / Help / Refer. Log out + footer are the bottom group —
-// not a 24 list row. Hairline above and under Log out. 24 under
-// footer. Do not invent leftover. Not a 90% sheet. Not a tall right
-// takeover.
+// Desktop 586:768 / 586:814 — same items as mobile. 264 × min-h 426
+// leftover grow. NOT 384. Align-end to the avatar (right edge flush).
+// 8px under the trigger. Close killed. Stacked identity. 24 pad.
+// 24 between Profile / Agreements / Appearance / Help / Refer.
+// Leftover above Log out is flex-1 grow. Pin Log out + footer to
+// the bottom. Hairline only under Log out. Log out → footer 24.
+// Footer → bottom 16. Not a 90% sheet. Not a tall right takeover.
 export function DesktopAccountMenu({
   email,
   name,
