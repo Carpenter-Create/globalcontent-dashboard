@@ -139,7 +139,9 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(scrimClass).toContain(APP_SHEET_SCRIM_FADE_CLASS);
     expect(surfaceClass).toBe(ACCOUNT_SHEET_SURFACE_CLASS);
     expect(surfaceClass).toContain(APP_SHEET_RISE_CLASS);
-    expect(surfaceClass).toContain("h-[90dvh]");
+    expect(surfaceClass).toContain("h-auto");
+    expect(surfaceClass).toContain("max-h-[90dvh]");
+    expect(surfaceClass.split(" ")).not.toContain("h-[90dvh]");
     expect(surfaceClass).toContain("rounded-t-[16px]");
     expect(surfaceClass).toContain("bg-surface");
     expect(surfaceClass).toContain("px-[var(--space-6)]");
@@ -149,8 +151,6 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(surfaceClass).not.toContain("md:w-[390px]");
     expect(surfaceClass).not.toContain("w-[264px]");
     expect(surfaceClass).not.toContain("w-[277px]");
-    expect(surfaceClass).not.toContain("h-auto");
-    expect(surfaceClass).not.toContain("max-h-[90dvh]");
     expect(surfaceClass).not.toContain("top-[var(--header-height)]");
     expect(surfaceClass).not.toContain("rounded-t-[24px]");
     expect(headClass).toBe(ACCOUNT_SHEET_HEAD_CLASS);
@@ -361,9 +361,10 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).not.toContain("Auto");
   });
 
-  it("keeps Log out with the footer — leftover is the 90% grow, hairline only under Log out", () => {
+  it("hugs content, caps 90%, and puts Log out between two hairlines — no leftover field", () => {
     const html = renderSheet();
     const scrollEnd = html.indexOf("data-account-sheet-scroll");
+    const logoutRule = html.indexOf("data-account-sheet-logout-rule");
     const logout = html.indexOf('data-sheet-group-item="logOut"');
     const footerRule = html.indexOf("data-account-sheet-footer-rule");
     const footer = html.indexOf('data-account-sheet-footer=""');
@@ -373,26 +374,28 @@ describe("AccountSheet 544:561 / 537:557", () => {
     const scrollClass = attrClass(html, "data-account-sheet-scroll");
     const groupEnd = html.indexOf("</div>", html.indexOf('data-sheet-group-item="refer"'));
 
-    expect(html).not.toContain("data-account-sheet-logout-rule");
-    expect(logout).toBeGreaterThan(scrollEnd);
+    expect(html).toContain("data-account-sheet-logout-rule");
+    expect(logoutRule).toBeGreaterThan(scrollEnd);
+    expect(logout).toBeGreaterThan(logoutRule);
     expect(footerRule).toBeGreaterThan(logout);
     expect(footer).toBeGreaterThan(footerRule);
     expect(version).toBeGreaterThan(footer);
     expect(legal).toBeGreaterThan(version);
     expect(groupEnd).toBeGreaterThan(-1);
-    expect(groupEnd).toBeLessThan(logout);
+    expect(groupEnd).toBeLessThan(logoutRule);
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), logout)).not.toContain("Log out");
     expect(html.slice(html.indexOf("data-account-sheet-scroll"), logout)).not.toContain("v0.1.0");
-    expect(scrollClass).toContain("flex-1");
-    expect(attrClass(html, "data-account-sheet-surface")).toContain("h-[90dvh]");
-    expect(attrClass(html, "data-account-sheet-surface")).not.toContain("h-auto");
-    expect(attrClass(html, "data-account-sheet-surface")).not.toContain("max-h-[90dvh]");
+    expect(scrollClass).not.toContain("flex-1");
+    expect(attrClass(html, "data-account-sheet-surface")).toContain("h-auto");
+    expect(attrClass(html, "data-account-sheet-surface")).toContain("max-h-[90dvh]");
+    expect(attrClass(html, "data-account-sheet-surface").split(" ")).not.toContain("h-[90dvh]");
     expect(attrClass(html, "data-account-sheet-surface")).toContain("gap-[var(--space-6)]");
     expect(pinClass).toBe(ACCOUNT_SHEET_PIN_CLASS);
     expect(pinClass).toContain("gap-[var(--space-12)]");
     expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
     expect(src).toContain('data-account-sheet-pin=""');
-    expect(src).not.toContain("data-account-sheet-logout-rule");
+    expect(src).toContain("data-account-sheet-logout-rule");
+    expect(src).toContain("data-account-sheet-footer-rule");
     expect(html).toContain(userMenuVersion());
     expect(html).toContain(">v0.1.0<");
     expect(html).toContain(USER_MENU.legal);
@@ -587,20 +590,21 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(src).toContain('variant="sheet"');
   });
 
-  it("keeps 24 between items — Log out + footer are the bottom group with 48 above Log out", () => {
+  it("keeps 24 between items — Log out sits between two hairlines, 24 under footer, no leftover", () => {
     const html = renderDropdown();
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
     const scrollClass = attrClass(html, "data-account-sheet-scroll");
     const groupClass = attrClass(html, "data-sheet-group");
     const pinClass = attrClass(html, "data-account-sheet-pin");
     const refer = html.indexOf('data-sheet-group-item="refer"');
+    const logoutRule = html.indexOf("data-account-sheet-logout-rule");
     const logout = html.indexOf('data-sheet-group-item="logOut"');
     const footerRule = html.indexOf("data-account-sheet-footer-rule");
     const footer = html.indexOf('data-account-sheet-footer=""');
     const betweenReferAndLogout = html.slice(refer, logout);
 
     expect(html).toContain("data-account-sheet-pin");
-    expect(html).not.toContain("data-account-sheet-logout-rule");
+    expect(html).toContain("data-account-sheet-logout-rule");
     expect(surfaceClass).toContain("h-auto");
     expect(surfaceClass).toContain("w-[264px]");
     expect(surfaceClass).toContain("gap-[var(--space-6)]");
@@ -618,15 +622,16 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(groupClass).toContain("gap-[var(--space-6)]");
     expect(groupClass).not.toContain("gap-[var(--space-4)]");
     expect(pinClass).toBe(ACCOUNT_MENU_DROPDOWN_PIN_CLASS);
-    expect(pinClass).toContain("mt-[var(--space-6)]");
+    expect(pinClass).not.toContain("mt-");
     expect(pinClass).toContain("gap-[var(--space-6)]");
     expect(pinClass).not.toContain("gap-[var(--space-12)]");
     expect(refer).toBeGreaterThan(-1);
-    expect(logout).toBeGreaterThan(refer);
+    expect(logoutRule).toBeGreaterThan(refer);
+    expect(logout).toBeGreaterThan(logoutRule);
     expect(footerRule).toBeGreaterThan(logout);
     expect(footer).toBeGreaterThan(footerRule);
+    expect(betweenReferAndLogout).toContain("data-account-sheet-logout-rule");
     expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
-    expect(betweenReferAndLogout).not.toContain("bg-hairline");
     expect(html.slice(logout, footer)).toContain("data-account-sheet-footer-rule");
     expect(src).toContain("ACCOUNT_MENU_DROPDOWN_PIN_CLASS");
     expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
