@@ -475,7 +475,9 @@ function AccountMenuBody({
 // replace. Closed sheet stays 544:561 / 537:557.
 // Leftover under the last item is the 90% grow (open white). Log out,
 // hairline, footer are pin siblings. Hairline only under Log out.
-// Log out → hairline 48. Hairline → footer 48. Footer → bottom 48.
+// Do not add a hairline above Log out. 571:911 stays off.
+// Log out → hairline 24. Hairline → footer 24. Footer → bottom 32
+// (sheet pad B). Not 48/48/48.
 export function MobileAccountMenu({
   email,
   name,
