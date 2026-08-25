@@ -23,9 +23,7 @@ import {
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
-  ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS,
-  ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
-  ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_COPY_CLASS,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
   ACCOUNT_SHEET_HEAD_CLASS,
@@ -232,7 +230,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(attrClass(html, "data-account-sheet-head")).toContain("justify-between");
   });
 
-  it("keeps the Identity half-bar on the 90% sheet while 613:888 is open", () => {
+  it("keeps the Identity half-bar on the same 90% sheet while Appearance is open", () => {
     const main = renderSheet();
     const appearance = renderToStaticMarkup(
       <AccountSheet
@@ -254,7 +252,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(accent).not.toContain("bg-hairline");
     expect(appearance).toContain("data-menu-surface-accent");
     expect(appearance).toContain("data-identity-block");
-    expect(appearance).toContain("data-account-menu-appearance-flyout");
+    expect(appearance).toContain("data-account-sheet-close");
+    expect(appearance).not.toContain("data-account-menu-appearance-flyout");
     expect(src).toContain("<MenuSurfaceAccent");
     expect(src).not.toContain('{face === "main" ? <MenuSurfaceAccent /> : null}');
     expect(src).not.toContain("Adam Carpenter");
@@ -443,7 +442,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(src).not.toContain("data-account-sheet-logout-rule");
     expect(src).toContain("data-account-sheet-footer-rule");
     expect(src).toContain("571:911 stays off");
-    expect(src).toContain("618:785");
+    expect(src).toContain("618:785 overlay");
+    expect(src).toContain("is void");
     expect(src).toContain("Log out → hairline 24");
     expect(src).toContain("Hairline → footer 24");
     expect(src).toContain("Footer → bottom 32");
@@ -492,8 +492,8 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(src).not.toContain("type=\"radio\"");
   });
 
-  it("opens 613:888 as a second surface — System default + helper / Dark / Light, check 16", () => {
-    const html = renderToStaticMarkup(<AccountSheetAppearance />);
+  it("opens Appearance as a same-sheet drill-in — Back 16 tertiary, System default + helper / Dark / Light, check 16", () => {
+    const html = renderToStaticMarkup(<AccountSheetAppearance onBack={() => undefined} />);
     const sheet = renderToStaticMarkup(
       <AccountSheet
         email="ada@example.com"
@@ -502,15 +502,19 @@ describe("AccountSheet 544:561 / 537:557", () => {
         face="appearance"
       />,
     );
+    const backClass = attrClass(html, 'data-sheet-group-item="back"');
     const lightClass = attrClass(html, 'data-sheet-group-item="light"');
     const darkClass = attrClass(html, 'data-sheet-group-item="dark"');
     const autoClass = attrClass(html, 'data-sheet-group-item="auto"');
-    const flyoutClass = attrClass(sheet, "data-account-menu-appearance-flyout");
-    const washClass = attrClass(sheet, "data-account-menu-appearance-wash");
+    const backTag = tagWith(html, 'data-sheet-group-item="back"');
 
     expect(html).not.toContain("Back to main menu");
-    expect(html).not.toContain("data-sheet-group-item=\"back\"");
-    expect(html).not.toContain("lucide-chevron-left");
+    expect(backTag).toContain(`aria-label="${APPEARANCE.back}"`);
+    expect(html).toContain("lucide-chevron-left");
+    expect(html).toContain(SHEET_GROUP_CHEVRON_CLASS);
+    expect(html).toContain("stroke-width=\"1.33\"");
+    expect(html).toContain("text-ink-3");
+    expect(backTag).not.toContain("Back to main menu");
     expect(html).toContain(APPEARANCE.systemDefault);
     expect(html.replaceAll("&#x27;", "'")).toContain(APPEARANCE.systemDefaultHelper);
     expect(html).toContain(APPEARANCE.light);
@@ -524,45 +528,34 @@ describe("AccountSheet 544:561 / 537:557", () => {
     expect(html).not.toContain("ThemeGlyph");
     expect(html).not.toContain("purple");
     expect(html).not.toContain("violet");
+    expect(backClass).toBe(SHEET_GROUP_ITEM_CLASS);
     expect(lightClass).toBe(darkClass);
     expect(lightClass).toBe(autoClass);
+    expect(lightClass).toBe(SHEET_GROUP_ITEM_CLASS);
+    expect(html).toContain(ACCOUNT_SHEET_APPEARANCE_COPY_CLASS);
     expect(sheet).toContain("data-identity-block");
-    expect(sheet).toContain('data-sheet-group-item="profile"');
-    expect(sheet).toContain("data-account-menu-appearance-flyout");
-    expect(sheet).toContain("data-account-sheet-pin");
-    expect(flyoutClass).toBe(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS);
-    expect(flyoutClass).toContain("w-[342px]");
-    expect(flyoutClass).not.toContain("mt-auto");
-    expect(flyoutClass).not.toContain("max-w-[264px]");
-    expect(flyoutClass).not.toContain("w-[264px]");
-    expect(sheet).toContain("data-account-sheet-appearance-stack");
-    expect(sheet).toContain("data-account-sheet-appearance-flyout-host");
-    expect(attrClass(sheet, "data-account-sheet-appearance-flyout-host")).toBe(
-      ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
-    );
-    expect(attrClass(sheet, "data-account-sheet-appearance-flyout-host")).toContain(
-      "mt-[var(--space-2)]",
-    );
-    expect(attrClass(sheet, "data-appearance-check")).toBe(ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS);
-    expect(attrClass(sheet, "data-appearance-check")).toBe("text-ink");
-    expect(attrClass(sheet, "data-appearance-check")).not.toContain("text-ink-3");
-    expect(washClass).toContain("bg-surface-muted");
-    expect(washClass).toContain("-left-[var(--space-6)]");
-    expect(washClass).toContain("z-0");
-    expect(washClass).not.toContain("rounded");
-    expect(attrClass(sheet, "data-account-menu-appearance-chevron")).toBe(
-      ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
-    );
-    expect(attrClass(sheet, "data-account-menu-appearance-chevron")).toContain("z-10");
-    expect(src).toContain("AccountAppearanceChevron");
-    expect(src).toContain("ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS");
-    expect(src).toContain("ACCOUNT_MENU_APPEARANCE_COPY_CLASS");
+    expect(sheet).toContain("data-account-sheet-close");
+    expect(sheet).toContain('data-sheet-group-item="back"');
+    expect(sheet).not.toContain('data-sheet-group-item="profile"');
+    expect(sheet).not.toContain('data-sheet-group-item="appearance"');
+    expect(sheet).not.toContain("data-account-menu-appearance-flyout");
+    expect(sheet).not.toContain("data-account-sheet-pin");
+    expect(sheet).not.toContain("data-account-sheet-appearance-stack");
+    expect(sheet).not.toContain("data-account-sheet-appearance-flyout-host");
+    expect(sheet).not.toContain("w-[342px]");
+    expect(attrClass(sheet, "data-appearance-check")).toContain("text-ink-3");
+    expect(attrClass(sheet, "data-appearance-check")).not.toContain("text-ink ");
+    expect(sheet).not.toContain("data-account-menu-appearance-wash");
+    expect(src).toContain("AccountBackChevron");
+    expect(src).toContain("ChevronLeft");
+    expect(src).toContain("APPEARANCE.back");
     expect(src).toContain("AccountAppearanceFlyout");
     expect(src).toContain("applyDocumentThemePreference");
     expect(src).toContain("AppearanceCheck");
-    expect(src).not.toContain("ChevronLeft");
-    expect(src).not.toContain("AccountBackChevron");
+    expect(src).toContain("ACCOUNT_SHEET_APPEARANCE_COPY_CLASS");
     expect(src).not.toContain("Back to main menu");
+    expect(src).toContain("618:785 overlay is void");
+    expect(src).not.toContain("w-[342px]");
   });
 
   it("does not restyle Ask Globee landing or merge account into the hamburger sheet", () => {

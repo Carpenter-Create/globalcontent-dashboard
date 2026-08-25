@@ -3,9 +3,9 @@
 // Chrome may differ (sheet vs fuller panel). Labels may not.
 // Profile is /settings/profile. Agreements is /settings/agreements.
 // Refer a friend is /settings/refer. Company stays off this menu —
-// do not merge Company onto /settings. Appearance is a second
-// 613:888 surface, not a page — do not invent /account/appearance
-// or /settings/appearance.
+// do not merge Company onto /settings. Desktop Appearance is 613:888
+// beside. Mobile Appearance is a same-sheet drill-in. Not a page —
+// do not invent /account/appearance or /settings/appearance.
 // Help stays /help. Legal is the public site. Do not invent
 // /account/profile, Phone, Job, Notifications, Privacy, Manage account,
 // or a name derived from the email local-part.

@@ -3,21 +3,20 @@
 // Identity is avatar + name + email from the same values /settings/profile
 // would show. Always render both fields. No dashes, no invented
 // local-part name. Items after the Identity hairline are
-// USER_MENU_ACTIONS — the same list on mobile and desktop. Appearance
-// is a second 613:888 surface — not a page, not an in-place replace.
-// Destinations use existing routes only — not /account/appearance.
-// Company stays off this menu. Log out + version/Legal are the footer
-// group — not a packed list row. Hairline only under Log out. No
-// hairline above Log out. #209 #210 #211 hug / hairline-sandwich are
-// void. 384 is void.
+// USER_MENU_ACTIONS — the same list on mobile and desktop. Desktop
+// Appearance is 613:888 beside — not a page. Mobile Appearance is a
+// same-sheet drill-in that replaces the list face. Destinations use
+// existing routes only — not /account/appearance. Company stays off
+// this menu. Log out + version/Legal are the footer group — not a
+// packed list row. Hairline only under Log out. No hairline above
+// Log out. #209 #210 #211 hug / hairline-sandwich are void. 384 is
+// void. 618:785 overlay is void.
 // Mobile is a 90% sheet — leftover above Log out is flex-1 grow
 // (open white). Do not hug. Log out, hairline, footer stay at the
 // bottom. Log out → hairline 24. Hairline → footer 24. Footer →
 // bottom 32 (sheet pad B). Not 48/48/48. No hairline above Log
 // out. 571:911 stays off. Closed sheet is 544:561 / 537:557.
-// Open Appearance is 618:785 — flyout ON the sheet at x=24 w=342,
-// gap 8 under Appearance. Not leftover.
-// Not beside. Desktop is 264 × 672 leftover grow 134, align-end.
+// Desktop is 264 × 672 leftover grow 134, align-end.
 // 24 pad. 24 between Profile / Agreements / Appearance / Help /
 // Refer. Log out → hairline 24. Hairline → footer 24. 613:888 top
 // is the Appearance row, offset 0. Labels stay one source.
@@ -65,8 +64,7 @@ export const ACCOUNT_SHEET_SURFACE_CLASS =
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
 
-// Leftover grow. Overflow lives on the 90% surface so the Appearance
-// wash can full-bleed to L/R 0 — overflow-y-auto on this row clipped it.
+// Leftover grow. Overflow lives on the 90% surface.
 export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col";
 
 export const ACCOUNT_SHEET_LOGOUT_CLASS =
@@ -193,18 +191,10 @@ export const ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS =
 
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS = "size-4 shrink-0";
 
-// 618:785 — second surface ON the 90% sheet. x=24 (content inset)
-// w=342. Gap 8 under Appearance. Not leftover. Not beside. Not 264.
-// Closed 544:561 / 537:557 stays untouched.
-export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_WIDTH = 342;
-
-export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS =
-  "absolute left-0 top-full z-20 mt-[var(--space-2)]";
-
-export const ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS =
-  "flex w-[342px] flex-col gap-[var(--space-2)] overflow-hidden rounded-[12px] border border-hairline bg-surface py-[var(--space-2)]";
-
-export const ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS = "text-ink";
+// Mobile Appearance drill-in — same sheet, replaces the list face.
+// House rows. Not 618:785. Not a card. Not 613:888.
+export const ACCOUNT_SHEET_APPEARANCE_COPY_CLASS =
+  "flex min-w-0 flex-col items-start gap-[var(--space-2)]";
 
 export const ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS =
   "absolute z-10 w-[264px]";

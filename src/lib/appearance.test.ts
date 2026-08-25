@@ -14,7 +14,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("appearance copy", () => {
-  it("is a second 613:888 surface — System default / Dark / Light — not a page", () => {
+  it("keeps System default / Dark / Light — not a page", () => {
     expect(APPEARANCE.title).toBe("Appearance");
     expect(APPEARANCE.title).toBe(USER_MENU.appearance);
     expect(APPEARANCE.back).toBe("Back");
@@ -46,7 +46,7 @@ describe("appearance copy", () => {
     expect(existsSync(join(here, "../app/(app)/account/appearance/page.tsx"))).toBe(false);
   });
 
-  it("keeps the unused in-place Auto list off the 613:888 surface", () => {
+  it("keeps the unused Auto list off System default / Dark / Light", () => {
     expect(APPEARANCE.auto).toBe("Auto");
     expect(APPEARANCE_OPTIONS.map((option) => option.label)).toEqual(["Light", "Dark", "Auto"]);
     expect(APPEARANCE_FLYOUT_OPTIONS.map((option) => option.label)).not.toContain("Auto");
