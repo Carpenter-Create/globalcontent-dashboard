@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU, USER_MENU_ACTIONS } from "@/lib/user-menu";
+import * as accountSheet from "./account-sheet";
 import {
   ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
   ACCOUNT_MENU_APPEARANCE_COPY_CLASS,
@@ -18,11 +19,8 @@ import {
   ACCOUNT_MENU_DROPDOWN_GAP,
   ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
-  ACCOUNT_MENU_DROPDOWN_HEIGHT,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
-  ACCOUNT_MENU_DROPDOWN_LEFTOVER,
-  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
@@ -129,19 +127,21 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("hairline");
   });
 
-  it("locks the 629:795 desktop dropdown to 264 × 570 leftover 48", () => {
+  it("locks the 629:795 desktop dropdown to a 264 content hug — leftover 0", () => {
     expect(ACCOUNT_MENU_DROPDOWN_WIDTH).toBe(264);
-    expect(ACCOUNT_MENU_DROPDOWN_HEIGHT).toBe(570);
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER).toBe(48);
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).toBe("fixed inset-0 z-50");
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("justify-end");
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("h-dvh");
     expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).toBe("absolute inset-0");
     expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).not.toContain("bg-ink");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("h-[570px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("h-auto");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("w-[264px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toMatch(/h-\[\d+px\]/);
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[522px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[570px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[672px]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-auto");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h-[672px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h-[426px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h-[384px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[384px]");
@@ -181,10 +181,10 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("flex-1");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("h-[48px]");
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("shrink-0");
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("min-h-[134px]");
-    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("flex-1");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[48px]");
+    expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_HEIGHT");
+    expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_LEFTOVER");
+    expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS");
   });
 
   it("locks 586:768 Appearance wash and 613:888 as a second 264 surface", () => {
