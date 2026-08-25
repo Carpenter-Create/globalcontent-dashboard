@@ -7,8 +7,9 @@
 // opens the second face. Destinations use existing routes only — not
 // /account/appearance. Company stays off this menu. Log out stays with
 // the footer, not in the item group. Hairline only under Log out.
-// Mobile leftover between last item and Log out is the 90% grow.
-// Desktop is hug — 16 between every row, including Refer → Log out.
+// Mobile hugs content and caps at 90% — no leftover field above Log
+// out. 24 above Log out. Desktop is hug — 24 everywhere: pad 24, 24
+// between rows, 24 above Log out, 24 under footer.
 // Labels stay one source.
 
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
@@ -40,25 +41,26 @@ export const ACCOUNT_SHEET_ABSENT = [
 export const ACCOUNT_SHEET_ITEMS = USER_MENU_ACTIONS;
 
 // 544:561 / 537:557 — sides 24, bottom 48. 32 clear under the 4px half-bar
-// (padT 36 = 4+32) so the bar does not eat the top air. 90% viewport.
-// Identity 48 + Close/44 one row. Desktop 586:768 does not use this surface.
+// (padT 36 = 4+32) so the bar does not eat the top air. Hug height,
+// cap 90%. 24 above Log out. Identity 48 + Close/44 one row.
+// Desktop 586:768 does not use this surface.
 export const ACCOUNT_SHEET_HOST_CLASS =
   "fixed inset-0 z-50 flex h-dvh w-full flex-col justify-end";
 
 export const ACCOUNT_SHEET_SURFACE_CLASS =
-  "account-sheet-surface relative z-10 flex h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-12)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
+  "account-sheet-surface relative z-10 flex h-auto max-h-[90dvh] w-full flex-col gap-[var(--space-6)] rounded-t-[16px] bg-surface px-[var(--space-6)] pb-[var(--space-12)] pt-[calc(4px+var(--space-8))] app-sheet-rise";
 
 export const ACCOUNT_SHEET_HEAD_CLASS =
   "flex min-h-12 w-full shrink-0 items-center justify-between";
 
-export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 flex-1 flex-col overflow-y-auto";
+export const ACCOUNT_SHEET_SCROLL_CLASS = "flex min-h-0 w-full flex-col overflow-y-auto";
 
 export const ACCOUNT_SHEET_LOGOUT_CLASS =
   "flex items-center gap-[var(--space-2)] text-[length:var(--text-base)] font-normal leading-5 text-accent";
 
 // Mobile only — Log out + hairline stay with the footer. 48 to the
 // version/Legal row. Do not put Log out in the item group. Desktop
-// stays on the hug surface gap (16), so it does not use this pin.
+// stays on the hug surface gap (24), so it does not use this pin.
 export const ACCOUNT_SHEET_PIN_CLASS =
   "flex w-full shrink-0 flex-col gap-[var(--space-12)]";
 
@@ -75,10 +77,10 @@ export const ACCOUNT_SHEET_LEGAL_CLASS = `${TEXT_ACTION_CLASS} leading-4`;
 
 // 586:768 / 586:814 — 264 hug. Align-end to the avatar (right edge
 // flush). 8px (--space-2) under the trigger. Not a 90% sheet.
-// 16 between every row, including Refer → Log out. No leftover hole.
-// Not a tall right takeover. Pad 16. padT 28 (4 bar + 24 air). Gap 16.
-// Close killed — dismiss on outside click / avatar. Stacked identity.
-// No ellipsis. Half-bar is 132×4 = 50% of 264.
+// 24 everywhere: pad 24, 24 between rows, 24 above Log out, 24 under
+// footer. padT 28 (4 bar + 24 air). No leftover hole.
+// Not a tall right takeover. Close killed — dismiss on outside click
+// / avatar. Stacked identity. No ellipsis. Half-bar is 132×4 = 50% of 264.
 // The surface is portaled to body, so top/right are measured from the
 // trigger — not --header-height / --content-inset, which sat the 264
 // a full avatar-width left (menu right = avatar left).
@@ -91,7 +93,7 @@ export const ACCOUNT_MENU_DROPDOWN_ALIGN = "end" as const;
 export const ACCOUNT_MENU_DROPDOWN_GAP = "var(--space-2)" as const;
 
 export const ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS =
-  "absolute z-10 flex h-auto w-[264px] flex-col gap-[var(--space-4)] overflow-hidden rounded-[12px] border border-hairline bg-surface px-[var(--space-4)] pb-[var(--space-4)] pt-[calc(4px+var(--space-6))]";
+  "absolute z-10 flex h-auto w-[264px] flex-col gap-[var(--space-6)] overflow-hidden rounded-[12px] border border-hairline bg-surface px-[var(--space-6)] pb-[var(--space-6)] pt-[calc(4px+var(--space-6))]";
 
 export type AccountMenuDropdownAlign = {
   top: string;
@@ -114,7 +116,7 @@ export const ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS =
   "flex min-w-0 w-full flex-col items-start gap-[var(--space-2)] break-words";
 
 export const ACCOUNT_MENU_DROPDOWN_GROUP_CLASS =
-  "flex w-full flex-col items-start gap-[var(--space-4)]";
+  "flex w-full flex-col items-start gap-[var(--space-6)]";
 
 export const ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS = "flex w-full flex-col";
 
