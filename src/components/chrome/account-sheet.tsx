@@ -619,27 +619,24 @@ export function AccountMenuDropdown({
   const [face, setFace] = useState<AccountMenuFace>(initialFace);
   useAccountMenuDismiss(onClose, false);
   const appearanceRowRef = useRef<HTMLButtonElement>(null);
-  const [appearanceRowTop, setAppearanceRowTop] = useState<number | undefined>();
+  const flyoutHostRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (face !== "appearance") {
-      setAppearanceRowTop(undefined);
-      return undefined;
-    }
+    if (face !== "appearance" || !alignEnd) return undefined;
     const sync = () => {
       const row = appearanceRowRef.current;
-      if (!row) return;
-      setAppearanceRowTop(row.getBoundingClientRect().top);
+      const host = flyoutHostRef.current;
+      if (!row || !host) return;
+      const align = accountMenuAppearanceFlyoutAlign(alignEnd, row.getBoundingClientRect());
+      host.style.top = align.top;
     };
     sync();
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
-  }, [face]);
+  }, [face, alignEnd]);
 
-  const flyoutAlign = alignEnd
-    ? appearanceRowTop !== undefined
-      ? accountMenuAppearanceFlyoutAlign(alignEnd, { top: appearanceRowTop })
-      : { right: accountMenuAppearanceFlyoutRight(alignEnd) }
+  const flyoutRight = alignEnd
+    ? { right: accountMenuAppearanceFlyoutRight(alignEnd) }
     : undefined;
 
   return (
@@ -678,9 +675,10 @@ export function AccountMenuDropdown({
       </div>
       {face === "appearance" ? (
         <div
+          ref={flyoutHostRef}
           data-user-menu-appearance-flyout-host=""
           className={ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS}
-          style={flyoutAlign}
+          style={flyoutRight}
         >
           <AccountAppearanceFlyout />
         </div>

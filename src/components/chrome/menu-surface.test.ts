@@ -87,12 +87,13 @@ describe("shared menu surface instances", () => {
 
     const actions = sheetSrc.indexOf("ACCOUNT_SHEET_ITEMS.map");
     const groupClose = sheetSrc.indexOf("</SheetGroup>", actions);
-    const logOutAfterItems = sheetSrc.indexOf("<AccountMenuLogOut", groupClose);
+    const pinAfterItems = sheetSrc.indexOf("<AccountMenuPin", groupClose);
     const logOutLabel = sheetSrc.indexOf("{USER_MENU.logOut}");
     const footerRule = sheetSrc.indexOf("data-account-sheet-footer-rule");
-    expect(logOutAfterItems).toBeGreaterThan(groupClose);
+    expect(pinAfterItems).toBeGreaterThan(groupClose);
     expect(footerRule).toBeGreaterThan(logOutLabel);
     expect(sheetSrc.slice(actions, groupClose)).not.toContain("AccountMenuLogOut");
+    expect(sheetSrc.slice(actions, groupClose)).not.toContain("AccountMenuPin");
     expect(sheetSrc).not.toContain("data-account-sheet-logout-rule");
     expect(sheetSrc).toContain("data-account-sheet-footer-rule");
   });

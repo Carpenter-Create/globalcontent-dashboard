@@ -801,8 +801,9 @@ describe("AccountMenuDropdown 586:768 / 586:814", () => {
     expect(appearance).not.toContain("data-account-sheet-appearance-flyout-host");
     expect(flyoutHost).toContain("calc(16px + 264px + var(--space-2))");
     expect(flyoutHost).not.toContain("calc(44px + var(--space-2))");
-    expect(src).toContain("accountMenuAppearanceFlyoutAlign(alignEnd, { top: appearanceRowTop })");
+    expect(src).toContain("accountMenuAppearanceFlyoutAlign(alignEnd, row.getBoundingClientRect())");
     expect(src).toContain("appearanceRowRef");
+    expect(src).toContain("host.style.top = align.top");
     expect(src).not.toContain("top: parent.top");
     expect(src).not.toContain("top: alignEnd.top");
     expect(washClass).toContain("-left-[var(--space-6)]");
