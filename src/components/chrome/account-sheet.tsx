@@ -5,26 +5,43 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
   type Ref,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { ChevronRight, LogOut } from "lucide-react";
 
 import { AppearanceCheck } from "./appearance-check";
 import { useThemePreference } from "@/components/theme-toggle";
 import { signOut } from "@/app/actions";
 import {
+  ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS,
+  ACCOUNT_MENU_APPEARANCE_COPY_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS,
+  ACCOUNT_MENU_APPEARANCE_MODE_CLASS,
+  ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
+  ACCOUNT_MENU_APPEARANCE_WASH_CLASS,
   ACCOUNT_MENU_DROPDOWN_ALIGN,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
   ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
+  ACCOUNT_MENU_DROPDOWN_STAGE_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS,
+  accountMenuAppearanceFlyoutAlign,
   accountMenuDropdownAlignEnd,
   type AccountMenuDropdownAlign,
   ACCOUNT_SHEET,
@@ -41,7 +58,11 @@ import {
   accountSheetIdentity,
   destinationClickClosesSheet,
 } from "@/lib/account-sheet";
-import { APPEARANCE, APPEARANCE_OPTIONS, type AccountMenuFace } from "@/lib/appearance";
+import {
+  APPEARANCE_FLYOUT_OPTIONS,
+  appearancePreferenceLabel,
+  type AccountMenuFace,
+} from "@/lib/appearance";
 import { APP_SHEET_SCRIM_CLASS, SHEET_GROUP_CHEVRON_CLASS } from "@/lib/house-sheet";
 import { applyDocumentThemePreference } from "@/lib/theme";
 import { USER_MENU, userMenuAvatarInitial, userMenuVersion } from "@/lib/user-menu";
@@ -59,8 +80,15 @@ function AccountRowChevron() {
   return <ChevronRight className={SHEET_GROUP_CHEVRON_CLASS} strokeWidth={1.33} />;
 }
 
-function AccountBackChevron() {
-  return <ChevronLeft className={SHEET_GROUP_CHEVRON_CLASS} strokeWidth={1.33} />;
+function AccountAppearanceChevron() {
+  return (
+    <span
+      data-account-menu-appearance-chevron=""
+      className={ACCOUNT_MENU_APPEARANCE_CHEVRON_CLASS}
+    >
+      <AccountRowChevron />
+    </span>
+  );
 }
 
 function AccountMenuTrigger({
@@ -186,6 +214,143 @@ function AccountMenuLogOut({ onClose }: { onClose: () => void }) {
   );
 }
 
+function AccountAppearanceRow({
+  open,
+  onClick,
+}: {
+  open: boolean;
+  onClick: () => void;
+}) {
+  const preference = useThemePreference();
+
+  return (
+    <button
+      type="button"
+      data-sheet-group-item="appearance"
+      data-user-menu-item="appearance"
+      aria-expanded={open}
+      onClick={onClick}
+      className={ACCOUNT_MENU_APPEARANCE_ROW_CLASS}
+    >
+      {open ? (
+        <span data-account-menu-appearance-wash="" className={ACCOUNT_MENU_APPEARANCE_WASH_CLASS} />
+      ) : null}
+      <span className={ACCOUNT_MENU_APPEARANCE_COPY_CLASS}>
+        <span>{USER_MENU.appearance}</span>
+        <span data-account-menu-appearance-mode="" className={ACCOUNT_MENU_APPEARANCE_MODE_CLASS}>
+          {appearancePreferenceLabel(preference)}
+        </span>
+      </span>
+      <AccountAppearanceChevron />
+    </button>
+  );
+}
+
+export function AccountAppearanceFlyout({
+  className = ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
+  checkClassName,
+}: {
+  className?: string;
+  checkClassName?: string;
+}) {
+  const preference = useThemePreference();
+
+  return (
+    <div data-account-menu-appearance-flyout="" className={className}>
+      {APPEARANCE_FLYOUT_OPTIONS.map((option) => (
+        <button
+          key={option.kind}
+          type="button"
+          data-sheet-group-item={option.kind}
+          data-account-menu-appearance-option={option.kind}
+          aria-pressed={preference === option.kind}
+          className={ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS}
+          onClick={() => {
+            applyDocumentThemePreference(option.kind);
+          }}
+        >
+          <span className={ACCOUNT_MENU_APPEARANCE_FLYOUT_MARK_CLASS}>
+            <AppearanceCheck
+              selected={preference === option.kind}
+              className={checkClassName}
+            />
+          </span>
+          <span className={ACCOUNT_MENU_APPEARANCE_COPY_CLASS}>
+            <span>{option.label}</span>
+            {"helper" in option ? (
+              <span className={ACCOUNT_MENU_APPEARANCE_FLYOUT_HELPER_CLASS}>{option.helper}</span>
+            ) : null}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** 613:888 flyout rows. Back / Auto in-place face is void. */
+export function AccountSheetAppearance() {
+  return <AccountAppearanceFlyout />;
+}
+
+function AccountMenuItems({
+  pathname,
+  onClose,
+  face,
+  setFace,
+  appearanceFlyout,
+}: {
+  pathname: string;
+  onClose: () => void;
+  face: AccountMenuFace;
+  setFace: (face: AccountMenuFace) => void;
+  appearanceFlyout?: ReactNode;
+}) {
+  return (
+    <>
+      {ACCOUNT_SHEET_ITEMS.map((item) => {
+        if (item.kind === "appearance") {
+          const row = (
+            <AccountAppearanceRow
+              open={face === "appearance"}
+              onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
+            />
+          );
+          if (!appearanceFlyout) {
+            return (
+              <AccountAppearanceRow
+                key={item.kind}
+                open={face === "appearance"}
+                onClick={() => setFace(face === "appearance" ? "main" : "appearance")}
+              />
+            );
+          }
+          return (
+            <div
+              key={item.kind}
+              data-account-sheet-appearance-stack=""
+              className="relative w-full"
+            >
+              {row}
+              {appearanceFlyout}
+            </div>
+          );
+        }
+        return (
+          <SheetGroupItem
+            key={item.kind}
+            item={item.kind}
+            href={item.href}
+            onClick={destinationClickClosesSheet(pathname, item.href) ? onClose : undefined}
+          >
+            {item.label}
+            <AccountRowChevron />
+          </SheetGroupItem>
+        );
+      })}
+    </>
+  );
+}
+
 function AccountMenuBody({
   email,
   name,
@@ -193,7 +358,6 @@ function AccountMenuBody({
   onClose,
   face,
   setFace,
-  scrollClass,
   variant,
 }: {
   email: string;
@@ -202,78 +366,82 @@ function AccountMenuBody({
   onClose: () => void;
   face: AccountMenuFace;
   setFace: (face: AccountMenuFace) => void;
-  scrollClass: string;
   variant: "sheet" | "dropdown";
 }) {
   const identity = accountSheetIdentity(email, name);
   const stacked = variant === "dropdown";
+  const items = (
+    <AccountMenuItems
+      pathname={pathname}
+      onClose={onClose}
+      face={face}
+      setFace={setFace}
+      appearanceFlyout={
+        !stacked && face === "appearance" ? (
+          <div
+            data-account-sheet-appearance-flyout-host=""
+            className={ACCOUNT_SHEET_APPEARANCE_FLYOUT_HOST_CLASS}
+          >
+            <AccountAppearanceFlyout
+              className={ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS}
+              checkClassName={ACCOUNT_SHEET_APPEARANCE_CHECK_CLASS}
+            />
+          </div>
+        ) : undefined
+      }
+    />
+  );
+
+  if (stacked) {
+    return (
+      <>
+        <MenuSurfaceAccent />
+        <div data-account-menu-stage="" className={ACCOUNT_MENU_DROPDOWN_STAGE_CLASS}>
+          <div data-account-sheet-head="" className={ACCOUNT_MENU_DROPDOWN_HEAD_CLASS}>
+            <IdentityBlock
+              avatarInitial={identity.avatarInitial}
+              name={identity.name}
+              email={identity.email}
+              className={ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS}
+            />
+          </div>
+          <AppSheetHairline data-account-sheet-rule="" />
+          <div data-account-sheet-scroll="" className={ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS}>
+            <SheetGroup className={ACCOUNT_MENU_DROPDOWN_GROUP_CLASS}>{items}</SheetGroup>
+          </div>
+        </div>
+        <div data-account-menu-leftover="" className={ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS} />
+        <div data-account-sheet-pin="" className={ACCOUNT_MENU_DROPDOWN_PIN_CLASS}>
+          <AccountMenuLogOut onClose={onClose} />
+          <AccountMenuFooter />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
-      {face === "main" ? <MenuSurfaceAccent /> : null}
-      <div
-        data-account-sheet-head=""
-        className={stacked ? ACCOUNT_MENU_DROPDOWN_HEAD_CLASS : ACCOUNT_SHEET_HEAD_CLASS}
-      >
+      <MenuSurfaceAccent />
+      <div data-account-sheet-head="" className={ACCOUNT_SHEET_HEAD_CLASS}>
         <IdentityBlock
           avatarInitial={identity.avatarInitial}
           name={identity.name}
           email={identity.email}
-          className={stacked ? ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS : undefined}
         />
-        {stacked ? null : (
-          <Close44
-            label={ACCOUNT_SHEET.close}
-            data-account-sheet-close=""
-            onClick={onClose}
-          />
-        )}
+        <Close44
+          label={ACCOUNT_SHEET.close}
+          data-account-sheet-close=""
+          onClick={onClose}
+        />
       </div>
-      {face === "appearance" ? (
-        <AccountSheetAppearance onBack={() => setFace("main")} />
-      ) : (
-        <>
-          <AppSheetHairline data-account-sheet-rule="" />
-          <div data-account-sheet-scroll="" className={scrollClass}>
-            <SheetGroup className={stacked ? ACCOUNT_MENU_DROPDOWN_GROUP_CLASS : undefined}>
-              {ACCOUNT_SHEET_ITEMS.map((item) => {
-                if (item.kind === "appearance") {
-                  return (
-                    <SheetGroupItem
-                      key={item.kind}
-                      item={item.kind}
-                      onClick={() => setFace("appearance")}
-                    >
-                      {item.label}
-                      <AccountRowChevron />
-                    </SheetGroupItem>
-                  );
-                }
-                return (
-                  <SheetGroupItem
-                    key={item.kind}
-                    item={item.kind}
-                    href={item.href}
-                    onClick={
-                      destinationClickClosesSheet(pathname, item.href) ? onClose : undefined
-                    }
-                  >
-                    {item.label}
-                    <AccountRowChevron />
-                  </SheetGroupItem>
-                );
-              })}
-            </SheetGroup>
-          </div>
-          <div
-            data-account-sheet-pin=""
-            className={stacked ? ACCOUNT_MENU_DROPDOWN_PIN_CLASS : ACCOUNT_SHEET_PIN_CLASS}
-          >
-            <AccountMenuLogOut onClose={onClose} />
-            <AccountMenuFooter />
-          </div>
-        </>
-      )}
+      <AppSheetHairline data-account-sheet-rule="" />
+      <div data-account-sheet-scroll="" className={ACCOUNT_SHEET_SCROLL_CLASS}>
+        <SheetGroup>{items}</SheetGroup>
+      </div>
+      <div data-account-sheet-pin="" className={ACCOUNT_SHEET_PIN_CLASS}>
+        <AccountMenuLogOut onClose={onClose} />
+        <AccountMenuFooter />
+      </div>
     </>
   );
 }
@@ -282,9 +450,12 @@ function AccountMenuBody({
 // Quiet scrim; page stays under. 90% viewport, slides up. Hug is void.
 // Do not restyle to the desktop leftover dropdown.
 // One top row: Identity 48 + Close/44. Hairline — USER_MENU_ACTIONS.
-// Appearance opens the second face. Leftover under the last item is
-// the 90% grow (open white). Log out + footer are the bottom group.
-// Hairline only under Log out. Log out → footer 48. Footer → bottom 48.
+// Open Appearance is 618:785 — flyout ON the sheet at x=24 w=342,
+// gap 8 under Appearance. Not leftover. Not beside. Not an in-place
+// replace. Closed sheet stays 544:561 / 537:557.
+// Leftover under the last item is the 90% grow (open white). Log out
+// + footer are the bottom group. Hairline only under Log out.
+// Log out → footer 48. Footer → bottom 48.
 export function MobileAccountMenu({
   email,
   name,
@@ -313,14 +484,15 @@ export function MobileAccountMenu({
   );
 }
 
-// Desktop 586:768 / 586:814 — same items as mobile. 264 × min-h 426
-// leftover grow. NOT 384. Align-end to the avatar (right edge flush).
+// Desktop 586:768 / 586:814 — same items as mobile. 264 × 672 leftover
+// grow 134. NOT 384. Align-end to the avatar (right edge flush).
 // 8px under the trigger. Close killed. Stacked identity. 24 pad.
 // 24 between Profile / Agreements / Appearance / Help / Refer.
-// Leftover above Log out is flex-1 grow with min-h 48. Air cannot
-// collapse below 48. Pin Log out + footer to the bottom. Hairline
-// only under Log out. Log out → footer 24.
-// Footer → bottom 16. Not a 90% sheet. Not a tall right takeover.
+// Leftover above Log out is flex-1 grow with min-h 134. Pin Log out
+// + footer to the bottom. Hairline only under Log out. Log out →
+// footer 24. Footer → bottom 24. Not a 90% sheet. Not a tall right
+// takeover. Appearance 613:888 sits as a second 264 surface, gap 8
+// left of this parent.
 export function DesktopAccountMenu({
   email,
   name,
@@ -357,37 +529,6 @@ export function DesktopAccountMenu({
         ? createPortal(dropdown, document.body)
         : dropdown}
     </div>
-  );
-}
-
-export function AccountSheetAppearance({
-  onBack,
-}: {
-  onBack: () => void;
-}) {
-  const preference = useThemePreference();
-
-  return (
-    <SheetGroup>
-      <SheetGroupItem item="back" onClick={onBack} label={APPEARANCE.back}>
-        <AccountBackChevron />
-      </SheetGroupItem>
-      {APPEARANCE_OPTIONS.map((option) => (
-        <SheetGroupItem
-          key={option.kind}
-          item={option.kind}
-          pressed={preference === option.kind}
-          onClick={() => {
-            applyDocumentThemePreference(option.kind);
-          }}
-        >
-          <span className="flex items-center gap-[var(--space-2)]">
-            {option.label}
-            <AppearanceCheck selected={preference === option.kind} />
-          </span>
-        </SheetGroupItem>
-      ))}
-    </SheetGroup>
   );
 }
 
@@ -432,7 +573,6 @@ export function AccountSheet({
           onClose={onClose}
           face={face}
           setFace={setFace}
-          scrollClass={ACCOUNT_SHEET_SCROLL_CLASS}
           variant="sheet"
         />
       </div>
@@ -457,6 +597,7 @@ export function AccountMenuDropdown({
 }) {
   const [face, setFace] = useState<AccountMenuFace>(initialFace);
   useAccountMenuDismiss(onClose, false);
+  const flyoutAlign = alignEnd ? accountMenuAppearanceFlyoutAlign(alignEnd) : undefined;
 
   return (
     <div
@@ -488,10 +629,18 @@ export function AccountMenuDropdown({
           onClose={onClose}
           face={face}
           setFace={setFace}
-          scrollClass={ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS}
           variant="dropdown"
         />
       </div>
+      {face === "appearance" ? (
+        <div
+          data-user-menu-appearance-flyout-host=""
+          className={ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS}
+          style={flyoutAlign}
+        >
+          <AccountAppearanceFlyout />
+        </div>
+      ) : null}
     </div>
   );
 }

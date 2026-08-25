@@ -48,7 +48,8 @@ describe("shared menu surface instances", () => {
     expect(surfaceSrc).toContain("accent = false");
     expect(surfaceSrc).toContain("{accent ? <MenuSurfaceAccent /> : null}");
     expect(surfaceSrc).toContain("<MenuSurfaceContent data-thread-popover=\"\" {...props} accent={false} />");
-    expect(sheetSrc).toContain("{face === \"main\" ? <MenuSurfaceAccent /> : null}");
+    expect(sheetSrc).toContain("<MenuSurfaceAccent />");
+    expect(sheetSrc).not.toContain("{face === \"main\" ? <MenuSurfaceAccent /> : null}");
     expect(headerSrc).not.toContain("MenuSurfaceAccent");
     expect(headerSrc).not.toContain("accent={true}");
     expect(headerSrc).not.toContain("accent ");
