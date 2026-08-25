@@ -21,6 +21,8 @@ import {
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
@@ -127,7 +129,7 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("hairline");
   });
 
-  it("locks the 629:795 desktop dropdown to a 264 content hug — leftover 0", () => {
+  it("locks the 629:795 desktop dropdown to a 264 content hug — leftover 48", () => {
     expect(ACCOUNT_MENU_DROPDOWN_WIDTH).toBe(264);
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).toBe("fixed inset-0 z-50");
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("justify-end");
@@ -183,8 +185,14 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[48px]");
     expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_HEIGHT");
-    expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_LEFTOVER");
-    expect(accountSheet).not.toHaveProperty("ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER).toBe(48);
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("h-[var(--space-12)]");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("shrink-0");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toMatch(/h-\[\d+px\]/);
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("h-[48px]");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("min-h");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("flex-1");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).not.toContain("min-h-[134px]");
   });
 
   it("locks 586:768 Appearance wash and 613:888 as a second 264 surface", () => {

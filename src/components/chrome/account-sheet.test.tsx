@@ -19,6 +19,7 @@ import {
   ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
@@ -583,7 +584,7 @@ describe("AccountSheet 544:561 / 537:557", () => {
 });
 
 describe("AccountMenuDropdown 629:795", () => {
-  it("hugs the stack — leftover killed, not a 90% sheet and not a tall right takeover", () => {
+  it("hugs the stack — leftover 48 house air, not a 90% sheet and not a tall right takeover", () => {
     const html = renderDropdown("ada@example.com", "Ada Lovelace");
     const hostClass = attrClass(html, 'data-user-menu-desktop-panel=""');
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
@@ -594,7 +595,7 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(html).toContain("data-user-menu-desktop-surface");
     expect(html).not.toContain("data-account-sheet=\"\"");
     expect(html).not.toContain("data-account-sheet-scrim");
-    expect(html).not.toContain("data-account-menu-leftover");
+    expect(html).toContain("data-account-menu-leftover");
     expect(hostClass).toBe(ACCOUNT_MENU_DROPDOWN_HOST_CLASS);
     expect(hostClass).not.toContain("justify-end");
     expect(hostClass).not.toContain("h-dvh");
@@ -640,12 +641,21 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(scrollClass).toBe(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS);
     expect(scrollClass).toContain("shrink-0");
     expect(scrollClass).not.toContain("flex-1");
-    expect(src).not.toContain("ACCOUNT_MENU_DROPDOWN_LEFTOVER");
-    expect(src).not.toContain("data-account-menu-leftover");
+    expect(attrClass(html, "data-account-menu-leftover")).toBe(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS);
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("h-[var(--space-12)]");
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("shrink-0");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toMatch(/h-\[\d+px\]/);
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("h-[48px]");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("flex-1");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("min-h");
+    expect(src).toContain("ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS");
+    expect(src).toContain("data-account-menu-leftover");
+    expect(src).not.toContain("h-[48px]");
     expect(src).not.toContain("h-[522px]");
     expect(src).not.toContain("h-[570px]");
     expect(src).not.toContain("h-[672px]");
     expect(src).not.toContain("min-h-[672px]");
+    expect(tokens).toMatch(/--space-12:\s*3rem/);
     expect(src).toContain("useAccountMenuDismiss(onClose, false)");
     expect(src).not.toContain("md:w-[390px]");
     expect(tokens).toMatch(/--space-4:\s*1rem/);
@@ -692,7 +702,7 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(src).toContain('variant="sheet"');
   });
 
-  it("keeps 24 between items — leftover last-item → Log out is 0, hairline only under Log out", () => {
+  it("keeps 24 between items — leftover last-item → Log out is 48, hairline only under Log out", () => {
     const html = renderDropdown();
     const surfaceClass = attrClass(html, "data-user-menu-desktop-surface");
     const scrollClass = attrClass(html, "data-account-sheet-scroll");
@@ -706,7 +716,7 @@ describe("AccountMenuDropdown 629:795", () => {
 
     expect(html).toContain("data-account-sheet-pin");
     expect(html).not.toContain("data-account-sheet-logout-rule");
-    expect(html).not.toContain("data-account-menu-leftover");
+    expect(html).toContain("data-account-menu-leftover");
     expect(surfaceClass).toContain("h-auto");
     expect(surfaceClass).not.toMatch(/h-\[\d+px\]/);
     expect(surfaceClass).not.toContain("min-h");
@@ -737,7 +747,11 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(pinClass).not.toContain("gap-[var(--space-12)]");
     expect(refer).toBeGreaterThan(-1);
     expect(logout).toBeGreaterThan(refer);
-    expect(betweenReferAndLogout).not.toContain("data-account-menu-leftover");
+    expect(betweenReferAndLogout).toContain("data-account-menu-leftover");
+    expect(attrClass(html, "data-account-menu-leftover")).toBe(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS);
+    expect(attrClass(html, "data-account-menu-leftover")).toContain("h-[var(--space-12)]");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("h-[48px]");
+    expect(attrClass(html, "data-account-menu-leftover")).not.toContain("flex-1");
     expect(footerRule).toBeGreaterThan(logout);
     expect(footer).toBeGreaterThan(footerRule);
     expect(betweenReferAndLogout).not.toContain("data-account-sheet-footer-rule");
@@ -753,6 +767,7 @@ describe("AccountMenuDropdown 629:795", () => {
     expect(src).toContain("ACCOUNT_MENU_DROPDOWN_PIN_CLASS");
     expect(src).toContain("ACCOUNT_SHEET_PIN_CLASS");
     expect(src).toContain("<AccountMenuPin");
+    expect(renderSheet()).not.toContain("data-account-menu-leftover");
   });
 
   it("keeps the same SSOT items, Sporty Blue Log out, and pinned 13/16 footer", () => {
