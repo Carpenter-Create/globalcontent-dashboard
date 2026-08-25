@@ -1,5 +1,5 @@
-// Quiet selected mark for Light / Dark / Auto. Inline stroke — not an
-// icon pack, not a radio.
+// Quiet selected mark for System default / Dark / Light. 16. Inline
+// stroke — not an icon pack, not a radio, not purple.
 
 export function AppearanceCheck({ selected }: { selected: boolean }) {
   if (!selected) return null;

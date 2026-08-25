@@ -3,16 +3,28 @@ import { describe, expect, it } from "vitest";
 import { TEXT_ACTION_CLASS } from "@/lib/house-sheet";
 import { USER_MENU, USER_MENU_ACTIONS } from "@/lib/user-menu";
 import {
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS,
+  ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS,
+  ACCOUNT_MENU_APPEARANCE_ROW_CLASS,
+  ACCOUNT_MENU_APPEARANCE_WASH_CLASS,
   ACCOUNT_MENU_DROPDOWN_ALIGN,
   ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS,
   ACCOUNT_MENU_DROPDOWN_GAP,
   ACCOUNT_MENU_DROPDOWN_GROUP_CLASS,
   ACCOUNT_MENU_DROPDOWN_HEAD_CLASS,
+  ACCOUNT_MENU_DROPDOWN_HEIGHT,
   ACCOUNT_MENU_DROPDOWN_HOST_CLASS,
   ACCOUNT_MENU_DROPDOWN_IDENTITY_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS,
+  ACCOUNT_MENU_DROPDOWN_LEFTOVER_MIN,
   ACCOUNT_MENU_DROPDOWN_PIN_CLASS,
   ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS,
   ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS,
+  ACCOUNT_MENU_DROPDOWN_WIDTH,
+  ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS,
+  accountMenuAppearanceFlyoutAlign,
   accountMenuDropdownAlignEnd,
   ACCOUNT_SHEET,
   ACCOUNT_SHEET_ABSENT,
@@ -50,7 +62,7 @@ describe("account sheet lock", () => {
     ]);
   });
 
-  it("wires only existing routes — Appearance is a nested face, not a page", () => {
+  it("wires only existing routes — Appearance is a second surface, not a page", () => {
     const hrefs = ACCOUNT_SHEET_ITEMS.flatMap((item) => ("href" in item ? [item.href] : []));
     expect(hrefs).toEqual([
       USER_MENU.profileHref,
@@ -110,26 +122,30 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_SHEET_LOGOUT_STACK_CLASS).not.toContain("gap-");
   });
 
-  it("locks the 586:768 / 586:814 desktop dropdown to 264 × min-h 426 leftover grow", () => {
+  it("locks the 586:768 / 586:814 desktop dropdown to 264 × 672 leftover grow 134", () => {
+    expect(ACCOUNT_MENU_DROPDOWN_WIDTH).toBe(264);
+    expect(ACCOUNT_MENU_DROPDOWN_HEIGHT).toBe(672);
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_MIN).toBe(134);
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).toBe("fixed inset-0 z-50");
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("justify-end");
     expect(ACCOUNT_MENU_DROPDOWN_HOST_CLASS).not.toContain("h-dvh");
     expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).toBe("absolute inset-0");
     expect(ACCOUNT_MENU_DROPDOWN_DISMISS_CLASS).not.toContain("bg-ink");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("min-h-[426px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("h-[672px]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("w-[264px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-auto");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h-[426px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("min-h-[384px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("h-[384px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("w-[384px]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("w-[264px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("rounded-[12px]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("border-hairline");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("px-[var(--space-6)]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("pb-[var(--space-4)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("pb-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("pt-[calc(4px+var(--space-6))]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("gap-[var(--space-6)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("gap-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("px-[var(--space-4)]");
-    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("pb-[var(--space-6)]");
+    expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("pb-[var(--space-4)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("gap-[var(--space-4)]");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).toContain("overflow-hidden");
     expect(ACCOUNT_MENU_DROPDOWN_SURFACE_CLASS).not.toContain("top-[calc(var(--header-height)+var(--space-2))]");
@@ -152,10 +168,46 @@ describe("account sheet lock", () => {
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("mt-");
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).toContain("gap-[var(--space-6)]");
     expect(ACCOUNT_MENU_DROPDOWN_PIN_CLASS).not.toContain("gap-[var(--space-12)]");
-    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("flex-1");
-    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("min-h-[var(--space-12)]");
-    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-0");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).toContain("shrink-0");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("flex-1");
+    expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("min-h-[var(--space-12)]");
     expect(ACCOUNT_MENU_DROPDOWN_SCROLL_CLASS).not.toContain("overflow-y-auto");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("min-h-[134px]");
+    expect(ACCOUNT_MENU_DROPDOWN_LEFTOVER_CLASS).toContain("flex-1");
+  });
+
+  it("locks 586:768 Appearance wash and 613:888 as a second 264 surface", () => {
+    expect(ACCOUNT_MENU_APPEARANCE_ROW_CLASS).toContain("py-[var(--space-4)]");
+    expect(ACCOUNT_MENU_APPEARANCE_ROW_CLASS).not.toContain("px-");
+    expect(ACCOUNT_MENU_APPEARANCE_ROW_CLASS).not.toContain("rounded");
+    expect(ACCOUNT_MENU_APPEARANCE_WASH_CLASS).toContain("-left-[var(--space-6)]");
+    expect(ACCOUNT_MENU_APPEARANCE_WASH_CLASS).toContain("-right-[var(--space-6)]");
+    expect(ACCOUNT_MENU_APPEARANCE_WASH_CLASS).toContain("bg-surface-muted");
+    expect(ACCOUNT_MENU_APPEARANCE_WASH_CLASS).not.toContain("rounded");
+    expect(ACCOUNT_MENU_APPEARANCE_WASH_CLASS).not.toContain("purple");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).toContain("w-[264px]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).toContain("rounded-[12px]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).toContain("border-hairline");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).toContain("gap-[var(--space-2)]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).toContain("py-[var(--space-2)]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).not.toContain("purple");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_CLASS).not.toContain("violet");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS).toContain("p-[var(--space-4)]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_ROW_CLASS).toContain("gap-[var(--space-2)]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS).toContain("absolute");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_HOST_CLASS).toContain("w-[264px]");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).toContain("mt-auto");
+    expect(ACCOUNT_SHEET_APPEARANCE_FLYOUT_CLASS).toContain("max-w-[264px]");
+    expect(ACCOUNT_MENU_APPEARANCE_FLYOUT_GAP).toBe("var(--space-2)");
+  });
+
+  it("sits the desktop 613:888 flyout 8px left of the 264 parent", () => {
+    const parent = { top: "calc(44px + var(--space-2))", right: "16px" };
+    const flyout = accountMenuAppearanceFlyoutAlign(parent);
+
+    expect(flyout.top).toBe(parent.top);
+    expect(flyout.right).toBe("calc(16px + 264px + var(--space-2))");
+    expect(flyout.right).not.toBe(parent.right);
   });
 
   it("docks the desktop menu align-end to the avatar with 8px under the trigger", () => {
