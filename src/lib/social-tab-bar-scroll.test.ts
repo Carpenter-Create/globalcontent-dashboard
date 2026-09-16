@@ -41,6 +41,15 @@ describe("stepSocialTabBarScroll", () => {
     expect(tracker.state).toBe("visible");
   });
 
+  it("clears leftover acc after top overscroll so bounce-back stays visible", () => {
+    let tracker = createSocialTabBarScrollTracker(0);
+    tracker = stepSocialTabBarScroll(tracker, -24);
+    expect(tracker).toEqual({ lastY: 0, acc: 0, state: "visible" });
+    tracker = stepSocialTabBarScroll(tracker, 2);
+    expect(tracker.state).toBe("visible");
+    expect(tracker.acc).toBe(2);
+  });
+
   it("resets the accumulator when direction reverses", () => {
     let tracker = createSocialTabBarScrollTracker(20);
     tracker = stepSocialTabBarScroll(tracker, 24);

@@ -31,6 +31,9 @@ export function stepSocialTabBarScroll(
   y: number,
   threshold = SOCIAL_TAB_BAR_SCROLL_THRESHOLD,
 ): SocialTabBarScrollTracker {
+  if (y <= 0) {
+    return { lastY: 0, acc: 0, state: "visible" };
+  }
   const delta = y - tracker.lastY;
   let acc = tracker.acc;
   if ((delta > 0 && acc < 0) || (delta < 0 && acc > 0)) acc = 0;
